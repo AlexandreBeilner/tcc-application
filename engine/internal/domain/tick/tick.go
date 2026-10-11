@@ -13,6 +13,7 @@ package tick
 import (
 	"context"
 	"hash/fnv"
+	"slices"
 
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/dividend"
@@ -154,6 +155,48 @@ type CompanyForFundamentals struct {
 	// (o mais recente primeiro, até 3), insumo do pool acumulado do provento
 	// semestral e anual.
 	PriorNetIncomes []float64
+
+	// Declaração pendente (MO.6.11). HoldDeclaration manda reter o dividendo do balanço de
+	// hoje (a assembleia de destinação do lucro decide antes), calculado por Service.Run a
+	// partir de corporategovernance.ShouldHold; UserShareholders, LastPayoutStartDay e
+	// HasHeldDeclaration são os insumos crus, lidos do banco.
+	HoldDeclaration    bool
+	UserShareholders   bool
+	LastPayoutStartDay *int
+	HasHeldDeclaration bool
+	// Release, quando não nil, é a declaração retida que sai neste tick: vira provento com as
+	// datas contadas a partir de hoje.
+	Release *DeclarationRelease
+	// HeldCycles são os ciclos de balanço com declaração retida (ainda sem provento), e
+	// DeclaredExByCycle a data-ex real dos ciclos cuja declaração foi liberada com atraso: o
+	// efeito de preço do provento segue a data-ex de verdade, não a do calendário.
+	HeldCycles        []int
+	DeclaredExByCycle map[int]int
+}
+
+// DeclarationRelease é uma declaração de dividendo retida que sai neste tick (MO.6.11).
+type DeclarationRelease struct {
+	ID            string
+	CycleIndex    int
+	PoolNetIncome float64
+	// Reason é o motivo da liberação (decision, no_decision, admin ou expired).
+	Reason string
+}
+
+// HeldDeclaration é a declaração que ficou retida neste tick: o dividendo do balanço não saiu
+// e a assembleia de destinação do lucro decide. SaveTick a persiste atomicamente com o tick.
+type HeldDeclaration struct {
+	CompanyID     string
+	CycleIndex    int
+	ReportDay     int
+	PoolNetIncome float64
+}
+
+// ReleasedDeclaration é a declaração retida liberada neste tick, com a data-ex do provento.
+type ReleasedDeclaration struct {
+	ID     string
+	ExDay  int
+	Reason string
 }
 
 // MacroEventTargetForApplication espelha uma linha de macro_event_targets
@@ -395,6 +438,10 @@ type Result struct {
 	// linha e o snapshot de Recipients (dividend_event_recipients)
 	// atomicamente com o resto do tick.
 	NewDividends []DividendRecord
+	// HeldDeclarations e ReleasedDeclarations (MO.6.11): declarações de dividendo retidas e
+	// liberadas neste tick; SaveTick as grava atomicamente com o resto.
+	HeldDeclarations     []HeldDeclaration
+	ReleasedDeclarations []ReleasedDeclaration
 	// Snapshots são os snapshots de elegíveis tirados neste tick pros proventos
 	// declarados antes (RC.6.11), preenchidos por Service.Run (precisa ler as
 	// posições, que Advance, função pura, não vê).
@@ -648,9 +695,14 @@ func dividendPriceEffectPct(financials fundamentals.Financials, dayIndex int, c 
 	}
 	for k := newDay/freq - 1; k >= 0; k-- {
 		cycle := paymentschedule.EquityCycleAt(freq, c.ReportOffsetDays, c.ScheduleCutoverDay, c.ScheduleAssigned, c.DividendPolicy, c.ComLagDays, c.PaymentLagDays, k)
-		if cycle.Report > newDay || !cycle.Pays {
-			// Balanço que ainda não saiu, ou que não paga: o efeito é do último que pagou.
+		if cycle.Report > newDay || !cycle.Pays || slices.Contains(c.HeldCycles, k) {
+			// Balanço que ainda não saiu, que não paga ou cuja declaração está retida (ainda
+			// sem provento): o efeito é do último que pagou.
 			continue
+		}
+		if ex, ok := c.DeclaredExByCycle[k]; ok {
+			// Declaração liberada com atraso: a banda conta da data-ex de verdade.
+			cycle.Ex = ex
 		}
 		daysSinceEx := newDay - cycle.Ex
 		if daysSinceEx < 0 || daysSinceEx >= dividendPriceEffectBandDays {
@@ -1265,6 +1317,7 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 	reportedRevenue := make(map[string]float64, len(companies))
 	fundamentalsRecords := make([]FundamentalsRecord, 0, len(companies))
 	payoutsByCompany := make(map[string]equityPayout, len(companies))
+	var heldDeclarations []HeldDeclaration
 	pnPremiumPctByCompany := make(map[string]float64, len(companies))
 	payoutRatioPctByCompany := make(map[string]float64, len(companies))
 	for _, c := range companies {
@@ -1291,7 +1344,13 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		netRevenue := fundamentals.RevenueSeries(baseRevenue, []float64{actualGrowth})[0]
 		financials := fundamentals.DeriveFinancials(sector, c.QualityMultiplier, netRevenue)
 		if payout, pays := equityPayoutFor(c, cycle.Index, financials.NetIncome); pays {
-			payoutsByCompany[c.CompanyID] = payout
+			if c.HoldDeclaration {
+				heldDeclarations = append(heldDeclarations, HeldDeclaration{
+					CompanyID: c.CompanyID, CycleIndex: cycle.Index, ReportDay: newDay, PoolNetIncome: payout.PoolNetIncome,
+				})
+			} else {
+				payoutsByCompany[c.CompanyID] = payout
+			}
 		}
 
 		reportedRevenue[c.CompanyID] = netRevenue
@@ -1305,6 +1364,8 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 			CashEquivalents: financials.CashEquivalents,
 		})
 	}
+
+	releasedDeclarations := releaseDeclarations(companies, payoutsByCompany, newDay)
 
 	companyContext := companyRoundContexts(companies, reportedRevenue, seed, newSelicRate, selicCfg.Neutral, macroPriceEffects, dayIndex)
 
@@ -1372,6 +1433,8 @@ func Advance(current State, assets []AssetForPricing, companies []CompanyForFund
 		IsReportDay:           fundamentals.IsReportDay(dayIndex, fundamentals.DefaultReportFrequencyDays),
 		AppliedMacroEventIDs:  appliedMacroEventIDs,
 		NewDividends:          dividendRecordsForCycle(dividendPayers, payoutsByCompany, pnPremiumPctByCompany, payoutRatioPctByCompany, dayIndex, newDay),
+		HeldDeclarations:      heldDeclarations,
+		ReleasedDeclarations:  releasedDeclarations,
 		DuePayments:           duePaymentsForDay(pendingDividends, newDay),
 		NetWorthUpdates:       netWorthUpdates,
 		PortfolioValueUpdates: portfolioValueUpdates,
@@ -1422,6 +1485,42 @@ type equityPayout struct {
 	PoolNetIncome float64
 	ExDay         int
 	PayDay        int
+}
+
+// releaseDeclarations transforma as declarações retidas que saem hoje em proventos (MO.6.11):
+// as datas contam a partir da liberação, não do balanço. O lucro do pool é recalculado com a
+// política de dividendo **vigente na liberação** (a assembleia pode tê-la trocado, MO.6.12): os
+// lucros dos últimos PoolCycles balanços já persistidos (o do balanço retido é o mais recente).
+// Se a política nova não paga naquele balanço, nada sai agora e o lucro entra no pool do
+// próximo balanço que pagar, como em qualquer empresa da política. Se a empresa também declara
+// hoje (o prazo de segurança abaixo do ciclo impede na prática), o pool soma. Devolve a data-ex
+// de cada uma (0 quando não houve provento), na ordem das empresas.
+func releaseDeclarations(companies []CompanyForFundamentals, payoutsByCompany map[string]equityPayout, newDay int) []ReleasedDeclaration {
+	var released []ReleasedDeclaration
+	for _, c := range companies {
+		if c.Release == nil {
+			continue
+		}
+		rel := ReleasedDeclaration{ID: c.Release.ID, Reason: c.Release.Reason}
+		cycle := paymentschedule.EquityCycleAt(c.ReportFrequencyDays, c.ReportOffsetDays, c.ScheduleCutoverDay, c.ScheduleAssigned, c.DividendPolicy, c.ComLagDays, c.PaymentLagDays, c.Release.CycleIndex)
+		if cycle.Pays {
+			// Ciclo que fechou antes do dia de corte da agenda segue o legado, como em EquityCycleAt.
+			assigned := c.ScheduleAssigned && (c.Release.CycleIndex+1)*c.ReportFrequencyDays > c.ScheduleCutoverDay
+			ex, pay := paymentschedule.ReleaseCycle(newDay, assigned, c.ComLagDays, c.PaymentLagDays)
+			pool := 0.0
+			for i := 0; i < cycle.PoolCycles && i < len(c.PriorNetIncomes); i++ {
+				pool += c.PriorNetIncomes[i]
+			}
+			payout := equityPayout{PoolNetIncome: pool, ExDay: ex, PayDay: pay}
+			if existing, ok := payoutsByCompany[c.CompanyID]; ok {
+				payout.PoolNetIncome += existing.PoolNetIncome
+			}
+			payoutsByCompany[c.CompanyID] = payout
+			rel.ExDay = ex
+		}
+		released = append(released, rel)
+	}
+	return released
 }
 
 // equityPayoutFor resolve se o balanço do ciclo cycleIndex paga provento e quanto

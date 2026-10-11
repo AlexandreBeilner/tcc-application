@@ -122,7 +122,7 @@ func loadSnapshot(ctx context.Context, q governanceQuerier, assemblyID string) (
 
 const decisionColumns = `id, assembly_id, company_id, option_key, decided_at`
 
-const effectColumns = `id, position, metric, direction, intensity::float8, status, total_delta, ramp_ticks, start_day, applied_ticks, applied_delta`
+const effectColumns = `id, position, metric, COALESCE(direction, 0), COALESCE(intensity::float8, 0), COALESCE(target_value, ''), status, total_delta, ramp_ticks, start_day, applied_ticks, applied_delta`
 
 func scanDecisionHeader(scan func(dest ...any) error) (corporategovernance.Decision, error) {
 	var d corporategovernance.Decision
@@ -133,7 +133,7 @@ func scanDecisionHeader(scan func(dest ...any) error) (corporategovernance.Decis
 func scanEffect(scan func(dest ...any) error) (corporategovernance.EffectRecord, error) {
 	var e corporategovernance.EffectRecord
 	var metric, status string
-	err := scan(&e.ID, &e.Position, &metric, &e.Direction, &e.Intensity, &status, &e.TotalDelta, &e.RampTicks, &e.StartDay, &e.AppliedTicks, &e.AppliedDelta)
+	err := scan(&e.ID, &e.Position, &metric, &e.Direction, &e.Intensity, &e.TargetValue, &status, &e.TotalDelta, &e.RampTicks, &e.StartDay, &e.AppliedTicks, &e.AppliedDelta)
 	e.Metric = corporategovernance.Metric(metric)
 	e.Status = corporategovernance.Status(status)
 	return e, err
@@ -175,8 +175,8 @@ func (r *GovernanceRepository) GetDecision(ctx context.Context, assemblyID strin
 func lastStartDays(ctx context.Context, q governanceQuerier, companyID string) (map[corporategovernance.Group]int, error) {
 	var fundamentals, payout sql.NullInt64
 	if err := q.QueryRowContext(ctx,
-		`SELECT MAX(start_day) FILTER (WHERE metric <> 'payout_ratio_pct'),
-		        MAX(start_day) FILTER (WHERE metric = 'payout_ratio_pct')
+		`SELECT MAX(start_day) FILTER (WHERE metric NOT IN (`+payoutGroupMetricsSQL+`)),
+		        MAX(start_day) FILTER (WHERE metric IN (`+payoutGroupMetricsSQL+`))
 		 FROM governance_decision_effects WHERE company_id = $1 AND status IN ('scheduled', 'completed')`,
 		companyID).Scan(&fundamentals, &payout); err != nil {
 		return nil, err
@@ -214,17 +214,25 @@ func (r *GovernanceRepository) RecordDecision(ctx context.Context, in corporateg
 
 	// Trava a empresa: duas decisões de assembleias diferentes sobre a mesma empresa se
 	// serializam, então o cooldown enxerga a anterior.
-	var growth, quality, payout int
+	var growth, quality, payout, premium int
+	var policy string
 	err = tx.QueryRowContext(ctx,
-		`SELECT ROUND(base_growth_pct * 100)::int, ROUND(quality_multiplier * 100)::int, ROUND(payout_ratio_pct * 100)::int
-		 FROM companies WHERE id = $1 FOR UPDATE`, in.CompanyID).Scan(&growth, &quality, &payout)
+		`SELECT ROUND(base_growth_pct * 100)::int, ROUND(quality_multiplier * 100)::int, ROUND(payout_ratio_pct * 100)::int,
+		        ROUND(pn_dividend_premium_pct * 100)::int, dividend_policy
+		 FROM companies WHERE id = $1 FOR UPDATE`, in.CompanyID).Scan(&growth, &quality, &payout, &premium, &policy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return corporategovernance.Decision{}, false, corporategovernance.ErrUnknownCompany
 	}
 	if err != nil {
 		return corporategovernance.Decision{}, false, err
 	}
-	state := corporategovernance.CompanyState{BaseGrowthPct: growth, QualityMultiplier: quality, PayoutRatioPct: payout}
+	state := corporategovernance.CompanyState{
+		BaseGrowthPct: growth, QualityMultiplier: quality, PayoutRatioPct: payout, PnPremiumPct: premium, DividendPolicy: policy,
+	}
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM variable_income_assets WHERE company_id = $1 AND share_class = 'PN')`, in.CompanyID).Scan(&state.HasPN); err != nil {
+		return corporategovernance.Decision{}, false, err
+	}
 	if state.Today, err = loadSimulatedDay(ctx, tx); err != nil {
 		return corporategovernance.Decision{}, false, err
 	}
@@ -257,8 +265,16 @@ func (r *GovernanceRepository) RecordDecision(ctx context.Context, in corporateg
 	// Uma linha de evento por efeito; governance_decision_effects.event_id liga cada uma à
 	// sua métrica (o evento só carrega a mudança total em `quantity`).
 	eventIDs := make([]string, 0, len(plans))
-	for _, p := range plans {
+	for i, p := range plans {
 		total := p.TotalDelta
+		if in.Effects[i].Metric == corporategovernance.MetricDividendPolicy && p.Status != corporategovernance.StatusSkippedCooldown {
+			// A política não soma degrau: o evento guarda quantos ciclos de lucro cada
+			// pagamento passa a ter (1, 2 ou 4), ou 0 se a troca não se aplicou.
+			total = corporategovernance.PolicyCycles(in.Effects[i].Value)
+			if p.Status == corporategovernance.StatusSkippedNotApplicable {
+				total = 0
+			}
+		}
 		eventID, err := eventstore.AppendTxReturningID(ctx, tx, domain.MarketEvent{
 			UserID:      domain.GovernanceAccountID,
 			AssetID:     &assetID,
@@ -282,10 +298,20 @@ func (r *GovernanceRepository) RecordDecision(ctx context.Context, in corporateg
 		p := plans[i]
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO governance_decision_effects
-			   (decision_id, company_id, position, event_id, metric, direction, intensity, status, total_delta, ramp_ticks, start_day)
-			 VALUES ($1, $2, $3, $11, $4, $5, $6, $7, $8, $9, $10)`,
+			   (decision_id, company_id, position, event_id, metric, direction, intensity, target_value, status, total_delta, ramp_ticks, start_day)
+			 VALUES ($1, $2, $3, $11, $4, NULLIF($5, 0), NULLIF($6::numeric, 0), NULLIF($12, ''), $7, $8, $9, $10)`,
 			decisionID, in.CompanyID, i, string(e.Metric), e.Direction, e.Intensity,
-			string(p.Status), p.TotalDelta, p.RampTicks, p.StartDay, eventIDs[i]); err != nil {
+			string(p.Status), p.TotalDelta, p.RampTicks, p.StartDay, eventIDs[i], e.Value); err != nil {
+			return corporategovernance.Decision{}, false, err
+		}
+	}
+	if in.DeclarationID != "" {
+		// Liga a decisão à declaração retida da empresa; se ela já saiu (prazo de segurança ou
+		// liberação pedida), a decisão vale só como fundamentos e destinação para o futuro.
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE governance_pending_declarations SET decision_assembly_id = $2
+			 WHERE id = $1 AND company_id = $3 AND status = 'held' AND decision_assembly_id IS NULL AND NOT release_requested`,
+			in.DeclarationID, in.AssemblyID, in.CompanyID); err != nil {
 			return corporategovernance.Decision{}, false, err
 		}
 	}
@@ -298,7 +324,7 @@ func (r *GovernanceRepository) RecordDecision(ctx context.Context, in corporateg
 
 func (r *GovernanceRepository) ListScheduled(ctx context.Context) ([]corporategovernance.EffectRecord, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT e.id, e.position, e.metric, e.direction, e.intensity::float8, e.status, e.total_delta, e.ramp_ticks,
+		`SELECT e.id, e.position, e.metric, COALESCE(e.direction, 0), COALESCE(e.intensity::float8, 0), e.status, e.total_delta, e.ramp_ticks,
 		        e.start_day, e.applied_ticks, e.applied_delta, d.assembly_id
 		 FROM governance_decision_effects e JOIN governance_decisions d ON d.id = e.decision_id
 		 WHERE e.status = 'scheduled' ORDER BY e.start_day, d.assembly_id, e.position`)
@@ -327,6 +353,8 @@ func metricColumn(m corporategovernance.Metric) string {
 		return "quality_multiplier"
 	case corporategovernance.MetricPayoutRatioPct:
 		return "payout_ratio_pct"
+	case corporategovernance.MetricPnPremiumPct:
+		return "pn_dividend_premium_pct"
 	}
 	return "base_growth_pct"
 }
@@ -344,10 +372,11 @@ func (r *GovernanceRepository) ApplyStep(ctx context.Context, effectID string, p
 	defer func() { _ = tx.Rollback() }()
 
 	var companyID, metric string
+	var target sql.NullString
 	var applied int
 	err = tx.QueryRowContext(ctx,
-		`SELECT company_id, metric, applied_ticks FROM governance_decision_effects
-		 WHERE id = $1 AND status = 'scheduled' FOR UPDATE`, effectID).Scan(&companyID, &metric, &applied)
+		`SELECT company_id, metric, applied_ticks, target_value FROM governance_decision_effects
+		 WHERE id = $1 AND status = 'scheduled' FOR UPDATE`, effectID).Scan(&companyID, &metric, &applied, &target)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -356,6 +385,19 @@ func (r *GovernanceRepository) ApplyStep(ctx context.Context, effectID string, p
 	}
 	if applied != previousTicks {
 		return false, nil
+	}
+
+	if corporategovernance.IsDiscrete(corporategovernance.Metric(metric)) {
+		// Troca de valor (política de dividendo): sem degrau e sem faixa, vale já.
+		if _, err := tx.ExecContext(ctx, `UPDATE companies SET dividend_policy = $2 WHERE id = $1`, companyID, target.String); err != nil {
+			return false, err
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE governance_decision_effects SET applied_ticks = $2, status = 'completed' WHERE id = $1`,
+			effectID, step.AppliedTicks); err != nil {
+			return false, err
+		}
+		return true, tx.Commit()
 	}
 
 	column := metricColumn(corporategovernance.Metric(metric))
@@ -387,6 +429,66 @@ func (r *GovernanceRepository) ApplyStep(ctx context.Context, effectID string, p
 		return false, err
 	}
 	return true, tx.Commit()
+}
+
+// payoutGroupMetricsSQL lista, para SQL, as métricas do grupo de destinação do lucro (cooldown
+// próprio e efeito aplicado antes de a declaração sair).
+const payoutGroupMetricsSQL = `'payout_ratio_pct', 'dividend_policy', 'pn_dividend_premium_pct'`
+
+// ListPending devolve as declarações de dividendo retidas, da mais antiga para a mais nova.
+func (r *GovernanceRepository) ListPending(ctx context.Context) ([]corporategovernance.Pending, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT d.id, d.company_id, c.name, c.sector, d.cycle_index, d.report_day, d.held_day,
+		        COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0) - d.held_day, d.pool_net_income::float8,
+		        d.decision_assembly_id, d.release_requested, d.release_reason,
+		        EXISTS (SELECT 1 FROM governance_decision_effects e JOIN governance_decisions gd ON gd.id = e.decision_id
+		                WHERE gd.assembly_id = d.decision_assembly_id AND e.status = 'scheduled'
+		                  AND e.metric IN (`+payoutGroupMetricsSQL+`)),
+		        ARRAY(SELECT a.ticker FROM variable_income_assets v JOIN assets a ON a.id = v.asset_id AND NOT a.is_sandbox
+		              WHERE v.company_id = d.company_id ORDER BY v.share_class, a.ticker)
+		 FROM governance_pending_declarations d JOIN companies c ON c.id = d.company_id
+		 WHERE d.status = 'held' ORDER BY d.held_day, d.company_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []corporategovernance.Pending
+	for rows.Next() {
+		var p corporategovernance.Pending
+		var decision, reason sql.NullString
+		if err := rows.Scan(&p.ID, &p.CompanyID, &p.Name, &p.Sector, &p.CycleIndex, &p.ReportDay, &p.HeldDay, &p.DaysHeld, &p.PoolNetIncome,
+			&decision, &p.ReleaseRequested, &reason, &p.PayoutEffectPending, pq.Array(&p.Tickers)); err != nil {
+			return nil, err
+		}
+		if decision.Valid {
+			p.DecisionAssemblyID = &decision.String
+		}
+		p.ReleaseReason = corporategovernance.ReleaseReason(reason.String)
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// RequestRelease marca a declaração retida para sair no próximo tick. Pedir de novo, ou para
+// uma já liberada, não muda nada (o primeiro motivo vale).
+func (r *GovernanceRepository) RequestRelease(ctx context.Context, id string, reason corporategovernance.ReleaseReason) error {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE governance_pending_declarations SET release_requested = true, release_reason = $2
+		 WHERE id = $1 AND status = 'held' AND NOT release_requested`, id, string(reason))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	var exists bool
+	if err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM governance_pending_declarations WHERE id = $1)`, id).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return corporategovernance.ErrUnknownDeclaration
+	}
+	return nil
 }
 
 var _ corporategovernance.ScheduleReader = (*GovernanceRepository)(nil)

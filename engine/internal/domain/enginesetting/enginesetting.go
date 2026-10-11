@@ -46,6 +46,19 @@ const (
 	GovernancePayoutMinPct       Key = "governance_payout_min_pct"
 	GovernancePayoutMaxPct       Key = "governance_payout_max_pct"
 	GovernancePayoutCooldownDays Key = "governance_payout_cooldown_days"
+
+	// Declaração pendente (MO.6.11). GovernanceHoldDeclarations (0 ou 1, padrão 0) liga a
+	// retenção do dividendo do balanço enquanto a assembleia de destinação do lucro decide; só
+	// ligar junto de ASSEMBLIES_ENABLED no backend. GovernanceDeclarationSafetyDays é o prazo,
+	// em dias simulados, para a declaração retida sair sozinha com o payout vigente.
+	GovernanceHoldDeclarations Key = "governance_hold_declarations"
+
+	// Prêmio da ação PN sobre a ON (MO.6.12): degrau em centésimos de p.p. (500 = 5 p.p.) e
+	// faixa válida em % inteiros (o piso é o legal, 10%).
+	GovernancePremiumStepCentiPP    Key = "governance_premium_step_centipp"
+	GovernancePremiumMinPct         Key = "governance_premium_min_pct"
+	GovernancePremiumMaxPct         Key = "governance_premium_max_pct"
+	GovernanceDeclarationSafetyDays Key = "governance_declaration_safety_days"
 )
 
 // Padrões da governança, aplicados por NewService quando o chamador não informa o valor.
@@ -60,6 +73,13 @@ const (
 	DefaultGovernancePayoutMinPct       = 20
 	DefaultGovernancePayoutMaxPct       = 90
 	DefaultGovernancePayoutCooldownDays = 90
+
+	DefaultGovernancePremiumStepCentiPP = 500
+	DefaultGovernancePremiumMinPct      = 10
+	DefaultGovernancePremiumMaxPct      = 30
+
+	DefaultGovernanceHoldDeclarations      = 0
+	DefaultGovernanceDeclarationSafetyDays = 60
 )
 
 // ErrUnknownKey: a chave não é um parâmetro editável.
@@ -94,6 +114,13 @@ var definitions = []Definition{
 	{Key: GovernancePayoutMinPct, Min: 0, Max: 100},
 	{Key: GovernancePayoutMaxPct, Min: 0, Max: 100},
 	{Key: GovernancePayoutCooldownDays, Min: 0, Max: 720},
+	// O prazo de segurança fica abaixo do ciclo trimestral (91 dias): uma declaração retida
+	// sempre sai antes de o próximo balanço gerar outra.
+	{Key: GovernancePremiumStepCentiPP, Min: 1, Max: 2000},
+	{Key: GovernancePremiumMinPct, Min: 10, Max: 100},
+	{Key: GovernancePremiumMaxPct, Min: 10, Max: 100},
+	{Key: GovernanceHoldDeclarations, Min: 0, Max: 1},
+	{Key: GovernanceDeclarationSafetyDays, Min: 1, Max: 80},
 }
 
 // Definitions devolve os parâmetros editáveis na ordem de exibição.
@@ -136,6 +163,13 @@ type Values struct {
 	GovernancePayoutMinPct       int
 	GovernancePayoutMaxPct       int
 	GovernancePayoutCooldownDays int
+
+	GovernancePremiumStepCentiPP int
+	GovernancePremiumMinPct      int
+	GovernancePremiumMaxPct      int
+
+	GovernanceHoldDeclarations      int
+	GovernanceDeclarationSafetyDays int
 }
 
 // withGovernanceDefaults completa os campos de governança que o chamador deixou em zero.
@@ -170,6 +204,18 @@ func (v Values) withGovernanceDefaults() Values {
 		v.GovernancePayoutMinPct = DefaultGovernancePayoutMinPct
 		v.GovernancePayoutCooldownDays = DefaultGovernancePayoutCooldownDays
 	}
+	if v.GovernancePremiumStepCentiPP == 0 {
+		v.GovernancePremiumStepCentiPP = DefaultGovernancePremiumStepCentiPP
+	}
+	if v.GovernancePremiumMinPct == 0 {
+		v.GovernancePremiumMinPct = DefaultGovernancePremiumMinPct
+	}
+	if v.GovernancePremiumMaxPct == 0 {
+		v.GovernancePremiumMaxPct = DefaultGovernancePremiumMaxPct
+	}
+	if v.GovernanceDeclarationSafetyDays == 0 {
+		v.GovernanceDeclarationSafetyDays = DefaultGovernanceDeclarationSafetyDays
+	}
 	return v
 }
 
@@ -195,6 +241,16 @@ func (v Values) get(key Key) int {
 		return v.GovernancePayoutMaxPct
 	case GovernancePayoutCooldownDays:
 		return v.GovernancePayoutCooldownDays
+	case GovernancePremiumStepCentiPP:
+		return v.GovernancePremiumStepCentiPP
+	case GovernancePremiumMinPct:
+		return v.GovernancePremiumMinPct
+	case GovernancePremiumMaxPct:
+		return v.GovernancePremiumMaxPct
+	case GovernanceHoldDeclarations:
+		return v.GovernanceHoldDeclarations
+	case GovernanceDeclarationSafetyDays:
+		return v.GovernanceDeclarationSafetyDays
 	}
 	return 0
 }
@@ -221,6 +277,16 @@ func (v *Values) set(key Key, value int) {
 		v.GovernancePayoutMaxPct = value
 	case GovernancePayoutCooldownDays:
 		v.GovernancePayoutCooldownDays = value
+	case GovernancePremiumStepCentiPP:
+		v.GovernancePremiumStepCentiPP = value
+	case GovernancePremiumMinPct:
+		v.GovernancePremiumMinPct = value
+	case GovernancePremiumMaxPct:
+		v.GovernancePremiumMaxPct = value
+	case GovernanceHoldDeclarations:
+		v.GovernanceHoldDeclarations = value
+	case GovernanceDeclarationSafetyDays:
+		v.GovernanceDeclarationSafetyDays = value
 	}
 }
 

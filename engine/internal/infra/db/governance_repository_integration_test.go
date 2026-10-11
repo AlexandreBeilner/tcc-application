@@ -7,6 +7,7 @@ import (
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/corporategovernance"
 	"tcc-investimentos/engine/internal/domain/enginesetting"
+	"tcc-investimentos/engine/internal/domain/tick"
 )
 
 type govSettings struct{ values enginesetting.Values }
@@ -408,5 +409,318 @@ func TestGovernanceRepository_DecisaoCompostaComPayout(t *testing.T) {
 		if i == 2 && dec.Effects[0].Status != corporategovernance.StatusSkippedOutOfRange {
 			t.Errorf("abaixo do piso deveria ser ignorado: %s", dec.Effects[0].Status)
 		}
+	}
+}
+
+// Declaração pendente (MO.6.11) contra Postgres real: retém no tick, aparece para o backend,
+// a decisão ligada só libera depois do payout aplicado, a liberação grava a data-ex real que o
+// efeito de preço usa, e liberação pedida sem decisão sai no próximo tick.
+func TestGovernanceRepository_DeclaracaoPendente(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	scan := func(dest any, query string, args ...any) {
+		t.Helper()
+		if err := conn.QueryRowContext(ctx, query, args...).Scan(dest); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	var company, asset, ana string
+	scan(&company, `INSERT INTO companies (name, cnpj, sector) VALUES ('Acme', '11111111000111', 'Tecnologia') RETURNING id`)
+	scan(&asset, `INSERT INTO assets (ticker, name, type) VALUES ('ACME3', 'Acme ON', 'acao') RETURNING id`)
+	exec(`INSERT INTO variable_income_assets (asset_id, company_id, share_class, outstanding_shares) VALUES ($1, $2, 'ON', 1000)`, asset, company)
+	scan(&ana, `INSERT INTO accounts (user_id) VALUES (gen_random_uuid()) RETURNING user_id`)
+	exec(`INSERT INTO positions (user_id, asset_id, quantity, average_price) VALUES ($1, $2, 10, 5)`, ana, asset)
+	exec(`INSERT INTO market_calendar (id, current_day, selic_rate) VALUES (1, 91, 10.75) ON CONFLICT (id) DO UPDATE SET current_day = 91`)
+
+	repo := NewGovernanceRepository(conn)
+	tickRepo := NewTickRepository(conn, nil)
+	svc := corporategovernance.NewService(repo, govSettings{enginesetting.Values{
+		GovernanceGrowthStepCentiPP: 50, GovernanceQualityStepCenti: 5, GovernanceRampTicks: 4, GovernanceCooldownDays: 90,
+		GovernancePayoutStepCentiPP: 1000, GovernancePayoutMinPct: 20, GovernancePayoutMaxPct: 90, GovernancePayoutCooldownDays: 90,
+		GovernanceHoldDeclarations: 1, GovernanceDeclarationSafetyDays: 60,
+	}})
+	saveTx := func(res tick.Result) {
+		t.Helper()
+		tx, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := saveDeclarations(ctx, tx, res); err != nil {
+			_ = tx.Rollback()
+			t.Fatal(err)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	companyRow := func() tick.CompanyForFundamentals {
+		t.Helper()
+		cs, err := tickRepo.ListCompaniesForFundamentals(ctx)
+		if err != nil || len(cs) != 1 {
+			t.Fatalf("ListCompaniesForFundamentals: %v (%d)", err, len(cs))
+		}
+		return cs[0]
+	}
+
+	// Antes de qualquer retenção: acionista de usuário, nada retido.
+	if c := companyRow(); !c.UserShareholders || c.HasHeldDeclaration || c.LastPayoutStartDay != nil || c.PayoutRatioPct != 50 {
+		t.Fatalf("empresa antes: %+v", c)
+	}
+
+	// O tick retém a declaração do ciclo 0 (idempotente: repetir não duplica).
+	held := tick.HeldDeclaration{CompanyID: company, CycleIndex: 0, ReportDay: 91, PoolNetIncome: 123456.78}
+	saveTx(tick.Result{State: tick.State{Day: 91}, HeldDeclarations: []tick.HeldDeclaration{held}})
+	saveTx(tick.Result{State: tick.State{Day: 91}, HeldDeclarations: []tick.HeldDeclaration{held}})
+	pendings, err := repo.ListPending(ctx)
+	if err != nil || len(pendings) != 1 {
+		t.Fatalf("ListPending: %v (%d)", err, len(pendings))
+	}
+	p := pendings[0]
+	if p.CompanyID != company || p.Name != "Acme" || p.CycleIndex != 0 || p.ReportDay != 91 || p.HeldDay != 91 ||
+		p.PoolNetIncome != 123456.78 || len(p.Tickers) != 1 || p.Tickers[0] != "ACME3" || p.DecisionAssemblyID != nil {
+		t.Errorf("pendente = %+v", p)
+	}
+	if c := companyRow(); !c.HasHeldDeclaration || len(c.HeldCycles) != 1 || c.HeldCycles[0] != 0 {
+		t.Errorf("empresa com retida: %+v", c)
+	}
+	if orders, err := svc.ReleaseDue(ctx, 92); err != nil || len(orders) != 0 {
+		t.Fatalf("nada a liberar ainda: %v %v", orders, err)
+	}
+
+	// A decisão ligada à declaração: payout cai 10 p.p., mas só libera depois de aplicado.
+	exec(`UPDATE market_calendar SET current_day = 97 WHERE id = 1`)
+	const assembly = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1"
+	d, _, err := svc.RecordDecision(ctx, corporategovernance.DecisionInput{
+		AssemblyID: assembly, CompanyID: company, OptionKey: "reinvestir", DeclarationID: p.ID,
+		Effects: []corporategovernance.Effect{{Metric: corporategovernance.MetricPayoutRatioPct, Direction: -1, Intensity: 1}},
+	})
+	if err != nil || d.Effects[0].Status != corporategovernance.StatusScheduled {
+		t.Fatalf("RecordDecision: %+v %v", d, err)
+	}
+	pendings, _ = repo.ListPending(ctx)
+	if pendings[0].DecisionAssemblyID == nil || *pendings[0].DecisionAssemblyID != assembly || !pendings[0].PayoutEffectPending {
+		t.Fatalf("decisão ligada e payout por aplicar: %+v", pendings[0])
+	}
+	if orders, _ := svc.ReleaseDue(ctx, 98); len(orders) != 0 {
+		t.Fatalf("payout ainda não aplicado: %v", orders)
+	}
+	if _, err := svc.ApplyDue(ctx, 98); err != nil {
+		t.Fatal(err)
+	}
+	orders, err := svc.ReleaseDue(ctx, 98)
+	if err != nil || len(orders) != 1 || orders[0].Reason != corporategovernance.ReleaseDecision || orders[0].PoolNetIncome != 123456.78 {
+		t.Fatalf("depois do payout aplicado a declaração sai: %v %v", orders, err)
+	}
+	var payout float64
+	scan(&payout, `SELECT payout_ratio_pct::float8 FROM companies WHERE id = $1`, company)
+	if payout != 40 {
+		t.Errorf("payout = %v, esperado 40", payout)
+	}
+	if c := companyRow(); c.LastPayoutStartDay == nil || *c.LastPayoutStartDay != 98 {
+		t.Errorf("cooldown do payout começa na decisão: %+v", c.LastPayoutStartDay)
+	}
+
+	// O tick libera: provento com a data-ex real, declaração sai da lista de retidas.
+	saveTx(tick.Result{State: tick.State{Day: 98}, ReleasedDeclarations: []tick.ReleasedDeclaration{{ID: orders[0].ID, ExDay: 101, Reason: "decision"}}})
+	saveTx(tick.Result{State: tick.State{Day: 99}, ReleasedDeclarations: []tick.ReleasedDeclaration{{ID: orders[0].ID, ExDay: 777, Reason: "expired"}}}) // repetir não muda
+	if pendings, _ := repo.ListPending(ctx); len(pendings) != 0 {
+		t.Fatalf("liberada não aparece mais: %+v", pendings)
+	}
+	var status, reason string
+	var releasedDay, exDay int
+	scan(&status, `SELECT status FROM governance_pending_declarations WHERE id = $1`, orders[0].ID)
+	scan(&reason, `SELECT release_reason FROM governance_pending_declarations WHERE id = $1`, orders[0].ID)
+	scan(&releasedDay, `SELECT released_day FROM governance_pending_declarations WHERE id = $1`, orders[0].ID)
+	scan(&exDay, `SELECT release_ex_day FROM governance_pending_declarations WHERE id = $1`, orders[0].ID)
+	if status != "released" || reason != "decision" || releasedDay != 98 || exDay != 101 {
+		t.Errorf("liberada: status=%s motivo=%s dia=%d ex=%d", status, reason, releasedDay, exDay)
+	}
+	if c := companyRow(); c.HasHeldDeclaration || c.DeclaredExByCycle[0] != 101 {
+		t.Errorf("empresa depois da liberação: %+v", c)
+	}
+
+	// Próximo balanço (ciclo 1): liberação pedida sem decisão sai no próximo tick, com o primeiro motivo.
+	saveTx(tick.Result{State: tick.State{Day: 182}, HeldDeclarations: []tick.HeldDeclaration{{CompanyID: company, CycleIndex: 1, ReportDay: 182, PoolNetIncome: 5}}})
+	next, _ := repo.ListPending(ctx)
+	if len(next) != 1 {
+		t.Fatalf("segunda retida: %+v", next)
+	}
+	if err := svc.RequestRelease(ctx, next[0].ID, corporategovernance.ReleaseNoDecision); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RequestRelease(ctx, next[0].ID, corporategovernance.ReleaseAdmin); err != nil {
+		t.Fatal(err)
+	}
+	orders, _ = svc.ReleaseDue(ctx, 183)
+	if len(orders) != 1 || orders[0].Reason != corporategovernance.ReleaseNoDecision {
+		t.Errorf("liberação pedida: %+v", orders)
+	}
+	if err := svc.RequestRelease(ctx, "99999999-9999-4999-8999-999999999999", corporategovernance.ReleaseAdmin); err != corporategovernance.ErrUnknownDeclaration {
+		t.Errorf("inexistente: %v", err)
+	}
+
+	// Prazo de segurança: uma retida sem nada resolvido sai sozinha depois de 60 dias.
+	saveTx(tick.Result{State: tick.State{Day: 200}, ReleasedDeclarations: []tick.ReleasedDeclaration{{ID: orders[0].ID, ExDay: 190, Reason: "no_decision"}}})
+	saveTx(tick.Result{State: tick.State{Day: 273}, HeldDeclarations: []tick.HeldDeclaration{{CompanyID: company, CycleIndex: 2, ReportDay: 273, PoolNetIncome: 9}}})
+	if orders, _ := svc.ReleaseDue(ctx, 332); len(orders) != 0 {
+		t.Errorf("dia 332 ainda dentro do prazo: %v", orders)
+	}
+	if orders, _ := svc.ReleaseDue(ctx, 333); len(orders) != 1 || orders[0].Reason != corporategovernance.ReleaseExpired {
+		t.Errorf("dia 333 vence o prazo: %v", orders)
+	}
+}
+
+// Política de dividendo e prêmio da PN como efeito da assembleia (MO.6.12): a política troca o
+// valor (sem degrau), o prêmio anda em passos dentro da faixa legal, ambos valem já no tick
+// seguinte, compartilham o cooldown de destinação do lucro e a empresa só com ON ignora o prêmio.
+func TestGovernanceRepository_PoliticaEPremioDaPN(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	scan := func(dest any, query string, args ...any) {
+		t.Helper()
+		if err := conn.QueryRowContext(ctx, query, args...).Scan(dest); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	var withPN, onlyON, on, pn, onOnly string
+	scan(&withPN, `INSERT INTO companies (name, cnpj, sector) VALUES ('ComPN', '11111111000111', 'Tecnologia') RETURNING id`)
+	scan(&onlyON, `INSERT INTO companies (name, cnpj, sector) VALUES ('SoON', '22222222000122', 'Varejo') RETURNING id`)
+	scan(&on, `INSERT INTO assets (ticker, name, type) VALUES ('CPN3', 'ON', 'acao') RETURNING id`)
+	scan(&pn, `INSERT INTO assets (ticker, name, type) VALUES ('CPN4', 'PN', 'acao') RETURNING id`)
+	scan(&onOnly, `INSERT INTO assets (ticker, name, type) VALUES ('SON3', 'ON', 'acao') RETURNING id`)
+	exec(`INSERT INTO variable_income_assets (asset_id, company_id, share_class, outstanding_shares)
+		VALUES ($1, $4, 'ON', 1000), ($2, $4, 'PN', 1000), ($3, $5, 'ON', 1000)`, on, pn, onOnly, withPN, onlyON)
+	exec(`INSERT INTO market_calendar (id, current_day, selic_rate) VALUES (1, 10, 10.75) ON CONFLICT (id) DO UPDATE SET current_day = 10`)
+
+	repo := NewGovernanceRepository(conn)
+	svc := corporategovernance.NewService(repo, govSettings{enginesetting.Values{
+		GovernanceGrowthStepCentiPP: 50, GovernanceQualityStepCenti: 5, GovernanceRampTicks: 4, GovernanceCooldownDays: 90,
+		GovernancePayoutStepCentiPP: 1000, GovernancePayoutMinPct: 20, GovernancePayoutMaxPct: 90, GovernancePayoutCooldownDays: 90,
+		GovernancePremiumStepCentiPP: 500, GovernancePremiumMinPct: 10, GovernancePremiumMaxPct: 30,
+	}})
+	record := func(assembly, company string, effects ...corporategovernance.Effect) corporategovernance.Decision {
+		t.Helper()
+		d, _, err := svc.RecordDecision(ctx, corporategovernance.DecisionInput{AssemblyID: assembly, CompanyID: company, OptionKey: "o", Effects: effects})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	const a1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"
+	const a2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2"
+	const a3 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3"
+	const a4 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4"
+
+	// Política + prêmio numa decisão composta (duas alavancas diferentes do mesmo grupo).
+	d := record(a1, withPN,
+		corporategovernance.Effect{Metric: corporategovernance.MetricDividendPolicy, Value: "semiannual"},
+		corporategovernance.Effect{Metric: corporategovernance.MetricPnPremiumPct, Direction: 1, Intensity: 1})
+	if d.Effects[0].Status != corporategovernance.StatusScheduled || d.Effects[0].TargetValue != "semiannual" || d.Effects[0].Direction != 0 ||
+		d.Effects[1].Status != corporategovernance.StatusScheduled || d.Effects[1].TotalDelta != 500 {
+		t.Fatalf("efeitos = %+v", d.Effects)
+	}
+	var policy string
+	var premium float64
+	scan(&policy, `SELECT dividend_policy FROM companies WHERE id = $1`, withPN)
+	if policy != "quarterly" {
+		t.Fatalf("registrar não muda a política: %s", policy)
+	}
+	// Eventos: política grava os ciclos por pagamento (2), prêmio a mudança em centésimos (500).
+	rows, err := conn.QueryContext(ctx, `SELECT ev.quantity FROM governance_decision_effects e JOIN market_events ev ON ev.id = e.event_id ORDER BY e.position`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var quantities []int
+	for rows.Next() {
+		var q int
+		if err := rows.Scan(&q); err != nil {
+			t.Fatal(err)
+		}
+		quantities = append(quantities, q)
+	}
+	_ = rows.Close()
+	if len(quantities) != 2 || quantities[0] != 2 || quantities[1] != 500 {
+		t.Errorf("eventos = %v, esperado [2 500]", quantities)
+	}
+
+	if n, err := svc.ApplyDue(ctx, 11); err != nil || n != 2 {
+		t.Fatalf("ApplyDue: n=%d err=%v", n, err)
+	}
+	scan(&policy, `SELECT dividend_policy FROM companies WHERE id = $1`, withPN)
+	scan(&premium, `SELECT pn_dividend_premium_pct::float8 FROM companies WHERE id = $1`, withPN)
+	if policy != "semiannual" || premium != 15 {
+		t.Errorf("depois do tick: política=%s prêmio=%v, esperado semiannual e 15", policy, premium)
+	}
+	var status string
+	scan(&status, `SELECT e.status FROM governance_decision_effects e JOIN governance_decisions g ON g.id = e.decision_id WHERE g.assembly_id = $1 AND e.position = 0`, a1)
+	if status != "completed" {
+		t.Errorf("status da política = %s", status)
+	}
+
+	// Cooldown de destinação do lucro: nova decisão logo depois só registra.
+	exec(`UPDATE market_calendar SET current_day = 20 WHERE id = 1`)
+	d = record(a2, withPN, corporategovernance.Effect{Metric: corporategovernance.MetricPnPremiumPct, Direction: 1, Intensity: 1})
+	if d.Effects[0].Status != corporategovernance.StatusSkippedCooldown {
+		t.Errorf("em cooldown: %s", d.Effects[0].Status)
+	}
+
+	// Fora do cooldown: o prêmio sobe até o teto e para; o piso legal nunca é rompido.
+	for i, step := range []struct {
+		assembly string
+		day      int
+		dir      int
+		wantPct  float64
+		want     corporategovernance.Status
+	}{
+		{a3, 150, 1, 20, corporategovernance.StatusScheduled},
+		{a4, 300, -1, 15, corporategovernance.StatusScheduled},
+	} {
+		exec(`UPDATE market_calendar SET current_day = $1 WHERE id = 1`, step.day)
+		dec := record(step.assembly, withPN, corporategovernance.Effect{Metric: corporategovernance.MetricPnPremiumPct, Direction: step.dir, Intensity: 1})
+		if dec.Effects[0].Status != step.want {
+			t.Fatalf("passo %d: status = %s", i, dec.Effects[0].Status)
+		}
+		if _, err := svc.ApplyDue(ctx, dec.Effects[0].StartDay); err != nil {
+			t.Fatal(err)
+		}
+		scan(&premium, `SELECT pn_dividend_premium_pct::float8 FROM companies WHERE id = $1`, withPN)
+		if premium != step.wantPct {
+			t.Errorf("passo %d: prêmio = %v, esperado %v", i, premium, step.wantPct)
+		}
+	}
+	exec(`UPDATE companies SET pn_dividend_premium_pct = 10 WHERE id = $1`, withPN)
+	exec(`UPDATE market_calendar SET current_day = 500 WHERE id = 1`)
+	if dec := record("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5", withPN, corporategovernance.Effect{Metric: corporategovernance.MetricPnPremiumPct, Direction: -1, Intensity: 1}); dec.Effects[0].Status != corporategovernance.StatusSkippedOutOfRange {
+		t.Errorf("abaixo do piso legal: %s", dec.Effects[0].Status)
+	}
+
+	// Empresa só com ON: o prêmio não se aplica; política igual à atual também não.
+	dec := record("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6", onlyON,
+		corporategovernance.Effect{Metric: corporategovernance.MetricPnPremiumPct, Direction: 1, Intensity: 1},
+		corporategovernance.Effect{Metric: corporategovernance.MetricDividendPolicy, Value: "quarterly"})
+	if dec.Effects[0].Status != corporategovernance.StatusSkippedNotApplicable || dec.Effects[1].Status != corporategovernance.StatusSkippedNotApplicable {
+		t.Errorf("sem PN e política igual: %+v", dec.Effects)
+	}
+	var q int
+	scan(&q, `SELECT ev.quantity FROM governance_decision_effects e JOIN market_events ev ON ev.id = e.event_id
+		JOIN governance_decisions g ON g.id = e.decision_id WHERE g.assembly_id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6' AND e.position = 1`)
+	if q != 0 {
+		t.Errorf("a política que não mudou grava evento de quantidade 0: %d", q)
+	}
+	scan(&premium, `SELECT pn_dividend_premium_pct::float8 FROM companies WHERE id = $1`, onlyON)
+	if premium != 10 {
+		t.Errorf("prêmio da empresa só-ON mudou: %v", premium)
 	}
 }

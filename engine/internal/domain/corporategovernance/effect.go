@@ -19,7 +19,32 @@ const (
 	// MetricPayoutRatioPct é companies.payout_ratio_pct (fração do lucro distribuída em cada
 	// balanço, em %; MO.6.10). Em centésimos de ponto percentual: 5000 = 50%.
 	MetricPayoutRatioPct Metric = "payout_ratio_pct"
+	// MetricDividendPolicy é companies.dividend_policy (MO.6.12): troca a periodicidade do
+	// dividendo (trimestral, semestral ou anual). Efeito discreto: traz o valor-alvo
+	// (Effect.Value), não um degrau.
+	MetricDividendPolicy Metric = "dividend_policy"
+	// MetricPnPremiumPct é companies.pn_dividend_premium_pct (MO.6.12): a vantagem de dividendo
+	// da ação PN sobre a ON, em %, com piso legal de 10%. Efeito em passos (5 p.p. por padrão).
+	// Em centésimos de ponto percentual: 1500 = 15%.
+	MetricPnPremiumPct Metric = "pn_dividend_premium_pct"
 )
+
+// IsDiscrete diz se a métrica troca um valor-alvo em vez de somar um degrau.
+func IsDiscrete(m Metric) bool { return m == MetricDividendPolicy }
+
+// PolicyCycles é quantos ciclos de lucro entram em um pagamento da política (1, 2 ou 4), usado
+// como a quantidade do evento imutável da troca de política. 0 para política desconhecida.
+func PolicyCycles(policy string) int {
+	switch catalog.DividendPolicy(policy) {
+	case catalog.DividendQuarterly:
+		return 1
+	case catalog.DividendSemiannual:
+		return 2
+	case catalog.DividendAnnual:
+		return 4
+	}
+	return 0
+}
 
 // Group é o conjunto de métricas que dividem o mesmo cooldown: a empresa só muda de novo
 // depois de `cooldown` dias simulados da última mudança do MESMO grupo (decisão do autor,
@@ -29,13 +54,15 @@ type Group string
 const (
 	// GroupFundamentals reúne crescimento e qualidade.
 	GroupFundamentals Group = "fundamentals"
-	// GroupPayout reúne o que decide o destino do lucro (hoje só o payout).
+	// GroupPayout reúne o que decide o destino do lucro: payout, política de dividendo e
+	// prêmio da PN (MO.6.12), que dividem o mesmo cooldown.
 	GroupPayout Group = "payout"
 )
 
 // GroupOf devolve o grupo de cooldown de uma métrica.
 func GroupOf(m Metric) Group {
-	if m == MetricPayoutRatioPct {
+	switch m {
+	case MetricPayoutRatioPct, MetricDividendPolicy, MetricPnPremiumPct:
 		return GroupPayout
 	}
 	return GroupFundamentals
@@ -67,6 +94,7 @@ func ValidateEffects(effects []Effect) error {
 }
 
 var (
+	ErrInvalidValue     = errors.New("valor-alvo do efeito inválido")
 	ErrInvalidMetric    = errors.New("métrica de efeito desconhecida")
 	ErrInvalidDirection = errors.New("direção do efeito precisa ser +1 ou -1")
 	ErrInvalidIntensity = errors.New("intensidade do efeito precisa estar em (0, 1]")
@@ -79,11 +107,21 @@ type Effect struct {
 	Metric    Metric
 	Direction int
 	Intensity float64
+	// Value é o valor-alvo de um efeito discreto (a política de dividendo); vazio nos demais.
+	Value string
 }
 
 // Validate confere o efeito antes de qualquer cálculo.
 func (e Effect) Validate() error {
-	if e.Metric != MetricBaseGrowthPct && e.Metric != MetricQualityMultiplier && e.Metric != MetricPayoutRatioPct {
+	switch e.Metric {
+	case MetricBaseGrowthPct, MetricQualityMultiplier, MetricPayoutRatioPct, MetricPnPremiumPct:
+	case MetricDividendPolicy:
+		// Discreto: o valor-alvo é tudo que importa, sentido e intensidade não se aplicam.
+		if PolicyCycles(e.Value) == 0 {
+			return fmt.Errorf("%w: política %q", ErrInvalidValue, e.Value)
+		}
+		return nil
+	default:
 		return fmt.Errorf("%w: %q", ErrInvalidMetric, e.Metric)
 	}
 	if e.Direction != 1 && e.Direction != -1 {
@@ -104,17 +142,29 @@ type Limits struct {
 	PayoutStep int
 	PayoutMin  int
 	PayoutMax  int
+	// PremiumStep é o degrau do prêmio da PN em centésimos de p.p. (500 = 5 p.p.); PremiumMin
+	// (piso legal, 1000 = 10%) e PremiumMax são a faixa válida do prêmio.
+	PremiumStep int
+	PremiumMin  int
+	PremiumMax  int
 }
 
 // TotalDelta é a mudança total de uma decisão, com sinal, em centésimos: a faixa máxima da
 // métrica vezes a intensidade, arredondada. Nunca passa da faixa.
+//
+// Efeito discreto (política de dividendo) não soma degrau: a mudança total é 0.
 func TotalDelta(e Effect, l Limits) int {
+	if IsDiscrete(e.Metric) {
+		return 0
+	}
 	step := l.GrowthStep
 	switch e.Metric {
 	case MetricQualityMultiplier:
 		step = l.QualityStep
 	case MetricPayoutRatioPct:
 		step = l.PayoutStep
+	case MetricPnPremiumPct:
+		step = l.PremiumStep
 	}
 	return e.Direction * int(math.Round(float64(step)*e.Intensity))
 }
@@ -152,6 +202,10 @@ func CheckValueWithLimits(metric Metric, hundredths int, l Limits) error {
 	case MetricPayoutRatioPct:
 		if hundredths < l.PayoutMin || hundredths > l.PayoutMax {
 			err = fmt.Errorf("payout precisa estar entre %v%% e %v%%", FromHundredths(l.PayoutMin), FromHundredths(l.PayoutMax))
+		}
+	case MetricPnPremiumPct:
+		if hundredths < l.PremiumMin || hundredths > l.PremiumMax {
+			err = fmt.Errorf("prêmio da PN precisa estar entre %v%% e %v%%", FromHundredths(l.PremiumMin), FromHundredths(l.PremiumMax))
 		}
 	default:
 		return ErrInvalidMetric

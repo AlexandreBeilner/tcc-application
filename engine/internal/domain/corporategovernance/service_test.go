@@ -20,6 +20,7 @@ type fakeRepo struct {
 	knob      map[Metric]int
 	failApply map[string]bool
 	standing  *StandingRecord
+	pending   []Pending
 }
 
 func newFakeRepo(c CompanyState) *fakeRepo {
@@ -78,6 +79,20 @@ func (r *fakeRepo) CompanyStanding(context.Context, string, string) (StandingRec
 	return *r.standing, true, nil
 }
 
+func (r *fakeRepo) ListPending(context.Context) ([]Pending, error) { return r.pending, nil }
+
+func (r *fakeRepo) RequestRelease(_ context.Context, id string, reason ReleaseReason) error {
+	for i := range r.pending {
+		if r.pending[i].ID == id {
+			if !r.pending[i].ReleaseRequested {
+				r.pending[i].ReleaseRequested, r.pending[i].ReleaseReason = true, reason
+			}
+			return nil
+		}
+	}
+	return ErrUnknownDeclaration
+}
+
 func (r *fakeRepo) ListScheduled(context.Context) ([]EffectRecord, error) {
 	var out []EffectRecord
 	for _, d := range r.decisions {
@@ -120,12 +135,14 @@ func newService(c CompanyState, ramp int) (*Service, *fakeRepo) {
 		GovernanceGrowthStepCentiPP: 50, GovernanceQualityStepCenti: 5,
 		GovernanceRampTicks: ramp, GovernanceCooldownDays: 90,
 		GovernancePayoutStepCentiPP: 1000, GovernancePayoutMinPct: 20, GovernancePayoutMaxPct: 90, GovernancePayoutCooldownDays: 90,
+		GovernanceHoldDeclarations: 1, GovernanceDeclarationSafetyDays: 60,
+		GovernancePremiumStepCentiPP: 500, GovernancePremiumMinPct: 10, GovernancePremiumMaxPct: 30,
 	}
 	return NewService(repo, fakeSettings{values}), repo
 }
 
-var growthUp = Effect{MetricBaseGrowthPct, 1, 1}
-var payoutDown = Effect{MetricPayoutRatioPct, -1, 1}
+var growthUp = Effect{MetricBaseGrowthPct, 1, 1, ""}
+var payoutDown = Effect{MetricPayoutRatioPct, -1, 1, ""}
 
 func TestService_RecordDecision_IdempotentePelaAssembleia(t *testing.T) {
 	svc, repo := newService(CompanyState{BaseGrowthPct: 300, QualityMultiplier: 100, Today: 10}, 10)
@@ -155,8 +172,8 @@ func TestService_RecordDecision_Validacao(t *testing.T) {
 		"sem empresa":     {AssemblyID: "a", OptionKey: "o", Effects: []Effect{growthUp}},
 		"sem opção":       {AssemblyID: "a", CompanyID: "c", Effects: []Effect{growthUp}},
 		"sem efeito":      {AssemblyID: "a", CompanyID: "c", OptionKey: "o"},
-		"mesma alavanca":  {AssemblyID: "a", CompanyID: "c", OptionKey: "o", Effects: []Effect{growthUp, {MetricBaseGrowthPct, -1, 1}}},
-		"efeito inválido": {AssemblyID: "a", CompanyID: "c", OptionKey: "o", Effects: []Effect{{"price", 1, 1}}},
+		"mesma alavanca":  {AssemblyID: "a", CompanyID: "c", OptionKey: "o", Effects: []Effect{growthUp, {MetricBaseGrowthPct, -1, 1, ""}}},
+		"efeito inválido": {AssemblyID: "a", CompanyID: "c", OptionKey: "o", Effects: []Effect{{"price", 1, 1, ""}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, _, err := svc.RecordDecision(context.Background(), in)
@@ -240,7 +257,7 @@ func TestService_ApplyDue_FalhaDeUmaNaoImpedeAsOutras(t *testing.T) {
 	_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a1", CompanyID: "c1", OptionKey: "o", Effects: []Effect{growthUp}})
 	// Segunda decisão de outra métrica, em outra "empresa" (o fake guarda uma só; zera o cooldown).
 	repo.company.LastStartDay = nil
-	_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a2", CompanyID: "c2", OptionKey: "o", Effects: []Effect{{MetricQualityMultiplier, 1, 1}}})
+	_, _, _ = svc.RecordDecision(ctx, DecisionInput{AssemblyID: "a2", CompanyID: "c2", OptionKey: "o", Effects: []Effect{{MetricQualityMultiplier, 1, 1, ""}}})
 	repo.failApply = map[string]bool{"a1": true}
 
 	n, err := svc.ApplyDue(ctx, 11)

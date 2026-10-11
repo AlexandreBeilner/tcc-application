@@ -11,14 +11,14 @@ func TestEffect_Validate(t *testing.T) {
 		e    Effect
 		want error
 	}{
-		{"crescimento válido", Effect{MetricBaseGrowthPct, 1, 1}, nil},
-		{"qualidade negativa válida", Effect{MetricQualityMultiplier, -1, 0.5}, nil},
-		{"payout válido", Effect{MetricPayoutRatioPct, -1, 1}, nil},
-		{"métrica desconhecida", Effect{"price", 1, 1}, ErrInvalidMetric},
-		{"direção zero", Effect{MetricBaseGrowthPct, 0, 1}, ErrInvalidDirection},
-		{"direção 2", Effect{MetricBaseGrowthPct, 2, 1}, ErrInvalidDirection},
-		{"intensidade zero", Effect{MetricBaseGrowthPct, 1, 0}, ErrInvalidIntensity},
-		{"intensidade acima de 1", Effect{MetricBaseGrowthPct, 1, 1.01}, ErrInvalidIntensity},
+		{"crescimento válido", Effect{MetricBaseGrowthPct, 1, 1, ""}, nil},
+		{"qualidade negativa válida", Effect{MetricQualityMultiplier, -1, 0.5, ""}, nil},
+		{"payout válido", Effect{MetricPayoutRatioPct, -1, 1, ""}, nil},
+		{"métrica desconhecida", Effect{"price", 1, 1, ""}, ErrInvalidMetric},
+		{"direção zero", Effect{MetricBaseGrowthPct, 0, 1, ""}, ErrInvalidDirection},
+		{"direção 2", Effect{MetricBaseGrowthPct, 2, 1, ""}, ErrInvalidDirection},
+		{"intensidade zero", Effect{MetricBaseGrowthPct, 1, 0, ""}, ErrInvalidIntensity},
+		{"intensidade acima de 1", Effect{MetricBaseGrowthPct, 1, 1.01, ""}, ErrInvalidIntensity},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -36,13 +36,13 @@ func TestTotalDelta_NuncaPassaDaFaixa(t *testing.T) {
 		e    Effect
 		want int
 	}{
-		{"faixa cheia de crescimento", Effect{MetricBaseGrowthPct, 1, 1}, 50},
-		{"metade da faixa, para baixo", Effect{MetricBaseGrowthPct, -1, 0.5}, -25},
-		{"faixa cheia de qualidade", Effect{MetricQualityMultiplier, 1, 1}, 5},
-		{"qualidade com arredondamento", Effect{MetricQualityMultiplier, -1, 0.5}, -3},
-		{"intensidade mínima ainda mexe", Effect{MetricBaseGrowthPct, 1, 0.02}, 1},
-		{"payout, degrau cheio de 10 p.p.", Effect{MetricPayoutRatioPct, 1, 1}, 1000},
-		{"payout, para baixo, 30% do degrau", Effect{MetricPayoutRatioPct, -1, 0.3}, -300},
+		{"faixa cheia de crescimento", Effect{MetricBaseGrowthPct, 1, 1, ""}, 50},
+		{"metade da faixa, para baixo", Effect{MetricBaseGrowthPct, -1, 0.5, ""}, -25},
+		{"faixa cheia de qualidade", Effect{MetricQualityMultiplier, 1, 1, ""}, 5},
+		{"qualidade com arredondamento", Effect{MetricQualityMultiplier, -1, 0.5, ""}, -3},
+		{"intensidade mínima ainda mexe", Effect{MetricBaseGrowthPct, 1, 0.02, ""}, 1},
+		{"payout, degrau cheio de 10 p.p.", Effect{MetricPayoutRatioPct, 1, 1, ""}, 1000},
+		{"payout, para baixo, 30% do degrau", Effect{MetricPayoutRatioPct, -1, 0.3, ""}, -300},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

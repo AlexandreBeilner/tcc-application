@@ -80,7 +80,8 @@ func TestService_SetEReset(t *testing.T) {
 	if got.GovernanceGrowthStepCentiPP != DefaultGovernanceGrowthStepCentiPP || got.GovernanceQualityStepCenti != DefaultGovernanceQualityStepCenti ||
 		got.GovernanceRampTicks != DefaultGovernanceRampTicks || got.GovernanceCooldownDays != DefaultGovernanceCooldownDays ||
 		got.GovernancePayoutStepCentiPP != DefaultGovernancePayoutStepCentiPP || got.GovernancePayoutMinPct != DefaultGovernancePayoutMinPct ||
-		got.GovernancePayoutMaxPct != DefaultGovernancePayoutMaxPct || got.GovernancePayoutCooldownDays != DefaultGovernancePayoutCooldownDays {
+		got.GovernancePayoutMaxPct != DefaultGovernancePayoutMaxPct || got.GovernancePayoutCooldownDays != DefaultGovernancePayoutCooldownDays ||
+		got.GovernanceHoldDeclarations != DefaultGovernanceHoldDeclarations || got.GovernanceDeclarationSafetyDays != DefaultGovernanceDeclarationSafetyDays {
 		t.Fatalf("padrões de governança = %+v", got)
 	}
 	if err := svc.Set(ctx, TicksPerDay, 12, "admin-1"); err != nil {
@@ -172,6 +173,13 @@ func TestGovernanceDefaults_ValoresDeLancamentoAprovados(t *testing.T) {
 		{"piso do payout (%)", DefaultGovernancePayoutMinPct, 20},
 		{"teto do payout (%)", DefaultGovernancePayoutMaxPct, 90},
 		{"cooldown do payout em dias simulados", DefaultGovernancePayoutCooldownDays, 90},
+		// Prêmio da PN (MO.6.12): degrau de 5 p.p., do piso legal de 10% a 30%.
+		{"degrau do prêmio da PN (5 p.p., em centésimos)", DefaultGovernancePremiumStepCentiPP, 500},
+		{"piso do prêmio da PN (%)", DefaultGovernancePremiumMinPct, 10},
+		{"teto do prêmio da PN (%)", DefaultGovernancePremiumMaxPct, 30},
+		// Declaração pendente (MO.6.11): a retenção nasce desligada, o prazo de segurança é de 60 dias.
+		{"retenção de declaração (0 = desligada)", DefaultGovernanceHoldDeclarations, 0},
+		{"prazo de segurança da declaração em dias simulados", DefaultGovernanceDeclarationSafetyDays, 60},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

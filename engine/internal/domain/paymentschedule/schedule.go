@@ -239,3 +239,15 @@ func EquityCycleAt(freqDays, offsetBusinessDays, cutoverDay int, assigned bool, 
 		PoolCycles: PoolCycles(p),
 	}
 }
+
+// ReleaseCycle é a agenda de um provento cuja declaração ficou retida e foi liberada em
+// releaseDay (MO.6.11): as datas contam a partir da liberação, não do balanço. Empresa sem
+// agenda atribuída segue o legado (ex na própria liberação, pagamento legacyPaymentLagDays
+// corridos depois); as demais, data-com, data-ex e pagamento em dia útil como EquityCycleAt.
+func ReleaseCycle(releaseDay int, assigned bool, comLagBusinessDays, payLagBusinessDays int) (ex, pay int) {
+	if !assigned {
+		return releaseDay, releaseDay + legacyPaymentLagDays
+	}
+	ex = ExDay(ComDay(releaseDay, comLagBusinessDays))
+	return ex, PaymentDay(ex, payLagBusinessDays)
+}

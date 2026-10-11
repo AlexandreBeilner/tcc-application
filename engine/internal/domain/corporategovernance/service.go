@@ -37,16 +37,21 @@ type DecisionInput struct {
 	CompanyID  string
 	OptionKey  string
 	Effects    []Effect
+	// DeclarationID, quando informado, liga a decisão à declaração de dividendo retida da
+	// empresa: ela sai quando o efeito de destinação do lucro da decisão for aplicado.
+	DeclarationID string
 }
 
 // EffectRecord é um efeito de uma decisão já registrado, com o andamento da rampa.
 type EffectRecord struct {
-	ID           string
-	AssemblyID   string
-	Position     int
-	Metric       Metric
-	Direction    int
-	Intensity    float64
+	ID         string
+	AssemblyID string
+	Position   int
+	Metric     Metric
+	Direction  int
+	Intensity  float64
+	// TargetValue é o valor-alvo de um efeito discreto (política de dividendo).
+	TargetValue  string
 	Status       Status
 	TotalDelta   int
 	RampTicks    int
@@ -92,6 +97,12 @@ type Repository interface {
 	// o efeito ainda estava em `previousTicks`. `false` se outro processo chegou antes. `l`
 	// traz a faixa válida do payout.
 	ApplyStep(ctx context.Context, effectID string, previousTicks int, step StepApplication, l Limits) (bool, error)
+	// ListPending devolve as declarações de dividendo retidas (ainda não liberadas), com o
+	// andamento da decisão ligada a cada uma.
+	ListPending(ctx context.Context) ([]Pending, error)
+	// RequestRelease marca uma declaração retida para sair no próximo tick; `ErrUnknownDeclaration`
+	// se não existe. Repetir (ou pedir para uma já liberada) não muda nada.
+	RequestRelease(ctx context.Context, id string, reason ReleaseReason) error
 	// CompanyStanding lê a empresa e a posição ATUAL de `userID` nela (não a do snapshot).
 	CompanyStanding(ctx context.Context, companyID, userID string) (StandingRecord, bool, error)
 }
@@ -151,6 +162,7 @@ func LimitsFrom(v enginesetting.Values) Limits {
 	return Limits{
 		GrowthStep: v.GovernanceGrowthStepCentiPP, QualityStep: v.GovernanceQualityStepCenti,
 		PayoutStep: v.GovernancePayoutStepCentiPP, PayoutMin: v.GovernancePayoutMinPct * 100, PayoutMax: v.GovernancePayoutMaxPct * 100,
+		PremiumStep: v.GovernancePremiumStepCentiPP, PremiumMin: v.GovernancePremiumMinPct * 100, PremiumMax: v.GovernancePremiumMaxPct * 100,
 	}
 }
 

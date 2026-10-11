@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"tcc-investimentos/engine/internal/domain/corporategovernance"
 	"tcc-investimentos/engine/internal/domain/dividend"
 	"tcc-investimentos/engine/internal/domain/ipca"
 	"tcc-investimentos/engine/internal/domain/selic"
@@ -67,7 +68,9 @@ type Service struct {
 	guard      Guard
 	recorder   RunRecorder
 	governance GovernanceStep
-	mu         sync.Mutex
+	// declarations é o mesmo objeto de governance quando ele cuida da declaração retida.
+	declarations DeclarationStep
+	mu           sync.Mutex
 }
 
 // GovernanceStep aplica, no tick que leva o mercado ao dia `newDay`, o passo da rampa dos
@@ -78,10 +81,20 @@ type GovernanceStep interface {
 	ApplyDue(ctx context.Context, newDay int) (int, error)
 }
 
-// WithGovernance liga a aplicação gradual dos efeitos de assembleia (MO.6.2). Opcional:
-// sem ela o tick não conhece assembleias.
+// DeclarationStep é a parte da governança que cuida da declaração de dividendo retida
+// (MO.6.11): a política de retenção do dia e as declarações que saem hoje. Opcional dentro do
+// GovernanceStep: quem não a implementa nunca retém nada.
+type DeclarationStep interface {
+	HoldPolicy(ctx context.Context) (corporategovernance.HoldPolicy, error)
+	ReleaseDue(ctx context.Context, newDay int) ([]corporategovernance.ReleaseOrder, error)
+}
+
+// WithGovernance liga a aplicação gradual dos efeitos de assembleia (MO.6.2) e, se `g` também
+// implementa DeclarationStep, a retenção e a liberação da declaração de dividendo (MO.6.11).
+// Opcional: sem ela o tick não conhece assembleias.
 func (s *Service) WithGovernance(g GovernanceStep) *Service {
 	s.governance = g
+	s.declarations, _ = g.(DeclarationStep)
 	return s
 }
 
@@ -288,6 +301,7 @@ func (s *Service) execute(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	s.applyDeclarationPolicy(ctx, companies, current.Day+1)
 
 	macroEvents, err := s.repo.ListPendingMacroEvents(ctx)
 	if err != nil {
@@ -423,4 +437,38 @@ func (s *Service) fillDividendRecipients(ctx context.Context, result *Result) er
 		result.Snapshots = append(result.Snapshots, DividendSnapshot{EventID: a.EventID, Recipients: holders[a.AssetID]})
 	}
 	return nil
+}
+
+// applyDeclarationPolicy marca, em cada empresa, se o dividendo do balanço de hoje fica retido
+// e qual declaração retida sai hoje (MO.6.11). Falha aqui nunca derruba o tick: sem política,
+// nada é retido nem liberado e o dividendo sai como sempre (a declaração que já estava retida
+// espera o tick seguinte, ou o prazo de segurança).
+func (s *Service) applyDeclarationPolicy(ctx context.Context, companies []CompanyForFundamentals, newDay int) {
+	if s.declarations == nil {
+		return
+	}
+	policy, err := s.declarations.HoldPolicy(ctx)
+	if err != nil {
+		log.Printf("governança: política de retenção indisponível no dia %d: %v", newDay, err)
+		return
+	}
+	orders, err := s.declarations.ReleaseDue(ctx, newDay)
+	if err != nil {
+		log.Printf("governança: erro ao ler declarações a liberar no dia %d: %v", newDay, err)
+		orders = nil
+	}
+	releaseByCompany := make(map[string]corporategovernance.ReleaseOrder, len(orders))
+	for _, o := range orders {
+		releaseByCompany[o.CompanyID] = o
+	}
+	for i := range companies {
+		c := &companies[i]
+		c.HoldDeclaration = corporategovernance.ShouldHold(policy, corporategovernance.HoldCompany{
+			HasUserShareholders: c.UserShareholders, LastPayoutStartDay: c.LastPayoutStartDay,
+			HasHeld: c.HasHeldDeclaration, Today: newDay,
+		})
+		if o, ok := releaseByCompany[c.CompanyID]; ok {
+			c.Release = &DeclarationRelease{ID: o.ID, CycleIndex: o.CycleIndex, PoolNetIncome: o.PoolNetIncome, Reason: string(o.Reason)}
+		}
+	}
 }

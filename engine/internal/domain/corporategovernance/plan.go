@@ -17,6 +17,9 @@ const (
 	StatusSkippedCooldown Status = "skipped_cooldown"
 	// StatusSkippedOutOfRange: o efeito levaria o fundamento para fora da faixa válida.
 	StatusSkippedOutOfRange Status = "skipped_out_of_range"
+	// StatusSkippedNotApplicable: a decisão não muda nada naquela empresa (a política já é a
+	// escolhida, ou a empresa não tem ação PN para ter prêmio).
+	StatusSkippedNotApplicable Status = "skipped_not_applicable"
 )
 
 // CompanyState é o que o planejamento precisa saber da empresa no momento da decisão.
@@ -25,6 +28,11 @@ type CompanyState struct {
 	BaseGrowthPct     int
 	QualityMultiplier int
 	PayoutRatioPct    int
+	// PnPremiumPct em centésimos; DividendPolicy e HasPN descrevem o dividendo da empresa
+	// (MO.6.12).
+	PnPremiumPct   int
+	DividendPolicy string
+	HasPN          bool
 	// LastStartDay é o dia em que começou o último efeito aplicado (ou em aplicação) de cada
 	// grupo de cooldown; grupo ausente = nunca houve.
 	LastStartDay map[Group]int
@@ -39,6 +47,8 @@ func (c CompanyState) Value(m Metric) int {
 		return c.QualityMultiplier
 	case MetricPayoutRatioPct:
 		return c.PayoutRatioPct
+	case MetricPnPremiumPct:
+		return c.PnPremiumPct
 	}
 	return c.BaseGrowthPct
 }
@@ -84,7 +94,8 @@ func InCooldown(lastStartDay *int, today, cooldownDays int) bool {
 // grupo da métrica, calcula a mudança total dentro da faixa máxima e confere que o resultado
 // final é um valor válido. Função pura: mesmo estado e mesmos parâmetros, mesmo plano.
 //
-// O payout não tem rampa (é pago uma vez, no balanço): vale integralmente no tick seguinte,
+// A destinação do lucro (payout, política, prêmio da PN) não tem rampa (vale na próxima
+// declaração): vale integralmente no tick seguinte,
 // o que no motor é uma rampa de 1 tick, então passa pelo mesmo mecanismo de aplicação.
 func PlanEffect(c CompanyState, e Effect, l Limits, rampTicks int, cd Cooldowns) (Plan, error) {
 	if err := e.Validate(); err != nil {
@@ -93,12 +104,23 @@ func PlanEffect(c CompanyState, e Effect, l Limits, rampTicks int, cd Cooldowns)
 	if rampTicks < 1 {
 		return Plan{}, errors.New("a rampa precisa de pelo menos 1 tick")
 	}
-	if e.Metric == MetricPayoutRatioPct {
+	if GroupOf(e.Metric) == GroupPayout {
 		rampTicks = 1
 	}
 	plan := Plan{Status: StatusScheduled, RampTicks: rampTicks, StartDay: c.Today + 1}
 	if InCooldown(c.LastStart(GroupOf(e.Metric)), c.Today, cd.For(e.Metric)) {
 		plan.Status = StatusSkippedCooldown
+		return plan, nil
+	}
+	switch {
+	case e.Metric == MetricDividendPolicy:
+		// Discreto: troca para o valor-alvo; nada a trocar se já é esse.
+		if c.DividendPolicy == e.Value {
+			plan.Status = StatusSkippedNotApplicable
+		}
+		return plan, nil
+	case e.Metric == MetricPnPremiumPct && !c.HasPN:
+		plan.Status = StatusSkippedNotApplicable
 		return plan, nil
 	}
 	plan.TotalDelta = TotalDelta(e, l)

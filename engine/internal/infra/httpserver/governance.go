@@ -24,6 +24,8 @@ type governanceManager interface {
 	GetDecision(ctx context.Context, assemblyID string) (corporategovernance.Decision, bool, error)
 	RecentReports(ctx context.Context, minDays, maxDays int) (corporategovernance.ReportsResult, error)
 	Standing(ctx context.Context, companyID, userID string) (corporategovernance.Standing, error)
+	ListPending(ctx context.Context) ([]corporategovernance.PendingView, error)
+	RequestRelease(ctx context.Context, id string, reason corporategovernance.ReleaseReason) error
 }
 
 // WithGovernance liga as rotas /governance; sem ela respondem 503.
@@ -59,16 +61,20 @@ type decisionEffectRequest struct {
 	Metric    string  `json:"metric"`
 	Direction int     `json:"direction"`
 	Intensity float64 `json:"intensity"`
+	// Value é o valor-alvo do efeito discreto (política de dividendo).
+	Value string `json:"value,omitempty"`
 }
 
 // decisionRequest aceita `effects` (de 1 a 2, alavancas diferentes) ou, por compatibilidade
 // com o formato anterior, um `effect` único.
 type decisionRequest struct {
-	AssemblyID string                  `json:"assembly_id"`
-	CompanyID  string                  `json:"company_id"`
-	OptionKey  string                  `json:"option_key"`
-	Effect     *decisionEffectRequest  `json:"effect"`
-	Effects    []decisionEffectRequest `json:"effects"`
+	AssemblyID string `json:"assembly_id"`
+	CompanyID  string `json:"company_id"`
+	OptionKey  string `json:"option_key"`
+	// DeclarationID liga a decisão à declaração de dividendo retida da empresa (opcional).
+	DeclarationID string                  `json:"declaration_id"`
+	Effect        *decisionEffectRequest  `json:"effect"`
+	Effects       []decisionEffectRequest `json:"effects"`
 }
 
 func (r decisionRequest) effects() []corporategovernance.Effect {
@@ -78,7 +84,7 @@ func (r decisionRequest) effects() []corporategovernance.Effect {
 	}
 	out := make([]corporategovernance.Effect, 0, len(reqs))
 	for _, e := range reqs {
-		out = append(out, corporategovernance.Effect{Metric: corporategovernance.Metric(e.Metric), Direction: e.Direction, Intensity: e.Intensity})
+		out = append(out, corporategovernance.Effect{Metric: corporategovernance.Metric(e.Metric), Direction: e.Direction, Intensity: e.Intensity, Value: e.Value})
 	}
 	return out
 }
@@ -87,6 +93,7 @@ type decisionEffectResponse struct {
 	Metric       string  `json:"metric"`
 	Direction    int     `json:"direction"`
 	Intensity    float64 `json:"intensity"`
+	Value        string  `json:"value,omitempty"`
 	Status       string  `json:"status"`
 	TotalDelta   int     `json:"total_delta"`
 	RampTicks    int     `json:"ramp_ticks"`
@@ -107,7 +114,7 @@ func toDecisionResponse(d corporategovernance.Decision) decisionResponse {
 	effects := make([]decisionEffectResponse, 0, len(d.Effects))
 	for _, e := range d.Effects {
 		effects = append(effects, decisionEffectResponse{
-			Metric: string(e.Metric), Direction: e.Direction, Intensity: e.Intensity, Status: string(e.Status),
+			Metric: string(e.Metric), Direction: e.Direction, Intensity: e.Intensity, Value: e.TargetValue, Status: string(e.Status),
 			TotalDelta: e.TotalDelta, RampTicks: e.RampTicks, StartDay: e.StartDay,
 			AppliedTicks: e.AppliedTicks, AppliedDelta: e.AppliedDelta,
 		})
@@ -123,6 +130,8 @@ func writeGovernanceError(w http.ResponseWriter, err error) {
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, corporategovernance.ErrUnknownCompany):
 		writeCatalogError(w, http.StatusNotFound, "empresa não encontrada")
+	case errors.Is(err, corporategovernance.ErrUnknownDeclaration):
+		writeCatalogError(w, http.StatusNotFound, "declaração não encontrada")
 	default:
 		writeCatalogError(w, http.StatusInternalServerError, "erro ao processar a governança")
 	}
@@ -204,8 +213,12 @@ func handleGovernanceRecordDecision(m governanceManager) http.HandlerFunc {
 			writeCatalogError(w, http.StatusBadRequest, "assembly_id e company_id devem ser UUIDs válidos")
 			return
 		}
+		if req.DeclarationID != "" && !uuidPattern.MatchString(req.DeclarationID) {
+			writeCatalogError(w, http.StatusBadRequest, "declaration_id deve ser um UUID válido")
+			return
+		}
 		decision, created, err := m.RecordDecision(r.Context(), corporategovernance.DecisionInput{
-			AssemblyID: req.AssemblyID, CompanyID: req.CompanyID, OptionKey: req.OptionKey, Effects: req.effects(),
+			AssemblyID: req.AssemblyID, CompanyID: req.CompanyID, OptionKey: req.OptionKey, Effects: req.effects(), DeclarationID: req.DeclarationID,
 		})
 		if err != nil {
 			writeGovernanceError(w, err)
@@ -320,5 +333,78 @@ func handleGovernanceStanding(m governanceManager) http.HandlerFunc {
 			CompanyID: st.CompanyID, Name: st.Name, Sector: st.Sector,
 			HoldsShares: st.HoldsShares, CooldownDaysLeft: st.CooldownDaysLeft,
 		})
+	}
+}
+
+type pendingDeclarationResponse struct {
+	ID                string   `json:"id"`
+	CompanyID         string   `json:"company_id"`
+	Name              string   `json:"name"`
+	Sector            string   `json:"sector"`
+	Tickers           []string `json:"tickers"`
+	CycleIndex        int      `json:"cycle_index"`
+	ReportDay         int      `json:"report_day"`
+	HeldDay           int      `json:"held_day"`
+	DaysHeld          int      `json:"days_held"`
+	SafetyDeadlineDay int      `json:"safety_deadline_day"`
+	// DecisionAssemblyID é a assembleia cuja decisão já foi ligada à declaração, se houver.
+	DecisionAssemblyID *string `json:"decision_assembly_id"`
+	ReleaseRequested   bool    `json:"release_requested"`
+	ReleaseReason      string  `json:"release_reason,omitempty"`
+}
+
+// handleGovernancePendingDeclarations serve GET /governance/pending-declarations: as
+// declarações de dividendo retidas, para o backend abrir a assembleia de destinação do lucro.
+// Não devolve o lucro do pool (o backend não precisa dele).
+func handleGovernancePendingDeclarations(m governanceManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if m == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "governança indisponível")
+			return
+		}
+		pendings, err := m.ListPending(r.Context())
+		if err != nil {
+			writeGovernanceError(w, err)
+			return
+		}
+		out := make([]pendingDeclarationResponse, 0, len(pendings))
+		for _, p := range pendings {
+			out = append(out, pendingDeclarationResponse{
+				ID: p.ID, CompanyID: p.CompanyID, Name: p.Name, Sector: p.Sector, Tickers: p.Tickers,
+				CycleIndex: p.CycleIndex, ReportDay: p.ReportDay, HeldDay: p.HeldDay, DaysHeld: p.DaysHeld, SafetyDeadlineDay: p.SafetyDeadlineDay,
+				DecisionAssemblyID: p.DecisionAssemblyID, ReleaseRequested: p.ReleaseRequested, ReleaseReason: string(p.ReleaseReason),
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"declarations": out})
+	}
+}
+
+// handleGovernanceReleaseDeclaration serve POST /governance/pending-declarations/{id}/release:
+// pede a liberação de uma declaração retida (a assembleia fechou sem decisão, o recurso está
+// desligado ou pausado, ou o painel liberou). O dividendo sai no próximo tick com o payout
+// vigente. Idempotente.
+func handleGovernanceReleaseDeclaration(m governanceManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if m == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "governança indisponível")
+			return
+		}
+		id := r.PathValue("id")
+		if !uuidPattern.MatchString(id) {
+			writeCatalogError(w, http.StatusBadRequest, "id deve ser um UUID válido")
+			return
+		}
+		var req struct {
+			Reason string `json:"reason"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeCatalogError(w, http.StatusBadRequest, "corpo da requisição inválido")
+			return
+		}
+		if err := m.RequestRelease(r.Context(), id, corporategovernance.ReleaseReason(req.Reason)); err != nil {
+			writeGovernanceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": id, "release_requested": true})
 	}
 }
