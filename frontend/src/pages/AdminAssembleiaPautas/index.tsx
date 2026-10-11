@@ -162,12 +162,19 @@ export function AdminAssembleiaPautas() {
                                         {template.active ? 'Ativa' : 'Inativa'}
                                     </span>
                                     <span className={styles.itemTitle}>{template.title}</span>
-                                    <button type="button" className={styles.small} onClick={() => startEdit(template)}>
-                                        Editar
-                                    </button>
-                                    <button type="button" className={styles.small} disabled={busy} onClick={() => setToggling(template)}>
-                                        {template.active ? 'Desativar' : 'Ativar'}
-                                    </button>
+                                    <div className={styles.itemActions}>
+                                        <button type="button" className={styles.small} onClick={() => startEdit(template)}>
+                                            Editar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={styles.small}
+                                            disabled={busy}
+                                            onClick={() => setToggling(template)}
+                                        >
+                                            {template.active ? 'Desativar' : 'Ativar'}
+                                        </button>
+                                    </div>
                                 </div>
                                 <p className={styles.meta}>
                                     {template.key} · {template.sector ?? 'Qualquer setor'} · {template.options.length} opções · em{' '}

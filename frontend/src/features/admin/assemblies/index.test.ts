@@ -14,6 +14,7 @@ import {
     pauseScopeLabel,
     suggestKey,
     toDraft,
+    unitFor,
 } from '.'
 
 const assembly = (overrides: Partial<AdminAssembly> = {}): AdminAssembly => ({
@@ -187,5 +188,20 @@ describe('rascunho de pauta', () => {
         expect(suggestKey('Política de endividamento!')).toBe('politica_de_endividamento')
         expect(suggestKey('  Orçamento & Capital  ')).toBe('orcamento_capital')
         expect(suggestKey('x'.repeat(90))).toHaveLength(60)
+    })
+})
+
+describe('unitFor', () => {
+    it('usa o singular só para o número 1', () => {
+        expect(unitFor('dias reais', 1)).toBe('dia real')
+        expect(unitFor('dias simulados', 1)).toBe('dia simulado')
+        expect(unitFor('pessoas', 1)).toBe('pessoa')
+        expect(unitFor('dias reais', 7)).toBe('dias reais')
+        expect(unitFor('dias reais', 0)).toBe('dias reais')
+    })
+
+    it('unidade sem plural (nível, XP) fica como está', () => {
+        expect(unitFor('nível', 1)).toBe('nível')
+        expect(unitFor('XP', 1)).toBe('XP')
     })
 })

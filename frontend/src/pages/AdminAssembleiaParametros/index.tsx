@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
-import { ASSEMBLY_SETTING_TEXT, describeAssemblyError } from '../../features/admin/assemblies'
+import { ASSEMBLY_SETTING_TEXT, describeAssemblyError, unitFor } from '../../features/admin/assemblies'
 import { describeSettingError, EDITABLE_SETTING_TEXT, parseSettingInput } from '../../features/admin/engineSettings'
 import { formatDateTime } from '../../features/admin/timeFormat'
 import { useResetEngineSettingMutation, useUpdateEngineSettingMutation } from '../../features/admin/useEngineSettingActions'
@@ -98,7 +98,7 @@ export function AdminAssembleiaParametros() {
         const clear = () => setDrafts((prev) => ({ ...prev, [row.key]: '' }))
         if (pending.kind === 'save') {
             const onSuccess = () => {
-                setNotice(`${row.title}: ${pending.value} ${row.unit}. Vale para as próximas assembleias.`)
+                setNotice(`${row.title}: ${pending.value} ${unitFor(row.unit, pending.value)}. Vale para as próximas assembleias.`)
                 clear()
             }
             if (row.source === 'assembly') {
@@ -109,7 +109,7 @@ export function AdminAssembleiaParametros() {
             return
         }
         const onSuccess = () => {
-            setNotice(`${row.title} voltou ao padrão (${row.default} ${row.unit}).`)
+            setNotice(`${row.title} voltou ao padrão (${row.default} ${unitFor(row.unit, row.default)}).`)
             clear()
         }
         if (row.source === 'assembly') {
@@ -130,7 +130,7 @@ export function AdminAssembleiaParametros() {
                             <h3 className={styles.cardTitle}>{row.title}</h3>
                             <p className={styles.text}>{row.effect}</p>
                             <p className={styles.current}>
-                                Atual: <strong>{row.value}</strong> {row.unit}
+                                Atual: <strong>{row.value}</strong> {unitFor(row.unit, row.value)}
                                 {row.overridden ? ' (alterado)' : ' (padrão)'}
                             </p>
                             <p className={styles.meta}>
@@ -233,8 +233,8 @@ export function AdminAssembleiaParametros() {
                     onCancel={() => setPending(null)}
                 >
                     <p>
-                        De {pending.row.value} para {pending.value} {pending.row.unit}. Vale para as próximas assembleias e para todos os
-                        usuários. A ação fica registrada na auditoria.
+                        De {pending.row.value} para {pending.value} {unitFor(pending.row.unit, pending.value)}. Vale para as próximas
+                        assembleias e para todos os usuários. A ação fica registrada na auditoria.
                     </p>
                 </ConfirmDialog>
             )}
@@ -248,7 +248,8 @@ export function AdminAssembleiaParametros() {
                     onCancel={() => setPending(null)}
                 >
                     <p>
-                        Volta para {pending.row.default} {pending.row.unit}, o padrão do servidor. Vale para as próximas assembleias.
+                        Volta para {pending.row.default} {unitFor(pending.row.unit, pending.row.default)}, o padrão do servidor. Vale para
+                        as próximas assembleias.
                     </p>
                 </ConfirmDialog>
             )}

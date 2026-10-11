@@ -221,3 +221,17 @@ export function suggestKey(title: string): string {
         .replace(/^_+|_+$/g, '')
         .slice(0, 60)
 }
+
+const SINGULAR_UNITS: Record<string, string> = {
+    'dias reais': 'dia real',
+    'dias simulados': 'dia simulado',
+    pessoas: 'pessoa',
+    apoios: 'apoio',
+    propostas: 'proposta',
+    votos: 'voto',
+}
+
+// A unidade de um parâmetro concordando com o número: "1 dia real", "7 dias reais".
+export function unitFor(unit: string, value: number): string {
+    return value === 1 ? (SINGULAR_UNITS[unit] ?? unit) : unit
+}

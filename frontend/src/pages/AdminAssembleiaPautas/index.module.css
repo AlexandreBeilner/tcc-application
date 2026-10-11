@@ -184,11 +184,18 @@
 }
 
 .itemTitle {
-    flex: 1;
+    /* Base de 12rem: no celular o título ocupa a linha e os botões descem, em vez de espremer o título. */
+    flex: 1 1 12rem;
     min-width: 0;
     color: var(--color-text-primary);
     font-family: var(--font-family-heading);
     font-weight: 600;
+}
+
+.itemActions {
+    display: flex;
+    gap: var(--space-2);
+    margin-left: auto;
 }
 
 .meta {
