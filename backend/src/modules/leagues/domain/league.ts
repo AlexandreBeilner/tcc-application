@@ -3,6 +3,8 @@ import { InvalidLeagueNameError } from './errors'
 // Decisões do autor (2026-10-10, ponto 046): até 3 ligas abertas por assinante, 20 membros cada.
 export const MAX_OPEN_LEAGUES_PER_OWNER = 3
 export const MAX_LEAGUE_MEMBERS = 20
+// Decisão do autor (2026-10-11, ponto 047): teto de ligas ativas que uma pessoa pode integrar.
+export const MAX_JOINED_LEAGUES_PER_USER = 10
 
 export const MIN_LEAGUE_NAME_LENGTH = 3
 export const MAX_LEAGUE_NAME_LENGTH = 40

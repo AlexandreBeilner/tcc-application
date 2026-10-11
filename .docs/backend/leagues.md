@@ -47,7 +47,7 @@ Erros comuns a todas as rotas: `401` sem token, `400` id que não é UUID.
 
 - **Autenticação:** Bearer token (quem foi convidado; nunca exige PRO)
 - **Payload:** `{ accept: boolean }`. **Sucesso:** `204` (aceitar ativa a participação; recusar remove o convite)
-- **Erros:** `404` sem convite pendente ou liga inexistente
+- **Erros:** `404` sem convite pendente ou liga inexistente; `409` ao aceitar quando a pessoa já integra 10 ligas ativas (teto de participação, ponto 047; recusar continua possível)
 
 ### `POST /leagues/:id/leave`
 

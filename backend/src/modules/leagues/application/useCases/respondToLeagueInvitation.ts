@@ -1,4 +1,5 @@
-import { InvitationNotFoundError } from '../../domain/errors'
+import { InvitationNotFoundError, JoinedLeaguesLimitReachedError } from '../../domain/errors'
+import { MAX_JOINED_LEAGUES_PER_USER } from '../../domain/league'
 import { loadLeagueForMember } from '../leagueAccess'
 import type { LeagueRepository } from '../ports/leagueRepository'
 
@@ -15,6 +16,13 @@ export class RespondToLeagueInvitationUseCase {
       throw new InvitationNotFoundError('não há convite pendente para você nessa liga')
     }
     if (input.accept) {
+      const mine = await this.leagues.listForUser(input.userId)
+      const joined = mine.filter((row) => row.membership.status === 'active').length
+      if (joined >= MAX_JOINED_LEAGUES_PER_USER) {
+        throw new JoinedLeaguesLimitReachedError(
+          `você já participa de ${MAX_JOINED_LEAGUES_PER_USER} ligas; saia de uma para entrar em outra`,
+        )
+      }
       await this.leagues.activateMember(input.leagueId, input.userId, this.now())
     } else {
       await this.leagues.removeMember(input.leagueId, input.userId)

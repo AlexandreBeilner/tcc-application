@@ -3,6 +3,7 @@ import {
   AlreadyInLeagueError,
   InvalidLeagueNameError,
   InvitationNotFoundError,
+  JoinedLeaguesLimitReachedError,
   LeagueFullError,
   LeagueLimitReachedError,
   LeagueNotFoundError,
@@ -10,6 +11,7 @@ import {
   NotLeagueOwnerError,
   OwnerCannotLeaveError,
 } from '../../domain/errors'
+import { MAX_JOINED_LEAGUES_PER_USER } from '../../domain/league'
 import { createFakeLeagueRepository } from '../../test/fakes/fakeLeagueRepository'
 import {
   createFakeFriendships,
@@ -174,6 +176,39 @@ describe('convites', () => {
     await expect(
       ctx.respond.execute({ userId: 'dono', leagueId: league.id, accept: true }),
     ).rejects.toBeInstanceOf(InvitationNotFoundError)
+  })
+})
+
+describe('teto de participação (ponto 047)', () => {
+  it('quem já integra 10 ligas ativas não aceita outro convite, mas convites pendentes não contam', async () => {
+    const ctx = build()
+    for (let i = 0; i < MAX_JOINED_LEAGUES_PER_USER; i++) {
+      const other = await ctx.repo.createIfUnderLimit(
+        { ownerId: `dono${i}`, name: `Liga ${i}`, window: 'week', now: NOW },
+        5,
+      )
+      await ctx.repo.addMemberIfRoom(
+        {
+          leagueId: other!.id,
+          userId: 'amigo1',
+          status: 'active',
+          invitedBy: `dono${i}`,
+          now: NOW,
+        },
+        20,
+      )
+    }
+    const league = await ctx.create.execute({ userId: 'dono', name: 'Turma', window: 'week' })
+    await ctx.invite.execute({ userId: 'dono', leagueId: league.id, targetUserId: 'amigo1' })
+
+    await expect(
+      ctx.respond.execute({ userId: 'amigo1', leagueId: league.id, accept: true }),
+    ).rejects.toBeInstanceOf(JoinedLeaguesLimitReachedError)
+    expect((await ctx.repo.findMember(league.id, 'amigo1'))?.status).toBe('invited')
+
+    // recusar continua possível no teto
+    await ctx.respond.execute({ userId: 'amigo1', leagueId: league.id, accept: false })
+    expect(await ctx.repo.findMember(league.id, 'amigo1')).toBeNull()
   })
 })
 

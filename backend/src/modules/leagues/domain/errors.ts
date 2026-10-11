@@ -1,6 +1,8 @@
 export class InvalidLeagueNameError extends Error {}
 // Dono já tem 3 ligas abertas.
 export class LeagueLimitReachedError extends Error {}
+// Pessoa já integra 10 ligas ativas e não pode aceitar outro convite.
+export class JoinedLeaguesLimitReachedError extends Error {}
 // Liga já tem 20 pessoas (entre membros e convites pendentes).
 export class LeagueFullError extends Error {}
 // Também cobre liga encerrada e liga da qual a pessoa não participa (nunca vaza que existe).
