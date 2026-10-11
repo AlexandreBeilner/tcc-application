@@ -358,6 +358,13 @@
       "when": 1794200000000,
       "tag": "0050_add_profit_assemblies",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0051_replace_agenda_catalog",
+      "breakpoints": true
     }
   ]
 }

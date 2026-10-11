@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
 import type { NewAssemblyInput } from '../../domain/assembly'
+import { validateTemplateInput } from '../../domain/agendaTemplates'
 import { parseEngineEffects } from '../engine/engineShareholderEffect'
 import { createDrizzleAgendaCatalog } from './drizzleAgendaCatalog'
 import { createDrizzleAssemblyRepository } from './drizzleAssemblyRepository'
@@ -283,10 +284,44 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
     expect(await repo.countVotedAssemblies(ids[1])).toBe(0)
   })
 
-  it('o catálogo semeado tem pautas de dois lados com efeito válido, gerais e por setor', async () => {
+  it('o catálogo semeado (MO.6.15) tem 28 pautas com troca real, efeito composto e finalidade', async () => {
     const templates = await createDrizzleAgendaCatalog(db).listActive('shareholder')
-    expect(templates.length).toBeGreaterThanOrEqual(15)
+    expect(templates).toHaveLength(28)
+    expect(templates.filter((t) => t.purpose === 'profit')).toHaveLength(10)
+    expect(templates.filter((t) => t.purpose === 'general')).toHaveLength(18)
     expect(templates.some((t) => t.sector === null)).toBe(true)
+    // Toda pauta decide o destino do lucro (profit) só com alavanca de lucro; a comum só mexe em
+    // crescimento e qualidade. Um setor sem pauta de lucro nunca seria liberado pela assembleia.
+    const profitMetrics = ['payout_ratio_pct', 'pn_dividend_premium_pct', 'dividend_policy']
+    for (const template of templates) {
+      const metrics = template.options.flatMap((o) =>
+        parseEngineEffects(o.effect).map((e) => e.metric),
+      )
+      if (template.purpose === 'profit') {
+        expect(
+          metrics.some((m) => profitMetrics.includes(m)),
+          template.key,
+        ).toBe(true)
+      } else {
+        expect(
+          metrics.every((m) => !profitMetrics.includes(m)),
+          template.key,
+        ).toBe(true)
+      }
+    }
+    const profitSectors = new Set(
+      templates.filter((t) => t.purpose === 'profit').map((t) => t.sector),
+    )
+    expect(profitSectors.size).toBe(7) // qualquer setor (null) e os seis setores
+    // Mistura de sentidos: nada de catálogo que só empurra para cima (ponto 053).
+    const directions = templates.flatMap((t) =>
+      t.options.flatMap((o) =>
+        parseEngineEffects(o.effect).flatMap((e) => ('direction' in e ? [e.direction] : [])),
+      ),
+    )
+    const up = directions.filter((d) => d === 1).length
+    expect(up / directions.length).toBeGreaterThan(0.4)
+    expect(up / directions.length).toBeLessThan(0.6)
     const sectors = new Set(templates.map((t) => t.sector).filter(Boolean))
     expect(sectors).toEqual(
       new Set([
@@ -299,17 +334,19 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
       ]),
     )
     for (const template of templates) {
-      expect(template.options, template.key).toHaveLength(2)
+      expect(template.options.length, template.key).toBeGreaterThanOrEqual(2)
+      expect(template.options.length, template.key).toBeLessThanOrEqual(4)
       for (const option of template.options) {
         expect(option.gain && option.loss && option.label, template.key).toBeTruthy()
-        expect(
-          () => parseEngineEffects(option.effect),
-          `${template.key}/${option.key}`,
-        ).not.toThrow()
+        const effects = parseEngineEffects(option.effect)
+        expect(effects.length, `${template.key}/${option.key}`).toBeGreaterThanOrEqual(1)
+        expect(effects.length, `${template.key}/${option.key}`).toBeLessThanOrEqual(2)
         expect(
           `${template.title}${template.description}${option.label}${option.gain}${option.loss}`,
-        ).not.toContain('—')
+        ).not.toMatch(/[–—]/)
       }
+      // O mesmo validador do painel aceita a pauta semeada.
+      expect(() => validateTemplateInput(template), template.key).not.toThrow()
     }
   })
 
