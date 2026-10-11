@@ -75,7 +75,7 @@ async function main() {
 
   const webhook =
     emailConfig.provider === 'resend' && emailConfig.webhookSecret
-      ? { apiKey: emailConfig.apiKey, secret: emailConfig.webhookSecret }
+      ? { apiKey: emailConfig.transactional.apiKey, secret: emailConfig.webhookSecret }
       : undefined
   if (emailConfig.provider === 'resend' && !webhook) {
     console.warn(

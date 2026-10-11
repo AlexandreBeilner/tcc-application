@@ -1,4 +1,8 @@
+import type { EmailStream } from '../../domain/emailMessage'
+
 export interface OutgoingEmail {
+  // Decide remetente e chave do provedor (`streamFor(category)`).
+  stream: EmailStream
   to: string
   subject: string
   html: string

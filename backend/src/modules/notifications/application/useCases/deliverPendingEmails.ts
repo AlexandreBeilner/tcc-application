@@ -1,6 +1,6 @@
 import { EmailSendError } from '../../domain/errors'
 import { MAX_DELIVERY_ATTEMPTS, nextRetryDelayMs } from '../../domain/retryPolicy'
-import { isOptionalCategory, type OutboxEmail } from '../../domain/emailMessage'
+import { isOptionalCategory, streamFor, type OutboxEmail } from '../../domain/emailMessage'
 import { isBlockedBySuppression } from '../../domain/suppression'
 import { sensitivePayloadFields } from '../../domain/templates/registry'
 import type { EmailOutboxRepository } from '../ports/emailOutboxRepository'
@@ -111,6 +111,7 @@ export class DeliverPendingEmailsUseCase {
 
     try {
       const { providerMessageId } = await this.sender.send({
+        stream: streamFor(email.category),
         to: email.toAddress,
         subject: rendered.subject,
         html: rendered.html,

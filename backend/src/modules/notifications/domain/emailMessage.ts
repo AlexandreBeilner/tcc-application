@@ -28,6 +28,14 @@ export interface OutboxEmail {
   nextAttemptAt: Date
 }
 
+// Fluxo de envio (remetente e chave próprios no provedor): segurança e transacional saem pelo
+// `transactional`; só as opcionais (social e engajamento) saem pelo `news`.
+export type EmailStream = 'transactional' | 'news'
+
+export function streamFor(category: EmailCategory): EmailStream {
+  return category === 'social' || category === 'engagement' ? 'news' : 'transactional'
+}
+
 export type OptionalEmailCategory = 'social' | 'engagement'
 
 export function isOptionalCategory(category: EmailCategory): category is OptionalEmailCategory {

@@ -12,6 +12,7 @@ import { annualDiscountPercent, annualPerMonth } from '../../features/billing/we
 import type { WebPlan } from '../../features/billing/webPurchases'
 import type { BillingStatus, FunnelSource } from '../../services/billing'
 import styles from './index.module.css'
+import { SUPPORT_EMAIL } from '../../utils/supportContact'
 
 const PRO_BENEFITS = [
     'Ligas privadas e duelos com seus amigos',
@@ -216,8 +217,8 @@ export function Planos() {
                             {purchase.phase === 'timeout' && (
                                 <p className={styles.notice}>
                                     {restoring
-                                        ? 'Encontramos a sua assinatura, mas a confirmação está demorando. Volte em alguns minutos. Se o PRO não aparecer, fale com o suporte.'
-                                        : 'Seu pagamento está demorando para ser confirmado. Não pague de novo: volte em alguns minutos. Se o PRO não aparecer, fale com o suporte.'}
+                                        ? `Encontramos a sua assinatura, mas a confirmação está demorando. Volte em alguns minutos. Se o PRO não aparecer, fale com o suporte (${SUPPORT_EMAIL}).`
+                                        : `Seu pagamento está demorando para ser confirmado. Não pague de novo: volte em alguns minutos. Se o PRO não aparecer, fale com o suporte (${SUPPORT_EMAIL}).`}
                                 </p>
                             )}
                             {purchase.phase === 'error' && (

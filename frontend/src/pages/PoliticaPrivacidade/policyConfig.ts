@@ -15,7 +15,7 @@ export const policyConfig = {
     controllerName: '[PREENCHER: nome completo ou razão social do controlador]',
     // CPF/CNPJ não é exigido na política; deixado de fora de propósito.
     // E-mail do encarregado (DPO, LGPD art. 41) e canal dos titulares.
-    contactEmail: '[PREENCHER: e-mail de contato para titulares de dados]',
+    contactEmail: 'privacidade@selucra.com.br',
     // Nome do encarregado. Pode ser o próprio controlador.
     dpoName: '[PREENCHER: nome do encarregado pelo tratamento de dados]',
     // Onde o backend/banco rodam em produção (operador, LGPD art. 5º, VII).

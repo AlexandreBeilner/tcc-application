@@ -3,6 +3,7 @@ import { EmailSendError } from '../../domain/errors'
 import { createResendEmailSender, type ResendClient } from './resendEmailSender'
 
 const email = {
+  stream: 'transactional' as const,
   to: 'ana@exemplo.com',
   subject: 'Assunto',
   html: '<p>oi</p>',
@@ -24,6 +25,10 @@ function clientReturning(response: Awaited<ReturnType<ResendClient['emails']['se
   return { client, calls }
 }
 
+const oneStream = (client: ResendClient) => ({
+  streams: { transactional: { client, from: 'a@b.com' }, news: { client, from: 'a@b.com' } },
+})
+
 const apiError = (name: string, statusCode: number | null = 400) => ({
   data: null,
   error: { name, message: `msg ${name}`, statusCode },
@@ -33,8 +38,10 @@ describe('createResendEmailSender', () => {
   it('envia com remetente, destinatário, reply-to, cabeçalhos e Idempotency-Key', async () => {
     const { client, calls } = clientReturning({ data: { id: 'msg_1' }, error: null })
     const sender = createResendEmailSender({
-      client,
-      from: 'Plataforma <no-reply@mail.exemplo.com>',
+      streams: {
+        transactional: { client, from: 'Plataforma <no-reply@send.exemplo.com>' },
+        news: { client: clientReturning({ data: { id: 'x' }, error: null }).client, from: 'a@b.com' },
+      },
       replyTo: 'ajuda@exemplo.com',
     })
 
@@ -44,7 +51,7 @@ describe('createResendEmailSender', () => {
     expect(calls).toEqual([
       [
         {
-          from: 'Plataforma <no-reply@mail.exemplo.com>',
+          from: 'Plataforma <no-reply@send.exemplo.com>',
           to: ['ana@exemplo.com'],
           subject: 'Assunto',
           html: '<p>oi</p>',
@@ -64,7 +71,7 @@ describe('createResendEmailSender', () => {
     'invalid_idempotent_request',
   ])('%s é erro permanente', async (name) => {
     const { client } = clientReturning(apiError(name))
-    const sender = createResendEmailSender({ client, from: 'a@b.com' })
+    const sender = createResendEmailSender(oneStream(client))
 
     const error = await sender.send(email).catch((e: unknown) => e)
 
@@ -84,7 +91,7 @@ describe('createResendEmailSender', () => {
     ['restricted_api_key', 401],
   ])('%s (%s) é transitório', async (name, status) => {
     const { client } = clientReturning(apiError(name, status))
-    const sender = createResendEmailSender({ client, from: 'a@b.com' })
+    const sender = createResendEmailSender(oneStream(client))
 
     await expect(sender.send(email)).rejects.toMatchObject({ permanent: false })
   })
@@ -97,11 +104,32 @@ describe('createResendEmailSender', () => {
         },
       },
     }
-    const sender = createResendEmailSender({ client, from: 'a@b.com' })
+    const sender = createResendEmailSender(oneStream(client))
 
     const error = await sender.send(email).catch((e: unknown) => e)
 
     expect(error).toMatchObject({ permanent: false })
     expect((error as Error).message).toContain('fetch failed')
+  })
+
+  it('usa a chave e o remetente do fluxo do e-mail, sem misturar', async () => {
+    const transactional = clientReturning({ data: { id: 't1' }, error: null })
+    const news = clientReturning({ data: { id: 'n1' }, error: null })
+    const sender = createResendEmailSender({
+      streams: {
+        transactional: { client: transactional.client, from: 'Selucra <no-reply@send.exemplo.com>' },
+        news: { client: news.client, from: 'Selucra <no-reply@news.exemplo.com>' },
+      },
+      replyTo: 'suporte@exemplo.com',
+    })
+
+    await sender.send(email)
+    await sender.send({ ...email, stream: 'news' })
+
+    expect(transactional.calls).toHaveLength(1)
+    expect(transactional.calls[0][0].from).toBe('Selucra <no-reply@send.exemplo.com>')
+    expect(news.calls).toHaveLength(1)
+    expect(news.calls[0][0].from).toBe('Selucra <no-reply@news.exemplo.com>')
+    expect(news.calls[0][0].replyTo).toBe('suporte@exemplo.com')
   })
 })

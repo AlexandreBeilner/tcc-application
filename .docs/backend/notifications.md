@@ -21,14 +21,17 @@ Nenhum caso de uso de negócio fala com o provedor: quem precisa mandar e-mail d
 
 **Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test`, `pro_welcome`, `pro_billing_issue`, `pro_ended` (transacional; os três do PRO vêm do módulo `billing`, MO.3.4); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted`, `assembly_result` (social); `weekly_digest`, `salary_credited`, `rare_achievement`, `streak_reminder` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
 
+**Fluxos de envio.** Cada e-mail sai por um de dois fluxos, decidido pela categoria (`streamFor`): `security` e `transactional` pelo fluxo `transactional` (subdomínio `send`); `social` e `engagement`, que só existem com opt-in e levam `List-Unsubscribe`, pelo fluxo `news` (subdomínio `news`). Cada fluxo tem remetente e chave próprios, e a reputação de um não contamina o outro. O webhook usa a chave do fluxo `transactional` só para montar o verificador; a assinatura é validada pelo `RESEND_WEBHOOK_SECRET`.
+
 **Configuração.**
 
 | Variável | Para quê |
 |---|---|
 | `EMAIL_PROVIDER` | Obrigatória: `resend` envia de verdade; `log` imprime assunto e links no console (só desenvolvimento, **marca a linha como `sent` sem entregar nada**). O Compose fixa `log` por padrão. |
-| `RESEND_API_KEY` | Chave com permissão só de envio, uma por ambiente. Obrigatória com `resend`. |
+| `RESEND_API_KEY_TRANSACTIONAL`, `RESEND_API_KEY_NEWS` | Duas chaves com permissão só de envio ('Sending access'), cada uma restrita a um subdomínio verificado (`send` e `news`). Obrigatórias com `resend`, e precisam ser diferentes. Chave de um subdomínio com remetente do outro falha no envio (esperado). |
 | `RESEND_WEBHOOK_SECRET` | `whsec_...` do endpoint de webhook; sem ele a rota não existe e o backend avisa no log. |
-| `EMAIL_FROM`, `EMAIL_REPLY_TO` | Remetente (obrigatório com `resend`) e resposta humana opcional. |
+| `EMAIL_FROM_TRANSACTIONAL`, `EMAIL_FROM_NEWS` | Remetentes (obrigatórios com `resend`): `Selucra <no-reply@send.selucra.com.br>` e `Selucra <no-reply@news.selucra.com.br>`. Nunca o domínio raiz. |
+| `EMAIL_REPLY_TO` | Resposta humana, em todos os e-mails (produção: `suporte@selucra.com.br`, caixa de entrada pelo Cloudflare Email Routing). |
 | `EMAIL_SEND_RPS`, `EMAIL_OUTBOX_INTERVAL_MS` | Cadência do worker (padrões acima). |
 | `EMAIL_STREAK_REMINDER` | `off` desliga o lembrete de sequência em risco (EM.7.3). Ligado por padrão (decisão do autor, ponto 045, 2026-10-11); acompanhe cancelamento e reclamação do resumo semanal e desligue se piorarem. |
 | `EMAIL_ENGAGEMENT_INTERVAL_MS` | De quanto em quanto tempo os jobs de engajamento checam se estão na janela (padrão 15 min). |
@@ -142,8 +145,8 @@ Consultas abaixo no banco de usuário/gamificação (`psql`).
 ### Rotacionar a chave de API do Resend
 
 1. No painel do Resend (API Keys), criar uma chave nova com **Sending access** restrita ao domínio de envio. Não apagar a antiga ainda.
-2. Colocar o valor novo em `RESEND_API_KEY` no ambiente e reiniciar o backend (a chave é lida na subida). O worker é do mesmo processo, então a troca vale já no próximo ciclo.
-3. Validar: `EMAIL_PROVIDER=resend RESEND_API_KEY=... EMAIL_FROM=... npm run email:test -- seu@email.com` (no `backend/`) e conferir que chegou. Em seguida, `GET /admin/system/health` deve mostrar `email_outbox` em dia.
+2. Colocar o valor novo em `RESEND_API_KEY_TRANSACTIONAL` ou `RESEND_API_KEY_NEWS` (a que foi girada) no ambiente e reiniciar o backend (a chave é lida na subida). O worker é do mesmo processo, então a troca vale já no próximo ciclo.
+3. Validar: `EMAIL_PROVIDER=resend RESEND_API_KEY_TRANSACTIONAL=... RESEND_API_KEY_NEWS=... EMAIL_FROM_TRANSACTIONAL=... EMAIL_FROM_NEWS=... npm run email:test -- seu@email.com [transactional|news]` (no `backend/`) e conferir que chegou. Em seguida, `GET /admin/system/health` deve mostrar `email_outbox` em dia.
 4. Só então revogar a chave antiga no Resend. Linhas que falharam por chave inválida no meio da troca ficam `failed` com o erro em `last_error` (não são reenviadas sozinhas).
 5. O segredo do webhook (`RESEND_WEBHOOK_SECRET`) tem rotação própria: o Resend mostra um novo Signing Secret por endpoint; trocar a variável e reiniciar. Entre a troca no painel e o restart, eventos chegam com `400` e o provedor reenvia (o processamento é idempotente).
 6. Se a chave vazou: revogar primeiro, rotacionar depois (o envio para até o passo 2; recuperação de senha fica sem e-mail nesse intervalo, e o worker reenvia o que falhou enquanto ainda houver tentativas).
@@ -155,5 +158,5 @@ Sintomas: pico de `bounced`/`complained` no painel do Resend, a fila no painel a
 1. **Medir.** `select status, count(*) from email_outbox where created_at > now() - interval '24 hours' group by 1;` e `select last_error, count(*) from email_outbox where status = 'failed' and created_at > now() - interval '24 hours' group by 1 order by 2 desc;`. Ver também a aba de entregas do webhook no Resend.
 2. **Descartar causa nossa.** `EMAIL_PROVIDER` está `resend` (e não `log`, que marca como enviado sem entregar)? Domínio com status **Verified** e registros SPF, DKIM e DMARC ainda no DNS? Chave válida? `RESEND_WEBHOOK_SECRET` configurado (sem ele, bounces não chegam em `email_suppressions` e continuamos insistindo em endereços mortos)?
 3. **Confirmar a lista de bloqueio.** Consultar o domínio e o IP de envio numa ferramenta de blacklist (MXToolbox, Google Postmaster Tools) e abrir o pedido de remoção no provedor da lista. O Resend tem suporte para casos de IP compartilhado.
-4. **Conter.** Não há chave de pausa no código. Para não queimar reputação enquanto resolve, o caminho é desligar as categorias opcionais na origem (não ligar novos e-mails de engajamento) e deixar só segurança e transacional, que são o que o usuário precisa. Se o domínio estiver irrecuperável, verificar um **novo subdomínio** de envio no Resend, trocar `EMAIL_FROM` e reiniciar: o que está `pending` sai pelo novo remetente.
+4. **Conter.** Não há chave de pausa no código. Para não queimar reputação enquanto resolve, o caminho é desligar as categorias opcionais na origem (não ligar novos e-mails de engajamento) e deixar só segurança e transacional, que são o que o usuário precisa. Se o domínio estiver irrecuperável, verificar um **novo subdomínio** de envio no Resend, trocar `EMAIL_FROM_NEWS` (ou `_TRANSACTIONAL`) e a chave correspondente e reiniciar: o que está `pending` sai pelo novo remetente.
 5. **Depois.** Linhas `failed` por bloqueio não são reenviadas sozinhas. Para reenfileirar uma específica depois de resolvido: `update email_outbox set status = 'pending', attempts = 0, next_attempt_at = now(), last_error = null where id = '<id>' and status = 'failed' and to_address <> '';` (linhas com mais de 30 dias já perderam endereço e payload e não dá para reenviar). Endereços suprimidos por bounce continuam suprimidos (`select * from email_suppressions where address = '...'`); remover uma linha dali só se o endereço comprovadamente voltou a funcionar.

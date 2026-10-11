@@ -1,10 +1,11 @@
 import type { EmailSender } from '../../application/ports/emailSender'
+import type { EmailStream } from '../../domain/emailMessage'
 
 // Transporte de desenvolvimento (`EMAIL_PROVIDER=log`): imprime o e-mail em vez de enviar, pra
 // testar recuperação de senha e verificação sem provedor. O corpo inclui os links com token:
 // nunca ligar fora de desenvolvimento.
 export function createLogEmailSender(
-  from: string,
+  from: Record<EmailStream, string>,
   log: (line: string) => void = console.log,
 ): EmailSender {
   let counter = 0
@@ -14,7 +15,7 @@ export function createLogEmailSender(
       log(
         [
           `e-mail (log, não enviado de verdade) #${counter}`,
-          `  de: ${from}`,
+          `  de: ${from[email.stream]}`,
           `  para: ${email.to}`,
           `  assunto: ${email.subject}`,
           ...(email.headers

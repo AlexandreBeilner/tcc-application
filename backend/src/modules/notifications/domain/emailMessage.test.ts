@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isOptionalCategory, isUndeliverableAddress, normalizeAddress } from './emailMessage'
+import { isOptionalCategory, isUndeliverableAddress, normalizeAddress, streamFor } from './emailMessage'
 
 describe('emailMessage', () => {
   it.each([
@@ -23,5 +23,14 @@ describe('emailMessage', () => {
     ['ana@invalid.com', false],
   ])('%s indisponível=%s', (address, expected) => {
     expect(isUndeliverableAddress(address)).toBe(expected)
+  })
+})
+
+describe('streamFor', () => {
+  it('só social e engajamento saem pelo fluxo news', () => {
+    expect(streamFor('security')).toBe('transactional')
+    expect(streamFor('transactional')).toBe('transactional')
+    expect(streamFor('social')).toBe('news')
+    expect(streamFor('engagement')).toBe('news')
   })
 })

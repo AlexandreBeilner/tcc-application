@@ -13,6 +13,7 @@ import { ResendVerification } from '../../components/organisms/ResendVerificatio
 import { AuthCard } from '../../components/templates/AuthCard'
 import type { Mode } from './types'
 import styles from './index.module.css'
+import { SUPPORT_EMAIL } from '../../utils/supportContact'
 
 const STRENGTH_LABEL: Record<'weak' | 'medium' | 'strong', string> = {
     weak: 'Fraca',
@@ -33,7 +34,7 @@ const STRENGTH_LABEL: Record<'weak' | 'medium' | 'strong', string> = {
 // (`features/auth/passwordStrength`, heurística pura e testada) — nenhum
 // dos dois existe no modo login, só no `register`.
 // Texto da recusa de login de conta suspensa pelo painel (N.16); o backend só manda o código.
-const SUSPENDED_MESSAGE = 'Sua conta está suspensa. Fale com o suporte para entender o motivo.'
+const SUSPENDED_MESSAGE = `Sua conta está suspensa. Fale com o suporte (${SUPPORT_EMAIL}) para entender o motivo.`
 
 //
 // Verificação de e-mail (EM.3.3, D2): o cadastro não cria sessão, mostra o aviso "enviamos um

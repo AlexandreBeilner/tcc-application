@@ -1,5 +1,6 @@
 import type { BillingStatus, SubscriptionStore } from '../../../services/billing'
 import type { NativePlatform } from '../isNativeApp'
+import { SUPPORT_EMAIL } from '../../../utils/supportContact'
 
 export interface PlanDescription {
     headline: string
@@ -68,7 +69,7 @@ function storeAction(status: BillingStatus, inApp: boolean): Pick<PlanDescriptio
                 }
             return status.managementUrl
                 ? { action: { label: 'Gerenciar assinatura', href: status.managementUrl, external: true }, instruction: null }
-                : { action: null, instruction: 'Para mudar ou cancelar, fale com o suporte.' }
+                : { action: null, instruction: `Para mudar ou cancelar, fale com o suporte (${SUPPORT_EMAIL}).` }
         case 'promotional':
             return { action: null, instruction: 'Este PRO foi concedido pela equipe e não precisa de cancelamento.' }
         default:

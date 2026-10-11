@@ -81,6 +81,15 @@ describe('DeliverPendingEmailsUseCase', () => {
     })
   })
 
+  it('segurança e transacional saem pelo fluxo transactional', async () => {
+    const { sender, deliver, enqueue } = setup()
+    await enqueue('a')
+
+    await deliver.execute()
+
+    expect(sender.sent[0].stream).toBe('transactional')
+  })
+
   it('não reenvia o que já foi enviado nem o que está agendado pro futuro', async () => {
     const { outbox, sender, suppressions, deliver, enqueue } = setup()
     await enqueue('a')

@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 import type { EmailSender } from '../../application/ports/emailSender'
 import { EmailSendError } from '../../domain/errors'
+import type { EmailStream } from '../../domain/emailMessage'
 
 // Recorte do SDK que o adapter usa: é o que o teste substitui, sem `vi.mock` do pacote. O SDK
 // não lança em erro de API, devolve `{ data, error }`.
@@ -44,20 +45,26 @@ const PERMANENT_ERRORS = new Set([
   'method_not_allowed',
 ])
 
-export interface ResendEmailSenderOptions {
+export interface ResendStreamOptions {
   client: ResendClient
   from: string
+}
+
+export interface ResendEmailSenderOptions {
+  // Um cliente (chave) e um remetente por fluxo: a chave do Resend só envia do domínio dela.
+  streams: Record<EmailStream, ResendStreamOptions>
   replyTo?: string
 }
 
 export function createResendEmailSender(options: ResendEmailSenderOptions): EmailSender {
   return {
     async send(email) {
+      const { client, from } = options.streams[email.stream]
       let response: Awaited<ReturnType<ResendClient['emails']['send']>>
       try {
-        response = await options.client.emails.send(
+        response = await client.emails.send(
           {
-            from: options.from,
+            from,
             to: [email.to],
             subject: email.subject,
             html: email.html,

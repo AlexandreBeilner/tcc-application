@@ -167,7 +167,7 @@ describe('Login (tela 1.1)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
 
         await waitFor(() =>
-            expect(screen.getByRole('alert').textContent).toBe('Sua conta está suspensa. Fale com o suporte para entender o motivo.'),
+            expect(screen.getByRole('alert').textContent).toBe('Sua conta está suspensa. Fale com o suporte (suporte@selucra.com.br) para entender o motivo.'),
         )
         expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
     })

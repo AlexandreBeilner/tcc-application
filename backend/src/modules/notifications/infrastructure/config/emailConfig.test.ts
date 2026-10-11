@@ -10,7 +10,8 @@ describe('loadEmailConfig', () => {
   it('log não precisa de chave e usa os padrões', () => {
     expect(loadEmailConfig({ EMAIL_PROVIDER: 'log' })).toEqual({
       provider: 'log',
-      from: 'Plataforma <no-reply@localhost>',
+      transactionalFrom: 'Plataforma <no-reply@localhost>',
+      newsFrom: 'Plataforma <no-reply@localhost>',
       replyTo: undefined,
       delayBetweenSendsMs: 500,
       outboxIntervalMs: 5_000,
@@ -19,31 +20,43 @@ describe('loadEmailConfig', () => {
     })
   })
 
-  it('resend sem chave ou sem remetente derruba a subida listando tudo que falta', () => {
+  const RESEND_ENV = {
+    EMAIL_PROVIDER: 'resend',
+    RESEND_API_KEY_TRANSACTIONAL: 're_send',
+    RESEND_API_KEY_NEWS: 're_news',
+    EMAIL_FROM_TRANSACTIONAL: 'Selucra <no-reply@send.exemplo.com>',
+    EMAIL_FROM_NEWS: 'Selucra <no-reply@news.exemplo.com>',
+  }
+
+  it('resend sem chaves ou remetentes derruba a subida listando tudo que falta', () => {
     expect(() => loadEmailConfig({ EMAIL_PROVIDER: 'resend' })).toThrow(
-      /RESEND_API_KEY.*EMAIL_FROM/,
+      /RESEND_API_KEY_TRANSACTIONAL.*RESEND_API_KEY_NEWS.*EMAIL_FROM_TRANSACTIONAL.*EMAIL_FROM_NEWS/,
     )
     expect(() =>
-      loadEmailConfig({ EMAIL_PROVIDER: 'resend', RESEND_API_KEY: '   ', EMAIL_FROM: 'a@b.com' }),
-    ).toThrow(/RESEND_API_KEY/)
+      loadEmailConfig({ ...RESEND_ENV, RESEND_API_KEY_NEWS: '   ' }),
+    ).toThrow(/RESEND_API_KEY_NEWS/)
+  })
+
+  it('recusa a mesma chave nos dois fluxos', () => {
+    expect(() =>
+      loadEmailConfig({ ...RESEND_ENV, RESEND_API_KEY_NEWS: 're_send' }),
+    ).toThrow(/não podem ser a mesma chave/)
   })
 
   it('resend completo', () => {
     expect(
       loadEmailConfig({
-        EMAIL_PROVIDER: 'resend',
-        RESEND_API_KEY: 're_123',
-        EMAIL_FROM: 'Plataforma <no-reply@mail.exemplo.com>',
-        EMAIL_REPLY_TO: 'ajuda@exemplo.com',
+        ...RESEND_ENV,
+        EMAIL_REPLY_TO: 'suporte@exemplo.com',
         RESEND_WEBHOOK_SECRET: 'whsec_1',
         EMAIL_SEND_RPS: '4',
         EMAIL_OUTBOX_INTERVAL_MS: '2000',
       }),
     ).toEqual({
       provider: 'resend',
-      apiKey: 're_123',
-      from: 'Plataforma <no-reply@mail.exemplo.com>',
-      replyTo: 'ajuda@exemplo.com',
+      transactional: { apiKey: 're_send', from: 'Selucra <no-reply@send.exemplo.com>' },
+      news: { apiKey: 're_news', from: 'Selucra <no-reply@news.exemplo.com>' },
+      replyTo: 'suporte@exemplo.com',
       webhookSecret: 'whsec_1',
       delayBetweenSendsMs: 250,
       outboxIntervalMs: 2_000,

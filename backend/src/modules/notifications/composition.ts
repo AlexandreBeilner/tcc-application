@@ -47,12 +47,17 @@ export const EMAIL_BRAND_NAME = 'Selucra'
 export function createEmailSender(config: EmailConfig): EmailSender {
   if (config.provider === 'resend') {
     return createResendEmailSender({
-      client: createResendClient(config.apiKey),
-      from: config.from,
+      streams: {
+        transactional: {
+          client: createResendClient(config.transactional.apiKey),
+          from: config.transactional.from,
+        },
+        news: { client: createResendClient(config.news.apiKey), from: config.news.from },
+      },
       replyTo: config.replyTo,
     })
   }
-  return createLogEmailSender(config.from)
+  return createLogEmailSender({ transactional: config.transactionalFrom, news: config.newsFrom })
 }
 
 export interface NotificationsCompositionDeps {

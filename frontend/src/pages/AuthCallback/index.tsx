@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
+import { SUPPORT_EMAIL } from '../../utils/supportContact'
 
 // Destino do redirect final do OAuth Google (tela 1.1, tarefa 6.2):
 // `.docs/backend/auth.md` (GET /auth/google/callback) manda o navegador
@@ -49,7 +50,7 @@ export function AuthCallback() {
     if (suspended) {
         return (
             <main>
-                <p>Sua conta está suspensa. Fale com o suporte para entender o motivo.</p>
+                <p>Sua conta está suspensa. Fale com o suporte ({SUPPORT_EMAIL}) para entender o motivo.</p>
             </main>
         )
     }

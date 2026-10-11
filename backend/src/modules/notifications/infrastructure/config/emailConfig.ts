@@ -8,8 +8,14 @@
 // real precisa dizer `resend` de propósito.
 export type EmailConfig = ResendEmailConfig | LogEmailConfig
 
-interface CommonEmailConfig {
+// Cada fluxo tem remetente e chave próprios: no Resend a chave de envio é restrita a um domínio
+// verificado, e a reputação do e-mail de segurança fica separada da do e-mail opcional.
+export interface EmailStreamConfig {
   from: string
+  apiKey: string
+}
+
+interface CommonEmailConfig {
   replyTo?: string
   // Pausa entre envios que respeita o limite de requisições por segundo do provedor.
   delayBetweenSendsMs: number
@@ -23,13 +29,18 @@ interface CommonEmailConfig {
 
 export interface ResendEmailConfig extends CommonEmailConfig {
   provider: 'resend'
-  apiKey: string
+  // `transactional` (segurança e transacional, subdomínio send) e `news` (social e engajamento,
+  // subdomínio news).
+  transactional: EmailStreamConfig
+  news: EmailStreamConfig
   // Só usado pelo webhook (EM.1.4); opcional até lá.
   webhookSecret?: string
 }
 
 export interface LogEmailConfig extends CommonEmailConfig {
   provider: 'log'
+  transactionalFrom: string
+  newsFrom: string
 }
 
 const DEFAULT_SEND_RPS = 2
@@ -70,22 +81,42 @@ export function loadEmailConfig(env: NodeJS.ProcessEnv): EmailConfig {
   }
 
   if (provider === 'resend') {
-    const apiKey = read('RESEND_API_KEY')
-    const from = read('EMAIL_FROM')
-    if (!apiKey) problems.push('RESEND_API_KEY é obrigatória com EMAIL_PROVIDER=resend')
-    if (!from) problems.push('EMAIL_FROM é obrigatório com EMAIL_PROVIDER=resend')
-    if (problems.length > 0 || !apiKey || !from) throw configError(problems)
+    const transactionalKey = read('RESEND_API_KEY_TRANSACTIONAL')
+    const newsKey = read('RESEND_API_KEY_NEWS')
+    const transactionalFrom = read('EMAIL_FROM_TRANSACTIONAL')
+    const newsFrom = read('EMAIL_FROM_NEWS')
+    if (!transactionalKey) {
+      problems.push('RESEND_API_KEY_TRANSACTIONAL é obrigatória com EMAIL_PROVIDER=resend')
+    }
+    if (!newsKey) problems.push('RESEND_API_KEY_NEWS é obrigatória com EMAIL_PROVIDER=resend')
+    if (!transactionalFrom) {
+      problems.push('EMAIL_FROM_TRANSACTIONAL é obrigatório com EMAIL_PROVIDER=resend')
+    }
+    if (!newsFrom) problems.push('EMAIL_FROM_NEWS é obrigatório com EMAIL_PROVIDER=resend')
+    if (transactionalKey && newsKey && transactionalKey === newsKey) {
+      problems.push(
+        'RESEND_API_KEY_TRANSACTIONAL e RESEND_API_KEY_NEWS não podem ser a mesma chave (cada uma é restrita a um subdomínio)',
+      )
+    }
+    if (problems.length > 0 || !transactionalKey || !newsKey || !transactionalFrom || !newsFrom) {
+      throw configError(problems)
+    }
     return {
       provider: 'resend',
-      apiKey,
-      from,
+      transactional: { apiKey: transactionalKey, from: transactionalFrom },
+      news: { apiKey: newsKey, from: newsFrom },
       webhookSecret: read('RESEND_WEBHOOK_SECRET'),
       ...common,
     }
   }
 
   if (problems.length > 0 || provider !== 'log') throw configError(problems)
-  return { provider: 'log', from: read('EMAIL_FROM') ?? DEFAULT_LOG_FROM, ...common }
+  return {
+    provider: 'log',
+    transactionalFrom: read('EMAIL_FROM_TRANSACTIONAL') ?? DEFAULT_LOG_FROM,
+    newsFrom: read('EMAIL_FROM_NEWS') ?? DEFAULT_LOG_FROM,
+    ...common,
+  }
 }
 
 function positiveNumber(

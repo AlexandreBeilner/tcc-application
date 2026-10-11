@@ -73,7 +73,7 @@ Gerar **todos** com `openssl rand -base64 48` (ou gerenciador de senhas) e guard
 | `SIMULATION_SEED` | número fixo | **nunca mudar depois do primeiro dia** (RNF08) |
 | `FRONTEND_URL`, `PUBLIC_API_URL` | `https://selucra.com.br`, `https://api.selucra.com.br` | |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud Console | |
-| `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM`, `EMAIL_REPLY_TO` | Resend | |
+| `EMAIL_PROVIDER=resend`, `RESEND_API_KEY_TRANSACTIONAL`, `RESEND_API_KEY_NEWS`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM_TRANSACTIONAL`, `EMAIL_FROM_NEWS`, `EMAIL_REPLY_TO` | Resend | duas chaves (subdomínios `send` e `news`); remetentes `no-reply@send.` e `no-reply@news.selucra.com.br`; reply-to `suporte@selucra.com.br` |
 | `BILLING_PROVIDER=revenuecat`, `REVENUECAT_SECRET_KEY` (sk_...), `REVENUECAT_WEBHOOK_AUTH`, `REVENUECAT_ENTITLEMENT_ID=pro` | RevenueCat | |
 | `BILLING_PRICE_MONTHLY_CENTS`, `BILLING_PRICE_ANNUAL_CENTS` | 1990 e 19990 | só exibição; o preço real vive na loja/Stripe |
 | `TICK_SCHEDULER_ENABLED`, `SCHEDULER_TIMEZONE` | motor | padrão `America/Sao_Paulo`; só definir se precisar mudar |
