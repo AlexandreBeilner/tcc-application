@@ -113,6 +113,7 @@ iOS        ─ compra via StoreKit (SDK react-native-purchases) ─────�
     conversar com contador. Registrar a decisão, sem implementar emissão automática nesta fase.
 - **Aceite:** textos publicados no app; decisão fiscal registrada.
 - **Dependências:** MO.1.1.
+- **Rascunhos prontos (2026-10-11), para revisão do contador, não publicados:** `rascunho-termos-assinatura-pro.md`, `rascunho-politica-reembolso-pro.md` e `rascunho-privacidade-operadores-pro.md`, com os `[PREENCHER ...]` que dependem do autor.
 
 ### MO.1.3 · Medição mínima antes de vender ✅ (2026-10-10)
 - **Descrição:** hoje não há telemetria. Sem funil não dá pra ajustar preço nem upsell.
