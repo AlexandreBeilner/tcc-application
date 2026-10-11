@@ -10,7 +10,7 @@ os dois documentos são o "porquê"; este arquivo quebra em tarefas, uma por ses
 | # | Decisão |
 |---|---|
 | M1 | **B2C puro.** Turmas/escolas (B2B) estão fora do plano. |
-| M2 | **Assinatura em todas as plataformas**: web, Android e iOS. |
+| M2 | ~~Assinatura em todas as plataformas: web, Android e iOS.~~ **Revisada em 2026-10-10 (LW1): lançamento só na web.** Android e iOS ficam adiados (Fase D congelada); o desenho multiplataforma continua válido e o código nativo já feito fica inerte. Ver `backlog-lancamento-web-pwa.md`. |
 | M3 | **RevenueCat** é a camada única de assinatura (Stripe na web, Google Play Billing no Android, StoreKit no iOS). O backend não fala com Stripe, Apple nem Google diretamente. |
 | M4 | **Dois planos, sem trial**: mensal **R$ 19,97** e anual **R$ 199,97** (~R$ 16,66/mês, ~17% de desconto). Um único entitlement `pro`. |
 | M5 | **Pagamento nunca bloqueia o core loop** (lições centrais, XP/streak, compra/venda, ranking oficial). Cancelar nunca apaga progresso, só pausa capacidades. Regras da seção 2 e 6 da estratégia continuam valendo. |
@@ -21,6 +21,8 @@ os dois documentos são o "porquê"; este arquivo quebra em tarefas, uma por ses
 | M10 | **Conselho PRO fora** do plano. |
 | M11 | Cripto/opções/derivativos, trilhas extras PRO, acesso antecipado, máquina do tempo, múltiplas carteiras e Assembleia dos Investidores ficam **adiados** (Fase H). |
 | M12 | **Checkout web: Stripe conectado ao RevenueCat** (integração Stripe Billing do RevenueCat: Stripe Checkout embutido nos fluxos do RevenueCat, Customer Portal do Stripe para cancelar e trocar plano, recibos e e-mails de cobrança pelo Stripe). O backend continua falando só com o RevenueCat. **Sem Pix**, só assinatura recorrente no cartão. Web Billing do RevenueCat descartado por ora (documentação não conferida). |
+
+**Decisão de 2026-10-10 (LW2):** o **RevenueCat continua** como camada única mesmo só com a web (Stripe conectado, M12); só reavaliar a troca por Stripe direto se o custo mensal incomodar. **Para o lançamento, MO.1.1 vale só para a web** (sem Apple/Google; ver LW.4.1) e **MO.5.6 vira navegador + PWA instalado** (LW.5.1).
 
 **Decisões de 2026-10-10 (ponto 046):** preço final **R$ 19,90 / R$ 199,90** (a MO.1.1 só confirma que existem nas lojas); ligas até 3 por assinante e 20 membros; duelos 1v1 de 7 dias, até 3 simultâneos, XP só por participar; cosméticos: selo PRO + 6 molduras + 8 títulos, sem temas.
 
@@ -80,6 +82,7 @@ iOS        ─ compra via StoreKit (SDK react-native-purchases) ─────�
 ## Fase A — Pré-requisitos fora do código (bloqueiam produção)
 
 ### MO.1.1 · Contas, produtos e preço nas lojas
+> **Reescopo (2026-10-10):** no lançamento só web, valem apenas Stripe + RevenueCat (LW.4.1). Apple Developer e Google Play ficam para quando o app voltar.
 - **Descrição:** abrir/validar as contas e criar os produtos. Trabalho do autor com apoio do Claude
   em checklist; nenhum código.
 - **O que fazer:**
@@ -246,7 +249,11 @@ fase: assinar em sandbox muda `GET /billing/status` para PRO, cancelar/expirar v
 
 ---
 
-## Fase D — App mobile: compra nativa
+## Fase D — App mobile: compra nativa ⏸ ADIADA (2026-10-10, lançamento só na web)
+
+**Congelada:** não abrir MO.4.x enquanto o app nativo estiver adiado. As tarefas já entregues (MO.4.1 a MO.4.3)
+permanecem no repositório e **inertes na web**; a LW.1.3 garante por teste que nada disso aparece fora do app.
+MO.4.4 (sandbox das lojas e checklist de revisão) volta junto do app.
 
 Todas tocam `mobile/` e dependem da Fase 1 do `backlog-app-mobile.md` (app rodando). Ver a
 arquitetura do app para a ponte WebView.
@@ -279,7 +286,7 @@ arquitetura do app para a ponte WebView.
 
 - **Entregável:** `/planos` dentro do app tem "Restaurar compras" (porta `WebPurchases.restore`, só na ponte nativa): se a loja devolve direito ativo, reaproveita a espera de confirmação do servidor; se não há nada, explica (sem erro) que quem assinou por outro caminho vê o PRO ao entrar com a mesma conta; timeout e erro têm texto próprio de restauração. **Assinou em outra plataforma:** `describePlan(status, inApp, platform)` e a tela "Você já é PRO" mostram "Você assinou pela web / App Store / Google Play. O seu PRO já vale aqui no app, não é preciso assinar de novo."; como quem é PRO nunca vê planos e `usePurchaseFlow.start` reconfere o servidor antes da folha de pagamento (MO.4.2), não há como comprar por cima. **Gerenciar:** no app o botão de "Seu plano" não é link, é `manage` pela ponte: o app prefere o `managementURL` do SDK e senão a URL da loja enviada pela página, aceita só `https` de `apps.apple.com` e `play.google.com`, e abre no navegador do sistema. Para assinatura da loja do outro sistema (App Store vista no Android) segue o link da loja certa mais o aviso. Web vista no app: só instrução textual (sem link do portal). **Validado no emulador Android (API 35, build debug real, backend em `BILLING_PROVIDER=dev`):** login no WebView, `/planos` com os dois planos "(teste)", Restaurar sem assinatura (mensagem explicativa), Assinar mensal (banco gravou `play_store`/`monthly`/`dev.fake.monthly` e a tela virou "Você já é PRO"), "Seu plano" com "Assinado pelo Google Play" e o botão de gerenciar abrindo `play.google.com` no navegador do sistema. Esta validação cobre também a MO.4.1 e a MO.4.2 no Android com a implementação falsa (o app compilou com `react-native-purchases` linkado). **Bug de fundo achado e corrigido na validação:** a ponte de sessão do app lia a chave `tcc.auth.token`, que a RC.1.4 renomeou para `app.auth.token` no SPA; o Keychain nunca recebia o token e a camada de compras ficava sem `logIn`. A chave foi atualizada (com teste que a trava) e o watcher agora também avisa a sessão que já existia ao carregar a página. **Pendente (precisa de conta/loja/aparelho):** (a) restaurar com o RevenueCat real, incluindo conferir a regra de transferência de compras entre usuários no painel (comportamento "transfer if no active subscription"); (b) reinstalar o app e restaurar o PRO de verdade; (c) assinatura cruzada real (Stripe na web, depois abrir o app; Play Store, depois iOS); (d) as duas URLs de fallback das lojas ainda não conferidas na documentação; (e) toda a parte iOS (`pod install`, StoreKit, `apps.apple.com`), junto da Fase 4 do app; (f) a passada visual de `/planos` no app em 320 e 768 px, junto da MO.4.4 (só 390 px foi vista). **Resíduo:** a conta de teste criada no emulador deixou uma linha em `accounts` do banco `market` (a tabela de eventos é append-only por gatilho, não dá para apagar o rastro); o usuário e a assinatura foram removidos do banco `gamification`.
 
-### MO.4.4 · Teste em sandbox e checklist de revisão das lojas
+### MO.4.4 · Teste em sandbox e checklist de revisão das lojas ⏸ adiada com o app
 - **Descrição:** roteiro com testadores de licença (Google) e conta sandbox (Apple); cobrir compra,
   renovação, cancelamento, falha de cobrança e reembolso. Checklist das regras de revisão (descrição
   da assinatura, preço, link de termos e privacidade, restaurar compras, sem desvio de pagamento).
@@ -396,6 +403,7 @@ compra esperam a Fase C. Cada uma passa pelo checklist do backend e do frontend 
   - **Defeito achado e corrigido:** o convite era um `<aside>` dentro do `<aside>` da página (landmark aninhado e `aria-label` repetido); virou `<div>`.
   - **Achado fora do escopo:** o link "Privacidade e LGPD" em Configurações tem 17 px de altura (abaixo de 44 px). Não é da Fase E; fica como ajuste pequeno em Configurações.
   - **Não deu para validar no navegador e fica para o app:** convite sem link para `/planos` dentro do WebView (coberto só por teste unitário, a injeção de `ReactNativeWebView` não sobrevive à navegação do iframe); `/retrospectiva` com relatório (conta nova não tem mês fechado, o job é mensal; os cartões e a imagem ficam cobertos por teste unitário); menu de compartilhar/baixar a imagem 1080x1350 no WebView, área segura, teclado cobrindo formulário, toque, girar a tela, tema claro, rede lenta/offline, selo/moldura/título nas telas sociais com duas contas amigas, liga e duelo em andamento, ligas pausadas por cancelamento.
+  - **Reescopo (2026-10-10):** sem app no lançamento, o que sobra vira a **LW.5.1** (navegador e PWA instalado, 320/390/768 px, mais o link de 17 px); o emulador só volta com o app. Texto original abaixo.
   - **Pendente para fechar a tarefa:** repetir o roteiro completo no emulador Android quando a Fase 1 do app estiver rodando (e o download de arquivo da Fase 2 para a imagem). Só então a Fase E está pronta para publicação.
 
 ---
@@ -580,3 +588,6 @@ medição (MO.7.1) porque só vale construir a Assembleia, a mais cara, quando h
 interesse e assinantes para votar; a MO.6.9 antecede ligar qualquer efeito no mercado real. Termos e
 fiscal (MO.1.2) precisam estar prontos **antes de cobrar de verdade**, não antes de desenvolver.
 Nenhuma cobrança real sai sem MO.1.2, MO.2.5 (reconciliação) e, no caso do app, MO.4.4.
+
+**Atualização (2026-10-10):** com o lançamento só na web, a sequência efetiva é a de `backlog-lancamento-web-pwa.md`;
+a Fase D e o trecho "(app) 4.1 → 4.4" desta lista ficam congelados, e a MO.4.4 deixa de ser exigência para cobrar.

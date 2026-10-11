@@ -1,5 +1,8 @@
 # Arquitetura do app mobile (React Native + WebView)
 
+> **⏸ Adiado em 2026-10-10:** lançamento só na web, com PWA como canal mobile (ver
+> `backlog-lancamento-web-pwa.md`). Este documento continua válido como o "porquê" do app para quando for retomado.
+
 Análise pedida pelo autor em 2026-09-09: o que precisa ser feito pra embrulhar o
 frontend web já existente (`frontend/`, React + Vite) dentro de um app React
 Native "puro" (**sem Expo**, CLI/community template) rodando o SPA inteiro

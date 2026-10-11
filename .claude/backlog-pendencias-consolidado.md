@@ -157,7 +157,22 @@ Cada uma exige uma escolha do autor entre opções válidas, não é bug.
 
 ---
 
-## Prioridade 6 — App mobile (trilha separada, escopo grande)
+## Prioridade 0 — Lançamento só na web, com PWA (decidido em 2026-10-10)
+
+- **Local:** `.claude/backlog-lancamento-web-pwa.md` (5 fases, LW.1.1 a LW.5.3): congelar o mobile, PWA
+  (manifest, service worker seguro, offline, instalação, fontes locais, fluxos críticos no modo instalado,
+  decisão sobre Web Push), produção (hospedagem, domínio, CORS, segredos, backups, CI/CD do frontend,
+  observabilidade, e-mail), contas/termos/fiscal só da web e fechamento das pendências do PRO.
+- **Prioridade:** acima de todas as outras: é o caminho para publicar. As Fases 3 e 4 dependem de decisões e
+  contas do autor (hospedagem, Stripe, contador), por isso o PWA (código) anda em paralelo.
+- **Reescopo:** MO.1.1 vira só web (LW.4.1); MO.5.6 vira navegador + PWA (LW.5.1).
+
+---
+
+## Prioridade 6 — App mobile ⏸ ADIADO (2026-10-10; lançamento só na web)
+
+Tudo desta seção e a Fase D da monetização (MO.4.1 a MO.4.4) ficam congeladas até o app voltar a ser
+prioridade. Não abrir tarefa daqui antes disso. O código já feito permanece no repositório, inerte na web.
 
 ### P6.1 · Mesclar a Fase 1 já concluída
 

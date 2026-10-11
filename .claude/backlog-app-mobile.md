@@ -1,5 +1,12 @@
 # Backlog — App Mobile (React Native + WebView)
 
+> **⏸ ADIADO (2026-10-10).** O autor decidiu lançar **só na web** para validar tração (custo das contas
+> Apple/Google, comissão das lojas e CI macOS não se justificam agora). **Nenhuma tarefa deste backlog
+> está ativa:** o que já está feito (Fases 1 a 3) permanece no repositório, sem evolução, e a Fase 4
+> (identidade, Play, iOS) fica para quando o app voltar a ser prioridade. O canal mobile por enquanto é o
+> **PWA**, em `backlog-lancamento-web-pwa.md`. O código específico do app no frontend/backend fica inerte
+> na web (decisão LW4), não é removido.
+
 Backlog executável derivado de `.claude/arquitetura-app-mobile-react-native-webview.md` (análise +
 decisões tomadas em 2026-09-09/10) — mesma relação que `backlog-engajamento-gamificacao.md` tem com
 `proposta-engajamento-licoes.md`: aquele documento é o "porquê" e o registro das decisões já

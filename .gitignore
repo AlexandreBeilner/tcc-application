@@ -19,3 +19,8 @@ tmp/
 .DS_Store
 
 .claude/worktrees/
+# Credenciais OAuth baixadas do Google Cloud Console e segredos de produção: nunca versionar
+client_secret*.json
+*.pem
+.env.production
+.env.prod

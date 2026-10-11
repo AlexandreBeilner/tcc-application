@@ -60,6 +60,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-tcc}:${POSTGRES_PASSWORD:-tcc}@postgres:5432/gamification?sslmode=disable
       REDIS_URL: redis://redis:6379/1
       ENGINE_URL: http://engine:8080
+      # LW.3.8: `production` liga a guarda de configuração do backend (recusa subir com segredo de
+      # dev, e-mail em `log`, URL de localhost etc.). Não use NODE_ENV pra isso: a imagem sempre roda
+      # com NODE_ENV=production, inclusive no desenvolvimento local.
+      DEPLOY_ENV: ${DEPLOY_ENV:-development}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-troque-em-producao}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
