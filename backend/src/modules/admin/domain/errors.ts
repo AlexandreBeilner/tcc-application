@@ -173,3 +173,14 @@ export class AdminAssemblyNotFoundError extends Error {}
 export class AdminAssemblyConflictError extends Error {}
 // Parâmetro fora da faixa, pausa sem motivo, pauta malformada.
 export class InvalidAdminAssemblyError extends Error {}
+
+// Concessão de PRO promocional recusada por regra (MO.2.5): período fora do teto ou pessoa que já
+// tem PRO sem vencimento (nada a empilhar). O painel mostra a mensagem.
+export class ProGrantRejectedError extends Error {}
+
+// Cobrança desligada no ambiente (`BILLING_PROVIDER=disabled`): não há provedor para conceder.
+export class ProGrantUnavailableError extends Error {}
+
+// O provedor (RevenueCat) falhou ao conceder: nada foi concedido, dá para tentar de novo.
+export class ProGrantProviderError extends Error {}
+

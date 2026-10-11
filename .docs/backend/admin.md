@@ -72,7 +72,7 @@ Valem para todas as rotas `/admin/*`:
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `admin.password_reset_denied`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`, e as do painel das assembleias `assembly.pause`, `assembly.resume`, `assembly.setting_update`, `assembly.setting_reset`, `assembly.template_create`, `assembly.template_update`, `assembly.template_activate`, `assembly.template_deactivate`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `admin.password_reset_denied`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`, e as do painel das assembleias `assembly.pause`, `assembly.resume`, `assembly.setting_update`, `assembly.setting_reset`, `assembly.template_create`, `assembly.template_update`, `assembly.template_activate`, `assembly.template_deactivate`, e a concessão de PRO `billing.grant_promotional`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.
@@ -144,6 +144,17 @@ Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'ad
 - **Payload:** `{ reason }`.
 - **Sucesso:** `204`. Concede a conquista **sem checar o critério**. Não existe `/revoke` (removida na N.26): se o usuário ainda satisfaz o critério, a próxima checagem automática (XP, streak, lição) a concederia de novo, então a ação prometia algo que não acontecia; a rota agora responde `404`. Auditoria: `user.grant_achievement` com `achievement_id`, `achievement_name` e `reason` (as linhas `user.revoke_achievement` já gravadas continuam legíveis no histórico).
 - **Erros:** `400` sem motivo ou id que não é UUID; `401 reauth_required`; `404` usuário ou conquista inexistente; `409` o usuário já tem a conquista.
+
+#### `GET /admin/users/:id/pro`
+
+- **Sucesso:** `200` → `{ is_pro, state, plan, store, expires_at }`, o mesmo plano que a pessoa vê em `GET /billing/status`, lido pelo `GetSubscriptionStatusUseCase` do módulo `billing` (única fonte da verdade; nunca claim de JWT). `plan` e `store` são `null` sem plano; `store` é `promotional` quando o acesso vem de concessão.
+- **Erros:** `401`, `403`, `404` usuário inexistente.
+
+#### `POST /admin/users/:id/pro-grants`
+
+- **Payload:** `{ days, reason }`. `days` é um inteiro de 1 a 90 (teto por concessão, decisão do autor em 2026-10-11); `reason` é obrigatório, de 5 a 500 caracteres. Exige papel admin e **senha conferida há pouco** (`401 reauth_required`).
+- **Sucesso:** `200` → `{ user_id, ends_at, previous_access_end }`. A concessão **empilha**: conta a partir do fim do acesso atual (assinatura paga ou concessão anterior), nunca por cima dele, então não encurta nada; quem não é PRO, ou já venceu, conta a partir de agora. Passa pelo `GrantPromotionalProUseCase` do módulo `billing` (RevenueCat, ou a projeção local com `BILLING_PROVIDER=dev`), então a concessão aparece em `GET /billing/status` da pessoa. Auditoria: `billing.grant_promotional` com `days`, `reason`, `ends_at` e `previous_access_end`. Não envia e-mail à pessoa. Não há revogação pelo painel nesta fase.
+- **Erros:** `400` payload inválido; `401 reauth_required`; `404` usuário inexistente; `409` a pessoa já tem PRO sem vencimento (nada a empilhar); `422 { code: "pro_grant_rejected" }` período fora de 1 a 90; `502 { code: "billing_provider_error" }` falha do RevenueCat (nada foi concedido, dá para repetir); `503 { code: "billing_disabled" }` cobrança desligada no ambiente.
 
 #### `POST /admin/users/:id/lessons/:lessonId/complete` e `/reopen`
 

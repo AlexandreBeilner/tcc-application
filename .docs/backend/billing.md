@@ -106,8 +106,8 @@ A chave é a do **fato**, então webhook repetido, reconciliação ou reenvio n�
 
 ## Concessão de PRO promocional (MO.2.5 e MO.7.2)
 
-`GrantPromotionalProUseCase` (sem rota HTTP ainda): `currentAccessEnd(userId)` devolve o fim do acesso PRO de agora (ou `null`) e `grantUntil(userId, endsAt)` concede até a data. Adapter do RevenueCat: `POST /v1/subscribers/{app_user_id}/entitlements/{entitlement}/promotional` com `{ end_time_ms }` (documentação conferida em 2026-10-11; `duration` e `start_time_ms` são os campos descontinuados; um fim a menos de 2 h de uma concessão promocional ativa é tratado como duplicata e não estende), resposta `201`, e em seguida reconsulta a assinatura para a projeção local enxergar a concessão (`store: promotional`). Com `BILLING_PROVIDER=dev` grava a projeção direto; com `disabled` falha com `BillingDisabledError`. Hoje o único consumidor é a recompensa da indicação (`referrals.md`).
+`GrantPromotionalProUseCase`: `currentAccessEnd(userId)` devolve o fim do acesso PRO de agora (ou `null`) e `grantUntil(userId, endsAt)` concede até a data. Adapter do RevenueCat: `POST /v1/subscribers/{app_user_id}/entitlements/{entitlement}/promotional` com `{ end_time_ms }` (documentação conferida em 2026-10-11; `duration` e `start_time_ms` são os campos descontinuados; um fim a menos de 2 h de uma concessão promocional ativa é tratado como duplicata e não estende), resposta `201`, e em seguida reconsulta a assinatura para a projeção local enxergar a concessão (`store: promotional`). Com `BILLING_PROVIDER=dev` grava a projeção direto; com `disabled` falha com `BillingDisabledError`. Consumidores: a recompensa da indicação (`referrals.md`) e o painel admin (`POST /admin/users/:id/pro-grants` e `GET /admin/users/:id/pro`, em `admin.md`: 1 a 90 dias por concessão, motivo obrigatório, senha recente, auditoria `billing.grant_promotional`).
 
-## Pendente (MO.2.5)
+## Pendente
 
-Só a **tela do painel admin** para conceder PRO promocional (com auditoria), que reaproveita o caso de uso acima. Não validado contra o RevenueCat real (sem chave nesta fase): o adapter tem teste com `fetch` simulado.
+Não validado contra o RevenueCat real (sem chave nesta fase): o adapter da concessão tem teste com `fetch` simulado. Conferir com a chave em mãos antes de usar o painel em produção.

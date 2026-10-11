@@ -58,6 +58,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'assembly.template_update',
   'assembly.template_activate',
   'assembly.template_deactivate',
+  'billing.grant_promotional',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]

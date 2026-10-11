@@ -296,6 +296,13 @@ export const creditUserBodySchema = z.object({
   reason: z.string().trim().max(500).optional(),
 })
 
+// Concessão de PRO promocional (MO.2.5): 1 a 90 dias (o teto também vale no caso de uso) e motivo
+// obrigatório, que vai para a auditoria.
+export const grantProBodySchema = z.object({
+  days: z.number().int().min(1).max(90),
+  reason: z.string().trim().min(5).max(500),
+})
+
 export const adjustXpBodySchema = z.object({
   delta: z
     .number()

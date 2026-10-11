@@ -101,6 +101,12 @@ import { createAdminUsersRouter } from './modules/admin/interfaces/http/adminUse
 import { createAdminUserCorrectionsRouter } from './modules/admin/interfaces/http/adminUserCorrectionsRouter'
 import { CreditUserCashUseCase } from './modules/admin/application/useCases/creditUserCash'
 import {
+  GetUserProStatusUseCase,
+  GrantUserProUseCase,
+} from './modules/admin/application/useCases/userProGrants'
+import { createInProcessUserProGrants } from './modules/admin/infrastructure/billing/inProcessUserProGrants'
+import { createAdminUserProRouter } from './modules/admin/interfaces/http/adminUserProRouter'
+import {
   AdjustUserXpUseCase,
   CompleteUserLessonUseCase,
   GetUserCorrectionContextUseCase,
@@ -1186,6 +1192,18 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
+  // Plano PRO de uma pessoa e concessão promocional (MO.2.5), pelo módulo `billing`.
+  const userProGrants = createInProcessUserProGrants({
+    getSubscriptionStatus: billing.getSubscriptionStatus,
+    grantPromotionalPro: billing.grantPromotionalPro,
+  })
+  app.use(
+    createAdminUserProRouter({
+      getUserProStatus: new GetUserProStatusUseCase(userRepository, userProGrants),
+      grantUserPro: new GrantUserProUseCase(userRepository, userProGrants, recordAdminAction),
+      authMiddleware,
+    }),
+  )
   // Correções manuais de conta (N.17): crédito de caixa vai ao motor; XP, streak,
   // conquistas e lições passam pelos casos de uso dos módulos donos do dado.
   const userCorrections = createInProcessUserCorrections({
