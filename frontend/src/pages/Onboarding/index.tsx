@@ -120,7 +120,7 @@ function TimeVisual() {
 function SalaryVisual() {
     return (
         <div className={styles.timeVisual}>
-            <div className={styles.compare}>
+            <div className={`${styles.compare} ${styles.compareTwo}`}>
                 {SALARY_LEVEL_EXAMPLES.map((level) => (
                     <div key={level} className={styles.compareBox}>
                         <b>{formatCurrency(monthlySalaryForLevel(level))}</b>
