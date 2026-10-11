@@ -515,6 +515,10 @@ Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 
   padrão.
 - **Aceite:** relatório com os números e as faixas escolhidas; nenhuma empresa sai de uma faixa
   plausível em 12 meses simulados; ranking não é dominado por quem segura a empresa decidida.
+- **Decisão do autor (2026-10-11, ponto 046 item 3):** os parâmetros ainda abertos (mínimo de
+  votantes, faixas de efeito, cooldown, tamanho do catálogo de pautas) saem **deste teste ponta a
+  ponta**: o relatório mede o efeito dos pontos de partida e propõe os valores finais. Os pontos
+  049, 050 e 051 também se revisam aqui (ver `pontos-em-aberto-decisao-produto.md`).
 - **Dependências:** MO.6.2, MO.6.3.
 
 ---
@@ -529,9 +533,19 @@ Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 
 - **Entregável:** **Backend:** tabela `funnel_events` (migração 0041, idempotente por `dedupe_key`); ports `FunnelRecorder`/`FunnelReader`, adapter Drizzle, `RecordFunnelEventUseCase`, `GetBillingConversionUseCase`; domínio puro `funnel.ts` (métricas, chave por pessoa/evento/origem/dia, mapeamento do ciclo de vida). `subscribed` e `cancelled` são gravados só pelo servidor, a partir dos mesmos fatos dos e-mails de boas-vindas e de encerramento (`SyncSubscriptionUseCase` e a compra falsa `dev`); conta de teste das lojas e concessão promocional não geram evento nem entram nas métricas. Rotas `POST /billing/funnel` (3 passos do cliente) e `GET /admin/billing/conversion?days=7|30|90` (só admin), em `.docs/backend/billing.md`. Preços para a receita estimada só por configuração (`BILLING_PRICE_MONTHLY_CENTS`/`BILLING_PRICE_ANNUAL_CENTS`, no compose); sem eles a receita fica em branco, nunca um valor fixo no código. **Frontend:** `useReportFunnel` (dispara e esquece, uma vez por visita), `ProInvite` reporta o convite visto e passa o ponto de origem no estado do link, `/planos` reporta `plans_opened` (origem ou `direct`; não conta quem já é PRO) e `purchase_started` com o plano; página `/admin/assinaturas` (nova seção "Assinaturas") com assinantes por plano, receita estimada, churn, funil em barras e tabela por ponto de convite, 3 janelas, responsiva. "Lição concluída" no topo do funil vem do progresso das lições que já existe. Testes: backend (domínio, casos de uso, router, sync/dev, config, integração em banco descartável) e frontend (hook, `ProInvite`, `Planos`, página admin); lint, build e suíte completa verdes. **Validado de ponta a ponta** com o backend em `BILLING_PROVIDER=dev` e os preços configurados: eventos gravados (4 chamadas, 3 linhas, a repetida foi ignorada), compra falsa virou `subscribed`, `403` para quem não é admin, métricas conferidas por curl; dados de teste removidos e backend devolvido à configuração padrão. **Estimativas a saber:** o churn reconstrói a base (ativos de hoje - quem assinou + quem cancelou na janela); "assinou" por ponto é quem teve contato e assinou depois, e uma pessoa pode contar em mais de um ponto. **Pendente:** (a) o aceite "números batem com o painel do RevenueCat" exige a conta (MO.1.1); (b) a passada visual da página admin no navegador nos 3 breakpoints não foi feita (promover uma conta a admin no banco foi negado pelo ambiente nesta sessão); a tela tem teste de componente e a API foi conferida por curl, falta olhar a tela em 320/768/1024 px; (c) a Política de Privacidade deve citar a medição própria do funil antes de ir a produção (ver ponto 048).
 
 ### MO.7.2 · Indicação entre amigos
-- **Descrição:** amigo que assina por indicação dá dias de PRO para os dois, via concessão
-  promocional (MO.2.5), com teto por pessoa. Usa o grafo de amizade existente.
-- **Aceite:** abuso básico bloqueado (mesma conta, teto); recompensa confirmada pelo autor antes.
+- **Descrição (decidida pelo autor em 2026-10-11, ponto 046 item 6):** qualquer pessoa, PRO ou
+  não, indica por um link. Vale como indicação a conta **criada pelo link que verifica o e-mail**
+  (ou entra com Google, que já vem verificado). A recompensa é **só de quem indica**, **sem teto de
+  indicações**, e escala: conquistas por marco e dias de PRO, via concessão promocional (MO.2.5),
+  por exemplo 5 indicações = 1 semana de PRO, 20 = mais 1 semana, 50 = mais uma, e assim por
+  diante. Quem entra pelo link não ganha nada (ninguém recebe "PRO que já tem"). A escada de marcos
+  é dado no banco, não código; os valores acima de 50 e as conquistas/molduras de cada marco o
+  autor confirma ao abrir a tarefa.
+- **Aceite:** cada conta indicada conta uma vez; auto-indicação (mesma conta) bloqueada; marco
+  concedido uma única vez (idempotente); **defesa contra conta descartável**, já que o gatilho é
+  só verificar o e-mail e a recompensa em PRO não tem teto: o desenho precisa propor um freio
+  (ex.: contar só quem completa a primeira lição ou chega ao nível 2, limite de criações por IP)
+  e o autor aprova antes de implementar.
 - **Dependências:** MO.2.5, MO.7.1.
 
 ### MO.7.3 · Teste de preço e desconto do anual
