@@ -60,14 +60,6 @@
     font-weight: 700;
 }
 
-.gain {
-    color: var(--color-gain-500);
-}
-
-.loss {
-    color: var(--color-loss-500);
-}
-
 .neutral {
     color: var(--color-text-secondary);
 }

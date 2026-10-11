@@ -1,17 +1,11 @@
-import { formatSignedPercent } from '../../../features/market/format'
 import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
 import { CosmeticTags } from '../../molecules/CosmeticTags'
 import type { LeagueStandingsProps } from './types'
+import { Delta } from '../../atoms/Delta'
 import styles from './index.module.css'
 
 export type { LeagueStandingsProps } from './types'
-
-function pctClass(pct: number): string {
-    if (pct > 0) return styles.gain
-    if (pct < 0) return styles.loss
-    return styles.neutral
-}
 
 // Classificação de uma liga (MO.5.2c): posição, quem é, selo/título e a rentabilidade percentual do
 // período. Nunca mostra patrimônio absoluto (RNF09). O dono ganha o botão de tirar um membro.
@@ -40,8 +34,8 @@ export function LeagueStandings({ standings, onRemove, removingId }: LeagueStand
                             Sem dado
                         </span>
                     ) : (
-                        <span className={`${styles.pct} tabular-nums ${pctClass(row.profitabilityPct)}`}>
-                            {formatSignedPercent(row.profitabilityPct)}
+                        <span className={`${styles.pct} tabular-nums`}>
+                            <Delta percent={row.profitabilityPct} variant="text" />
                         </span>
                     )}
                     {onRemove && !row.isYou && (

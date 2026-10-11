@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { formatSignedPercent } from '../../../features/market/format'
 import { buildShareText, monthLabel, renderShareBlob, shareOrDownload } from '../../../features/retrospective/shareCard'
+import { Delta } from '../../atoms/Delta'
 import { Button } from '../../atoms/Button'
 import { ActivityCalendar } from '../../molecules/ActivityCalendar'
 import { MetricTile } from '../../molecules/MetricTile'
@@ -61,7 +61,7 @@ export function RetrospectiveReport({ retrospective, identity }: RetrospectiveRe
                         <MetricTile label="Maior sequência" value={plural(premium.longestStreak, 'dia', 'dias')} />
                         <MetricTile
                             label="Rentabilidade do mês"
-                            value={premium.bestReturnPct === null ? 'Sem dado' : formatSignedPercent(premium.bestReturnPct)}
+                            value={premium.bestReturnPct === null ? 'Sem dado' : <Delta percent={premium.bestReturnPct} variant="text" />}
                         />
                         <MetricTile label="Duelos vencidos" value={`${premium.duelsWon} de ${premium.duelsPlayed}`} />
                         <MetricTile label="Ligas" value={String(premium.leaguesActive)} />

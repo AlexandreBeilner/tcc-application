@@ -1,6 +1,5 @@
 import { useId, useState } from 'react'
 import { Award, Flame, Pencil, UserCheck } from 'lucide-react'
-import { formatSignedPercent } from '../../../features/market/format'
 import { resolveFriendshipStatus } from '../../../features/friendships/resolveFriendshipStatus'
 import { useRemoveFriendshipMutation } from '../../../features/friendships/useRemoveFriendshipMutation'
 import { useRespondToFriendRequestMutation } from '../../../features/friendships/useRespondToFriendRequestMutation'
@@ -11,6 +10,7 @@ import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
 import { TrackTrophyCase } from '../TrackTrophyCase'
 import type { PublicProfileCardProps } from './types'
+import { Delta } from '../../atoms/Delta'
 import styles from './index.module.css'
 import { CosmeticTags } from '../../molecules/CosmeticTags'
 import { AvatarFrame } from '../../atoms/AvatarFrame'
@@ -18,12 +18,6 @@ import { AvatarFrame } from '../../atoms/AvatarFrame'
 export type { PublicProfileCardProps } from './types'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-function profitClassName(pct: number): string {
-    if (pct > 0) return styles.gain
-    if (pct < 0) return styles.loss
-    return styles.neutral
-}
 
 // Sparkline do card de rentabilidade (redesign 6.9.2) — mesmo princípio da
 // 6.8.4 (`RankingBoard`): 2 âncoras reais (início da janela = 0%, agora =
@@ -170,8 +164,8 @@ export function PublicProfileCard({
             <dl className={styles.stats}>
                 <div className={`${styles.stat} ${styles.statProfit}`}>
                     <dt className={styles.statLabel}>Rentabilidade · semana</dt>
-                    <dd className={`${styles.statValue} tabular-nums ${profitClassName(profile.profitabilityPct)}`}>
-                        {formatSignedPercent(profile.profitabilityPct)}
+                    <dd className={`${styles.statValue} tabular-nums`}>
+                        <Delta percent={profile.profitabilityPct} variant="text" />
                     </dd>
                     <div className={styles.sparklineWrap}>
                         <ProfitSparkline seedKey={targetUserId} pct={profile.profitabilityPct} />

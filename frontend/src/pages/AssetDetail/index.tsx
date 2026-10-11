@@ -19,8 +19,8 @@ import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import { DividendOnHoldNotice } from '../../components/molecules/DividendOnHoldNotice'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { formatCurrency } from '../../features/portfolio/format'
-import { formatSignedPercent } from '../../features/market/format'
 import type { OrderSide } from '../../services/market'
+import { Delta } from '../../components/atoms/Delta'
 import styles from './index.module.css'
 
 const RANGES = [
@@ -123,9 +123,7 @@ export function AssetDetail() {
                             <>
                                 <span className={`${styles.price} tabular-nums`}>{formatCurrency(asset.current_price)}</span>
                                 {asset.daily_change_pct !== undefined && (
-                                    <span className={[styles.change, asset.daily_change_pct >= 0 ? styles.gain : styles.loss].join(' ')}>
-                                        {formatSignedPercent(asset.daily_change_pct)}
-                                    </span>
+                                    <Delta percent={asset.daily_change_pct} className={styles.change} />
                                 )}
                             </>
                         ) : (

@@ -1,0 +1,42 @@
+.delta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1, 4px);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.chip {
+    padding: 2px 8px;
+    border-radius: var(--radius-sm, 6px);
+}
+
+.arrow {
+    font-size: 0.7em;
+    line-height: 1;
+}
+
+.up {
+    color: var(--color-gain-text);
+}
+
+.down {
+    color: var(--color-loss-text);
+}
+
+.flat,
+.undefined {
+    color: var(--color-text-secondary);
+}
+
+.chip.up {
+    background: var(--color-gain-100);
+}
+
+.chip.down {
+    background: var(--color-loss-100);
+}
+
+.chip.flat {
+    background: var(--color-bg-surface-elevated);
+}

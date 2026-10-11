@@ -1,7 +1,7 @@
 import { OrderSummaryList } from '../OrderSummaryList'
 import { formatCurrency } from '../../../features/portfolio/format'
-import { formatSignedPercent } from '../../../features/market/format'
 import type { PositionSummaryCardProps } from './types'
+import { Delta } from '../../atoms/Delta'
 import styles from './index.module.css'
 
 export type { PositionSummaryCardProps } from './types'
@@ -35,15 +35,11 @@ export function PositionSummaryCard({ quantity, averagePrice, markPrice, dividen
             <div className={styles.returns}>
                 <div className={styles.returnItem}>
                     <span className={styles.returnLabel}>Retorno de preço</span>
-                    <span className={`${styles.returnValue} ${priceReturn >= 0 ? styles.gain : styles.loss} tabular-nums`}>
-                        {formatSignedPercent(priceReturn * 100)}
-                    </span>
+                    <Delta percent={priceReturn * 100} className={styles.returnValue} />
                 </div>
                 <div className={styles.returnItem}>
                     <span className={styles.returnLabel}>Retorno total (com provento)</span>
-                    <span className={`${styles.returnValue} ${totalReturn >= 0 ? styles.gain : styles.loss} tabular-nums`}>
-                        {formatSignedPercent(totalReturn * 100)}
-                    </span>
+                    <Delta percent={totalReturn * 100} className={styles.returnValue} />
                 </div>
             </div>
 

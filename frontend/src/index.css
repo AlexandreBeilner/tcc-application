@@ -26,6 +26,9 @@
     --color-gain-100: #0f2b1e;
     --color-loss-500: #e5484d;
     --color-loss-100: #2e1416;
+    /* Texto de variação (MO.9.4): par AA sobre superfície e sobre o chip -100. */
+    --color-gain-text: #34c77b;
+    --color-loss-text: #f0686c;
 
     --color-gamify-500: #f0a202;
     --color-gamify-100: #332405;
@@ -141,6 +144,8 @@
     --color-gain-100: #e3f7ec;
     --color-loss-500: #c4313a;
     --color-loss-100: #fce9ea;
+    --color-gain-text: #157a44;
+    --color-loss-text: #c4313a;
 
     --color-gamify-500: #8f5f06;
     --color-gamify-100: #fdf2db;

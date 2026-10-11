@@ -1,4 +1,4 @@
-import { formatSignedPercent } from '../../../features/market/format'
+import { Delta } from '../../atoms/Delta'
 import { resolveTargets } from '../../../features/news/resolveTargets'
 import type { NewsEvent } from '../../../services/news'
 import type { NewsEventListProps } from './types'
@@ -84,13 +84,13 @@ export function NewsEventList({ events, assetLabels = {}, onEventRead, onEventOp
                                         <div className={styles.meta}>
                                             <span>Magnitude: {MAGNITUDE_LABELS[event.magnitude_band]}</span>
                                             {event.affects_price && event.price_effect_pct !== undefined && (
-                                                <span className={`tabular-nums ${directionClass(event.direction)}`}>
-                                                    Efeito de preço: {formatSignedPercent(event.price_effect_pct)}
+                                                <span>
+                                                    Efeito de preço: <Delta percent={event.price_effect_pct} variant="text" />
                                                 </span>
                                             )}
                                             {event.affects_fundamentals && event.fundamentals_effect_pct !== undefined && (
-                                                <span className={`tabular-nums ${directionClass(event.direction)}`}>
-                                                    Efeito nos fundamentos: {formatSignedPercent(event.fundamentals_effect_pct)}
+                                                <span>
+                                                    Efeito nos fundamentos: <Delta percent={event.fundamentals_effect_pct} variant="text" />
                                                 </span>
                                             )}
                                         </div>

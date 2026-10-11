@@ -86,23 +86,7 @@
 }
 
 .change {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px var(--space-2);
-    border-radius: var(--radius-full);
     font-size: var(--font-size-sm);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.gain {
-    background: var(--color-gain-100);
-    color: var(--color-gain-500);
-}
-
-.loss {
-    background: var(--color-loss-100);
-    color: var(--color-loss-500);
 }
 
 .awaitingQuote {

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Delta } from '../../components/atoms/Delta'
 import { AssetTable } from '../../components/organisms/AssetTable'
 import type { AssetTableColumn } from '../../components/organisms/AssetTable'
 import { Pagination } from '../../components/molecules/Pagination'
@@ -6,7 +7,6 @@ import { ASSETS_PAGE_SIZE, EQUITY_TABS, filterAssetsByTab } from '../../features
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import type { UseLockedAssetGateResult } from '../../features/market/useLockedAssetGate'
-import { formatSignedPercent } from '../../features/market/format'
 import { formatCurrency } from '../../features/portfolio/format'
 import { useClientPagination } from '../../hooks/useClientPagination'
 import type { AssetSummary } from '../../services/market'
@@ -16,8 +16,8 @@ function priceColumn(asset: AssetSummary): string {
     return asset.current_price !== undefined ? formatCurrency(asset.current_price) : 'aguardando cotação'
 }
 
-function changeColumn(asset: AssetSummary): string {
-    return asset.daily_change_pct !== undefined ? formatSignedPercent(asset.daily_change_pct) : '—'
+function changeColumn(asset: AssetSummary) {
+    return <Delta percent={asset.daily_change_pct} />
 }
 
 // Colunas de Ações incluem risco (inventário 4.4); ETF/FII ficam com o

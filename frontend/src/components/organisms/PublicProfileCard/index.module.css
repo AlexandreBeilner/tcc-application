@@ -203,18 +203,6 @@
     color: var(--color-text-primary);
 }
 
-.gain {
-    color: var(--color-gain-500);
-}
-
-.loss {
-    color: var(--color-loss-500);
-}
-
-.neutral {
-    color: var(--color-text-primary);
-}
-
 .streak {
     display: flex;
     align-items: center;

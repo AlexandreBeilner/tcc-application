@@ -1,6 +1,5 @@
 import { useId } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { formatSignedPercent } from '../../../features/market/format'
 import { computePodiumSparkline, PODIUM_SPARKLINE_HEIGHT, PODIUM_SPARKLINE_WIDTH } from '../../../features/ranking/podiumSparkline'
 import { useValueFlash } from '../../../features/ranking/useValueFlash'
 import { AvatarFrame } from '../../atoms/AvatarFrame'
@@ -10,6 +9,7 @@ import { UserTitle } from '../../atoms/UserTitle'
 import { Pagination } from '../../molecules/Pagination'
 import type { RankingCriterion, RankingEntry } from '../../../services/ranking'
 import type { RankingBoardProps } from './types'
+import { Delta } from '../../atoms/Delta'
 import styles from './index.module.css'
 
 export type { RankingBoardProps } from './types'
@@ -134,7 +134,7 @@ export function RankingBoard({
             <span
                 className={`${pctClassName} tabular-nums ${profitClassName(entry.profitabilityPct as number)} ${flashingIds.has(entry.userId) ? styles.flash : ''}`}
             >
-                {formatSignedPercent(entry.profitabilityPct as number)}
+                <Delta percent={entry.profitabilityPct as number} variant="text" />
             </span>
         )
     }

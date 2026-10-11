@@ -1,17 +1,11 @@
-import { formatSignedPercent } from '../../../features/market/format'
 import type { Duel, DuelPlayerScore } from '../../../services/duels'
 import { Avatar } from '../../atoms/Avatar'
 import { CosmeticTags } from '../../molecules/CosmeticTags'
 import type { DuelScoreboardProps } from './types'
+import { Delta } from '../../atoms/Delta'
 import styles from './index.module.css'
 
 export type { DuelScoreboardProps } from './types'
-
-function pctClass(pct: number): string {
-    if (pct > 0) return styles.gain
-    if (pct < 0) return styles.loss
-    return styles.neutral
-}
 
 function Side({
     label,
@@ -37,8 +31,8 @@ function Side({
             {cosmetics && <CosmeticTags cosmetics={cosmetics} />}
             {score ? (
                 <>
-                    <span className={`${styles.pct} tabular-nums ${pctClass(score.returnPct)}`}>
-                        {formatSignedPercent(score.returnPct)}
+                    <span className={`${styles.pct} tabular-nums`}>
+                        <Delta percent={score.returnPct} variant="text" />
                     </span>
                     <span className={styles.operated}>{score.operated ? 'Já operou no duelo' : 'Ainda não operou'}</span>
                 </>
