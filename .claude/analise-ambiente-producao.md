@@ -98,3 +98,18 @@ As tarefas LW.3.7 a LW.3.12 já existentes cobrem rede, guardas de configuraçã
 - **Kubernetes, Swarm, Terraform**: sobra complexidade para um VPS, e os singletons impedem o ganho de réplicas.
 - **Banco gerenciado, réplica de leitura, multi-região**: depois de validar tração.
 - **Segredos em cofre dedicado (Vault etc.)**: o `.env` com modo 600 e backup criptografado basta no início; revisitar com mais de uma pessoa operando.
+
+## 7. Seeds em produção (LW.3.14, decisão do autor em 2026-10-11: comando manual no deploy)
+
+Os seeds **não rodam sozinhos no boot** (um seed automático reintroduziria risco sobre o conteúdo editado pelo painel). Rodam como comando manual, **de dentro das imagens**, sem `tsx` e sem `go run`. Todos são idempotentes (rodar de novo não duplica nem sobrescreve edição do painel). Provado em 2026-10-11 numa stack descartável a partir das imagens do Dockerfile (`tmp/seed-prod/prova.sh`): lições 43, conquistas 14, missões 5, 1 admin e o catálogo do motor, duas rodadas sem diferença.
+
+Ordem, num servidor novo (o motor e o backend já no ar, porque as **migrações rodam no boot** deles):
+
+1. **Catálogo do motor** (ativos, empresas, ETFs, FIIs, bots): `docker compose run --rm --entrypoint seed engine`. O binário `seed` é compilado na imagem do motor (`engine/Dockerfile`). Sem `--synthetic-*` (esses só existem em stack de teste e exigem `SEED_ALLOW_SYNTHETIC=true`).
+2. **Lições**: `docker compose exec backend node dist/db/seedLessons.js`. Só importa o que falta (por `stable_key`) e nunca sobrescreve texto editado no painel (`/admin/conteudo`).
+3. **Conquistas**: `docker compose exec backend node dist/db/seedAchievements.js`. A conquista da Assembleia só nasce com `ASSEMBLIES_ENABLED=on` no ambiente do comando: **ao ligar a Assembleia, rode este seed de novo com a variável ligada**.
+4. **Missões**: `docker compose exec backend node dist/db/seedMissions.js`.
+5. **Administrador** (por último, só uma vez): `docker compose exec -it backend node dist/db/seed.js` com `ADMIN_EMAIL` no ambiente. A senha **nunca** vai na linha de comando nem em `ADMIN_PASSWORD` (recusada com `NODE_ENV=production`, ficaria no histórico do shell). Três jeitos: digitar no terminal (sem eco, é o padrão com `-it`); `ADMIN_PASSWORD_FILE=/caminho` apontando para um arquivo temporário (apagar depois); ou por pipe. Se o e-mail já existe, não pergunta nada e não muda nada.
+
+O `deploy.sh` (LW.3.15) **não** roda seeds; eles entram no runbook (LW.3.12) como passo único de um servidor novo e como passo avulso quando um seed ganha item novo (por exemplo, lição nova): rodar o seed correspondente depois do deploy.
+
