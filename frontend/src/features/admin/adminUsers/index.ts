@@ -1,5 +1,5 @@
 import { ApiError } from '../../../services/client'
-import type { AdminUserStatus } from '../../../services/admin'
+import type { AdminUserStatus, UserProStatus } from '../../../services/admin'
 import { ReauthCancelledError } from '../AdminReauth'
 
 export const STATUS_LABELS: Record<AdminUserStatus, string> = {
@@ -75,4 +75,43 @@ export function describeCorrectionError(err: unknown): string {
         if (err.status === 404 || err.status === 409 || err.status === 422) return err.message
     }
     return 'Não foi possível concluir a ação agora. Tente novamente em instantes.'
+}
+
+// Teto de dias por concessão de PRO promocional (MO.2.5); o backend valida o mesmo limite.
+export const MAX_PRO_GRANT_DAYS = 90
+
+// Dias digitados → inteiro de 1 ao teto, ou `null`.
+export function parseGrantDays(raw: string): number | null {
+    const value = parseWholeNumber(raw)
+    return value !== null && value >= 1 && value <= MAX_PRO_GRANT_DAYS ? value : null
+}
+
+const STORE_LABELS: Record<string, string> = {
+    promotional: 'concessão promocional',
+    stripe: 'cartão pela web',
+    app_store: 'App Store',
+    play_store: 'Google Play',
+}
+
+const PLAN_LABELS: Record<string, string> = { monthly: 'mensal', annual: 'anual' }
+
+// Resumo do plano pro cartão "Plano atual".
+export function planSummary(status: UserProStatus): string {
+    if (!status.is_pro) return status.state === 'none' ? 'Sem plano PRO' : 'PRO inativo'
+    const plan = status.plan ? PLAN_LABELS[status.plan] : null
+    const store = status.store ? STORE_LABELS[status.store] : null
+    const detail = [plan, store].filter(Boolean).join(', ')
+    return detail ? `PRO ativo (${detail})` : 'PRO ativo'
+}
+
+// Erro da concessão de PRO → texto pro admin. 404, 409 e 422 vêm do backend em português.
+export function describeProGrantError(err: unknown): string {
+    if (err instanceof ReauthCancelledError) return err.message
+    if (err instanceof ApiError) {
+        if (err.status === 400) return 'Dados inválidos. Informe de 1 a 90 dias e um motivo de pelo menos 5 caracteres.'
+        if (err.status === 404 || err.status === 409 || err.status === 422) return err.message
+        if (err.status === 502) return 'O provedor de cobrança não respondeu. Nada foi concedido, tente de novo em instantes.'
+        if (err.status === 503) return 'A cobrança está desligada neste ambiente, então não dá para conceder PRO.'
+    }
+    return 'Não foi possível conceder agora. Tente novamente em instantes.'
 }

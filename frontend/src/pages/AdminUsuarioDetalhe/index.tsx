@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import { AdminUserCorrections } from '../../components/organisms/AdminUserCorrections'
+import { AdminUserPro } from '../../components/organisms/AdminUserPro'
 import { AdminUserDetailPanel } from '../../components/organisms/AdminUserDetailPanel'
 import { SuspendUserDialog } from '../../components/organisms/SuspendUserDialog'
 import { describeUserActionError, isAnonymized } from '../../features/admin/adminUsers'
@@ -170,6 +171,8 @@ export function AdminUsuarioDetalhe() {
             )}
 
             {detail && <AdminUserDetailPanel detail={detail} />}
+
+            {account && !isAnonymized(account.username) && <AdminUserPro userId={id} username={account.username} />}
 
             {account && !isAnonymized(account.username) && <AdminUserCorrections userId={id} username={account.username} />}
 

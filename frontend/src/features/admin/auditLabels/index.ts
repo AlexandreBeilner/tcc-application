@@ -59,6 +59,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'assembly.template_update': 'Edição de pauta de assembleia',
     'assembly.template_activate': 'Ativação de pauta de assembleia',
     'assembly.template_deactivate': 'Desativação de pauta de assembleia',
+    'billing.grant_promotional': 'Concessão de PRO promocional',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

@@ -137,6 +137,7 @@ export type AuditAction =
     | 'assembly.template_update'
     | 'assembly.template_activate'
     | 'assembly.template_deactivate'
+    | 'billing.grant_promotional'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -732,6 +733,25 @@ export interface CorrectionLesson {
 export interface UserCorrectionContext {
     achievements: CorrectionAchievement[]
     lessons: CorrectionLesson[]
+}
+
+export interface UserProStatus {
+    is_pro: boolean
+    state: string
+    plan: string | null
+    store: string | null
+    expires_at: string | null
+}
+
+export interface GrantUserProInput {
+    days: number
+    reason: string
+}
+
+export interface GrantUserProResult {
+    user_id: string
+    ends_at: string
+    previous_access_end: string | null
 }
 
 export interface CreditUserInput {

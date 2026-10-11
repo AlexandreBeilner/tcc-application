@@ -80,9 +80,15 @@ import type {
     PauseAssembliesInput,
     TriggerMacroEventInput,
     TriggerMacroEventResult,
+    UserProStatus,
+    GrantUserProInput,
+    GrantUserProResult,
 } from './types'
 
 export type {
+    UserProStatus,
+    GrantUserProInput,
+    GrantUserProResult,
     AdminLesson,
     AdminLessonContent,
     AdminLessonDetail,
@@ -462,6 +468,14 @@ export function deleteAdminUser(token: string, userId: string, confirmUsername: 
 
 export function getUserCorrectionContext(token: string, userId: string): Promise<UserCorrectionContext> {
     return apiRequest<UserCorrectionContext>(`/admin/users/${userId}/corrections`, { token })
+}
+
+export function getAdminUserPro(token: string, userId: string): Promise<UserProStatus> {
+    return apiRequest<UserProStatus>(`/admin/users/${userId}/pro`, { token })
+}
+
+export function grantAdminUserPro(token: string, userId: string, input: GrantUserProInput): Promise<GrantUserProResult> {
+    return apiRequest<GrantUserProResult>(`/admin/users/${userId}/pro-grants`, { token, method: 'POST', body: input })
 }
 
 export function creditAdminUser(token: string, userId: string, input: CreditUserInput): Promise<CreditUserResult> {
