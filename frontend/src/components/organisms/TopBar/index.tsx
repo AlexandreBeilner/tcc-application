@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { BrandLogo } from '../../atoms/BrandLogo'
 import { FriendsBell } from '../../molecules/FriendsBell'
 import { MarketClockChip } from '../../molecules/MarketClockChip'
 import { NewsBell } from '../../molecules/NewsBell'
@@ -12,8 +13,6 @@ import styles from './index.module.css'
 // autor foi "não só" dentro do menu, não a remoção do item de lá.
 // Chip do relógio do mercado (S.12) entre o logo e as ações: único ponto de
 // abertura do Calendário (`calendarOpen` vive no `AppShell`).
-// "Investimenta" é um nome de placeholder — decisão confirmada com o
-// usuário nesta sessão, sem marca definitiva escolhida ainda.
 interface TopBarProps {
     calendarOpen: boolean
     onToggleCalendar: () => void
@@ -23,7 +22,7 @@ export function TopBar({ calendarOpen, onToggleCalendar }: TopBarProps) {
     return (
         <header className={styles.topBar}>
             <Link to="/" className={styles.logo}>
-                Investimenta
+                <BrandLogo className={styles.logoImage} />
             </Link>
             <MarketClockChip open={calendarOpen} onToggle={onToggleCalendar} panelId={MARKET_CALENDAR_PANEL_ID} />
             <div className={styles.actions}>

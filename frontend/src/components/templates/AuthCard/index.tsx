@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { BrandLogo } from '../../atoms/BrandLogo'
 import styles from './index.module.css'
 
 interface AuthCardProps {
@@ -13,7 +14,9 @@ export function AuthCard({ subtitle, children }: AuthCardProps) {
     return (
         <main className={styles.page}>
             <div className={styles.card}>
-                <h1 className={styles.brand}>Investimenta</h1>
+                <h1 className={styles.brand}>
+                    <BrandLogo className={styles.brandLogo} />
+                </h1>
                 <p className={styles.subtitle}>{subtitle}</p>
                 {children}
             </div>

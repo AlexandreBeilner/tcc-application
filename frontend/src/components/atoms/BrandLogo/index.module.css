@@ -1,0 +1,21 @@
+.logo {
+    display: inline-flex;
+    line-height: 0;
+}
+
+.logo img {
+    height: 100%;
+    width: auto;
+}
+
+.onLight {
+    display: none;
+}
+
+:global(:root[data-theme='light']) .onLight {
+    display: block;
+}
+
+:global(:root[data-theme='light']) .onDark {
+    display: none;
+}

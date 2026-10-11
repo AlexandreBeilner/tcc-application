@@ -20,10 +20,13 @@
 }
 
 .brand {
-    font-family: var(--font-family-heading);
-    font-size: var(--font-size-2xl);
-    color: var(--color-brand-300);
-    text-align: center;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.brandLogo {
+    height: 44px;
 }
 
 .subtitle {

@@ -6,6 +6,7 @@ import { computePasswordStrength } from '../../features/auth/passwordStrength'
 import { isAccountSuspendedError, isEmailNotVerifiedError } from '../../services/client'
 import { formatApiError } from '../../utils/formatApiError'
 import { googleLoginUrl, login as loginRequest, register as registerRequest } from '../../services/auth'
+import { BrandLogo } from '../../components/atoms/BrandLogo'
 import { Button } from '../../components/atoms/Button'
 import { ResendVerification } from '../../components/organisms/ResendVerification'
 import { AuthCard } from '../../components/templates/AuthCard'
@@ -127,7 +128,9 @@ export function Login() {
     return (
         <main className={styles.page}>
             <div className={styles.card}>
-                <h1 className={styles.brand}>Investimenta</h1>
+                <h1 className={styles.brand}>
+                    <BrandLogo className={styles.brandLogo} />
+                </h1>
                 <p className={styles.subtitle}>{mode === 'login' ? 'Entre na sua conta' : 'Crie sua conta'}</p>
 
                 <a className={styles.google} href={googleLoginUrl()}>

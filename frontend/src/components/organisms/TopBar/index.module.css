@@ -9,11 +9,12 @@
 }
 
 .logo {
-    font-family: var(--font-family-heading);
-    font-size: var(--font-size-xl);
-    font-weight: 700;
-    color: var(--color-text-primary);
+    display: inline-flex;
     text-decoration: none;
+}
+
+.logoImage {
+    height: 28px;
 }
 
 .actions {
@@ -32,8 +33,8 @@
         padding: var(--space-2) var(--space-4);
     }
 
-    .logo {
-        font-size: 15px;
+    .logoImage {
+        height: 22px;
     }
 
     .actions {
