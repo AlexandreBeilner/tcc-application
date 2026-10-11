@@ -129,6 +129,7 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /governance/snapshots/{assembly_id}", handleGovernanceGetSnapshot(cfg.governance))
 	mux.HandleFunc("POST /governance/decisions", handleGovernanceRecordDecision(cfg.governance))
 	mux.HandleFunc("GET /governance/decisions/{assembly_id}", handleGovernanceGetDecision(cfg.governance))
+	mux.HandleFunc("GET /governance/companies/{company_id}/standing", handleGovernanceStanding(cfg.governance))
 
 	return &http.Server{
 		Addr:         addr,

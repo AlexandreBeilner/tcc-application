@@ -208,3 +208,63 @@ func TestGovernanceRepository_ListCompanySchedules(t *testing.T) {
 		t.Errorf("dia = %d", day)
 	}
 }
+
+// Situação da empresa para uma pessoa (proposta e apoio de pauta, MO.6.5): posição atual somada
+// entre ON e PN, bot e conta sem ação ficam de fora, e o cooldown vem do último efeito que valeu.
+func TestGovernanceRepository_CompanyStanding(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	scan := func(dest any, query string, args ...any) {
+		t.Helper()
+		if err := conn.QueryRowContext(ctx, query, args...).Scan(dest); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+	}
+	var company, on, pn, ana, bia, bot string
+	scan(&company, `INSERT INTO companies (name, cnpj, sector) VALUES ('Acme', '11111111000111', 'Varejo') RETURNING id`)
+	scan(&on, `INSERT INTO assets (ticker, name, type) VALUES ('ACME3', 'Acme ON', 'acao') RETURNING id`)
+	scan(&pn, `INSERT INTO assets (ticker, name, type) VALUES ('ACME4', 'Acme PN', 'acao') RETURNING id`)
+	exec(`INSERT INTO variable_income_assets (asset_id, company_id, share_class, outstanding_shares)
+		VALUES ($1, $3, 'ON', 1000), ($2, $3, 'PN', 1000)`, on, pn, company)
+	scan(&ana, `INSERT INTO accounts (user_id) VALUES (gen_random_uuid()) RETURNING user_id`)
+	scan(&bia, `INSERT INTO accounts (user_id) VALUES (gen_random_uuid()) RETURNING user_id`)
+	scan(&bot, `INSERT INTO accounts (user_id, is_bot) VALUES (gen_random_uuid(), true) RETURNING user_id`)
+	exec(`INSERT INTO positions (user_id, asset_id, quantity, average_price) VALUES
+		($1, $4, 10, 5), ($1, $5, 0, 5), ($2, $5, 0, 5), ($3, $4, 500, 5)`, ana, bia, bot, on, pn)
+	exec(`INSERT INTO market_calendar (id, current_day, selic_rate) VALUES (1, 130, 10.75) ON CONFLICT (id) DO UPDATE SET current_day = 130`)
+
+	repo := NewGovernanceRepository(conn)
+	rec, found, err := repo.CompanyStanding(ctx, company, ana)
+	if err != nil || !found || !rec.HoldsShares || rec.Name != "Acme" || rec.Sector != "Varejo" || rec.Today != 130 || rec.LastEffectStartDay != nil {
+		t.Fatalf("ana: %+v found=%v err=%v", rec, found, err)
+	}
+	if rec, _, _ = repo.CompanyStanding(ctx, company, bia); rec.HoldsShares {
+		t.Errorf("bia só tem linha zerada: não é acionista")
+	}
+	if rec, _, _ = repo.CompanyStanding(ctx, company, bot); rec.HoldsShares {
+		t.Errorf("bot nunca conta como acionista")
+	}
+	if _, found, err := repo.CompanyStanding(ctx, "99999999-9999-4999-8999-999999999999", ana); err != nil || found {
+		t.Errorf("empresa inexistente: found=%v err=%v", found, err)
+	}
+
+	// Último efeito que valeu: skipped_cooldown não conta.
+	exec(`INSERT INTO governance_decisions (assembly_id, company_id, option_key, metric, direction, intensity, status, total_delta, ramp_ticks, start_day)
+		VALUES (gen_random_uuid(), $1, 'a', 'base_growth_pct', 1, 1, 'completed', 50, 30, 100),
+		       (gen_random_uuid(), $1, 'b', 'base_growth_pct', 1, 1, 'skipped_cooldown', 0, 30, 125)`, company)
+	rec, _, err = repo.CompanyStanding(ctx, company, ana)
+	if err != nil || rec.LastEffectStartDay == nil || *rec.LastEffectStartDay != 100 {
+		t.Fatalf("último efeito: %+v err=%v", rec, err)
+	}
+	svc := corporategovernance.NewService(repo, govSettings{enginesetting.Values{GovernanceCooldownDays: 90}})
+	st, err := svc.Standing(ctx, company, ana)
+	if err != nil || st.CooldownDaysLeft != 60 || !st.HoldsShares {
+		t.Errorf("standing: %+v err=%v", st, err)
+	}
+}

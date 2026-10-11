@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import type { Request, Response } from 'express'
+import type { Response } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { requireUuidParam } from '../../../../shared/http/uuidParam'
@@ -10,6 +10,7 @@ import {
   InvalidAssemblyOptionError,
   VoteDeniedError,
 } from '../../domain/errors'
+import { authedRoute } from './authedRoute'
 import { castVoteBodySchema } from './schemas'
 
 export interface AssembliesRouterDeps {
@@ -40,19 +41,7 @@ export function createAssembliesRouter(deps: AssembliesRouterDeps): Router {
   router.param('id', requireUuidParam)
   const auth = deps.authMiddleware.authenticate
 
-  function route(handler: (userId: string, req: Request, res: Response) => Promise<void>) {
-    return async (req: Request, res: Response): Promise<void> => {
-      if (!req.auth) {
-        res.status(401).json({ error: 'token ausente' })
-        return
-      }
-      try {
-        await handler(req.auth.userId, req, res)
-      } catch (err) {
-        if (!mapDomainError(err, res)) throw err
-      }
-    }
-  }
+  const route = (handler: Parameters<typeof authedRoute>[1]) => authedRoute(mapDomainError, handler)
 
   router.post(
     '/assemblies/:id/vote',

@@ -18,6 +18,7 @@ type fakeRepo struct {
 	events    []string // ids de assembleia, na ordem em que o evento foi gravado
 	knob      map[Metric]int
 	failApply map[string]bool
+	standing  *StandingRecord
 }
 
 func newFakeRepo(c CompanyState) *fakeRepo {
@@ -61,6 +62,13 @@ func (r *fakeRepo) RecordDecision(_ context.Context, in DecisionInput, plan Plan
 		r.company.LastEffectStartDay = &last
 	}
 	return *d, true, nil
+}
+
+func (r *fakeRepo) CompanyStanding(context.Context, string, string) (StandingRecord, bool, error) {
+	if r.standing == nil {
+		return StandingRecord{}, false, nil
+	}
+	return *r.standing, true, nil
 }
 
 func (r *fakeRepo) ListScheduled(context.Context) ([]Decision, error) {

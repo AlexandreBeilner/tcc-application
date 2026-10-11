@@ -23,6 +23,7 @@ type governanceManager interface {
 	RecordDecision(ctx context.Context, in corporategovernance.DecisionInput) (corporategovernance.Decision, bool, error)
 	GetDecision(ctx context.Context, assemblyID string) (corporategovernance.Decision, bool, error)
 	RecentReports(ctx context.Context, minDays, maxDays int) (corporategovernance.ReportsResult, error)
+	Standing(ctx context.Context, companyID, userID string) (corporategovernance.Standing, error)
 }
 
 // WithGovernance liga as rotas /governance; sem ela respondem 503.
@@ -262,5 +263,39 @@ func handleGovernanceReports(m governanceManager) http.HandlerFunc {
 			})
 		}
 		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+type standingResponse struct {
+	CompanyID        string `json:"company_id"`
+	Name             string `json:"name"`
+	Sector           string `json:"sector"`
+	HoldsShares      bool   `json:"holds_shares"`
+	CooldownDaysLeft int    `json:"cooldown_days_left"`
+}
+
+// handleGovernanceStanding serve GET /governance/companies/{company_id}/standing?user_id=: se a
+// pessoa tem ações da empresa agora e quantos dias simulados faltam para o cooldown acabar. É o
+// que o backend consulta antes de aceitar uma proposta ou um apoio de pauta.
+func handleGovernanceStanding(m governanceManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if m == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "governança indisponível")
+			return
+		}
+		companyID, userID := r.PathValue("company_id"), r.URL.Query().Get("user_id")
+		if !uuidPattern.MatchString(companyID) || !uuidPattern.MatchString(userID) {
+			writeCatalogError(w, http.StatusBadRequest, "company_id e user_id devem ser UUIDs válidos")
+			return
+		}
+		st, err := m.Standing(r.Context(), companyID, userID)
+		if err != nil {
+			writeGovernanceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, standingResponse{
+			CompanyID: st.CompanyID, Name: st.Name, Sector: st.Sector,
+			HoldsShares: st.HoldsShares, CooldownDaysLeft: st.CooldownDaysLeft,
+		})
 	}
 }

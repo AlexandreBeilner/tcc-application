@@ -7,6 +7,7 @@ describe('loadAssemblyConfig', () => {
       enabled: false,
       lifecycle: { openDelayDays: 2, catchUpDays: 7, durationDays: 7, effectDelayDays: 1 },
       params: { minVoters: 3, monthlyFreeCredits: 1, freeCreditMinLevel: 3 },
+      proposals: { monthlyCap: 3, minSupport: 2, ttlDays: 30 },
     })
   })
 
@@ -32,5 +33,14 @@ describe('loadAssemblyConfig', () => {
       ASSEMBLY_FREE_CREDIT_MIN_LEVEL: '5',
     })
     expect(cfg.params).toMatchObject({ monthlyFreeCredits: 2, freeCreditMinLevel: 5 })
+  })
+
+  it('teto de propostas, apoios mínimos e prazo são parâmetros', () => {
+    const cfg = loadAssemblyConfig({
+      ASSEMBLY_PROPOSAL_MONTHLY_CAP: '5',
+      ASSEMBLY_PROPOSAL_MIN_SUPPORT: '4',
+      ASSEMBLY_PROPOSAL_TTL_DAYS: 'x',
+    })
+    expect(cfg.proposals).toEqual({ monthlyCap: 5, minSupport: 4, ttlDays: 30 })
   })
 })

@@ -57,6 +57,38 @@ func (f *fakeGovernance) RecentReports(_ context.Context, minDays, maxDays int) 
 	}}, f.err
 }
 
+func (f *fakeGovernance) Standing(_ context.Context, companyID, userID string) (corporategovernance.Standing, error) {
+	return corporategovernance.Standing{
+		CompanyID: companyID, Name: "Beta", Sector: "Varejo", HoldsShares: userID == govAssembly, CooldownDaysLeft: 12,
+	}, f.err
+}
+
+func TestGovernance_Standing(t *testing.T) {
+	rec := callGovernance(t, &fakeGovernance{}, http.MethodGet, "/governance/companies/"+govCompany+"/standing?user_id="+govAssembly, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var resp standingResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.CompanyID != govCompany || !resp.HoldsShares || resp.CooldownDaysLeft != 12 || resp.Sector != "Varejo" {
+		t.Errorf("resposta = %+v", resp)
+	}
+	if rec := callGovernance(t, &fakeGovernance{}, http.MethodGet, "/governance/companies/"+govCompany+"/standing", ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("sem user_id = %d, esperado 400", rec.Code)
+	}
+	if rec := callGovernance(t, &fakeGovernance{}, http.MethodGet, "/governance/companies/xx/standing?user_id="+govAssembly, ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("empresa inválida = %d, esperado 400", rec.Code)
+	}
+	if rec := callGovernance(t, &fakeGovernance{err: corporategovernance.ErrUnknownCompany}, http.MethodGet, "/governance/companies/"+govCompany+"/standing?user_id="+govAssembly, ""); rec.Code != http.StatusNotFound {
+		t.Errorf("empresa inexistente = %d, esperado 404", rec.Code)
+	}
+	if rec := callGovernance(t, nil, http.MethodGet, "/governance/companies/"+govCompany+"/standing?user_id="+govAssembly, ""); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("sem serviço = %d, esperado 503", rec.Code)
+	}
+}
+
 func TestGovernance_Reports(t *testing.T) {
 	rec := callGovernance(t, &fakeGovernance{}, http.MethodGet, "/governance/reports?min_days=2&max_days=9", "")
 	if rec.Code != http.StatusOK {

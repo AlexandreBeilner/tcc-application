@@ -16,3 +16,15 @@ export class VoteDeniedError extends Error {
     super(message)
   }
 }
+// Proposta ou apoio recusado por regra (`reason` diz qual; o texto não culpa a pessoa).
+export class ProposalDeniedError extends Error {
+  constructor(
+    readonly reason: string,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+export class ProposalNotFoundError extends Error {}
+// Empresa que o motor não conhece.
+export class CompanyNotFoundError extends Error {}

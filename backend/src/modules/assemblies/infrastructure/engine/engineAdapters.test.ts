@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Assembly, AgendaOption } from '../../domain/assembly'
+import { createEngineCompanyStandingReader } from './engineCompanyStandingReader'
 import { createEngineCompanyReportSource } from './engineCompanyReportSource'
 import { createEngineHoldingsSnapshotProvider } from './engineHoldingsSnapshotProvider'
 import { createEngineShareholderEffect, parseEngineEffect } from './engineShareholderEffect'
@@ -128,5 +129,38 @@ describe('engineShareholderEffect', () => {
     [{ metric: 'quality_multiplier', direction: -1, intensity: '1' }, 'intensidade'],
   ])('parseEngineEffect rejeita %j', (raw, message) => {
     expect(() => parseEngineEffect(raw)).toThrow(message)
+  })
+})
+
+describe('engineCompanyStandingReader', () => {
+  it('pede a situação da empresa para a pessoa e traduz o payload', async () => {
+    const fetchFn = mockFetch(200, {
+      company_id: 'c-1',
+      name: 'Acme',
+      sector: 'Varejo',
+      holds_shares: true,
+      cooldown_days_left: 12,
+    })
+    const standing = await createEngineCompanyStandingReader(URL).get('c-1', 'u-1')
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${URL}/governance/companies/c-1/standing?user_id=u-1`,
+      undefined,
+    )
+    expect(standing).toEqual({
+      companyId: 'c-1',
+      name: 'Acme',
+      sector: 'Varejo',
+      holdsShares: true,
+      cooldownDaysLeft: 12,
+    })
+  })
+
+  it('empresa desconhecida vira null; outro erro do motor propaga', async () => {
+    mockFetch(404, { error: 'empresa não encontrada' })
+    expect(await createEngineCompanyStandingReader(URL).get('c-1', 'u-1')).toBeNull()
+    mockFetch(503, { error: 'governança indisponível' })
+    await expect(createEngineCompanyStandingReader(URL).get('c-1', 'u-1')).rejects.toThrow(
+      'governança indisponível',
+    )
   })
 })

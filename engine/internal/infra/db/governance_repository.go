@@ -344,3 +344,38 @@ func (r *GovernanceRepository) ListCompanySchedules(ctx context.Context) (int, [
 	}
 	return day, out, rows.Err()
 }
+
+// CompanyStanding lê a empresa, se `userID` tem ações dela AGORA (conta de usuário, classes
+// somadas) e o início do último efeito que valeu. Serve a GET /governance/companies/{id}/standing.
+func (r *GovernanceRepository) CompanyStanding(ctx context.Context, companyID, userID string) (corporategovernance.StandingRecord, bool, error) {
+	var rec corporategovernance.StandingRecord
+	err := r.db.QueryRowContext(ctx, `SELECT name, sector FROM companies WHERE id = $1`, companyID).Scan(&rec.Name, &rec.Sector)
+	if errors.Is(err, sql.ErrNoRows) {
+		return corporategovernance.StandingRecord{}, false, nil
+	}
+	if err != nil {
+		return corporategovernance.StandingRecord{}, false, err
+	}
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(p.quantity), 0) > 0
+		 FROM positions p
+		 JOIN accounts ac ON ac.user_id = p.user_id AND NOT ac.is_bot
+		 JOIN variable_income_assets v ON v.asset_id = p.asset_id AND v.company_id = $1
+		 WHERE p.user_id = $2`, companyID, userID).Scan(&rec.HoldsShares); err != nil {
+		return corporategovernance.StandingRecord{}, false, err
+	}
+	if rec.Today, err = loadSimulatedDay(ctx, r.db); err != nil {
+		return corporategovernance.StandingRecord{}, false, err
+	}
+	var last sql.NullInt64
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT MAX(start_day) FROM governance_decisions WHERE company_id = $1 AND status IN ('scheduled', 'completed')`,
+		companyID).Scan(&last); err != nil {
+		return corporategovernance.StandingRecord{}, false, err
+	}
+	if last.Valid {
+		day := int(last.Int64)
+		rec.LastEffectStartDay = &day
+	}
+	return rec, true, nil
+}

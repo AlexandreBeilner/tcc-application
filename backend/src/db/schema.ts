@@ -23,6 +23,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
@@ -931,6 +932,54 @@ export const assemblyVoteCredits = pgTable(
     primaryKey({ columns: [table.userId, table.assemblyId] }),
     index('assembly_vote_credits_user_month_idx').on(table.userId, table.monthKey),
   ],
+)
+
+// Proposta de pauta (MO.6.5): uma pessoa PRO escolhe uma pauta do catálogo para uma empresa que
+// possui e as demais apoiam. Sem texto livre: só `template_key`. `status`: active | consumed
+// (virou a pauta de uma assembleia) | expired (passou `expires_at` sem ser escolhida). Uma
+// proposta ativa por (kind, empresa, pauta): propor de novo vira apoio à existente.
+export const agendaProposals = pgTable(
+  'agenda_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind').notNull(),
+    subjectRef: text('subject_ref').notNull(),
+    templateKey: varchar('template_key', { length: 80 })
+      .notNull()
+      .references(() => agendaTemplates.key),
+    proposedBy: uuid('proposed_by')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // Assembleia que consumiu a proposta (nula enquanto ativa ou expirada).
+    consumedAssemblyId: uuid('consumed_assembly_id').references(() => assemblies.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (table) => [
+    uniqueIndex('agenda_proposals_active_unique')
+      .on(table.kind, table.subjectRef, table.templateKey)
+      .where(sql`status = 'active'`),
+    index('agenda_proposals_subject_idx').on(table.kind, table.subjectRef, table.status),
+    index('agenda_proposals_proposer_idx').on(table.proposedBy, table.createdAt),
+  ],
+)
+
+// Apoio a uma proposta: uma linha por pessoa (o proponente entra como primeiro apoio).
+export const agendaProposalSupports = pgTable(
+  'agenda_proposal_supports',
+  {
+    proposalId: uuid('proposal_id')
+      .notNull()
+      .references(() => agendaProposals.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.proposalId, table.userId] })],
 )
 
 export const duels = pgTable(

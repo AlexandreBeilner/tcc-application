@@ -1020,3 +1020,11 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Problema:** com `days_per_real_day` maior que 1 (hoje o Temporizador anda 5 dias simulados por dia real), 2 dias simulados equivalem a menos de 1 dia real e o efeito de um trimestre (cooldown de 90 dias simulados do motor) pode chegar antes de a pessoa ver o resultado.
 - **Opções:** manter como está; ou converter tudo para dias reais (abrir quando passou N dias reais do balanço); ou tudo em dias simulados.
 - **Status:** em aberto, sem bloquear; revisar na calibração (MO.6.9).
+
+### 050 · Assembleia que abre com a empresa ainda em período de espera, e unidades do prazo da fila (MO.6.5), achado em 2026-10-10
+
+- **Local:** `backend/src/modules/assemblies` (`OpenDueAssembliesUseCase`, `ProposeAgendaUseCase`) e `engine/internal/domain/corporategovernance` (`CooldownDaysLeft`).
+- **Origem:** a MO.6.5 barra **propor e apoiar** quando a empresa está no cooldown de 90 dias simulados do motor, mas a **abertura** da assembleia não olha o cooldown (comportamento da MO.6.3): se a empresa mudou há pouco, a assembleia abre, a pessoa vota e o motor registra `skipped_cooldown` sem mudar nada, depois de a pessoa ter gasto um voto (ou crédito mensal) à toa.
+- **Opções:** (a) manter (o resultado público já diz que não houve efeito); (b) não abrir a assembleia de empresa em período de espera e deixar o balanço passar, ou abrir só dentro da janela de recuperação se o cooldown acabar a tempo; (c) abrir, mas não consumir o crédito mensal quando o motor já avisou o cooldown.
+- **Relacionado ao 049:** o prazo da fila (`ASSEMBLY_PROPOSAL_TTL_DAYS`, 30 dias **reais**) e o cooldown (90 dias **simulados**, hoje cerca de 18 dias reais a 5 dias simulados por dia real) têm unidades diferentes; com a decisão do 049 isso se alinha.
+- **Status:** em aberto, sem bloquear; recomendação (b) com a janela de recuperação já existente (`ASSEMBLY_CATCH_UP_DAYS`). Revisar na calibração (MO.6.9).

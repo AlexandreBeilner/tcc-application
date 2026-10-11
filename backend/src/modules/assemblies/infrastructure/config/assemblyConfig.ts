@@ -1,11 +1,13 @@
 import { DEFAULT_ASSEMBLY_PARAMS, type AssemblyParams } from '../../domain/assembly'
 import { DEFAULT_LIFECYCLE_PARAMS, type LifecycleParams } from '../../domain/lifecycle'
+import { DEFAULT_PROPOSAL_PARAMS, type ProposalParams } from '../../domain/proposals'
 
 export interface AssemblyConfig {
   // Desligado por padrão: ligar só depois da calibração (MO.6.9).
   enabled: boolean
   lifecycle: LifecycleParams
   params: AssemblyParams
+  proposals: ProposalParams
 }
 
 function positiveInt(raw: string | undefined, fallback: number): number {
@@ -40,6 +42,17 @@ export function loadAssemblyConfig(env: NodeJS.ProcessEnv): AssemblyConfig {
         env.ASSEMBLY_FREE_CREDIT_MIN_LEVEL,
         DEFAULT_ASSEMBLY_PARAMS.freeCreditMinLevel,
       ),
+    },
+    proposals: {
+      monthlyCap: positiveInt(
+        env.ASSEMBLY_PROPOSAL_MONTHLY_CAP,
+        DEFAULT_PROPOSAL_PARAMS.monthlyCap,
+      ),
+      minSupport: positiveInt(
+        env.ASSEMBLY_PROPOSAL_MIN_SUPPORT,
+        DEFAULT_PROPOSAL_PARAMS.minSupport,
+      ),
+      ttlDays: positiveInt(env.ASSEMBLY_PROPOSAL_TTL_DAYS, DEFAULT_PROPOSAL_PARAMS.ttlDays),
     },
   }
 }

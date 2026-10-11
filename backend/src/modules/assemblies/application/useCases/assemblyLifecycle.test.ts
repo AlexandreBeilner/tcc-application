@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HoldingsSnapshot } from '../../domain/assembly'
 import { DEFAULT_LIFECYCLE_PARAMS, type AgendaTemplate } from '../../domain/lifecycle'
+import { DEFAULT_PROPOSAL_PARAMS } from '../../domain/proposals'
 import { SHAREHOLDER_KIND, shareholderPolicies } from '../../domain/shareholderPolicies'
 import { createFakeAssemblyRepository } from '../../test/fakes/fakeAssemblyRepository'
+import { createFakeProposalRepository } from '../../test/fakes/fakeProposalRepository'
 import { AssemblyKindRegistry } from '../assemblyKinds'
 import type { CompanyReportFact } from '../ports/companyReportSource'
 import { ApplyDueAssemblyEffectsUseCase } from './applyDueAssemblyEffects'
@@ -57,6 +59,7 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     effect,
   })
   const repository = createFakeAssemblyRepository()
+  const proposals = createFakeProposalRepository()
   let holdings: HoldingsSnapshot = { takenAt: t0, holdings: [] }
   const snapshots = {
     take: vi.fn(async () => holdings),
@@ -75,6 +78,8 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     reportSource,
     catalog,
     snapshots,
+    proposals,
+    () => DEFAULT_PROPOSAL_PARAMS,
     () => DEFAULT_LIFECYCLE_PARAMS,
     now,
   )
@@ -82,6 +87,7 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
   const apply = new ApplyDueAssemblyEffectsUseCase(kinds, repository, now)
   return {
     repository,
+    proposals,
     effect,
     snapshots,
     reportSource,
@@ -328,5 +334,102 @@ describe('RunAssemblyLifecycleUseCase', () => {
     const result = await run.execute()
     expect(result.close.failed).toBe(1)
     expect(result.open.opened).toBe(1)
+  })
+})
+
+describe('OpenDueAssembliesUseCase: pauta vinda das propostas (MO.6.5)', () => {
+  const other: AgendaTemplate = {
+    ...template,
+    key: 'debt_policy',
+    title: 'Política de endividamento',
+  }
+  const third: AgendaTemplate = { ...template, key: 'dividends', title: 'Destinação do lucro' }
+
+  async function propose(
+    ctx: ReturnType<typeof setup>,
+    templateKey: string,
+    supporters: string[],
+    ageDays = 1,
+  ) {
+    const { proposal } = await ctx.proposals
+      .propose({
+        kind: SHAREHOLDER_KIND,
+        subjectRef: 'company-1',
+        templateKey,
+        userId: supporters[0],
+        now: new Date(t0.getTime() - ageDays * DAY),
+        expiresAt: new Date(t0.getTime() + 20 * DAY),
+        monthFrom: new Date(0),
+        monthTo: new Date(t0.getTime() + 365 * DAY),
+        monthlyCap: 10,
+      })
+      .then((r) => ({ proposal: (r as { proposal: { id: string } }).proposal }))
+    for (const u of supporters.slice(1)) await ctx.proposals.addSupport(proposal.id, u, t0)
+    return proposal.id
+  }
+
+  it('a proposta mais apoiada vira a pauta e é consumida; as outras seguem na fila', async () => {
+    const ctx = setup({ templates: [template, other, third] })
+    const loser = await propose(ctx, 'debt_policy', ['a', 'b'])
+    const winner = await propose(ctx, 'dividends', ['c', 'd', 'e'])
+    await ctx.open.execute()
+    expect(ctx.first().assembly.templateKey).toBe('dividends')
+    expect(ctx.proposals.consumed).toEqual([
+      { proposalId: winner, assemblyId: ctx.first().assembly.id },
+    ])
+    expect(ctx.proposals.proposals.find((p) => p.id === loser)?.status).toBe('active')
+  })
+
+  it('empate de apoio vai para a proposta mais antiga', async () => {
+    const ctx = setup({ templates: [template, other, third] })
+    await propose(ctx, 'dividends', ['a', 'b'], 1)
+    await propose(ctx, 'debt_policy', ['c', 'd'], 5)
+    await ctx.open.execute()
+    expect(ctx.first().assembly.templateKey).toBe('debt_policy')
+  })
+
+  it('proposta sem o mínimo de apoios não vence: vale o sorteio do catálogo', async () => {
+    const ctx = setup({ templates: [template] })
+    await propose(ctx, 'capital_budget', ['a'])
+    await ctx.open.execute()
+    // Sem fila elegível a pauta é a do sorteio (a única do catálogo), e consumi-la é inofensivo.
+    expect(ctx.first().assembly.templateKey).toBe('capital_budget')
+  })
+
+  it('só uma proposta com apoio suficiente muda a pauta em relação ao sorteio', async () => {
+    const ctx = setup({ templates: [template, other] })
+    await propose(ctx, 'debt_policy', ['a'])
+    await ctx.open.execute()
+    const sorteada = ctx.first().assembly.templateKey
+    const ctx2 = setup({ templates: [template, other] })
+    await propose(ctx2, 'debt_policy', ['a', 'b'])
+    await ctx2.open.execute()
+    expect(ctx2.first().assembly.templateKey).toBe('debt_policy')
+    expect([template.key, other.key]).toContain(sorteada)
+  })
+
+  it('proposta cuja pauta saiu do catálogo é ignorada', async () => {
+    const ctx = setup({ templates: [template] })
+    await propose(ctx, 'sumiu', ['a', 'b', 'c'])
+    await ctx.open.execute()
+    expect(ctx.first().assembly.templateKey).toBe('capital_budget')
+  })
+
+  it('proposta vencida não conta e é marcada como expirada', async () => {
+    const ctx = setup({ templates: [template, other] })
+    const id = await propose(ctx, 'debt_policy', ['a', 'b', 'c'])
+    ctx.proposals.proposals.find((p) => p.id === id)!.expiresAt = new Date(t0.getTime() - 1)
+    await ctx.open.execute()
+    expect(ctx.proposals.proposals.find((p) => p.id === id)?.status).toBe('expired')
+    expect(ctx.proposals.consumed).toHaveLength(0)
+  })
+
+  it('reexecutar não consome de novo nem troca a pauta', async () => {
+    const ctx = setup({ templates: [template, other] })
+    await propose(ctx, 'debt_policy', ['a', 'b'])
+    await ctx.open.execute()
+    await ctx.open.execute()
+    expect(ctx.repository.items.size).toBe(1)
+    expect(ctx.proposals.consumed).toHaveLength(1)
   })
 })

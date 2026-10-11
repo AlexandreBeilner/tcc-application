@@ -3,7 +3,7 @@
 Fundação genérica das assembleias (MO.6.1). Só `kind = shareholder` está registrado hoje; o
 desenho é extensível por `kind` (M9).
 
-**Rotas HTTP:** voto e "minha situação" (MO.6.4, abaixo). Elas só existem com `ASSEMBLIES_ENABLED=on` (sem a chave, 404). Propostas e apoio entram na MO.6.5, leitura e placar na MO.6.6, pausa e auditoria no admin na MO.6.8.
+**Rotas HTTP:** voto e "minha situação" (MO.6.4, abaixo). Elas só existem com `ASSEMBLIES_ENABLED=on` (sem a chave, 404). Propostas de pauta e apoio estão na MO.6.5 (abaixo); leitura e placar entram na MO.6.6, pausa e auditoria no admin na MO.6.8.
 Cada tarefa documenta as suas rotas neste arquivo, no mesmo commit.
 
 ## Modelo
@@ -11,9 +11,11 @@ Cada tarefa documenta as suas rotas neste arquivo, no mesmo commit.
 | Tabela | Papel |
 |---|---|
 | `assemblies` | (MO.6.3 acrescentou `title`, `subject_label`, `template_key` e `effect_applied_at`) `kind`, `subject_ref` (empresa hoje), `dedupe_key` única (abertura idempotente), `status` (`scheduled` → `open` → `closed`), `opens_at`, `snapshot_at` (data de corte), `closes_at`, `effect_applies_at`, resultado (`outcome`, `outcome_reason`, `winning_option_id`, `voter_count`). Check: `snapshot_at <= opens_at < closes_at <= effect_applies_at`. |
-| `agenda_templates` | Catálogo de pautas (MO.6.3): `key`, `kind`, `sector` (nulo vale para qualquer setor), `title`, `description`, `options` (jsonb com 2 opções `{ key, label, gain, loss, effect }`), `active`. Semeado pela migração `0043` (5 pautas gerais e 12 de setor: Varejo, Energia, Mineração, Agronegócio, Bancário/Financeiro, Tecnologia). Cresce por linha nova; proposta e apoio entram na MO.6.5, edição pelo painel na MO.6.8. |
+| `agenda_templates` | Catálogo de pautas (MO.6.3): `key`, `kind`, `sector` (nulo vale para qualquer setor), `title`, `description`, `options` (jsonb com 2 opções `{ key, label, gain, loss, effect }`), `active`. Semeado pela migração `0043` (5 pautas gerais e 12 de setor: Varejo, Energia, Mineração, Agronegócio, Bancário/Financeiro, Tecnologia). Cresce por linha nova; propostas e apoio vivem em `agenda_proposals` (MO.6.5), edição pelo painel na MO.6.8. |
 | `assembly_options` | Opções da pauta, de catálogo (sem texto livre): `label`, `gain`, `loss`, `effect` (jsonb, lido pelo efeito do kind). |
 | `assembly_votes` | Um voto por pessoa e assembleia (PK composta); trocar o voto atualiza a mesma linha. O peso **não** é gravado: sai do snapshot na apuração. |
+| `agenda_proposals` | (MO.6.5) Proposta de pauta: `kind`, `subject_ref` (empresa), `template_key` (FK do catálogo; **sem texto livre**), `proposed_by`, `status` (`active` → `consumed` quando vira a pauta de uma assembleia, ou `expired`), `expires_at`, `consumed_assembly_id`. Índice único parcial `(kind, subject_ref, template_key) WHERE status = 'active'`: uma proposta ativa por pauta e empresa. |
+| `agenda_proposal_supports` | (MO.6.5) Um apoio por pessoa e proposta (PK composta); o proponente entra como primeiro apoio. Nunca exposto por pessoa. |
 | `assembly_vote_credits` | Consumo do crédito mensal gratuito (PK pessoa + assembleia); `month_key` = mês de calendário de Brasília (`2026-10`). |
 
 ## Regras de domínio (`domain/assembly.ts`)
@@ -75,3 +77,48 @@ Autenticação: Bearer token, `userId` sempre do token. `:id` precisa ser UUID (
 ### Parâmetros novos
 
 `ASSEMBLY_MONTHLY_FREE_CREDITS` (1) e `ASSEMBLY_FREE_CREDIT_MIN_LEVEL` (3), junto dos demais `ASSEMBLY_*`, até a tabela editável da MO.6.8.
+
+## Propostas de pauta e apoio (MO.6.5)
+
+PRO propõe uma pauta **do catálogo** para uma empresa que possui e PRO acionista apoia; a mais apoiada entra na próxima assembleia da empresa. Sem texto livre: o único dado da proposta é `templateKey`. Só existem com `ASSEMBLIES_ENABLED=on`. Autenticação Bearer; `:companyId` e `:proposalId` precisam ser UUID (`400`). Gating de PRO só pelo `ProAccessGuard` (porta `ProGate`), nunca claim de JWT: sem plano, `403 { error: "requer plano PRO" }` (o handler compartilhado).
+
+### `GET /assemblies/companies/:companyId/proposals`
+
+- **Quem:** qualquer pessoa autenticada (a fila é pública, ler não exige PRO nem ações).
+- **Sucesso:** `200` → `{ company: { id, name, sector }, isPro, holdsShares, cooldownDaysLeft, blockedReason, limits: { monthlyCap, usedThisMonth, minSupport, ttlDays }, proposals: [{ id, templateKey, title, description, options: [{ label, gain, loss }], supportCount, supportedByMe, proposedByMe, expiresAt, queuePosition }], availableTemplates: [{ key, title, description, hasActiveProposal }] }`.
+  - `blockedReason` é `not_shareholder`, `company_in_cooldown` ou `null`: o motivo de a pessoa não poder propor nem apoiar agora (o plano PRO é à parte, em `isPro`).
+  - `proposals` vem na ordem da fila (mais apoios primeiro, empate pela mais antiga). `queuePosition` é 1 para a próxima a ser escolhida e `null` enquanto não tem `minSupport` apoios.
+  - `availableTemplates` são as pautas gerais e as do setor da empresa, para a tela de propor.
+  - **Nunca** revela quem propôs ou apoiou: só a contagem e os campos `...ByMe` da própria pessoa.
+- **Erros:** `400` · `401` · `404` empresa inexistente no motor.
+
+### `POST /assemblies/companies/:companyId/proposals`
+
+- **Payload:** `{ "templateKey": string }` (Zod, 1 a 80 caracteres).
+- **Sucesso:** `201` → `{ proposal: { id, templateKey, supportCount, supportedByMe, proposedByMe, expiresAt }, joinedExisting: false }`. Se a pauta **já tem proposta ativa** nesta empresa, o pedido vira apoio a ela: `200` com `joinedExisting: true`, sem gastar o teto.
+- **Erros:** `400` corpo inválido · `400 { reason: "template_unavailable" }` pauta fora do catálogo ativo ou de outro setor · `401` · `403 { error: "requer plano PRO" }` · `403 { error, reason }` com `not_shareholder`, `company_in_cooldown` (o texto traz os dias do mercado que faltam) ou `monthly_cap_reached` · `404` empresa inexistente.
+- **Regra** (`ProposeAgendaUseCase`, nesta ordem): plano PRO; empresa (ações **de agora** e período de espera, via motor `GET /governance/companies/{id}/standing`); pauta do catálogo ativo que vale para o setor; teto do mês. O repositório faz o resto numa transação que serializa a pauta da empresa (duplicado) e depois a pessoa (teto), então duas propostas simultâneas nunca passam do limite nem duplicam a pauta. O teto conta propostas **criadas** no mês de calendário de Brasília, de qualquer estado; retirar apoio ou ver a proposta expirar não o devolve.
+
+### `PUT /assemblies/proposals/:proposalId/support`
+
+- **Sucesso:** `201` → `{ proposal, alreadySupported: false }`; `200` com `alreadySupported: true` se já apoiava (não duplica).
+- **Erros:** `400` · `401` · `403 requer plano PRO` · `403 { reason }` `not_shareholder` ou `company_in_cooldown` · `404` proposta inexistente · `409 { reason: "proposal_not_active" }` já usada ou vencida.
+- **Regra** (`SupportProposalUseCase`): PRO, ações da empresa de agora e empresa fora do período de espera. Um apoio por pessoa.
+
+### `DELETE /assemblies/proposals/:proposalId/support`
+
+- **Sucesso:** `200` → `{ proposal, withdrawn }` (`withdrawn: false` se a pessoa não apoiava).
+- **Erros:** `400` · `401` · `404`.
+- **Regra** (`WithdrawProposalSupportUseCase`): **não exige PRO** (quem cancelou o plano ainda desfaz o que apoiou). A proposta nunca some por isso: só perde a contagem; propostas não são retiradas, só expiram ou são usadas.
+
+### Como a fila escolhe a pauta (`OpenDueAssembliesUseCase`)
+
+Ao abrir a assembleia de uma empresa: expira as propostas vencidas; ordena as vivas com pelo menos `minSupport` apoios por apoio (decrescente), depois proposta mais antiga, depois id (`rankProposals`); a primeira cuja pauta ainda está no catálogo ativo e vale para o setor vence (`pickProposedTemplate`). **Sem proposta que sirva vale o sorteio determinístico por hash do catálogo (MO.6.3), como antes.** A proposta cuja pauta virou a da assembleia é consumida (`consumed`, idempotente, pela pauta que a assembleia de fato guarda); **as demais continuam na fila até expirar** em `ASSEMBLY_PROPOSAL_TTL_DAYS`, sem zerar a cada ciclo.
+
+### Cooldown
+
+Só o do motor (`governance_cooldown_days`, 90 dias simulados): não há segundo cooldown no backend. O aviso é na entrada: propor e apoiar são recusados com `company_in_cooldown` enquanto a empresa está em período de espera. Uma assembleia que abre com a empresa ainda em espera segue o comportamento da MO.6.3 (o motor registra `skipped_cooldown` e nada muda), ver o ponto 050.
+
+### Parâmetros novos
+
+`ASSEMBLY_PROPOSAL_MONTHLY_CAP` (3 propostas novas por PRO por mês), `ASSEMBLY_PROPOSAL_MIN_SUPPORT` (2, contando o proponente) e `ASSEMBLY_PROPOSAL_TTL_DAYS` (30, dias reais na fila), até a tabela editável da MO.6.8. Valor inválido cai no padrão.

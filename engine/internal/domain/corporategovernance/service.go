@@ -81,6 +81,8 @@ type Repository interface {
 	// ApplyStep aplica um passo na empresa e avança a decisão na mesma transação; só vale se
 	// a decisão ainda estava em `previousTicks`. `false` se outro processo chegou antes.
 	ApplyStep(ctx context.Context, decisionID string, previousTicks int, step StepApplication) (bool, error)
+	// CompanyStanding lê a empresa e a posição ATUAL de `userID` nela (não a do snapshot).
+	CompanyStanding(ctx context.Context, companyID, userID string) (StandingRecord, bool, error)
 }
 
 // Settings é o que o serviço lê de enginesetting (*enginesetting.Service).

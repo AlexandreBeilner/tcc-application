@@ -36,6 +36,14 @@ Ids de assembleia e de empresa são UUIDs (`400` se não forem).
 
 - **Sucesso:** `200` com o corpo acima (acompanha a rampa). **Erros:** `400` id inválido · `404` sem decisão.
 
+### `GET /governance/companies/{company_id}/standing?user_id=`
+
+- **Autenticação:** interna (rede do Compose, via backend)
+- **Payload:** `company_id` (path) e `user_id` (query), ambos UUID.
+- **Sucesso:** `200` → `{ company_id, name, sector, holds_shares, cooldown_days_left }`. `holds_shares` é a posição **de agora** da pessoa na empresa (conta de usuário, ON e PN somadas, quantidade positiva), não a foto de nenhum snapshot. `cooldown_days_left` são os dias simulados que faltam para a empresa poder mudar de novo (`0` = livre), calculados com `governance_cooldown_days` e o início do último efeito que valeu (`scheduled` ou `completed`; `skipped_*` não conta).
+- **Erros:** `400` UUID inválido ou ausente · `404` empresa inexistente · `503` serviço desligado
+- **Regra:** é o que o backend consulta antes de aceitar uma **proposta de pauta ou um apoio** (MO.6.5): só acionista de hoje propõe e apoia, e uma empresa em período de espera não recebe pauta nova na fila. Não devolve quantidade de ações nem dado de outra pessoa.
+
 ## O efeito
 
 - **Só nos fundamentos, nunca no preço.** Mexe em um de dois botões que toda empresa já tem: `companies.base_growth_pct` (crescimento base, em pontos percentuais) ou `companies.quality_multiplier` (margem e alavancagem). O preço continua vindo da negociação dos bots reagindo aos fundamentos. Nenhuma cotação é escrita por esta rota ou pelo passo do tick.
