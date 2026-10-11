@@ -74,8 +74,12 @@ func TestService_SetEReset(t *testing.T) {
 	ctx := context.Background()
 
 	got, _ := svc.Current(ctx)
-	if got != (Values{TicksPerDay: 5, MaxCatchUp: 3}) {
+	if got.TicksPerDay != 5 || got.MaxCatchUp != 3 {
 		t.Fatalf("padrão = %+v", got)
+	}
+	if got.GovernanceGrowthStepCentiPP != DefaultGovernanceGrowthStepCentiPP || got.GovernanceQualityStepCenti != DefaultGovernanceQualityStepCenti ||
+		got.GovernanceRampTicks != DefaultGovernanceRampTicks || got.GovernanceCooldownDays != DefaultGovernanceCooldownDays {
+		t.Fatalf("padrões de governança = %+v", got)
 	}
 	if err := svc.Set(ctx, TicksPerDay, 12, "admin-1"); err != nil {
 		t.Fatal(err)
@@ -124,5 +128,26 @@ func TestService_CurrentUsaCacheCurto(t *testing.T) {
 	_, _ = svc.Current(ctx)
 	if repo.reads != 2 {
 		t.Errorf("leituras = %d, want 2 depois do TTL", repo.reads)
+	}
+}
+
+func TestService_GovernancaPadraoEOverride(t *testing.T) {
+	svc, _ := newService()
+	ctx := context.Background()
+	if err := svc.Set(ctx, GovernanceCooldownDays, 0, "admin-1"); err != nil {
+		t.Fatalf("cooldown 0 é válido (sem intervalo): %v", err)
+	}
+	if err := svc.Set(ctx, GovernanceRampTicks, 0, "admin-1"); err == nil {
+		t.Fatal("rampa de 0 ticks deveria ser recusada")
+	}
+	if err := svc.Set(ctx, GovernanceGrowthStepCentiPP, 501, "admin-1"); err == nil {
+		t.Fatal("faixa acima do teto deveria ser recusada")
+	}
+	got, _ := svc.Current(ctx)
+	if got.GovernanceCooldownDays != 0 {
+		t.Fatalf("cooldown = %d, esperado 0 depois do override", got.GovernanceCooldownDays)
+	}
+	if got.GovernanceRampTicks != DefaultGovernanceRampTicks {
+		t.Fatalf("rampa = %d, esperado o padrão", got.GovernanceRampTicks)
 	}
 }

@@ -6,6 +6,11 @@ import type {
 
 const REQUEST_TIMEOUT_MS = 4000
 
+// Parâmetros que a tela de Tempo (10.11) sabe mostrar. O motor também guarda os parâmetros da
+// Assembleia de Acionistas (`governance_*`, MO.6.2); eles só aparecem no painel quando a
+// MO.6.8 lhes der tela e texto, então ficam fora da listagem por enquanto.
+const PANEL_KEYS: ReadonlySet<string> = new Set(['ticks_per_day', 'max_catch_up'])
+
 async function errorMessage(res: Response, fallback: string): Promise<string> {
   const body = (await res.json().catch(() => ({}))) as { error?: string }
   return body.error ?? fallback
@@ -23,7 +28,8 @@ export function createEngineSettingsAdmin(engineUrl: string): EngineSettingsAdmi
     if (!res.ok) {
       throw new Error(`${failure} (status ${res.status})`)
     }
-    return (await res.json()) as EngineSettings
+    const settings = (await res.json()) as EngineSettings
+    return { ...settings, editable: settings.editable.filter((s) => PANEL_KEYS.has(s.key)) }
   }
 
   const url = (key: string) => `${engineUrl}/admin/settings/${encodeURIComponent(key)}`

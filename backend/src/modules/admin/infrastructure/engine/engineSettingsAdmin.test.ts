@@ -27,6 +27,13 @@ describe('engineSettingsAdmin', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://engine:8080/admin/settings')
   })
 
+  it('não repassa à tela os parâmetros de governança que o motor também guarda (MO.6.2)', async () => {
+    const governance = { ...sampleSettings.editable[0], key: 'governance_ramp_ticks' }
+    respond(200, { ...sampleSettings, editable: [...sampleSettings.editable, governance] })
+    const result = await engine().list()
+    expect(result.editable.map((s) => s.key)).toEqual(sampleSettings.editable.map((s) => s.key))
+  })
+
   it('set envia PUT com o valor e o admin_id', async () => {
     respond(200, sampleSettings)
     await engine().set('ticks_per_day', 12, 'admin-1')

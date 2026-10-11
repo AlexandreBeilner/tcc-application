@@ -63,10 +63,26 @@ type Service struct {
 	ipcaCfg        ipca.Config
 	seed           int64
 	// etf (R.3/R.4) fica zerado até WithETF.
-	etf      ETFDeps
-	guard    Guard
-	recorder RunRecorder
-	mu       sync.Mutex
+	etf        ETFDeps
+	guard      Guard
+	recorder   RunRecorder
+	governance GovernanceStep
+	mu         sync.Mutex
+}
+
+// GovernanceStep aplica, no tick que leva o mercado ao dia `newDay`, o passo da rampa dos
+// efeitos de assembleia em andamento (MO.6.2), mexendo só nos fundamentos da empresa
+// (corporategovernance.Service.ApplyDue). Roda ANTES de o tick ler as empresas, então o
+// passo do dia já entra no cálculo desse tick.
+type GovernanceStep interface {
+	ApplyDue(ctx context.Context, newDay int) (int, error)
+}
+
+// WithGovernance liga a aplicação gradual dos efeitos de assembleia (MO.6.2). Opcional:
+// sem ela o tick não conhece assembleias.
+func (s *Service) WithGovernance(g GovernanceStep) *Service {
+	s.governance = g
+	return s
 }
 
 // WithGuard liga a trava entre processos e a leitura do último tick (S.3).
@@ -251,6 +267,16 @@ func (s *Service) execute(ctx context.Context) (Result, error) {
 	}
 	if !found {
 		current = State{Day: 0, SelicRate: s.selicCfg.Neutral}
+	}
+
+	// Efeito de assembleia em rampa (MO.6.2): falha aqui nunca derruba o tick do mercado, o
+	// passo que não rodou é recuperado no tick seguinte (a conta usa o dia, não a contagem).
+	if s.governance != nil {
+		if applied, err := s.governance.ApplyDue(ctx, current.Day+1); err != nil {
+			log.Printf("governança: erro ao aplicar efeitos de assembleia no dia %d: %v", current.Day+1, err)
+		} else if applied > 0 {
+			log.Printf("governança: %d efeito(s) de assembleia aplicado(s) no dia %d", applied, current.Day+1)
+		}
 	}
 
 	assets, err := s.repo.ListPricingAssets(ctx)

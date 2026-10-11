@@ -15,8 +15,8 @@ import (
 // simulated_day vem de market_calendar no próprio INSERT (tarefa S.10): o dia
 // simulado em que o evento aconteceu, lido do calendário que o Temporizador
 // avança (0 antes do primeiro tick).
-const insertEventSQL = `INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value, reference_month, simulated_day)
-	VALUES ($1, $2, $3, $4, $5, $6, COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0))`
+const insertEventSQL = `INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value, reference_month, reference_id, simulated_day)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE((SELECT current_day FROM market_calendar WHERE id = 1), 0))`
 
 // execer é satisfeito tanto por *sql.DB quanto por *sql.Tx — permite gravar
 // o evento isolado (Append) ou dentro de uma transação já aberta por outro
@@ -27,7 +27,7 @@ type execer interface {
 
 func appendEvent(ctx context.Context, ex execer, event domain.MarketEvent) error {
 	_, err := ex.ExecContext(ctx, insertEventSQL,
-		event.UserID, event.AssetID, event.EventType, event.Quantity, event.UnitValue, event.ReferenceMonth)
+		event.UserID, event.AssetID, event.EventType, event.Quantity, event.UnitValue, event.ReferenceMonth, event.ReferenceID)
 	return err
 }
 

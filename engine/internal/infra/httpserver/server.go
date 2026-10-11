@@ -124,6 +124,10 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /market/indicators/history", handleGetIndicatorHistory(indicatorHistory))
 	mux.HandleFunc("GET /market/clock", handleGetMarketClock(calendar))
 	mux.HandleFunc("GET /market/calendar", handleGetMarketCalendar(calendar))
+	mux.HandleFunc("POST /governance/snapshots", handleGovernanceTakeSnapshot(cfg.governance))
+	mux.HandleFunc("GET /governance/snapshots/{assembly_id}", handleGovernanceGetSnapshot(cfg.governance))
+	mux.HandleFunc("POST /governance/decisions", handleGovernanceRecordDecision(cfg.governance))
+	mux.HandleFunc("GET /governance/decisions/{assembly_id}", handleGovernanceGetDecision(cfg.governance))
 
 	return &http.Server{
 		Addr:         addr,

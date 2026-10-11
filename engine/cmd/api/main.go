@@ -15,6 +15,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/botadmin"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/catalogadmin"
+	"tcc-investimentos/engine/internal/domain/corporategovernance"
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
@@ -178,6 +179,11 @@ func main() {
 		MaxCatchUp:  envInt("TICK_MAX_CATCHUP", 3),
 	})
 	calendarAPI.Current = settingsService.Current
+	// Governança corporativa (MO.6.2): snapshot de posições, decisão da Assembleia de Acionistas
+	// como evento e efeito gradual nos fundamentos, aplicado no próprio tick. Os parâmetros
+	// (faixa, rampa, cooldown) vêm de enginesetting.
+	governanceService := corporategovernance.NewService(db.NewGovernanceRepository(pool), settingsService)
+	tickService.WithGovernance(governanceService)
 	schedulerAdmin := &httpserver.SchedulerAdminAPI{
 		Control:     schedulerControl,
 		Runs:        tickRepository,
@@ -233,7 +239,7 @@ func main() {
 	assetProvisionService := assetprovision.NewService(assetProvisionRepository, assetProvisionRepository, coverageRepository, coverage.NewEnsurer(coverageRepository, coverageRepository))
 	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService), httpserver.WithIntegrity(integrity.NewService(db.NewIntegrityRepository(pool))), httpserver.WithAdminExport(db.NewAdminExportRepository(pool))); err != nil {
+	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService), httpserver.WithIntegrity(integrity.NewService(db.NewIntegrityRepository(pool))), httpserver.WithAdminExport(db.NewAdminExportRepository(pool)), httpserver.WithGovernance(governanceService)); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

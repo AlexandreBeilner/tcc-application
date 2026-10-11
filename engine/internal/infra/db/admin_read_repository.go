@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"tcc-investimentos/engine/internal/domain"
 
 	"tcc-investimentos/engine/internal/domain/adminview"
 )
@@ -58,7 +59,8 @@ func (r *AdminReadRepository) Overview(ctx context.Context) (adminview.Overview,
 		`SELECT
 		   COUNT(*) FILTER (WHERE is_active),
 		   COUNT(*)
-		 FROM accounts WHERE is_bot`,
+		 FROM accounts WHERE is_bot AND user_id::text <> $1`,
+		domain.GovernanceAccountID, // conta técnica de governança (MO.6.2) não é bot de liquidez
 	).Scan(&o.ActiveBots, &o.TotalBots); err != nil {
 		return o, err
 	}

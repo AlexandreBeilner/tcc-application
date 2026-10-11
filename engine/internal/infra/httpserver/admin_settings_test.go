@@ -71,7 +71,7 @@ func TestSettings_ListaEditaveisESomenteLeitura(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if len(resp.Editable) != 2 || resp.Editable[0].Key != "ticks_per_day" || resp.Editable[0].Value != 5 || resp.Editable[0].Overridden {
+	if len(resp.Editable) != 6 || resp.Editable[0].Key != "ticks_per_day" || resp.Editable[0].Value != 5 || resp.Editable[0].Overridden {
 		t.Errorf("editáveis = %+v", resp.Editable)
 	}
 	if len(resp.ReadOnly) == 0 || resp.ReadOnly[0].Key != "simulation_seed" || resp.ReadOnly[0].Value != "42" {

@@ -31,6 +31,7 @@ func TestCashDeltaCents(t *testing.T) {
 		{"criação de cotas não move caixa", "etf_creation", ptrInt(-5), ptrCents(1000), 0},
 		{"resgate de cotas não move caixa", "etf_redemption", ptrInt(5), ptrCents(1000), 0},
 		{"transferência de cotas não move caixa", "etf_share_transfer", ptrInt(5), ptrCents(1000), 0},
+		{"decisão de assembleia não move caixa", "assembly_decision", ptrInt(50), nil, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
