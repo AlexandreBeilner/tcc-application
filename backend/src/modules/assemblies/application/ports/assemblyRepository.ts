@@ -32,6 +32,13 @@ export interface AssemblyRepository {
   create(input: NewAssemblyInput, now: Date): Promise<AssemblyWithOptions & { created: boolean }>
   findById(id: string): Promise<AssemblyWithOptions | null>
   listByStatus(status: AssemblyStatus, limit: number): Promise<Assembly[]>
+  // Leitura pública: abertas (as que fecham primeiro vêm antes) ou encerradas (as mais recentes
+  // primeiro), opcionalmente de uma só empresa. Assembleia ainda `scheduled` nunca é pública.
+  listPublic(filter: {
+    status: 'open' | 'closed'
+    subjectRef?: string
+    limit: number
+  }): Promise<Assembly[]>
   // Abertas cujo fechamento já passou (candidatas à apuração), as mais antigas primeiro.
   listOpenDue(now: Date, limit: number): Promise<Assembly[]>
   // Assembleias já abertas com algum marco (abertura, fechamento ou efeito) dentro da janela, para o

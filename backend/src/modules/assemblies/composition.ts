@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { Redis } from 'ioredis'
 import type { Database } from '../../db/client'
 import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import { AssemblyKindRegistry } from './application/assemblyKinds'
@@ -6,6 +7,8 @@ import { ApplyDueAssemblyEffectsUseCase } from './application/useCases/applyDueA
 import { VoteAccessService } from './application/voteAccessService'
 import { CastVoteUseCase } from './application/useCases/castVote'
 import { GetMyVotingStatusUseCase } from './application/useCases/getMyVotingStatus'
+import { GetAssemblyUseCase } from './application/useCases/getAssembly'
+import { ListAssembliesUseCase } from './application/useCases/listAssemblies'
 import { ListCompanyProposalsUseCase } from './application/useCases/listCompanyProposals'
 import { ProposeAgendaUseCase } from './application/useCases/proposeAgenda'
 import { SupportProposalUseCase } from './application/useCases/supportProposal'
@@ -20,6 +23,8 @@ import type { AssemblyConfig } from './infrastructure/config/assemblyConfig'
 import { createInProcessProStatus } from './infrastructure/billing/inProcessProStatus'
 import { createInProcessVoterProfileReader } from './infrastructure/profile/inProcessVoterProfileReader'
 import { createAssembliesRouter } from './interfaces/http/assembliesRouter'
+import { createAssemblyReadsRouter } from './interfaces/http/assemblyReadsRouter'
+import { createRedisScoreboardCache } from './infrastructure/cache/redisScoreboardCache'
 import { createProposalsRouter } from './interfaces/http/proposalsRouter'
 import { createEngineCompanyStandingReader } from './infrastructure/engine/engineCompanyStandingReader'
 import { createDrizzleProposalRepository } from './infrastructure/persistence/drizzleProposalRepository'
@@ -37,6 +42,8 @@ export interface AssembliesCompositionDeps {
   engineUrl: string
   config: AssemblyConfig
   authMiddleware: AuthMiddleware
+  // Cache curto do placar de assembleia aberta.
+  redis: Redis
   // Do módulo `billing`: único jeito de gatear PRO (`ProAccessGuard`).
   proAccess: { assertPro(userId: string): Promise<void> }
   // Do módulo `gamification` e do `auth`: nível e e-mail verificado do crédito gratuito.
@@ -87,6 +94,20 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
     createAssembliesRouter({
       castVote: new CastVoteUseCase(access, repository, () => deps.config.params),
       getMyVotingStatus: new GetMyVotingStatusUseCase(access, () => deps.config.params),
+      authMiddleware: deps.authMiddleware,
+    }),
+  )
+  router.use(
+    createAssemblyReadsRouter({
+      listAssemblies: new ListAssembliesUseCase(repository),
+      getAssembly: new GetAssemblyUseCase(
+        kinds,
+        repository,
+        snapshots,
+        agendaCatalog,
+        createRedisScoreboardCache(deps.redis),
+        () => deps.config.params.minVoters,
+      ),
       authMiddleware: deps.authMiddleware,
     }),
   )

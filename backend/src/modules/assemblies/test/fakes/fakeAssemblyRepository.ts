@@ -65,6 +65,14 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
         .filter((a) => a.status === status)
         .slice(0, limit)
     },
+    async listPublic({ status, subjectRef, limit }) {
+      const sign = status === 'open' ? 1 : -1
+      return [...fake.items.values()]
+        .map((i) => i.assembly)
+        .filter((a) => a.status === status && (!subjectRef || a.subjectRef === subjectRef))
+        .sort((a, b) => sign * (a.closesAt.getTime() - b.closesAt.getTime()))
+        .slice(0, limit)
+    },
     async listOpenDue(now, limit) {
       return [...fake.items.values()]
         .map((i) => i.assembly)

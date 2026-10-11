@@ -68,14 +68,12 @@ export function createProposalsRouter(deps: ProposalsRouterDeps): Router {
     '/assemblies/companies/:companyId/proposals',
     auth,
     route(async (userId, req, res) => {
-      res
-        .status(200)
-        .json(
-          await deps.listCompanyProposals.execute({
-            companyId: String(req.params.companyId),
-            userId,
-          }),
-        )
+      res.status(200).json(
+        await deps.listCompanyProposals.execute({
+          companyId: String(req.params.companyId),
+          userId,
+        }),
+      )
     }),
   )
 
@@ -93,12 +91,10 @@ export function createProposalsRouter(deps: ProposalsRouterDeps): Router {
         templateKey: body.data.templateKey,
         userId,
       })
-      res
-        .status(outcome.joinedExisting ? 200 : 201)
-        .json({
-          proposal: present(outcome.proposal, userId),
-          joinedExisting: outcome.joinedExisting,
-        })
+      res.status(outcome.joinedExisting ? 200 : 201).json({
+        proposal: present(outcome.proposal, userId),
+        joinedExisting: outcome.joinedExisting,
+      })
     }),
   )
 
@@ -110,12 +106,10 @@ export function createProposalsRouter(deps: ProposalsRouterDeps): Router {
         proposalId: String(req.params.proposalId),
         userId,
       })
-      res
-        .status(outcome.alreadySupported ? 200 : 201)
-        .json({
-          proposal: present(outcome.proposal, userId),
-          alreadySupported: outcome.alreadySupported,
-        })
+      res.status(outcome.alreadySupported ? 200 : 201).json({
+        proposal: present(outcome.proposal, userId),
+        alreadySupported: outcome.alreadySupported,
+      })
     }),
   )
 

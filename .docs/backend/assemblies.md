@@ -122,3 +122,22 @@ Só o do motor (`governance_cooldown_days`, 90 dias simulados): não há segundo
 ### Parâmetros novos
 
 `ASSEMBLY_PROPOSAL_MONTHLY_CAP` (3 propostas novas por PRO por mês), `ASSEMBLY_PROPOSAL_MIN_SUPPORT` (2, contando o proponente) e `ASSEMBLY_PROPOSAL_TTL_DAYS` (30, dias reais na fila), até a tabela editável da MO.6.8. Valor inválido cai no padrão.
+
+## Leitura pública: lista, detalhe e placar (MO.6.6)
+
+Qualquer pessoa autenticada lê (Bearer; sem PRO, sem ações). Só existem com `ASSEMBLIES_ENABLED=on`. Assembleia ainda `scheduled` nunca é pública (`404`). **Nunca** devolve quem votou em quê, ações absolutas nem valor em reais.
+
+### `GET /assemblies`
+
+- **Query (Zod):** `status` (`open` ou `closed`, opcional), `companyId` (UUID, opcional), `limit` (1 a 50, padrão 20, vale para as encerradas).
+- **Sucesso:** `200` → `{ open: Summary[], closed: Summary[] }` (a lista do status não pedido vem vazia). `Summary` = `{ id, kind, subjectRef, subjectLabel, title, status, opensAt, closesAt, effectAppliesAt, effectAppliedAt, outcome, outcomeReason, voterCount }`. Abertas: as que fecham primeiro vêm antes. Encerradas: as mais recentes primeiro.
+- **Erros:** `400` query inválida · `401`.
+
+### `GET /assemblies/:id`
+
+- **Sucesso:** `200` → `{ assembly: Summary & { description }, options: [{ id, key, label, gain, loss, effect, position }], scoreboard: { voters, options: [{ optionId, voters, weightPercent }] }, result, minVoters }`.
+  - `effect` é `{ metric: "growth" | "quality", direction: 1 | -1, intensity }` ou `null`: a ficha mostra o que a opção mexe e que fração da faixa do motor ela usa, **sem lado recomendado** e sem valor absoluto (o tamanho final é do motor).
+  - `scoreboard`: votantes e `weightPercent` (0 a 100, uma casa) sobre as ações **de quem votou**, na data de corte. Assembleia aberta passa por cache Redis de 5 s (`assemblies:scoreboard:{id}`, adapter que engole falha do Redis), então o polling do frontend não reapura a cada pedido; a encerrada é apurada direto.
+  - `result`: `null` enquanto aberta; depois do fechamento `{ outcome, reason, winningOptionId, voterCount, decidedAt }` (público antes de o efeito valer).
+  - `description`: contexto da pauta vindo do catálogo (`null` se a pauta saiu do catálogo ativo).
+- **Erros:** `400` id que não é UUID · `401` · `404`.

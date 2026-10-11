@@ -311,4 +311,49 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
       if (vote.status !== 'cast') expect(await repo.countCreditsUsed(ids[2], '2026-10')).toBe(0)
     })
   })
+
+  it('listPublic: abertas por fechamento, encerradas por mais recente, filtro por empresa e sem agendadas', async () => {
+    const repo = createDrizzleAssemblyRepository(db)
+    const day = 24 * 60 * 60 * 1000
+    const make = async (subjectRef: string, closesInDays: number) => {
+      const closesAt = new Date(now.getTime() + closesInDays * day)
+      const { assembly } = await repo.create(
+        {
+          ...input,
+          subjectRef,
+          dedupeKey: `${subjectRef}:${closesInDays}`,
+          snapshotAt: new Date(closesAt.getTime() - 7 * day),
+          opensAt: new Date(closesAt.getTime() - 7 * day),
+          closesAt,
+          effectAppliesAt: new Date(closesAt.getTime() + day),
+        },
+        now,
+      )
+      return assembly.id
+    }
+    const a = await make('c1', 5)
+    const b = await make('c2', 2)
+    const c = await make('c1', -3)
+    const d = await make('c1', -1)
+    await make('c3', 9) // fica agendada
+    for (const id of [a, b, c, d]) await repo.markOpen(id)
+    for (const id of [c, d]) {
+      await repo.close(id, {
+        outcome: 'not_approved',
+        reason: 'quorum',
+        winningOptionId: null,
+        voterCount: 0,
+        decidedAt: now,
+      })
+    }
+    expect((await repo.listPublic({ status: 'open', limit: 10 })).map((x) => x.id)).toEqual([b, a])
+    expect((await repo.listPublic({ status: 'closed', limit: 10 })).map((x) => x.id)).toEqual([
+      d,
+      c,
+    ])
+    expect(
+      (await repo.listPublic({ status: 'closed', subjectRef: 'c1', limit: 1 })).map((x) => x.id),
+    ).toEqual([d])
+    expect(await repo.listPublic({ status: 'open', subjectRef: 'c3', limit: 10 })).toEqual([])
+  })
 })

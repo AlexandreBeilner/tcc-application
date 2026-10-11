@@ -1,4 +1,4 @@
-import { and, asc, between, eq, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import { and, asc, between, desc, eq, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import {
   assemblies,
@@ -116,6 +116,20 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
         .from(assemblies)
         .where(eq(assemblies.status, status))
         .orderBy(asc(assemblies.closesAt))
+        .limit(limit)
+      return rows.map(toAssembly)
+    },
+    async listPublic({ status, subjectRef, limit }) {
+      const rows = await db
+        .select()
+        .from(assemblies)
+        .where(
+          and(
+            eq(assemblies.status, status),
+            subjectRef ? eq(assemblies.subjectRef, subjectRef) : undefined,
+          ),
+        )
+        .orderBy(status === 'open' ? asc(assemblies.closesAt) : desc(assemblies.closesAt))
         .limit(limit)
       return rows.map(toAssembly)
     },

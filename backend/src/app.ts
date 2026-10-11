@@ -913,6 +913,7 @@ export function createApp(deps: AppDeps = {}): Express {
         engineUrl,
         config: assemblyConfig,
         authMiddleware,
+        redis: redisClient,
         proAccess: billing.proAccessGuard,
         getProgression,
         userRepository,
