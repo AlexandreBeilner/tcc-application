@@ -136,7 +136,8 @@
     .options {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        align-items: start;
+        /* Os dois cartões ficam com a altura do maior, e o placar e o botão alinham embaixo. */
+        align-items: stretch;
     }
 }
 
