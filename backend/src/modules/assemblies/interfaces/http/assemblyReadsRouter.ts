@@ -5,7 +5,7 @@ import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { requireUuidParam } from '../../../../shared/http/uuidParam'
 import type { GetAssemblyUseCase } from '../../application/useCases/getAssembly'
 import type { ListAssembliesUseCase } from '../../application/useCases/listAssemblies'
-import { AssemblyNotFoundError } from '../../domain/errors'
+import { AssemblyNotFoundError, GovernanceEngineUnavailableError } from '../../domain/errors'
 import { authedRoute } from './authedRoute'
 import { listAssembliesQuerySchema } from './schemas'
 
@@ -16,6 +16,15 @@ export interface AssemblyReadsRouterDeps {
 }
 
 function mapDomainError(err: unknown, res: Response): boolean {
+  if (err instanceof GovernanceEngineUnavailableError) {
+    res
+      .status(503)
+      .json({
+        error: 'o mercado está indisponível agora, tente de novo em instantes',
+        reason: 'engine_unavailable',
+      })
+    return true
+  }
   if (!(err instanceof AssemblyNotFoundError)) return false
   res.status(404).json({ error: 'assembleia não encontrada' })
   return true

@@ -10,6 +10,7 @@ import { CreateAssemblyUseCase } from '../../application/useCases/createAssembly
 import { GetMyVotingStatusUseCase } from '../../application/useCases/getMyVotingStatus'
 import { VoteAccessService } from '../../application/voteAccessService'
 import { DEFAULT_ASSEMBLY_PARAMS } from '../../domain/assembly'
+import { GovernanceEngineUnavailableError } from '../../domain/errors'
 import { SHAREHOLDER_KIND, shareholderPolicies } from '../../domain/shareholderPolicies'
 import { createFakeAssemblyRepository } from '../../test/fakes/fakeAssemblyRepository'
 import { createAssembliesRouter } from './assembliesRouter'
@@ -19,7 +20,7 @@ const ZECA = '33333333-3333-4333-8333-333333333333'
 const NOW = new Date()
 const DAY = 24 * 60 * 60 * 1000
 
-async function buildApp() {
+async function buildApp(config: { engineDown?: boolean } = {}) {
   const kinds = new AssemblyKindRegistry().register(SHAREHOLDER_KIND, {
     policies: shareholderPolicies,
     effect: { apply: async () => undefined },
@@ -30,7 +31,13 @@ async function buildApp() {
   const access = new VoteAccessService(
     kinds,
     repository,
-    { take: async () => holdings, get: async () => holdings },
+    {
+      take: async () => holdings,
+      get: async () => {
+        if (config.engineDown) throw new GovernanceEngineUnavailableError('motor fora do ar')
+        return holdings
+      },
+    },
     { isPro: async () => false },
     { get: async () => ({ level: 3, emailVerified: true }) },
     params,
@@ -142,5 +149,17 @@ describe('rotas /assemblies', () => {
     expect(after.body).toMatchObject({ myVote: { optionId: a }, credit: { used: 1, available: 0 } })
     const other = await request(app).get(`/assemblies/${id}/me`).set('Authorization', as(ZECA))
     expect(other.body).toMatchObject({ canVote: false, reason: 'not_shareholder', myVote: null })
+  })
+
+  it('motor fora do ar: votar e consultar a situação respondem 503 com o motivo, nunca 500', async () => {
+    const { app, as, id, a } = await buildApp({ engineDown: true })
+    const vote = await request(app)
+      .post(`/assemblies/${id}/vote`)
+      .set('Authorization', as(ANA))
+      .send({ optionId: a })
+    expect(vote.status).toBe(503)
+    expect(vote.body.reason).toBe('engine_unavailable')
+    const me = await request(app).get(`/assemblies/${id}/me`).set('Authorization', as(ANA))
+    expect(me.status).toBe(503)
   })
 })

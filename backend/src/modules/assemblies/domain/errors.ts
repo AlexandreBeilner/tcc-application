@@ -1,4 +1,7 @@
 export class AssemblyNotFoundError extends Error {}
+// O motor de simulação não respondeu (rede ou 5xx). O que depende dele (placar, voto, propor) devolve
+// 503 em vez de 500, e o ciclo em segundo plano tenta de novo na rodada seguinte.
+export class GovernanceEngineUnavailableError extends Error {}
 // Nenhum `kind` registrado com esse nome (sem política, não há como votar nem apurar).
 export class UnknownAssemblyKindError extends Error {}
 // Voto fora da janela (antes de abrir ou depois de fechar).

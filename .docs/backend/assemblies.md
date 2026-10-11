@@ -51,6 +51,8 @@ Valor inicial por variável de ambiente (valor inválido cai no padrão), **sobr
 
 Com o ciclo ligado, `GET /market/calendar` (ver `market.md`) acrescenta fatos globais de mercado `assembly_open`, `assembly_close` e `assembly_effect` (este só se a pauta não foi reprovada), com `title` = "Empresa: pauta", `relevance: "market"` e sem valor em reais. Ficam de fora com `scope=mine`. Instante real vira dia simulado pelo relógio do motor (`GET /market/clock`). Falha ao ler as assembleias nunca derruba o calendário.
 
+**Motor fora do ar (achado na MO.6.9):** toda rota que precisa do motor (placar e detalhe, voto, `GET /assemblies/:id/me`, propostas e apoio) responde `503 { error, reason: "engine_unavailable" }` quando o motor não responde (rede ou 5xx), em vez de `500`. O ciclo em segundo plano continua tratando por item e tentando de novo na rodada seguinte; nada é perdido.
+
 ## Voto e elegibilidade (MO.6.4)
 
 Autenticação: Bearer token, `userId` sempre do token. `:id` precisa ser UUID (`400`). Só existem com `ASSEMBLIES_ENABLED=on`.

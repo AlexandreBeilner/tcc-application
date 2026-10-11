@@ -9,6 +9,7 @@ import type { SupportProposalUseCase } from '../../application/useCases/supportP
 import type { WithdrawProposalSupportUseCase } from '../../application/useCases/withdrawProposalSupport'
 import {
   CompanyNotFoundError,
+  GovernanceEngineUnavailableError,
   ProposalDeniedError,
   ProposalNotFoundError,
 } from '../../domain/errors'
@@ -34,6 +35,13 @@ const DENIAL_STATUS: Record<string, number> = {
 function mapDomainError(err: unknown, res: Response): boolean {
   if (err instanceof ProposalNotFoundError) {
     res.status(404).json({ error: 'proposta não encontrada' })
+  } else if (err instanceof GovernanceEngineUnavailableError) {
+    res
+      .status(503)
+      .json({
+        error: 'o mercado está indisponível agora, tente de novo em instantes',
+        reason: 'engine_unavailable',
+      })
   } else if (err instanceof CompanyNotFoundError) {
     res.status(404).json({ error: 'empresa não encontrada' })
   } else if (err instanceof ProposalDeniedError) {

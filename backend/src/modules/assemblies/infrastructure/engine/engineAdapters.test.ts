@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Assembly, AgendaOption } from '../../domain/assembly'
+import { GovernanceEngineUnavailableError } from '../../domain/errors'
 import { createEngineCompanyStandingReader } from './engineCompanyStandingReader'
 import { createEngineCompanyReportSource } from './engineCompanyReportSource'
 import { createEngineHoldingsSnapshotProvider } from './engineHoldingsSnapshotProvider'
@@ -42,6 +43,31 @@ describe('engineHoldingsSnapshotProvider', () => {
     mockFetch(404, { error: 'sem snapshot' })
     await expect(createEngineHoldingsSnapshotProvider(URL).get(assembly)).rejects.toThrow(
       'sem snapshot',
+    )
+  })
+})
+
+describe('engineClient (motor fora do ar)', () => {
+  it('rede caindo vira GovernanceEngineUnavailableError (a rota responde 503, não 500)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      }),
+    )
+    await expect(createEngineHoldingsSnapshotProvider(URL).get(assembly)).rejects.toBeInstanceOf(
+      GovernanceEngineUnavailableError,
+    )
+  })
+
+  it('5xx do motor também; 4xx continua sendo o erro do motor, com a mensagem dele', async () => {
+    mockFetch(502, { error: 'gateway' })
+    await expect(createEngineHoldingsSnapshotProvider(URL).get(assembly)).rejects.toBeInstanceOf(
+      GovernanceEngineUnavailableError,
+    )
+    mockFetch(422, { error: 'dado inválido' })
+    await expect(createEngineHoldingsSnapshotProvider(URL).get(assembly)).rejects.toThrow(
+      'dado inválido',
     )
   })
 })

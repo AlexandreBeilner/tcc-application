@@ -8,6 +8,7 @@ import { AssemblyKindRegistry } from '../../application/assemblyKinds'
 import { CreateAssemblyUseCase } from '../../application/useCases/createAssembly'
 import { GetAssemblyUseCase } from '../../application/useCases/getAssembly'
 import { ListAssembliesUseCase } from '../../application/useCases/listAssemblies'
+import { GovernanceEngineUnavailableError } from '../../domain/errors'
 import { SHAREHOLDER_KIND, shareholderPolicies } from '../../domain/shareholderPolicies'
 import { createFakeAssemblyRepository } from '../../test/fakes/fakeAssemblyRepository'
 import { createAssemblyReadsRouter } from './assemblyReadsRouter'
@@ -16,7 +17,7 @@ const ANA = '11111111-1111-4111-8111-111111111111'
 const NOW = new Date()
 const DAY = 24 * 60 * 60 * 1000
 
-async function buildApp() {
+async function buildApp(options: { engineDown?: boolean } = {}) {
   const kinds = new AssemblyKindRegistry().register(SHAREHOLDER_KIND, {
     policies: shareholderPolicies,
     effect: { apply: async () => undefined },
@@ -46,7 +47,13 @@ async function buildApp() {
       getAssembly: new GetAssemblyUseCase(
         kinds,
         repository,
-        { take: async () => holdings, get: async () => holdings },
+        {
+          take: async () => holdings,
+          get: async () => {
+            if (options.engineDown) throw new GovernanceEngineUnavailableError('motor fora do ar')
+            return holdings
+          },
+        },
         { listActive: async () => [] },
         { get: async () => null, set: async () => undefined },
         () => 3,
@@ -106,5 +113,12 @@ describe('rotas de leitura de assembleias', () => {
       ).status,
     ).toBe(404)
     expect((await request(app).get('/assemblies/abc').set('Authorization', auth)).status).toBe(400)
+  })
+
+  it('motor fora do ar: o detalhe responde 503 com o motivo, nunca 500', async () => {
+    const { app, id, auth } = await buildApp({ engineDown: true })
+    const res = await request(app).get(`/assemblies/${id}`).set('Authorization', auth)
+    expect(res.status).toBe(503)
+    expect(res.body.reason).toBe('engine_unavailable')
   })
 })
