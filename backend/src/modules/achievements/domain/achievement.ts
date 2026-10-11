@@ -8,6 +8,8 @@ export type AchievementCriteriaType =
   | 'micro_decisions_streak'
   | 'track_completed_no_errors'
   | 'lesson_reviewed'
+  // Assembleias distintas em que a pessoa votou (MO.6.7), só por participar, nunca por vencer.
+  | 'assemblies_participated'
 
 export interface Achievement {
   id: string
@@ -32,6 +34,7 @@ export interface ProgressSnapshot {
   microDecisionsStreak: number
   tracksCompletedNoErrors: number
   lessonsReviewed: number
+  assembliesParticipated: number
 }
 
 export function progressValueFor(
@@ -53,6 +56,8 @@ export function progressValueFor(
       return snapshot.tracksCompletedNoErrors
     case 'lesson_reviewed':
       return snapshot.lessonsReviewed
+    case 'assemblies_participated':
+      return snapshot.assembliesParticipated
   }
 }
 

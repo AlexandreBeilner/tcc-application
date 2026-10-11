@@ -19,7 +19,7 @@ Nenhum caso de uso de negócio fala com o provedor: quem precisa mandar e-mail d
 | Segredos | O link com token de um e-mail de segurança fica no `payload` só até a linha fechar (`sensitiveFields` do template): depois de `sent` ou `failed`, o token em claro some do banco. |
 | Log | Os adapters não registram destinatário completo nem token. |
 
-**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test`, `pro_welcome`, `pro_billing_issue`, `pro_ended` (transacional; os três do PRO vêm do módulo `billing`, MO.3.4); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted` (social); `weekly_digest`, `salary_credited`, `rare_achievement`, `streak_reminder` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
+**Templates** (funções TS puras em `domain/templates/registry.ts`, um `htmlEmailRenderer` monta HTML e texto): `password_reset`, `email_verification`, `password_changed`, `sessions_ended` (segurança); `welcome`, `data_exported`, `account_adjusted`, `announcement`, `system_test`, `pro_welcome`, `pro_billing_issue`, `pro_ended` (transacional; os três do PRO vêm do módulo `billing`, MO.3.4); `account_suspended`, `account_reactivated`, `account_deleted` (segurança); `friend_request_received`, `friend_request_accepted`, `assembly_result` (social); `weekly_digest`, `salary_credited`, `rare_achievement`, `streak_reminder` (engajamento). Nenhum e-mail carrega patrimônio absoluto de outro usuário (RNF09) nem usa travessão como pontuação.
 
 **Configuração.**
 
@@ -114,6 +114,10 @@ Os dois são disparados pelo módulo dono do fato, por uma port própria (`Salar
 
 - **`salary_credited`:** `CreditMonthlyPayrollForUserUseCase` avisa uma vez por rodada, depois de creditar e gravar o mês. Chave `salary:<userId>:<último mês creditado>`, então repetir a rodada não duplica; um catch-up de vários meses (backend fora do ar) vira **um** e-mail com os meses, o valor por mês e o total. O valor é o do próprio destinatário (RNF09 vale entre usuários). O texto lembra que o salário não conta como rentabilidade no ranking.
 - **`rare_achievement`:** `CheckAndUnlockAchievementsUseCase` avisa depois de gravar o desbloqueio, só se a conquista for rara (`isRareAchievement`: no máximo 10% dos jogadores ativos a têm, com base de pelo menos 20; regra provisória, ver ponto 044 de `pontos-em-aberto-decisao-produto.md`). Chave `achievement-rare:<userId>:<conquistaId>`. O e-mail leva só o nome e a descrição da conquista, nunca quantas pessoas a têm.
+
+### Resultado de assembleia (MO.6.7)
+
+Template `assembly_result`, categoria `social` (opt-in, desligada por padrão). Enfileirado por `modules/assemblies` (`ResultMailer`, adapter sobre `EnqueueEmailUseCase`) no fechamento, para **todo acionista da data de corte** que ligou o e-mail social, tenha votado ou não, com o mesmo texto. Chave `assembly-result:<assembleia>:<userId>`: reprocessar o fechamento nunca manda dois. Leva só o nome da empresa, a pauta, o desfecho (aprovada com a opção vencedora, empate, ou sem o mínimo de votantes) e o link `/assembleias/:id`. Nunca voto por pessoa, peso nem valor em reais; sem cobrança de participação.
 
 ### Lembrete de sequência em risco (EM.7.3, E13, D9)
 

@@ -3,6 +3,7 @@ import { createFakeFriendGraphReader } from '../../test/fakes/fakeFriendGraphRea
 import { createFakeSocialFeedEventRepository } from '../../test/fakes/fakeSocialFeedEventRepository'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { ListFeedForUserUseCase } from './listFeedForUser'
+import { RecordAssemblyParticipationUseCase } from './recordAssemblyParticipation'
 import { RecordDuelResultUseCase } from './recordDuelResult'
 
 describe('ListFeedForUserUseCase', () => {
@@ -63,6 +64,7 @@ describe('ListFeedForUserUseCase', () => {
 
     expect(Object.keys(item).sort()).toEqual(
       [
+        'assembly',
         'avatarUrl',
         'cosmetics',
         'duel',
@@ -126,5 +128,48 @@ describe('ListFeedForUserUseCase', () => {
       opponentName: 'Rival',
       reason: 'profitability',
     })
+  })
+
+  it('participação em assembleia aparece para os amigos, sem a opção votada', async () => {
+    const repository = createFakeSocialFeedEventRepository()
+    await new RecordAssemblyParticipationUseCase(repository).execute({
+      userId: 'friend-1',
+      data: { assemblyId: 'a1', subjectLabel: 'Acme', title: 'Orçamento', outcome: 'approved' },
+    })
+    const useCase = new ListFeedForUserUseCase(
+      createFakeFriendGraphReader({ 'user-1': ['friend-1'], 'user-2': [] }),
+      repository,
+      createFakeUserDirectory([
+        { id: 'friend-1', username: 'amigo1', name: 'Amigo Um', avatarUrl: null },
+      ]),
+    )
+
+    const [item] = await useCase.execute({ userId: 'user-1' })
+
+    expect(item.type).toBe('assembly_participated')
+    expect(item.duel).toBeNull()
+    expect(item.assembly).toEqual({
+      assemblyId: 'a1',
+      subjectLabel: 'Acme',
+      title: 'Orçamento',
+      outcome: 'approved',
+    })
+    expect(JSON.stringify(item)).not.toMatch(/option|vote|weight/i)
+    expect(await useCase.execute({ userId: 'user-2' })).toEqual([])
+  })
+
+  it('registrar a mesma participação duas vezes grava uma só linha', async () => {
+    const repository = createFakeSocialFeedEventRepository()
+    const record = new RecordAssemblyParticipationUseCase(repository)
+    const data = {
+      assemblyId: 'a1',
+      subjectLabel: 'Acme',
+      title: 'T',
+      outcome: 'approved' as const,
+    }
+    await record.execute({ userId: 'friend-1', data })
+    await record.execute({ userId: 'friend-1', data })
+    await record.execute({ userId: 'friend-2', data })
+    expect(repository.events).toHaveLength(2)
   })
 })

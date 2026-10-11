@@ -38,6 +38,7 @@ function toAssembly(row: typeof assemblies.$inferSelect): Assembly {
     subjectLabel: row.subjectLabel,
     templateKey: row.templateKey,
     effectAppliedAt: row.effectAppliedAt,
+    resultAnnouncedAt: row.resultAnnouncedAt,
     createdAt: row.createdAt,
   }
 }
@@ -175,6 +176,30 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
         .limit(limit)
       const loaded = await Promise.all(rows.map((r) => load(r.id)))
       return loaded.filter((l): l is AssemblyWithOptions => l !== null)
+    },
+    async listClosedUnannounced(limit) {
+      const rows = await db
+        .select()
+        .from(assemblies)
+        .where(and(eq(assemblies.status, 'closed'), isNull(assemblies.resultAnnouncedAt)))
+        .orderBy(asc(assemblies.decidedAt))
+        .limit(limit)
+      return rows.map(toAssembly)
+    },
+    async markResultAnnounced(id, now) {
+      const rows = await db
+        .update(assemblies)
+        .set({ resultAnnouncedAt: now })
+        .where(and(eq(assemblies.id, id), isNull(assemblies.resultAnnouncedAt)))
+        .returning({ id: assemblies.id })
+      return rows.length > 0
+    },
+    async countVotedAssemblies(userId) {
+      const [row] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(assemblyVotes)
+        .where(eq(assemblyVotes.userId, userId))
+      return row?.total ?? 0
     },
     async markEffectApplied(id, now) {
       const rows = await db

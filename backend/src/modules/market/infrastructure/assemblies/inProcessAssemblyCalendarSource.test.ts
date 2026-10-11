@@ -24,6 +24,7 @@ function assembly(over: Partial<Assembly>): Assembly {
     subjectLabel: 'Acme',
     templateKey: 't',
     effectAppliedAt: null,
+    resultAnnouncedAt: null,
     createdAt: at(10),
     ...over,
   }

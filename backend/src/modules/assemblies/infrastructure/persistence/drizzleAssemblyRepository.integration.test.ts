@@ -194,6 +194,55 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
     )
   })
 
+  it('publicação do resultado: só fechadas sem marca entram na fila e a marca vale uma vez só (MO.6.7)', async () => {
+    const repo = createDrizzleAssemblyRepository(db)
+    const open = await repo.create({ ...input, dedupeKey: 'open' }, now)
+    await repo.markOpen(open.assembly.id)
+    const closed = await repo.create({ ...input, dedupeKey: 'closed' }, now)
+    await repo.markOpen(closed.assembly.id)
+    await repo.close(closed.assembly.id, {
+      outcome: 'not_approved',
+      reason: 'quorum',
+      winningOptionId: null,
+      voterCount: 1,
+      decidedAt: now,
+    })
+
+    const queue = await repo.listClosedUnannounced(10)
+    expect(queue.map((a) => a.id)).toEqual([closed.assembly.id])
+    expect(queue[0].resultAnnouncedAt).toBeNull()
+
+    expect(await repo.markResultAnnounced(closed.assembly.id, now)).toBe(true)
+    expect(await repo.markResultAnnounced(closed.assembly.id, now)).toBe(false)
+    expect(await repo.listClosedUnannounced(10)).toHaveLength(0)
+    expect((await repo.findById(closed.assembly.id))?.assembly.resultAnnouncedAt).toEqual(now)
+  })
+
+  it('conta assembleias distintas em que a pessoa votou, trocar o voto não conta de novo (MO.6.7)', async () => {
+    const repo = createDrizzleAssemblyRepository(db)
+    const first = await repo.create({ ...input, dedupeKey: 'p1' }, now)
+    const second = await repo.create({ ...input, dedupeKey: 'p2' }, now)
+    for (const created of [first, second]) await repo.markOpen(created.assembly.id)
+    expect(await repo.countVotedAssemblies(ids[0])).toBe(0)
+
+    await repo.castVote(
+      { assemblyId: first.assembly.id, userId: ids[0], optionId: first.options[0].id },
+      now,
+    )
+    await repo.castVote(
+      { assemblyId: first.assembly.id, userId: ids[0], optionId: first.options[1].id },
+      now,
+    )
+    expect(await repo.countVotedAssemblies(ids[0])).toBe(1)
+
+    await repo.castVote(
+      { assemblyId: second.assembly.id, userId: ids[0], optionId: second.options[0].id },
+      now,
+    )
+    expect(await repo.countVotedAssemblies(ids[0])).toBe(2)
+    expect(await repo.countVotedAssemblies(ids[1])).toBe(0)
+  })
+
   it('o catálogo semeado tem pautas de dois lados com efeito válido, gerais e por setor', async () => {
     const templates = await createDrizzleAgendaCatalog(db).listActive('shareholder')
     expect(templates.length).toBeGreaterThanOrEqual(15)

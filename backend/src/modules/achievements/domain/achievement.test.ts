@@ -14,6 +14,7 @@ const snapshot: ProgressSnapshot = {
   microDecisionsStreak: 4,
   tracksCompletedNoErrors: 1,
   lessonsReviewed: 2,
+  assembliesParticipated: 3,
 }
 
 describe('progressValueFor', () => {
@@ -25,6 +26,7 @@ describe('progressValueFor', () => {
     ['micro_decisions_streak', 4],
     ['track_completed_no_errors', 1],
     ['lesson_reviewed', 2],
+    ['assemblies_participated', 3],
   ] as const)('lê o número certo do snapshot pra %s', (criteriaType, expected) => {
     expect(progressValueFor(criteriaType, snapshot)).toBe(expected)
   })
@@ -47,6 +49,8 @@ describe('isSatisfied', () => {
     ['track_completed_no_errors', 2, false],
     ['lesson_reviewed', 1, true],
     ['lesson_reviewed', 3, false],
+    ['assemblies_participated', 3, true],
+    ['assemblies_participated', 4, false],
   ] as const)('%s >= %d ? %s', (criteriaType, criteriaValue, expected) => {
     expect(isSatisfied(criteriaType, criteriaValue, snapshot)).toBe(expected)
   })

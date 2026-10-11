@@ -3,7 +3,11 @@ import {
   type CosmeticsReader,
   type PublicCosmetics,
 } from '../../../../shared/publicCosmetics'
-import type { DuelFeedData, SocialFeedEventType } from '../../domain/socialFeedEvent'
+import type {
+  AssemblyFeedData,
+  DuelFeedData,
+  SocialFeedEventType,
+} from '../../domain/socialFeedEvent'
 import type { FriendGraphReader } from '../ports/friendGraphReader'
 import type { SocialFeedEventRepository } from '../ports/socialFeedEventRepository'
 import type { UserDirectory } from '../ports/userDirectory'
@@ -17,6 +21,8 @@ export interface SocialFeedItem {
   trackNumber: number | null
   // Resultado de duelo (MO.5.3), nulo nos demais tipos.
   duel: DuelFeedData | null
+  // Participação em assembleia (MO.6.7), nulo nos demais tipos.
+  assembly: AssemblyFeedData | null
   occurredAt: Date
   userId: string
   username: string
@@ -61,7 +67,12 @@ export class ListFeedForUserUseCase {
         return {
           type: event.type,
           trackNumber: event.trackNumber,
-          duel: event.data,
+          duel:
+            event.type === 'duel_won' || event.type === 'duel_draw'
+              ? (event.data as DuelFeedData)
+              : null,
+          assembly:
+            event.type === 'assembly_participated' ? (event.data as AssemblyFeedData) : null,
           occurredAt: event.occurredAt,
           userId: event.userId,
           username: user.username,

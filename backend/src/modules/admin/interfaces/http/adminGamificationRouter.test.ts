@@ -153,6 +153,7 @@ describe('GET /admin/gamification/achievements', () => {
       'micro_decisions_streak',
       'track_completed_no_errors',
       'lesson_reviewed',
+      'assemblies_participated',
     ])
     expect(res.body.criteria[0]).toEqual({
       type: 'net_worth',

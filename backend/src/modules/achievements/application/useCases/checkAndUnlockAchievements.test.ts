@@ -55,6 +55,7 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
         microDecisionsStreak: 0,
         tracksCompletedNoErrors: 0,
         lessonsReviewed: 0,
+        assembliesParticipated: 0,
       },
     })
     const useCase = new CheckAndUnlockAchievementsUseCase(
@@ -82,6 +83,7 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
         microDecisionsStreak: 0,
         tracksCompletedNoErrors: 0,
         lessonsReviewed: 0,
+        assembliesParticipated: 0,
       },
     })
     const useCase = new CheckAndUnlockAchievementsUseCase(
@@ -123,6 +125,7 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
       microDecisionsStreak: 0,
       tracksCompletedNoErrors: 0,
       lessonsReviewed: 0,
+      assembliesParticipated: 0,
     }
 
     function setup(rarity: { holders: number; population: number }) {

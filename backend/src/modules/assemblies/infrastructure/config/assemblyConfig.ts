@@ -8,7 +8,11 @@ export interface AssemblyConfig {
   lifecycle: LifecycleParams
   params: AssemblyParams
   proposals: ProposalParams
+  // XP único por assembleia em que a pessoa vota pela primeira vez (MO.6.7); nunca por vencer.
+  participationXp: number
 }
+
+export const DEFAULT_PARTICIPATION_XP = 10
 
 function positiveInt(raw: string | undefined, fallback: number): number {
   const parsed = Number(raw || Number.NaN)
@@ -43,6 +47,7 @@ export function loadAssemblyConfig(env: NodeJS.ProcessEnv): AssemblyConfig {
         DEFAULT_ASSEMBLY_PARAMS.freeCreditMinLevel,
       ),
     },
+    participationXp: positiveInt(env.ASSEMBLY_PARTICIPATION_XP, DEFAULT_PARTICIPATION_XP),
     proposals: {
       monthlyCap: positiveInt(
         env.ASSEMBLY_PROPOSAL_MONTHLY_CAP,

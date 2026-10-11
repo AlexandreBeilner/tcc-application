@@ -159,6 +159,40 @@ describe('e-mails de amizade (EM.6.2)', () => {
   })
 })
 
+describe('resultado de assembleia (MO.6.7)', () => {
+  const template = EMAIL_TEMPLATES.assembly_result
+
+  it('é social (opt-in) e leva o desfecho, a pauta e o link do resultado', () => {
+    const content = template.build(template.sample, ctx)
+    const text = bodyText('assembly_result', template.sample)
+
+    expect(template.category).toBe('social')
+    expect(content.subject).toBe('Resultado da assembleia de Acme')
+    expect(text).toContain('A pauta foi aprovada: Expandir.')
+    expect(JSON.stringify(content)).toContain(
+      'https://app.exemplo.com/assembleias/00000000-0000-4000-8000-000000000001',
+    )
+  })
+
+  it('sem decisão, o texto é neutro e não cobra participação nem fala em voto', () => {
+    const base = { ...template.sample, outcome: 'not_approved', winningLabel: undefined }
+    const quorum = bodyText('assembly_result', { ...base, reason: 'quorum' })
+    const tie = bodyText('assembly_result', { ...base, reason: 'tie' })
+
+    expect(quorum).toContain('não houve o mínimo de votantes')
+    expect(tie).toContain('empatada')
+    for (const text of [quorum, tie, bodyText('assembly_result', template.sample)]) {
+      expect(text).not.toMatch(/você (não )?votou|R\$|—/i)
+    }
+  })
+
+  it('sem a empresa ou a pauta, recusa montar', () => {
+    expect(() => template.build({ ...template.sample, companyName: undefined }, ctx)).toThrow(
+      /companyName/,
+    )
+  })
+})
+
 describe('resumo semanal (EM.7.1)', () => {
   const template = EMAIL_TEMPLATES.weekly_digest
 

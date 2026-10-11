@@ -46,6 +46,13 @@ export interface AssemblyRepository {
   listForCalendar(from: Date, to: Date): Promise<Assembly[]>
   // Fechadas e aprovadas, com o efeito já devido e ainda não entregue ao motor.
   listApprovedPendingEffect(now: Date, limit: number): Promise<AssemblyWithOptions[]>
+  // Fechadas cujo resultado ainda não foi publicado (feed e e-mail, MO.6.7), as mais antigas
+  // primeiro.
+  listClosedUnannounced(limit: number): Promise<Assembly[]>
+  // Marca o resultado como publicado (condicional: `false` se já estava marcado).
+  markResultAnnounced(id: string, now: Date): Promise<boolean>
+  // Quantas assembleias distintas a pessoa votou (conquista "Acionista ativo"): só participação.
+  countVotedAssemblies(userId: string): Promise<number>
   // Marca o efeito como entregue (condicional: `false` se já estava marcado).
   markEffectApplied(id: string, now: Date): Promise<boolean>
   // Transições condicionais ao estado: `false` se outro processo já mudou a assembleia.

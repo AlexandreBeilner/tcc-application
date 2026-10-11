@@ -44,6 +44,7 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
           subjectLabel: input.subjectLabel ?? null,
           templateKey: input.templateKey ?? null,
           effectAppliedAt: null,
+          resultAnnouncedAt: null,
           createdAt: now,
         },
         options: input.options.map((o, position) => ({
@@ -99,6 +100,21 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
             i.assembly.effectAppliesAt <= now,
         )
         .slice(0, limit)
+    },
+    async listClosedUnannounced(limit) {
+      return [...fake.items.values()]
+        .map((i) => i.assembly)
+        .filter((a) => a.status === 'closed' && a.resultAnnouncedAt === null)
+        .slice(0, limit)
+    },
+    async markResultAnnounced(id, now) {
+      const item = fake.items.get(id)
+      if (!item || item.assembly.resultAnnouncedAt) return false
+      item.assembly.resultAnnouncedAt = now
+      return true
+    },
+    async countVotedAssemblies(userId) {
+      return fake.votes.filter((v) => v.userId === userId).length
     },
     async markEffectApplied(id, now) {
       const item = fake.items.get(id)

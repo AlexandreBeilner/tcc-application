@@ -243,6 +243,51 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       }
     },
   },
+  // Resultado de assembleia de acionistas (MO.6.7). Categoria `social`: só sai para quem ligou.
+  // Vai a todo acionista da data de corte, tenha votado ou não, com o mesmo texto: nunca cobra
+  // participação. Só o desfecho e o nome da pauta; nunca voto por pessoa nem valor em reais.
+  assembly_result: {
+    category: 'social',
+    sample: {
+      name: 'Ana',
+      assemblyId: '00000000-0000-4000-8000-000000000001',
+      companyName: 'Acme',
+      title: 'Orçamento de capital',
+      outcome: 'approved',
+      reason: 'decided',
+      winningLabel: 'Expandir',
+    },
+    build(payload, { appUrl }) {
+      const name = optionalString(payload, 'name')
+      const company = requireString(payload, 'companyName')
+      const title = requireString(payload, 'title')
+      const assemblyId = requireString(payload, 'assemblyId')
+      const reason = optionalString(payload, 'reason')
+      const winning = optionalString(payload, 'winningLabel')
+      let result: string
+      if (payload.outcome === 'approved') {
+        result = `A pauta foi aprovada${winning ? `: ${winning}` : ''}. O efeito passa a valer na empresa em breve.`
+      } else if (reason === 'tie') {
+        result = 'A votação terminou empatada, então nada muda na empresa.'
+      } else {
+        result =
+          'A assembleia fechou sem decisão, porque não houve o mínimo de votantes. Nada muda na empresa.'
+      }
+      return {
+        subject: `Resultado da assembleia de ${company}`,
+        preheader: title,
+        blocks: [
+          { type: 'heading', text: `Assembleia de ${company} encerrada` },
+          {
+            type: 'paragraph',
+            text: `${name ? `Olá, ${name}. ` : ''}Você tinha ações de ${company} na data de corte da assembleia "${title}".`,
+          },
+          { type: 'paragraph', text: result },
+          { type: 'button', label: 'Ver o resultado', url: `${appUrl}/assembleias/${assemblyId}` },
+        ],
+      }
+    },
+  },
   // Resumo semanal (EM.7.1, E12). Categoria `engagement`: só sai para quem ligou. Leva apenas o
   // nível, a rentabilidade percentual da semana (RNF09, nunca patrimônio) e uma missão do dia. O
   // tom é de evolução: rentabilidade negativa não é mostrada como número nem como perda.

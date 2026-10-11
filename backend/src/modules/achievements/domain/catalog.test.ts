@@ -28,6 +28,7 @@ describe('ACHIEVEMENT_CRITERIA', () => {
       microDecisionsStreak: 5,
       tracksCompletedNoErrors: 6,
       lessonsReviewed: 7,
+      assembliesParticipated: 8,
     }
     const expected: AchievementCriteriaType[] = [
       'net_worth',
@@ -37,6 +38,7 @@ describe('ACHIEVEMENT_CRITERIA', () => {
       'micro_decisions_streak',
       'track_completed_no_errors',
       'lesson_reviewed',
+      'assemblies_participated',
     ]
 
     expect([...ACHIEVEMENT_CRITERIA_TYPES].sort()).toEqual([...expected].sort())

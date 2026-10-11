@@ -38,6 +38,11 @@ async function setup() {
   const profileOf = (id: string) => profiles.get(id) ?? { level: 3, emailVerified: true }
   const voters = { get: vi.fn(async (id: string) => profileOf(id)) }
   const params = { ...DEFAULT_ASSEMBLY_PARAMS }
+  const rewards = {
+    rewardFirstVote: vi.fn<(userId: string, assemblyId: string) => Promise<void>>(
+      async () => undefined,
+    ),
+  }
   const access = new VoteAccessService(
     kinds,
     repository,
@@ -69,7 +74,8 @@ async function setup() {
     voters,
     params,
     open,
-    cast: new CastVoteUseCase(access, repository, () => params, now),
+    rewards,
+    cast: new CastVoteUseCase(access, repository, () => params, now, rewards),
     status: new GetMyVotingStatusUseCase(access, () => params, now),
     advance: (ms: number) => (clock = new Date(clock.getTime() + ms)),
   }
@@ -83,6 +89,50 @@ async function denied(promise: Promise<unknown>): Promise<string> {
   expect(err).toBeInstanceOf(VoteDeniedError)
   return (err as VoteDeniedError).reason
 }
+
+describe('CastVoteUseCase: XP de participação (MO.6.7)', () => {
+  it('concede no primeiro voto, uma vez por assembleia, nunca na troca de voto', async () => {
+    const ctx = await setup()
+    const a = await ctx.open('a1')
+    await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
+    await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.b })
+    expect(ctx.rewards.rewardFirstVote).toHaveBeenCalledTimes(1)
+    expect(ctx.rewards.rewardFirstVote).toHaveBeenCalledWith('ana', a.id)
+  })
+
+  it('cada assembleia nova rende o seu próprio crédito, e voto recusado não rende nada', async () => {
+    const ctx = await setup()
+    ctx.pros.add('ana')
+    const a = await ctx.open('a1')
+    const b = await ctx.open('b1')
+    await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
+    await ctx.cast.execute({ assemblyId: b.id, userId: 'ana', optionId: b.b })
+    expect(ctx.rewards.rewardFirstVote).toHaveBeenCalledTimes(2)
+
+    ctx.profiles.set('bia', { level: 1, emailVerified: true })
+    await ctx.cast.execute({ assemblyId: a.id, userId: 'bia', optionId: a.a }).catch(() => null)
+    expect(ctx.rewards.rewardFirstVote).toHaveBeenCalledTimes(2)
+  })
+
+  it('a opção escolhida não muda nada: o XP não depende de quem vence', async () => {
+    const ctx = await setup()
+    const a = await ctx.open('a1')
+    await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
+    await ctx.cast.execute({ assemblyId: a.id, userId: 'bia', optionId: a.b })
+    expect(ctx.rewards.rewardFirstVote.mock.calls.map((c) => c[0])).toEqual(['ana', 'bia'])
+  })
+
+  it('falha ao conceder o XP não derruba o voto, que já está gravado', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const ctx = await setup()
+    ctx.rewards.rewardFirstVote.mockRejectedValueOnce(new Error('xp fora'))
+    const a = await ctx.open('a1')
+    await expect(
+      ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a }),
+    ).resolves.toMatchObject({ changed: false })
+    expect(await ctx.repository.findVote(a.id, 'ana')).not.toBeNull()
+  })
+})
 
 describe('CastVoteUseCase', () => {
   it('não PRO com crédito: vota e gasta o crédito do mês', async () => {

@@ -6,6 +6,7 @@ export type AchievementCriteriaKey =
   | 'micro_decisions_streak'
   | 'track_completed_no_errors'
   | 'lesson_reviewed'
+  | 'assemblies_participated'
 
 export interface CriterionOption {
   type: AchievementCriteriaKey

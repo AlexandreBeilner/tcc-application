@@ -99,6 +99,14 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     criteriaType: 'lesson_reviewed',
     criteriaValue: '1',
   },
+  // Participação (MO.6.7): só por votar, nunca por estar do lado vencedor.
+  {
+    seedKey: 'assemblies_participated_3',
+    name: 'Acionista Ativo',
+    description: 'Vote em 3 assembleias de acionistas.',
+    criteriaType: 'assemblies_participated',
+    criteriaValue: '3',
+  },
 ]
 
 // Idempotente por seedKey (N.19), só insere: nunca atualiza uma conquista que o painel
@@ -116,7 +124,10 @@ async function main() {
   const existing = await db.select({ seedKey: achievements.seedKey }).from(achievements)
   const existingKeys = new Set(existing.map((row) => row.seedKey))
 
+  // A conquista de assembleia só nasce com o recurso ligado: desligado, ninguém a alcança.
+  const assembliesOn = process.env.ASSEMBLIES_ENABLED === 'on'
   for (const seed of ACHIEVEMENT_SEEDS) {
+    if (seed.criteriaType === 'assemblies_participated' && !assembliesOn) continue
     if (existingKeys.has(seed.seedKey)) {
       console.log(`conquista "${seed.name}" já existia — nada a fazer`)
       continue

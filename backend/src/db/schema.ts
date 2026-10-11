@@ -41,6 +41,8 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'micro_decisions_streak',
   'track_completed_no_errors',
   'lesson_reviewed',
+  // Participação em assembleias (MO.6.7): quantas assembleias distintas a pessoa votou.
+  'assemblies_participated',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
 // padrão (sem widget embutido); os outros três embutem um componente já
@@ -836,6 +838,8 @@ export const assemblies = pgTable(
     templateKey: text('template_key'),
     // Quando o resultado aprovado foi entregue ao motor (nulo = ainda não aplicado).
     effectAppliedAt: timestamp('effect_applied_at', { withTimezone: true }),
+    // Quando o resultado foi publicado (feed social e e-mail, MO.6.7); nulo = ainda não publicado.
+    resultAnnouncedAt: timestamp('result_announced_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

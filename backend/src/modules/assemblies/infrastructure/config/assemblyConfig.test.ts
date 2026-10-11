@@ -8,6 +8,7 @@ describe('loadAssemblyConfig', () => {
       lifecycle: { openDelayDays: 2, catchUpDays: 7, durationDays: 7, effectDelayDays: 1 },
       params: { minVoters: 3, monthlyFreeCredits: 1, freeCreditMinLevel: 3 },
       proposals: { monthlyCap: 3, minSupport: 2, ttlDays: 30 },
+      participationXp: 10,
     })
   })
 
@@ -33,6 +34,11 @@ describe('loadAssemblyConfig', () => {
       ASSEMBLY_FREE_CREDIT_MIN_LEVEL: '5',
     })
     expect(cfg.params).toMatchObject({ monthlyFreeCredits: 2, freeCreditMinLevel: 5 })
+  })
+
+  it('XP de participação é parâmetro, com 10 de padrão', () => {
+    expect(loadAssemblyConfig({ ASSEMBLY_PARTICIPATION_XP: '25' }).participationXp).toBe(25)
+    expect(loadAssemblyConfig({ ASSEMBLY_PARTICIPATION_XP: '0' }).participationXp).toBe(10)
   })
 
   it('teto de propostas, apoios mínimos e prazo são parâmetros', () => {

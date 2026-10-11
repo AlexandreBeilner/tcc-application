@@ -17,6 +17,7 @@ export const ACHIEVEMENT_CRITERIA: Record<
   micro_decisions_streak: { label: 'Acertos seguidos na Micro-decisão', valueKind: 'integer' },
   track_completed_no_errors: { label: 'Trilhas concluídas sem erro', valueKind: 'integer' },
   lesson_reviewed: { label: 'Lições revisadas', valueKind: 'integer' },
+  assemblies_participated: { label: 'Assembleias em que votou', valueKind: 'integer' },
 }
 
 export const ACHIEVEMENT_CRITERIA_TYPES = Object.keys(

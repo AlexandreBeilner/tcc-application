@@ -7,6 +7,7 @@ import { createFakeAssemblyRepository } from '../../test/fakes/fakeAssemblyRepos
 import { createFakeProposalRepository } from '../../test/fakes/fakeProposalRepository'
 import { AssemblyKindRegistry } from '../assemblyKinds'
 import type { CompanyReportFact } from '../ports/companyReportSource'
+import { AnnounceClosedAssembliesUseCase } from './announceClosedAssemblies'
 import { ApplyDueAssemblyEffectsUseCase } from './applyDueAssemblyEffects'
 import { CloseDueAssembliesUseCase } from './closeDueAssemblies'
 import { CreateAssemblyUseCase } from './createAssembly'
@@ -85,7 +86,20 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
   )
   const close = new CloseDueAssembliesUseCase(repository, tally, now)
   const apply = new ApplyDueAssemblyEffectsUseCase(kinds, repository, now)
+  const feed = { publishParticipation: vi.fn(async () => undefined) }
+  const mailer = { sendResult: vi.fn(async () => undefined) }
+  const announce = new AnnounceClosedAssembliesUseCase(
+    kinds,
+    repository,
+    snapshots,
+    feed,
+    mailer,
+    now,
+  )
   return {
+    feed,
+    mailer,
+    announce,
     repository,
     proposals,
     effect,
@@ -94,7 +108,7 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     open,
     close,
     apply,
-    run: new RunAssemblyLifecycleUseCase(close, open, apply),
+    run: new RunAssemblyLifecycleUseCase(close, open, apply, announce),
     advance: (ms: number) => (clock = new Date(clock.getTime() + ms)),
     setHoldings: (h: HoldingsSnapshot) => (holdings = h),
     setReports: (r: CompanyReportFact[]) => (reports = r),
@@ -330,6 +344,7 @@ describe('RunAssemblyLifecycleUseCase', () => {
       { execute: vi.fn().mockRejectedValue(new Error('x')) },
       ok,
       { execute: vi.fn(async () => ({ applied: 0, failed: 0 })) },
+      { execute: vi.fn(async () => ({ announced: 0, failed: 0 })) },
     )
     const result = await run.execute()
     expect(result.close.failed).toBe(1)
@@ -431,5 +446,94 @@ describe('OpenDueAssembliesUseCase: pauta vinda das propostas (MO.6.5)', () => {
     await ctx.open.execute()
     expect(ctx.repository.items.size).toBe(1)
     expect(ctx.proposals.consumed).toHaveLength(1)
+  })
+})
+
+describe('AnnounceClosedAssembliesUseCase (MO.6.7)', () => {
+  async function closedAssembly(voters: string[], minVoters = 3) {
+    const ctx = setup({ minVoters })
+    ctx.setHoldings({
+      takenAt: t0,
+      holdings: [
+        { userId: 'ana', quantity: 30 },
+        { userId: 'bia', quantity: 10 },
+        { userId: 'caio', quantity: 5 },
+        { userId: 'dani', quantity: 1 },
+      ],
+    })
+    await ctx.open.execute()
+    ctx.advance(DAY)
+    await ctx.repository.markOpen(ctx.first().assembly.id)
+    await vote(
+      ctx,
+      voters.map((id) => [id, 1] as [string, number]),
+    )
+    ctx.advance(8 * DAY)
+    await ctx.close.execute()
+    return ctx
+  }
+
+  it('feed só de quem votou e e-mail para todo acionista da data de corte', async () => {
+    const ctx = await closedAssembly(['ana', 'bia', 'caio'])
+    expect(await ctx.announce.execute()).toEqual({ announced: 1, failed: 0 })
+    const fed = ctx.feed.publishParticipation.mock.calls.map((c) => c[0]).sort()
+    expect(fed).toEqual(['ana', 'bia', 'caio'])
+    const mailed = ctx.mailer.sendResult.mock.calls.map((c) => c[0]).sort()
+    expect(mailed).toEqual(['ana', 'bia', 'caio', 'dani'])
+    expect(ctx.first().assembly.resultAnnouncedAt).not.toBeNull()
+  })
+
+  it('o resumo leva só o desfecho e a pauta, nunca o voto por pessoa', async () => {
+    const ctx = await closedAssembly(['ana', 'bia', 'caio'])
+    await ctx.announce.execute()
+    const [, summary] = ctx.feed.publishParticipation.mock.calls[0]
+    expect(summary).toMatchObject({
+      subjectLabel: 'Acme',
+      title: 'Orçamento de capital',
+      outcome: 'approved',
+      reason: 'decided',
+      winningLabel: 'Expandir',
+    })
+    expect(JSON.stringify(summary)).not.toMatch(/optionId|weight|quantity/)
+  })
+
+  it('sem o mínimo de votantes publica do mesmo jeito, sem opção vencedora', async () => {
+    const ctx = await closedAssembly(['ana'])
+    await ctx.announce.execute()
+    const [, summary] = ctx.mailer.sendResult.mock.calls[0]
+    expect(summary).toMatchObject({ outcome: 'not_approved', reason: 'quorum', winningLabel: null })
+    expect(ctx.feed.publishParticipation).toHaveBeenCalledTimes(1)
+    expect(ctx.mailer.sendResult).toHaveBeenCalledTimes(4)
+  })
+
+  it('assembleia ainda aberta não é publicada, e já publicada não repete', async () => {
+    const ctx = setup()
+    ctx.setHoldings({ takenAt: t0, holdings: [{ userId: 'ana', quantity: 3 }] })
+    await ctx.open.execute()
+    expect(await ctx.announce.execute()).toEqual({ announced: 0, failed: 0 })
+
+    const closed = await closedAssembly(['ana', 'bia', 'caio'])
+    await closed.announce.execute()
+    expect(await closed.announce.execute()).toEqual({ announced: 0, failed: 0 })
+    expect(closed.mailer.sendResult).toHaveBeenCalledTimes(4)
+  })
+
+  it('falha de um envio não marca a assembleia: a rodada seguinte repete (idempotente)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const ctx = await closedAssembly(['ana', 'bia', 'caio'])
+    ctx.mailer.sendResult.mockRejectedValueOnce(new Error('fora do ar'))
+    expect(await ctx.announce.execute()).toEqual({ announced: 0, failed: 1 })
+    expect(ctx.first().assembly.resultAnnouncedAt).toBeNull()
+    // Os demais destinatários da rodada que falhou foram atendidos.
+    expect(ctx.mailer.sendResult).toHaveBeenCalledTimes(4)
+
+    expect(await ctx.announce.execute()).toEqual({ announced: 1, failed: 0 })
+    expect(ctx.first().assembly.resultAnnouncedAt).not.toBeNull()
+  })
+
+  it('a rodada do ciclo publica o resultado depois de fechar', async () => {
+    const ctx = await closedAssembly(['ana', 'bia', 'caio'])
+    const result = await ctx.run.execute()
+    expect(result.announce.announced).toBe(1)
   })
 })

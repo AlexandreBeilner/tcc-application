@@ -33,6 +33,8 @@ export interface Assembly {
   templateKey: string | null
   // Quando o resultado aprovado foi entregue ao motor; nulo = ainda não aplicado.
   effectAppliedAt: Date | null
+  // Quando o resultado foi publicado no feed social e por e-mail (MO.6.7); nulo = ainda não.
+  resultAnnouncedAt: Date | null
   createdAt: Date
 }
 

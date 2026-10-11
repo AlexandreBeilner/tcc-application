@@ -2,6 +2,7 @@ import { assertOptionBelongs, type AssemblyParams } from '../../domain/assembly'
 import { VoteDeniedError } from '../../domain/errors'
 import { denialMessage } from '../../domain/voting'
 import type { AssemblyRepository } from '../ports/assemblyRepository'
+import type { ParticipationRewards } from '../ports/resultPublishers'
 import type { VoteAccessService } from '../voteAccessService'
 
 export interface CastVoteInput {
@@ -27,6 +28,7 @@ export class CastVoteUseCase {
     private readonly repository: AssemblyRepository,
     private readonly params: () => AssemblyParams,
     private readonly now: () => Date = () => new Date(),
+    private readonly rewards?: ParticipationRewards,
   ) {}
 
   async execute(input: CastVoteInput): Promise<CastVoteOutcome> {
@@ -52,6 +54,15 @@ export class CastVoteUseCase {
     }
     if (result.status === 'no_credit') {
       throw new VoteDeniedError('no_credit', denialMessage('no_credit', params))
+    }
+    // XP só por participar: o primeiro voto da pessoa nesta assembleia, nunca a troca de voto e
+    // nunca em função de quem venceu. Best-effort: o voto já está gravado.
+    if (!result.changed) {
+      try {
+        await this.rewards?.rewardFirstVote(input.userId, input.assemblyId)
+      } catch (err) {
+        console.error(`assembleias: falha ao conceder o XP de participação a ${input.userId}`, err)
+      }
     }
     return { changed: result.changed, creditConsumed: result.creditConsumed }
   }

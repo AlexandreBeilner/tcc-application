@@ -323,6 +323,7 @@ import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
+import { RecordAssemblyParticipationUseCase } from './modules/socialfeed/application/useCases/recordAssemblyParticipation'
 import { createAssembliesModule } from './modules/assemblies/composition'
 import { loadAssemblyConfig } from './modules/assemblies/infrastructure/config/assemblyConfig'
 import { createDrizzleAssemblyRepository } from './modules/assemblies/infrastructure/persistence/drizzleAssemblyRepository'
@@ -734,6 +735,10 @@ export function createApp(deps: AppDeps = {}): Express {
     getCurrentMicroDecisionStreak,
     getTracksCompletedWithoutErrorsCount,
     countReviewedLessons,
+    // Conta votos mesmo com as assembleias desligadas (tabela vazia, resultado 0).
+    countAssembliesParticipated: {
+      count: (userId) => createDrizzleAssemblyRepository(db).countVotedAssemblies(userId),
+    },
     getNetWorth,
     sandboxAssetReader,
   })
@@ -917,6 +922,10 @@ export function createApp(deps: AppDeps = {}): Express {
         proAccess: billing.proAccessGuard,
         getProgression,
         userRepository,
+        awardXp,
+        recordAssemblyParticipation: new RecordAssemblyParticipationUseCase(socialFeedEventRepository),
+        enqueueEmail,
+        recipients: createDrizzleRecipientDirectory(db),
       })
     : null
   // Retrospectiva mensal (MO.5.4): contagens do mês, dias de atividade e rentabilidade percentual.

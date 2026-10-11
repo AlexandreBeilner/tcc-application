@@ -13,6 +13,7 @@ import { ListCompanyProposalsUseCase } from './application/useCases/listCompanyP
 import { ProposeAgendaUseCase } from './application/useCases/proposeAgenda'
 import { SupportProposalUseCase } from './application/useCases/supportProposal'
 import { WithdrawProposalSupportUseCase } from './application/useCases/withdrawProposalSupport'
+import { AnnounceClosedAssembliesUseCase } from './application/useCases/announceClosedAssemblies'
 import { CloseDueAssembliesUseCase } from './application/useCases/closeDueAssemblies'
 import { CreateAssemblyUseCase } from './application/useCases/createAssembly'
 import { OpenDueAssembliesUseCase } from './application/useCases/openDueAssemblies'
@@ -21,6 +22,9 @@ import { TallyAssemblyUseCase } from './application/useCases/tallyAssembly'
 import { SHAREHOLDER_KIND, shareholderPolicies } from './domain/shareholderPolicies'
 import type { AssemblyConfig } from './infrastructure/config/assemblyConfig'
 import { createInProcessProStatus } from './infrastructure/billing/inProcessProStatus'
+import { createInProcessParticipationRewards } from './infrastructure/gamification/inProcessParticipationRewards'
+import { createNotificationsResultMailer } from './infrastructure/notifications/notificationsResultMailer'
+import { createInProcessResultFeed } from './infrastructure/socialfeed/inProcessResultFeed'
 import { createInProcessVoterProfileReader } from './infrastructure/profile/inProcessVoterProfileReader'
 import { createAssembliesRouter } from './interfaces/http/assembliesRouter'
 import { createAssemblyReadsRouter } from './interfaces/http/assemblyReadsRouter'
@@ -49,6 +53,13 @@ export interface AssembliesCompositionDeps {
   // Do módulo `gamification` e do `auth`: nível e e-mail verificado do crédito gratuito.
   getProgression: Parameters<typeof createInProcessVoterProfileReader>[0]['getProgression']
   userRepository: Parameters<typeof createInProcessVoterProfileReader>[0]['userRepository']
+  // Do módulo `gamification`: XP de participação (e, por ele, a conquista "Acionista ativo").
+  awardXp: Parameters<typeof createInProcessParticipationRewards>[0]
+  // Do módulo `socialfeed`: linha de participação no feed dos amigos, no fechamento.
+  recordAssemblyParticipation: Parameters<typeof createInProcessResultFeed>[0]
+  // Do módulo `notifications`: e-mail opt-in (categoria `social`) do resultado.
+  enqueueEmail: Parameters<typeof createNotificationsResultMailer>[0]['enqueueEmail']
+  recipients: Parameters<typeof createNotificationsResultMailer>[0]['recipients']
 }
 
 export function createAssembliesModule(deps: AssembliesCompositionDeps) {
@@ -80,6 +91,16 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
       () => deps.config.lifecycle,
     ),
     new ApplyDueAssemblyEffectsUseCase(kinds, repository),
+    new AnnounceClosedAssembliesUseCase(
+      kinds,
+      repository,
+      snapshots,
+      createInProcessResultFeed(deps.recordAssemblyParticipation),
+      createNotificationsResultMailer({
+        enqueueEmail: deps.enqueueEmail,
+        recipients: deps.recipients,
+      }),
+    ),
   )
   const access = new VoteAccessService(
     kinds,
@@ -92,7 +113,13 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
   const router = Router()
   router.use(
     createAssembliesRouter({
-      castVote: new CastVoteUseCase(access, repository, () => deps.config.params),
+      castVote: new CastVoteUseCase(
+        access,
+        repository,
+        () => deps.config.params,
+        undefined,
+        createInProcessParticipationRewards(deps.awardXp, () => deps.config.participationXp),
+      ),
       getMyVotingStatus: new GetMyVotingStatusUseCase(access, () => deps.config.params),
       authMiddleware: deps.authMiddleware,
     }),
