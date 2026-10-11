@@ -76,6 +76,10 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
   const tally = new TallyAssemblyUseCase(kinds, repository, snapshots, () => ({
     minVoters: currentMinVoters,
   }))
+  const cooldownLeft = new Map<string, number>()
+  const cooldowns = {
+    daysLeft: vi.fn(async (companyId: string) => cooldownLeft.get(companyId) ?? 0),
+  }
   const open = new OpenDueAssembliesUseCase(
     create,
     repository,
@@ -86,6 +90,7 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     () => DEFAULT_PROPOSAL_PARAMS,
     () => DEFAULT_LIFECYCLE_PARAMS,
     pauses,
+    cooldowns,
     () => currentMinVoters,
     now,
   )
@@ -108,6 +113,8 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     repository,
     proposals,
     pauses,
+    cooldownLeft,
+    cooldowns,
     effect,
     snapshots,
     reportSource,
@@ -186,6 +193,29 @@ describe('OpenDueAssembliesUseCase', () => {
     ctx.snapshots.take.mockRejectedValueOnce(new Error('boom'))
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 1 })
+  })
+
+  it('empresa em período de espera não abre; sai do cooldown dentro da janela e abre (ponto 050)', async () => {
+    const ctx = setup()
+    ctx.cooldownLeft.set('company-1', 12)
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0 })
+    expect(ctx.repository.items.size).toBe(0)
+    expect(ctx.snapshots.take).not.toHaveBeenCalled()
+
+    ctx.cooldownLeft.set('company-1', 0)
+    expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 0 })
+  })
+
+  it('o cooldown de uma empresa não barra a outra, e motor fora do ar conta como falha', async () => {
+    const ctx = setup()
+    ctx.setReports([report, { ...report, companyId: 'company-2', name: 'Beta' }])
+    ctx.cooldownLeft.set('company-1', 3)
+    expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 0 })
+
+    ctx.cooldowns.daysLeft.mockRejectedValueOnce(new Error('motor fora'))
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    ctx.setReports([{ ...report, companyId: 'company-3', name: 'Gama' }])
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 1 })
   })
 
   it('empresa sem pauta candidata não abre nada', async () => {

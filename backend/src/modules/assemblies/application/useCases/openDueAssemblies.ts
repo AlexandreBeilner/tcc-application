@@ -6,6 +6,7 @@ import { SHAREHOLDER_KIND } from '../../domain/shareholderPolicies'
 import type { AgendaCatalog } from '../ports/agendaCatalog'
 import type { AssemblyPauseReader } from '../ports/assemblyPauseRepository'
 import type { AssemblyRepository } from '../ports/assemblyRepository'
+import type { CompanyCooldownReader } from '../ports/companyCooldownReader'
 import type { CompanyReportSource } from '../ports/companyReportSource'
 import type { HoldingsSnapshotProvider } from '../ports/holdingsSnapshotProvider'
 import type { ProposalRepository } from '../ports/proposalRepository'
@@ -26,6 +27,11 @@ export interface OpenDueResult {
 // apoios, desempate pela mais antiga); sem proposta que sirva, vale o sorteio determinístico do
 // catálogo. A proposta escolhida é consumida na criação; as demais continuam na fila até expirar.
 //
+// Empresa em período de espera (cooldown do motor, ponto 050) não abre assembleia: o voto
+// gastaria crédito à toa, porque o motor registraria `skipped_cooldown`. O balanço fica de lado e
+// a abertura tenta de novo a cada rodada; se o cooldown acabar dentro da janela de recuperação a
+// assembleia abre, senão aquele balanço passa sem assembleia.
+//
 // Pausa do painel (MO.6.8): empresa pausada (ou pausa global) não abre assembleia nesta rodada e
 // nada é perdido; ao retomar, o balanço ainda dentro da janela de recuperação abre normalmente.
 export class OpenDueAssembliesUseCase {
@@ -39,6 +45,7 @@ export class OpenDueAssembliesUseCase {
     private readonly proposalParams: () => ProposalParams,
     private readonly params: () => LifecycleParams,
     private readonly pauses: AssemblyPauseReader,
+    private readonly cooldowns: CompanyCooldownReader,
     // Quórum de agora: fica congelado na assembleia que abre (editar depois não a muda).
     private readonly minVoters: () => number,
     private readonly now: () => Date = () => new Date(),
@@ -65,6 +72,7 @@ export class OpenDueAssembliesUseCase {
     const result: OpenDueResult = { opened: 0, failed: 0 }
     for (const report of reports) {
       try {
+        if ((await this.cooldowns.daysLeft(report.companyId)) > 0) continue
         const queue = rankProposals(
           await this.proposals.listActive(SHAREHOLDER_KIND, report.companyId, now),
           now,

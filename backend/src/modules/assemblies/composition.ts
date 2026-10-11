@@ -30,6 +30,7 @@ import { createAssembliesRouter } from './interfaces/http/assembliesRouter'
 import { createAssemblyReadsRouter } from './interfaces/http/assemblyReadsRouter'
 import { createRedisScoreboardCache } from './infrastructure/cache/redisScoreboardCache'
 import { createProposalsRouter } from './interfaces/http/proposalsRouter'
+import { createEngineCompanyCooldownReader } from './infrastructure/engine/engineCompanyCooldownReader'
 import { createEngineCompanyStandingReader } from './infrastructure/engine/engineCompanyStandingReader'
 import { createDrizzleProposalRepository } from './infrastructure/persistence/drizzleProposalRepository'
 import { createEngineCompanyReportSource } from './infrastructure/engine/engineCompanyReportSource'
@@ -160,6 +161,7 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
       () => deps.config.proposals,
       () => deps.config.lifecycle,
       pauses,
+      createEngineCompanyCooldownReader(standings),
       () => deps.config.params.minVoters,
     ),
     new ApplyDueAssemblyEffectsUseCase(kinds, repository, pauses),
