@@ -18,7 +18,7 @@ describe('AdminNav (N.3)', () => {
         const labels = screen.getAllByRole('listitem').map((item) => item.textContent)
         expect(labels).toHaveLength(ADMIN_SECTIONS.length)
         expect(labels[0]).toContain('Visão geral')
-        expect(labels[9]).toContain('Auditoria')
+        expect(labels[10]).toContain('Auditoria')
     })
 
     it('seção com rota vira link, inclusive Sistema (N.20)', () => {

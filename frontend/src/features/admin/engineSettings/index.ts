@@ -20,6 +20,27 @@ export const EDITABLE_SETTING_TEXT: Record<EngineSettingKey, SettingText> = {
         unit: 'ticks',
         effect: 'Quantos ticks atrasados o motor recupera de uma vez ao voltar de uma parada. O excedente é descartado e registrado.',
     },
+    // Governança das assembleias (MO.6.8): o motor aplica cada decisão com os valores do momento em que a recebe.
+    governance_growth_step_centipp: {
+        title: 'Faixa de efeito no crescimento',
+        unit: 'centésimos de ponto percentual',
+        effect: 'Mudança máxima do crescimento base de uma empresa por decisão (100 equivale a 1 ponto percentual). A intensidade de cada opção usa uma fração dessa faixa.',
+    },
+    governance_quality_step_centi: {
+        title: 'Faixa de efeito na qualidade',
+        unit: 'centésimos',
+        effect: 'Mudança máxima do multiplicador de qualidade de uma empresa por decisão (5 equivale a 0,05). A intensidade de cada opção usa uma fração dessa faixa.',
+    },
+    governance_ramp_ticks: {
+        title: 'Rampa do efeito',
+        unit: 'ticks',
+        effect: 'Em quantos ticks (dias do mercado) o efeito de uma decisão é aplicado, aos poucos, até fechar o total.',
+    },
+    governance_cooldown_days: {
+        title: 'Intervalo entre mudanças da mesma empresa',
+        unit: 'dias simulados',
+        effect: 'Depois de uma decisão, a empresa fica esse tempo sem aceitar outra. Uma decisão em período de espera é registrada, mas nada muda.',
+    },
 }
 
 const READ_ONLY_TITLES: Record<string, string> = {

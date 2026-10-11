@@ -51,6 +51,14 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     'admin.reauth': 'Reautenticação de administrador',
     'admin.reauth_failed': 'Reautenticação de administrador recusada',
     'admin.password_reset_denied': 'Redefinição de senha por e-mail negada a administrador',
+    'assembly.pause': 'Pausa das assembleias',
+    'assembly.resume': 'Retomada das assembleias',
+    'assembly.setting_update': 'Alteração de parâmetro das assembleias',
+    'assembly.setting_reset': 'Restauração de parâmetro das assembleias',
+    'assembly.template_create': 'Criação de pauta de assembleia',
+    'assembly.template_update': 'Edição de pauta de assembleia',
+    'assembly.template_activate': 'Ativação de pauta de assembleia',
+    'assembly.template_deactivate': 'Desativação de pauta de assembleia',
 }
 
 export const AUDIT_RESULT_LABELS: Record<AuditResult, string> = {

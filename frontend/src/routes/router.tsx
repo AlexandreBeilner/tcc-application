@@ -31,6 +31,10 @@ import { AdminMercado } from '../pages/AdminMercado'
 import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
 import { AdminOrdens } from '../pages/AdminOrdens'
 import { AdminCatalogo } from '../pages/AdminCatalogo'
+import { AdminAssembleiaDetalhe } from '../pages/AdminAssembleiaDetalhe'
+import { AdminAssembleiaParametros } from '../pages/AdminAssembleiaParametros'
+import { AdminAssembleiaPautas } from '../pages/AdminAssembleiaPautas'
+import { AdminAssembleias } from '../pages/AdminAssembleias'
 import { AdminParametros } from '../pages/AdminParametros'
 import { AdminPausas } from '../pages/AdminPausas'
 import { AdminSistema } from '../pages/AdminSistema'
@@ -230,6 +234,10 @@ export const router = createBrowserRouter([
                                     { path: '/admin/conteudo/:id', element: <AdminConteudoLicao /> },
                                     { path: '/admin/gamificacao', element: <AdminGamificacao /> },
                                     { path: '/admin/assinaturas', element: <AdminAssinaturas /> },
+                                    { path: '/admin/assembleias', element: <AdminAssembleias /> },
+                                    { path: '/admin/assembleias/parametros', element: <AdminAssembleiaParametros /> },
+                                    { path: '/admin/assembleias/pautas', element: <AdminAssembleiaPautas /> },
+                                    { path: '/admin/assembleias/:id', element: <AdminAssembleiaDetalhe /> },
                                     { path: '/admin/sistema', element: <AdminSistema /> },
                                     { path: '/admin/usuarios', element: <AdminUsuarios /> },
                                     { path: '/admin/usuarios/:id', element: <AdminUsuarioDetalhe /> },

@@ -1,4 +1,16 @@
-import { Activity, Bot, CandlestickChart, Clock, FileText, LayoutDashboard, ReceiptText, ScrollText, Trophy, Users } from 'lucide-react'
+import {
+    Activity,
+    Bot,
+    CandlestickChart,
+    Clock,
+    FileText,
+    Landmark,
+    LayoutDashboard,
+    ReceiptText,
+    ScrollText,
+    Trophy,
+    Users,
+} from 'lucide-react'
 import type { AdminSection } from './types'
 
 export type { AdminSection } from './types'
@@ -16,6 +28,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     { key: 'content', label: 'Conteúdo', Icon: FileText, to: '/admin/conteudo', task: 'N.18' },
     { key: 'gamification', label: 'Gamificação', Icon: Trophy, to: '/admin/gamificacao', task: 'N.19' },
     { key: 'billing', label: 'Assinaturas', Icon: ReceiptText, to: '/admin/assinaturas', task: 'MO.7.1' },
+    { key: 'assemblies', label: 'Assembleias', Icon: Landmark, to: '/admin/assembleias', task: 'MO.6.8' },
     { key: 'system', label: 'Sistema', Icon: Activity, to: '/admin/sistema', task: 'N.20' },
     { key: 'audit', label: 'Auditoria', Icon: ScrollText, to: '/admin/auditoria', task: 'N.4' },
 ]

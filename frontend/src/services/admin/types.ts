@@ -129,6 +129,14 @@ export type AuditAction =
     | 'admin.reauth'
     | 'admin.reauth_failed'
     | 'admin.password_reset_denied'
+    | 'assembly.pause'
+    | 'assembly.resume'
+    | 'assembly.setting_update'
+    | 'assembly.setting_reset'
+    | 'assembly.template_create'
+    | 'assembly.template_update'
+    | 'assembly.template_activate'
+    | 'assembly.template_deactivate'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -539,7 +547,12 @@ export interface FundBotInput {
 }
 
 // Parâmetros de simulação (N.7, `.docs/backend/admin.md#parametros-de-simulacao-tarefa-n7`).
-export type EngineSettingKey = 'ticks_per_day' | 'max_catch_up'
+export type PaceSettingKey = 'ticks_per_day' | 'max_catch_up'
+// Governança das assembleias (MO.6.8): faixa de efeito, rampa e cooldown, editados na tela das Assembleias.
+export type GovernanceSettingKey =
+    'governance_growth_step_centipp' | 'governance_quality_step_centi' | 'governance_ramp_ticks' | 'governance_cooldown_days'
+export type EngineSettingKey = PaceSettingKey | GovernanceSettingKey
+export type EngineSettingGroup = 'pace' | 'governance'
 
 export interface EditableSetting {
     key: EngineSettingKey
@@ -1132,4 +1145,132 @@ export interface ExportFilters {
     from?: string
     to?: string
     limit?: number
+}
+
+// Painel das assembleias (MO.6.8, `.docs/backend/admin.md#assembleias-tarefa-mo68`).
+export type AdminAssemblyStatus = 'scheduled' | 'open' | 'closed'
+
+export interface AdminAssembly {
+    id: string
+    kind: string
+    subject_ref: string
+    subject_label: string | null
+    title: string | null
+    status: AdminAssemblyStatus
+    opens_at: string
+    closes_at: string
+    effect_applies_at: string
+    effect_applied_at: string | null
+    outcome: 'approved' | 'not_approved' | null
+    outcome_reason: 'decided' | 'quorum' | 'tie' | null
+    voter_count: number | null
+    winning_option_id: string | null
+    min_voters: number | null
+    // Aprovada, com o efeito já devido e ainda não entregue.
+    effect_pending: boolean
+    // Há pausa vigente cobrindo esta assembleia.
+    paused: boolean
+}
+
+export interface AdminAssemblyOption {
+    id: string
+    key: string
+    label: string
+    gain: string
+    loss: string
+    effect: { metric: 'growth' | 'quality'; direction: 1 | -1; intensity: number } | null
+    position: number
+    voters: number
+    weight: number
+}
+
+export interface AdminAssemblyVote {
+    user_id: string
+    username: string | null
+    name: string | null
+    option_id: string
+    // Ações na data de corte; nulo se a pessoa não era acionista (o voto é descartado).
+    weight: number | null
+    eligible: boolean
+    created_at: string
+    updated_at: string
+}
+
+export interface AdminAssemblyDetail {
+    assembly: AdminAssembly
+    options: AdminAssemblyOption[]
+    min_voters: number
+    counted_voters: number
+    holders: number
+    votes: AdminAssemblyVote[]
+}
+
+export interface AssemblyPause {
+    id: string
+    scope: 'global' | 'company'
+    company_id: string | null
+    reason: string
+    created_by: string
+    created_at: string
+    lifted_at: string | null
+    lifted_by: string | null
+}
+
+export interface AssemblyPauseListing {
+    active: AssemblyPause[]
+    recent: AssemblyPause[]
+}
+
+export type PauseAssembliesInput = { scope: 'global'; reason: string } | { scope: 'company'; company_id: string; reason: string }
+
+export type AssemblySettingKey =
+    | 'min_voters'
+    | 'duration_days'
+    | 'open_delay_days'
+    | 'catch_up_days'
+    | 'effect_delay_days'
+    | 'monthly_free_credits'
+    | 'free_credit_min_level'
+    | 'participation_xp'
+    | 'proposal_monthly_cap'
+    | 'proposal_min_support'
+    | 'proposal_ttl_days'
+
+export interface AssemblySetting {
+    key: AssemblySettingKey
+    value: number
+    default: number
+    min: number
+    max: number
+    overridden: boolean
+    updated_by: string | null
+    updated_at: string | null
+}
+
+export interface AgendaTemplateEffect {
+    metric: string
+    direction: number
+    intensity: number
+}
+
+export interface AgendaTemplateOption {
+    key: string
+    label: string
+    gain: string
+    loss: string
+    effect: AgendaTemplateEffect
+}
+
+export interface AgendaTemplateContent {
+    sector: string | null
+    title: string
+    description: string
+    options: AgendaTemplateOption[]
+}
+
+export interface AgendaTemplate extends AgendaTemplateContent {
+    key: string
+    active: boolean
+    created_at: string
+    usage: { assemblies: number; active_proposals: number }
 }
