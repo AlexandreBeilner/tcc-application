@@ -1,6 +1,6 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-# Casca do Investimenta
+# Casca do Selucra
 
 App RN puro (sem Expo) que embrulha o `frontend/` já existente num `WebView` —
 contexto completo em `.claude/arquitetura-app-mobile-react-native-webview.md`

@@ -313,7 +313,7 @@ visível) é um pré-requisito silencioso do login Google nativo, então não d�
 pra empurrar tudo desta seção igualmente pro final:
 
 - **Cedo, não no final:** `applicationId` (Android,
-  `android/app/build.gradle`, ex. `br.com.investimenta.app`, pode ser um
+  `android/app/build.gradle`, ex. `br.com.selucra.app`, pode ser um
   placeholder interno — trocar depois é possível, só exige atualizar o client
   ID do Google e a assinatura de novo) + bundle identifier (iOS) + SHA-1 do
   keystore de debug gerado pelo próprio RN CLI. Sem isso, a seção 7 (login

@@ -58,7 +58,7 @@ import {
 // isso o react-native-keychain usa um serviço default compartilhado entre
 // apps que reusarem a lib no mesmo dispositivo (irrelevante em produção, mas
 // evita colisão durante desenvolvimento local).
-export const AUTH_KEYCHAIN_SERVICE = 'br.com.investimenta.auth';
+export const AUTH_KEYCHAIN_SERVICE = 'br.com.selucra.auth';
 
 const APP_WEB_URL = Config.APP_WEB_URL as string;
 
@@ -110,7 +110,7 @@ export const ORIGIN_WHITELIST = [`${APP_WEB_URL}*`];
 //
 // Comparação de origem exata (scheme+host+port) via URL.origin, não
 // "startsWith" — um "startsWith" seria enganável por um host tipo
-// "https://app.investimenta.com.br.evil.com", que também começa com a
+// "https://app.selucra.com.br.evil.com", que também começa com a
 // string da origem legítima como prefixo literal.
 export function isWithinAppOrigin(url: string): boolean {
   try {
@@ -127,7 +127,7 @@ const APP_PLATFORM: 'android' | 'ios' =
 // três scripts (ponte de sessão, tarefa 2.1; ponte de download, tarefa 2.3;
 // gatilho de login Google, tarefa 3.3) rodam no mesmo carregamento de
 // página, cada um com seu próprio guard de idempotência
-// (`window.__investimenta*Installed`).
+// (`window.__selucra*Installed`).
 const INJECTED_JAVASCRIPT =
   buildAuthWatcherScript() +
   buildDownloadInterceptorScript() +
@@ -257,7 +257,7 @@ function AppContent() {
       }
       const body = (await apiResponse.json()) as {token: string};
 
-      await Keychain.setGenericPassword('investimenta', body.token, {
+      await Keychain.setGenericPassword('selucra', body.token, {
         service: AUTH_KEYCHAIN_SERVICE,
       });
       setAuthToken(body.token);
@@ -278,7 +278,7 @@ function AppContent() {
     const authMessage = parseAuthTokenChangedMessage(event.nativeEvent.data);
     if (authMessage) {
       if (authMessage.token) {
-        Keychain.setGenericPassword('investimenta', authMessage.token, {
+        Keychain.setGenericPassword('selucra', authMessage.token, {
           service: AUTH_KEYCHAIN_SERVICE,
         }).catch(() => {});
       } else {
@@ -394,7 +394,7 @@ function AppContent() {
       <View style={styles.errorContainer}>
         <Text style={styles.errorTitle}>Sem conexão</Text>
         <Text style={styles.errorMessage}>
-          Não foi possível carregar o Investimenta. Verifique sua conexão e
+          Não foi possível carregar o Selucra. Verifique sua conexão e
           tente novamente.
         </Text>
         <Pressable

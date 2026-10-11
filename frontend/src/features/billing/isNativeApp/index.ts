@@ -10,6 +10,6 @@ export type NativePlatform = 'android' | 'ios'
 // no navegador ou num app antigo que não injeta.
 export function nativePlatform(): NativePlatform | null {
     if (typeof window === 'undefined') return null
-    const info = (window as unknown as { __investimentaNative?: { platform?: unknown } }).__investimentaNative
+    const info = (window as unknown as { __selucraNative?: { platform?: unknown } }).__selucraNative
     return info?.platform === 'android' || info?.platform === 'ios' ? info.platform : null
 }

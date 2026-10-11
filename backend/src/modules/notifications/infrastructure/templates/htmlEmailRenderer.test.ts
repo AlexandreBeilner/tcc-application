@@ -3,7 +3,7 @@ import type { EmailTemplate } from '../../domain/templates/emailContent'
 import { EMAIL_TEMPLATES } from '../../domain/templates/registry'
 import { createHtmlEmailRenderer } from './htmlEmailRenderer'
 
-const options = { brandName: 'Investimenta', appUrl: 'https://app.exemplo.com/' }
+const options = { brandName: 'Selucra', appUrl: 'https://app.exemplo.com/' }
 const renderer = createHtmlEmailRenderer(options)
 
 const optionalTemplate: EmailTemplate = {
@@ -24,7 +24,7 @@ describe('createHtmlEmailRenderer', () => {
     expect(email.html).toContain('<!doctype html>')
     expect(email.html).toContain('lang="pt-BR"')
     expect(email.html).toContain('prefers-color-scheme: dark')
-    expect(email.html).toContain('Investimenta')
+    expect(email.html).toContain('Selucra')
     expect(email.html).toContain('Olá, Ana.')
     expect(email.text).toContain('TESTE DE E-MAIL')
     expect(email.text).toContain('https://app.exemplo.com/')

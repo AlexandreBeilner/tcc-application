@@ -15,7 +15,7 @@
  */
 
 export const GOOGLE_SIGNIN_REQUESTED_MESSAGE_TYPE =
-  'investimenta:google-signin-requested';
+  'selucra:google-signin-requested';
 
 export interface GoogleSignInRequestedMessage {
   type: typeof GOOGLE_SIGNIN_REQUESTED_MESSAGE_TYPE;
@@ -37,8 +37,8 @@ export interface GoogleSignInRequestedMessage {
 export function buildGoogleSignInInterceptorScript(): string {
   return `
 (function () {
-  if (window.__investimentaGoogleSignInInterceptorInstalled) { return; }
-  window.__investimentaGoogleSignInInterceptorInstalled = true;
+  if (window.__selucraGoogleSignInInterceptorInstalled) { return; }
+  window.__selucraGoogleSignInInterceptorInstalled = true;
   var MESSAGE_TYPE = ${JSON.stringify(GOOGLE_SIGNIN_REQUESTED_MESSAGE_TYPE)};
 
   document.addEventListener('click', function (event) {

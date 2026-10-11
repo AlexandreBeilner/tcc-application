@@ -23,7 +23,7 @@ describe('buildDownloadInterceptorScript', () => {
   test('intercepta clique em <a download> com href blob: e manda base64 pro nativo', async () => {
     const postMessage = jest.fn();
     const fakeWindow: Record<string, unknown> = {
-      __investimentaDownloadInterceptorInstalled: false,
+      __selucraDownloadInterceptorInstalled: false,
       ReactNativeWebView: { postMessage },
     };
 
@@ -101,7 +101,7 @@ describe('buildDownloadInterceptorScript', () => {
   test('ignora clique fora de um <a download>', () => {
     const postMessage = jest.fn();
     const fakeWindow: Record<string, unknown> = {
-      __investimentaDownloadInterceptorInstalled: false,
+      __selucraDownloadInterceptorInstalled: false,
       ReactNativeWebView: { postMessage },
     };
     const listeners: Array<(event: unknown) => void> = [];
@@ -138,7 +138,7 @@ describe('buildDownloadInterceptorScript', () => {
   test('ignora <a download> cujo href não é blob:', () => {
     const postMessage = jest.fn();
     const fakeWindow: Record<string, unknown> = {
-      __investimentaDownloadInterceptorInstalled: false,
+      __selucraDownloadInterceptorInstalled: false,
       ReactNativeWebView: { postMessage },
     };
     const listeners: Array<(event: unknown) => void> = [];

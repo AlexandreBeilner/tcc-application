@@ -210,7 +210,7 @@ export function Planos() {
                             {purchase.phase === 'nothing-to-restore' && (
                                 <p className={styles.notice}>
                                     Não encontramos nenhuma assinatura ativa nesta conta da loja. Se você assinou por outro caminho, como a
-                                    web, o seu PRO aparece aqui quando você entra com a mesma conta do Investimenta.
+                                    web, o seu PRO aparece aqui quando você entra com a mesma conta do Selucra.
                                 </p>
                             )}
                             {purchase.phase === 'timeout' && (

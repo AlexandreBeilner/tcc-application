@@ -28,8 +28,8 @@ describe('texto de compartilhar', () => {
     })
 
     it('PRO destaca a sequência; sem PRO destaca as lições; nunca valor em reais', () => {
-        expect(buildShareText(base)).toBe('Meu setembro no Investimenta: 3 dias seguidos, 6 lições, nível 5.')
-        expect(buildShareText({ ...base, full: false, premium: null })).toBe('Meu setembro no Investimenta: 6 lições, nível 5.')
+        expect(buildShareText(base)).toBe('Meu setembro no Selucra: 3 dias seguidos, 6 lições, nível 5.')
+        expect(buildShareText({ ...base, full: false, premium: null })).toBe('Meu setembro no Selucra: 6 lições, nível 5.')
         expect(buildShareText(base)).not.toMatch(/R\$/)
     })
 

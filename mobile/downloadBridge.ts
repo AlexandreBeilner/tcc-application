@@ -12,7 +12,7 @@
  * @format
  */
 
-export const FILE_DOWNLOAD_MESSAGE_TYPE = 'investimenta:file-download';
+export const FILE_DOWNLOAD_MESSAGE_TYPE = 'selucra:file-download';
 
 export interface FileDownloadMessage {
   type: typeof FILE_DOWNLOAD_MESSAGE_TYPE;
@@ -35,8 +35,8 @@ export interface FileDownloadMessage {
 export function buildDownloadInterceptorScript(): string {
   return `
 (function () {
-  if (window.__investimentaDownloadInterceptorInstalled) { return; }
-  window.__investimentaDownloadInterceptorInstalled = true;
+  if (window.__selucraDownloadInterceptorInstalled) { return; }
+  window.__selucraDownloadInterceptorInstalled = true;
   var MESSAGE_TYPE = ${JSON.stringify(FILE_DOWNLOAD_MESSAGE_TYPE)};
 
   document.addEventListener('click', function (event) {

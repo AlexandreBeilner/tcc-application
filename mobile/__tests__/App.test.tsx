@@ -98,13 +98,13 @@ describe('ponte de sessão (Keychain)', () => {
     const webview = getWebViewInstance(root.root);
     // Só o script de plataforma (MO.4.2): nada de reinjeção de token.
     const script = webview.props.injectedJavaScriptBeforeContentLoaded;
-    expect(script).toContain('__investimentaNative');
+    expect(script).toContain('__selucraNative');
     expect(script).not.toContain('localStorage');
   });
 
   test('restaura token salvo no Keychain e reinjeta no primeiro carregamento', async () => {
     (Keychain.getGenericPassword as jest.Mock).mockResolvedValueOnce({
-      username: 'investimenta',
+      username: 'selucra',
       password: 'saved-jwt',
       service: AUTH_KEYCHAIN_SERVICE,
       storage: 'keychain',
@@ -136,7 +136,7 @@ describe('ponte de sessão (Keychain)', () => {
     });
 
     expect(Keychain.setGenericPassword).toHaveBeenCalledWith(
-      'investimenta',
+      'selucra',
       'new-jwt',
       { service: AUTH_KEYCHAIN_SERVICE },
     );
@@ -271,7 +271,7 @@ describe('login Google nativo (SDK, tarefa 3.3)', () => {
       }),
     );
     expect(Keychain.setGenericPassword).toHaveBeenCalledWith(
-      'investimenta',
+      'selucra',
       'jwt-abc',
       {service: AUTH_KEYCHAIN_SERVICE},
     );

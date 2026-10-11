@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WebPlan } from '../webPurchases'
 import { createNativePurchases, NativePurchasesError } from '.'
 
-const RESPONSE_EVENT = 'investimenta:purchases-response'
+const RESPONSE_EVENT = 'selucra:purchases-response'
 const PLAN: WebPlan = { id: 'annual', formattedPrice: 'R$ 1', amountMicros: 1, currency: 'BRL', handle: null }
 
 // Simula o app: lê o pedido enviado por postMessage e responde com o evento `window`.
@@ -40,7 +40,7 @@ describe('createNativePurchases (MO.4.2)', () => {
         const plans = await createNativePurchases().loadPlans()
 
         expect(plans).toEqual([{ id: 'monthly', formattedPrice: 'R$ 19,90', amountMicros: 19_900_000, currency: 'BRL', handle: null }])
-        expect(posted[0]).toMatchObject({ type: 'investimenta:purchases-request', op: 'plans' })
+        expect(posted[0]).toMatchObject({ type: 'selucra:purchases-request', op: 'plans' })
     })
 
     it('compra envia o plano e devolve purchased', async () => {

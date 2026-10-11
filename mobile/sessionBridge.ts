@@ -17,7 +17,7 @@
 export const AUTH_TOKEN_STORAGE_KEY = 'app.auth.token';
 
 export const AUTH_TOKEN_CHANGED_MESSAGE_TYPE =
-  'investimenta:auth-token-changed';
+  'selucra:auth-token-changed';
 
 export interface AuthTokenChangedMessage {
   type: typeof AUTH_TOKEN_CHANGED_MESSAGE_TYPE;
@@ -36,8 +36,8 @@ export interface AuthTokenChangedMessage {
 export function buildAuthWatcherScript(): string {
   return `
 (function () {
-  if (window.__investimentaAuthWatcherInstalled) { return; }
-  window.__investimentaAuthWatcherInstalled = true;
+  if (window.__selucraAuthWatcherInstalled) { return; }
+  window.__selucraAuthWatcherInstalled = true;
   var KEY = ${JSON.stringify(AUTH_TOKEN_STORAGE_KEY)};
   var MESSAGE_TYPE = ${JSON.stringify(AUTH_TOKEN_CHANGED_MESSAGE_TYPE)};
   var lastValue = localStorage.getItem(KEY);

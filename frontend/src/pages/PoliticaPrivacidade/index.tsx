@@ -64,13 +64,13 @@ export function PoliticaPrivacidade() {
                 </Link>
 
                 <header className={styles.header}>
-                    <p className={styles.brand}>Investimenta</p>
+                    <p className={styles.brand}>Selucra</p>
                     <h1 className={styles.title}>Política de Privacidade</h1>
                     <p className={styles.meta}>Última atualização: {c.lastUpdated}</p>
                 </header>
 
                 <p>
-                    Esta política explica quais dados pessoais a plataforma Investimenta coleta, para que usa, com quem compartilha e quais
+                    Esta política explica quais dados pessoais a plataforma Selucra coleta, para que usa, com quem compartilha e quais
                     são os seus direitos, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018, a LGPD).
                 </p>
 
@@ -86,7 +86,7 @@ export function PoliticaPrivacidade() {
                 <section className={styles.section}>
                     <h2>2. O que é a plataforma</h2>
                     <p>
-                        O Investimenta é uma plataforma educacional gamificada de educação financeira. Todas as operações de investimento
+                        O Selucra é uma plataforma educacional gamificada de educação financeira. Todas as operações de investimento
                         são <strong>simulações com dinheiro fictício e dados sintéticos</strong>. Não movimentamos dinheiro real, não somos
                         corretora e nada aqui é recomendação de investimento.
                     </p>

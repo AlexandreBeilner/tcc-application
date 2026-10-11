@@ -34,7 +34,7 @@ export function buildShareText(retro: Retrospective): string {
     }
     if (retro.lessonsCompleted > 0) parts.push(plural(retro.lessonsCompleted, 'lição', 'lições'))
     parts.push(`nível ${retro.level}`)
-    return `Meu ${monthLabel(retro.month).split(' de ')[0]} no Investimenta: ${parts.join(', ')}.`
+    return `Meu ${monthLabel(retro.month).split(' de ')[0]} no Selucra: ${parts.join(', ')}.`
 }
 
 // Dados do selo/identidade que a imagem personalizada (PRO) mostra.
@@ -230,7 +230,7 @@ export function drawShareCard(canvas: CanvasLike, retro: Retrospective, identity
 
     ctx.fillStyle = COLOR.muted
     ctx.font = '600 30px sans-serif'
-    ctx.fillText('Investimenta', 80, CARD.height - 50)
+    ctx.fillText('Selucra', 80, CARD.height - 50)
 }
 
 export async function renderShareBlob(retro: Retrospective, identity: ShareIdentity): Promise<Blob | null> {

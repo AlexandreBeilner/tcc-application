@@ -178,14 +178,14 @@ describe('Planos (MO.3.1)', () => {
             willRenew: true,
         })
         Object.defineProperty(window, 'ReactNativeWebView', { value: {}, configurable: true })
-        Object.defineProperty(window, '__investimentaNative', { value: { platform: 'android' }, configurable: true })
+        Object.defineProperty(window, '__selucraNative', { value: { platform: 'android' }, configurable: true })
         try {
             renderPage()
             expect(await screen.findByText(/não é preciso assinar de novo/)).toBeInTheDocument()
             expect(screen.queryByRole('button', { name: /Assinar|Restaurar/ })).not.toBeInTheDocument()
         } finally {
             delete (window as unknown as Record<string, unknown>).ReactNativeWebView
-            delete (window as unknown as Record<string, unknown>).__investimentaNative
+            delete (window as unknown as Record<string, unknown>).__selucraNative
         }
     })
 

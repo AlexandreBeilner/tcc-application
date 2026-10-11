@@ -10,7 +10,7 @@ describe('AuthCard', () => {
             </AuthCard>,
         )
 
-        expect(screen.getByRole('heading', { name: 'Investimenta' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Selucra' })).toBeInTheDocument()
         expect(screen.getByText('Recuperar senha')).toBeInTheDocument()
         expect(screen.getByText('conteúdo da tela')).toBeInTheDocument()
     })

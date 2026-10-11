@@ -31,7 +31,7 @@ describe('buildAuthWatcherScript', () => {
     };
     const postMessage = jest.fn();
     const fakeWindow = {
-      __investimentaAuthWatcherInstalled: false,
+      __selucraAuthWatcherInstalled: false,
       ReactNativeWebView: { postMessage },
     };
     const fakeLocalStorage = {

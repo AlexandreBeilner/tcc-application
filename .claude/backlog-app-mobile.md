@@ -44,10 +44,10 @@ pelo Google, não esbarra no bloqueio de WebView da Fase 3).
 ### 1.1 · Bootstrap do projeto React Native ✅
 
 - **Entregável:** `mobile/` criado na raiz do monorepo via
-  `npx @react-native-community/cli@latest init Investimenta --directory mobile --pm npm`
+  `npx @react-native-community/cli@latest init Selucra --directory mobile --pm npm`
   (RN 0.87.1, template TypeScript, New Architecture default). AVD `Pixel_Test_API35` (API 35,
   x86_64) criado e validado ponta a ponta: `npx react-native run-android` builda (Gradle 9.4.1,
-  ~13min na primeira vez por download de dependência) e instala `com.investimenta` no emulador;
+  ~13min na primeira vez por download de dependência) e instala `com.selucra` no emulador;
   Metro precisou ser iniciado manualmente em background (`npx react-native start`) porque o
   ambiente headless não tem terminal pra CLI abrir sozinha — sessões futuras que rodarem
   `run-android` neste ambiente devem fazer o mesmo. Tela padrão do template ("Welcome to React
@@ -253,7 +253,7 @@ funciona desde a 1.2.
   `buildAuthTokenReinjectionScript(token)` — `injectedJavaScriptBeforeContentLoaded` que reescreve a
   mesma chave de `localStorage` a partir do valor salvo no Keychain antes do SPA montar (string
   vazia quando não há token salvo); `parseAuthTokenChangedMessage(data)` — parser defensivo do
-  payload de `onMessage`. `App.tsx`: `AUTH_KEYCHAIN_SERVICE` (`br.com.investimenta.auth`, exportada
+  payload de `onMessage`. `App.tsx`: `AUTH_KEYCHAIN_SERVICE` (`br.com.selucra.auth`, exportada
   pra teste) escopando as credenciais; efeito no mount lê `Keychain.getGenericPassword` (token vira
   state `authToken`); `<WebView>` só monta depois que essa leitura resolve (`isSessionReady`) — sem
   esse gate, o primeiro carregamento usaria um script de reinjeção "vazio" antes do Keychain
@@ -436,16 +436,16 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
 
 ### 3.1 · Identificadores técnicos + Google Cloud Console (Android/iOS) ✅
 
-- **Entregável:** `applicationId`/`namespace` Android já existiam como `com.investimenta`
+- **Entregável:** `applicationId`/`namespace` Android já existiam como `com.selucra`
   (`android/app/build.gradle`, gerado desde a 1.1); bundle identifier iOS trocado do placeholder do
-  template RN (`org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)`) pra `com.investimenta`
-  (`ios/Investimenta.xcodeproj/project.pbxproj`, `PRODUCT_BUNDLE_IDENTIFIER`, configs Debug e
+  template RN (`org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)`) pra `com.selucra`
+  (`ios/Selucra.xcodeproj/project.pbxproj`, `PRODUCT_BUNDLE_IDENTIFIER`, configs Debug e
   Release) — mesmo valor do Android, por consistência, já que ambos são só identificador técnico
   interno por ora. Fingerprint SHA-1 do keystore de debug extraído de
   `mobile/android/app/debug.keystore` (não `~/.android/debug.keystore` — o keystore vive dentro do
   próprio projeto, achado desta sessão): `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
   Dois client IDs OAuth novos criados pelo autor no Google Cloud Console (Android: pacote
-  `com.investimenta` + SHA-1 acima; iOS: bundle ID `com.investimenta`), sem mexer no client ID "Web
+  `com.selucra` + SHA-1 acima; iOS: bundle ID `com.selucra`), sem mexer no client ID "Web
   application" existente. Documentados como `GOOGLE_ANDROID_CLIENT_ID`/`GOOGLE_IOS_CLIENT_ID` em
   `mobile/.env.debug` **e** `mobile/.env.release` (react-native-config) — não são segredo (client ID
   OAuth de app nativo é identificador público, diferente do client secret do fluxo web, que
@@ -460,7 +460,7 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   antes, porque o Google exige um client ID OAuth por plataforma amarrado a esse identificador.
 - **O que fazer:**
   - Definir `applicationId` (Android, `android/app/build.gradle`) e bundle identifier (iOS) — pode
-    ser um placeholder interno (ex. `br.com.investimenta.app`); trocar depois é possível, só exige
+    ser um placeholder interno (ex. `br.com.selucra.app`); trocar depois é possível, só exige
     recriar o client ID e reassinar.
   - Gerar/confirmar o keystore de debug (o próprio Gradle já cria um em `~/.android/debug.keystore`
     na primeira build) e extrair o fingerprint SHA-1 dele (`keytool -list -v -keystore
@@ -610,7 +610,7 @@ Objetivo da fase: o login social funcionando dentro do app, via SDK nativo (deci
   ativo (sessão restaurada de uma validação anterior carregou normalmente, sem regressão); app deslogado
   (`pm clear`) mostra a tela de login; tocar "Entrar com Google" intercepta o clique (sem navegação de
   browser/tela branca), chama `hasPlayServices()`, que rejeita de verdade
-  (`GooglePlayServicesUtil: com.investimenta requires the Google Play Store, but it is missing` no
+  (`GooglePlayServicesUtil: com.selucra requires the Google Play Store, but it is missing` no
   logcat) e o app mostra o alerta nativo de erro tratado, sem crashar — prova de que o `catch` único
   cobre esse caminho de erro real, não só em teste unitário. **O que fica pendente, explicitamente por
   decisão do autor:** login de ponta a ponta com uma conta Google real exige um AVD com imagem

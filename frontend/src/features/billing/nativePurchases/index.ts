@@ -2,8 +2,8 @@ import type { PurchaseOutcome, WebPlan, WebPurchases } from '../webPurchases'
 
 // Protocolo da ponte (espelho de `mobile/purchasesBridge.ts`; não há import entre os pacotes, os
 // dois lados precisam ficar sincronizados à mão).
-const REQUEST_TYPE = 'investimenta:purchases-request'
-const RESPONSE_EVENT = 'investimenta:purchases-response'
+const REQUEST_TYPE = 'selucra:purchases-request'
+const RESPONSE_EVENT = 'selucra:purchases-response'
 
 // Planos, restauração e gerenciamento respondem rápido; a compra espera a pessoa na folha de
 // pagamento da loja, então não tem limite (o app sempre responde: compra, cancelou ou erro).

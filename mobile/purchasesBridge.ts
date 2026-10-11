@@ -11,9 +11,9 @@
 import { PurchasesUnavailableError } from './purchases/types';
 import type { PlanId, PurchasesService, StorePlan } from './purchases/types';
 
-export const PURCHASES_REQUEST_MESSAGE_TYPE = 'investimenta:purchases-request';
+export const PURCHASES_REQUEST_MESSAGE_TYPE = 'selucra:purchases-request';
 // Nome do evento `window` que o SPA escuta (a resposta nunca é um novo postMessage do WebView).
-export const PURCHASES_RESPONSE_EVENT = 'investimenta:purchases-response';
+export const PURCHASES_RESPONSE_EVENT = 'selucra:purchases-response';
 
 export type PurchasesRequest =
   | { requestId: string; op: 'plans' }
@@ -155,7 +155,7 @@ true;
 export function buildNativeInfoScript(platform: 'android' | 'ios'): string {
   return `
 (function () {
-  window.__investimentaNative = { platform: ${JSON.stringify(platform)} };
+  window.__selucraNative = { platform: ${JSON.stringify(platform)} };
 })();
 true;
 `;
