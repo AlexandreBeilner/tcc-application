@@ -1,0 +1,47 @@
+import type {
+  AgendaOption,
+  Assembly,
+  AssemblyOutcome,
+  AssemblyOutcomeReason,
+  AssemblyStatus,
+  NewAssemblyInput,
+  Vote,
+} from '../../domain/assembly'
+
+export interface AssemblyWithOptions {
+  assembly: Assembly
+  options: AgendaOption[]
+}
+
+export interface AssemblyDecision {
+  outcome: AssemblyOutcome
+  reason: AssemblyOutcomeReason
+  winningOptionId: string | null
+  voterCount: number
+  decidedAt: Date
+}
+
+export interface AssemblyRepository {
+  // Cria assembleia e opções numa transação. Idempotente pelo `dedupeKey`: se já existe, devolve a
+  // existente com `created: false` (reexecutar o job de abertura não duplica).
+  create(input: NewAssemblyInput, now: Date): Promise<AssemblyWithOptions & { created: boolean }>
+  findById(id: string): Promise<AssemblyWithOptions | null>
+  listByStatus(status: AssemblyStatus, limit: number): Promise<Assembly[]>
+  // Transições condicionais ao estado: `false` se outro processo já mudou a assembleia.
+  markOpen(id: string): Promise<boolean>
+  close(id: string, decision: AssemblyDecision): Promise<boolean>
+  // Grava ou troca o voto, só se a assembleia está aberta na hora da gravação (trava a linha para
+  // não perder a corrida contra o fechamento). `false` se estava fora da janela.
+  upsertVote(
+    input: { assemblyId: string; userId: string; optionId: string },
+    now: Date,
+  ): Promise<boolean>
+  listVotes(assemblyId: string): Promise<Vote[]>
+  // Créditos gratuitos já consumidos pela pessoa no mês de calendário (`monthKey`).
+  countCreditsUsed(userId: string, monthKey: string): Promise<number>
+  // Registra o consumo (idempotente por pessoa e assembleia).
+  consumeCredit(
+    input: { userId: string; assemblyId: string; monthKey: string },
+    now: Date,
+  ): Promise<void>
+}

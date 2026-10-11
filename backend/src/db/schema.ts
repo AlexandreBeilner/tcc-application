@@ -803,6 +803,110 @@ export const leagueMembers = pgTable(
 // encerramento, e depois nunca muda (arquivar, nunca apagar). `status`: pending (aguardando
 // aceite), active, finished, declined, cancelled (o desafiante desistiu) e expired (ninguém
 // respondeu a tempo).
+// Assembleias (MO.6.1): decisões coletivas por `kind` (hoje só `shareholder`). `subject_ref` é a
+// empresa (ou o mercado, em kinds futuros). O peso dos votos vem do snapshot de posições do motor,
+// que não é copiado para cá.
+export const assemblies = pgTable(
+  'assemblies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind').notNull(),
+    subjectRef: text('subject_ref').notNull(),
+    // Chave de idempotência da abertura (reexecutar o job não abre duas vezes a mesma assembleia).
+    dedupeKey: varchar('dedupe_key', { length: 200 }).notNull(),
+    // scheduled | open | closed
+    status: text('status').notNull(),
+    opensAt: timestamp('opens_at', { withTimezone: true }).notNull(),
+    // Data de corte: posições medidas nesse instante definem quem pode votar e com que peso.
+    snapshotAt: timestamp('snapshot_at', { withTimezone: true }).notNull(),
+    closesAt: timestamp('closes_at', { withTimezone: true }).notNull(),
+    effectAppliesAt: timestamp('effect_applies_at', { withTimezone: true }).notNull(),
+    // approved | not_approved (só depois de fechada)
+    outcome: text('outcome'),
+    // quorum | tie | decided
+    outcomeReason: text('outcome_reason'),
+    winningOptionId: uuid('winning_option_id'),
+    voterCount: integer('voter_count'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('assemblies_dedupe_key_unique').on(table.dedupeKey),
+    index('assemblies_status_closes_idx').on(table.status, table.closesAt),
+    index('assemblies_kind_subject_idx').on(table.kind, table.subjectRef),
+    check('assemblies_status_chk', sql`${table.status} IN ('scheduled', 'open', 'closed')`),
+    check(
+      'assemblies_outcome_chk',
+      sql`${table.outcome} IS NULL OR ${table.outcome} IN ('approved', 'not_approved')`,
+    ),
+    check(
+      'assemblies_schedule_chk',
+      sql`${table.snapshotAt} <= ${table.opensAt} AND ${table.opensAt} < ${table.closesAt} AND ${table.closesAt} <= ${table.effectAppliesAt}`,
+    ),
+  ],
+)
+
+// Opções da pauta (catálogo fechado, sem texto livre): cada uma com ganho e perda explícitos.
+export const assemblyOptions = pgTable(
+  'assembly_options',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assemblyId: uuid('assembly_id')
+      .notNull()
+      .references(() => assemblies.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    label: text('label').notNull(),
+    gain: text('gain').notNull(),
+    loss: text('loss').notNull(),
+    // Parâmetros do efeito, interpretados pelo `EffectApplier` do kind.
+    effect: jsonb('effect').notNull().default({}),
+    position: smallint('position').notNull(),
+  },
+  (table) => [unique('assembly_options_assembly_key_unique').on(table.assemblyId, table.key)],
+)
+
+// Um voto por pessoa e assembleia; trocar o voto até o fechamento atualiza a mesma linha.
+export const assemblyVotes = pgTable(
+  'assembly_votes',
+  {
+    assemblyId: uuid('assembly_id')
+      .notNull()
+      .references(() => assemblies.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    optionId: uuid('option_id')
+      .notNull()
+      .references(() => assemblyOptions.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.assemblyId, table.userId] }),
+    index('assembly_votes_option_idx').on(table.optionId),
+  ],
+)
+
+// Crédito mensal de voto de quem não é PRO: a linha existe quando o crédito foi consumido numa
+// assembleia (no primeiro voto). `month_key` é o mês de calendário de Brasília ('2026-10').
+export const assemblyVoteCredits = pgTable(
+  'assembly_vote_credits',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    assemblyId: uuid('assembly_id')
+      .notNull()
+      .references(() => assemblies.id, { onDelete: 'cascade' }),
+    monthKey: varchar('month_key', { length: 7 }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.assemblyId] }),
+    index('assembly_vote_credits_user_month_idx').on(table.userId, table.monthKey),
+  ],
+)
+
 export const duels = pgTable(
   'duels',
   {
