@@ -414,6 +414,7 @@ Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 
 - **Bots não votam.** O peso do voto é a quantidade de ações do usuário na **data de corte**
   (posição na abertura), calculado **entre quem votou**.
 - **Efeito igual para todo acionista**, pago ou não.
+- **Prazos e crédito (autor, 2026-10-10):** abre 2 dias depois do balanço, dura 7 dias, o efeito começa 1 dia depois de fechar; o crédito mensal exige nível 3 e e-mail verificado. Tudo em configuração.
 - **Mínimo de votantes distintos** (configurável, ponto de partida 3); abaixo disso a pauta não passa
   e nada muda. Empate mantém o status quo.
 - **Pautas de um catálogo fechado, de dois lados** (cada opção tem ganho e perda), sem texto livre e
