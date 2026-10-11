@@ -18,6 +18,8 @@ export interface AssemblySummary {
     outcome: AssemblyOutcome | null
     outcomeReason: AssemblyOutcomeReason | null
     voterCount: number | null
+    // O dividendo do balanço da empresa está retido esperando esta assembleia (destinação do lucro).
+    dividendOnHold: boolean
 }
 
 export interface AssemblyList {
@@ -25,12 +27,14 @@ export interface AssemblyList {
     closed: AssemblySummary[]
 }
 
-export interface AssemblyEffectPreview {
-    metric: 'growth' | 'quality'
-    direction: 1 | -1
-    // Fração (0 a 1] da faixa que o motor permite; nunca valor absoluto.
-    intensity: number
-}
+export type DividendPolicyValue = 'quarterly' | 'semiannual' | 'annual'
+
+// O que a opção mexe na empresa (MO.6.13): de 1 a 2 efeitos por opção. Os degraus trazem sentido e
+// a fração (0 a 1] da faixa que o motor permite, nunca valor absoluto; a política de dividendo é
+// discreta e traz o valor-alvo.
+export type AssemblyEffectPreview =
+    | { metric: 'growth' | 'quality' | 'payout' | 'pn_premium'; direction: 1 | -1; intensity: number }
+    | { metric: 'dividend_policy'; value: DividendPolicyValue }
 
 export interface AssemblyOption {
     id: string
@@ -38,7 +42,10 @@ export interface AssemblyOption {
     label: string
     gain: string
     loss: string
+    // O primeiro efeito (mantido para quem lê um só).
     effect: AssemblyEffectPreview | null
+    // Todos os efeitos da opção, na ordem da pauta e com o mesmo peso.
+    effects: AssemblyEffectPreview[]
     position: number
 }
 

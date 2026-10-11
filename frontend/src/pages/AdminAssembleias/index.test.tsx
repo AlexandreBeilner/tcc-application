@@ -36,6 +36,8 @@ const assembly = (overrides: Partial<AdminAssembly> = {}): AdminAssembly => ({
     min_voters: 3,
     effect_pending: false,
     paused: false,
+    declaration_id: null,
+    dividend_on_hold: false,
     ...overrides,
 })
 
@@ -78,6 +80,18 @@ beforeEach(() => {
 })
 
 describe('AdminAssembleias', () => {
+    it('marca a assembleia que segura o dividendo da empresa (destinação do lucro)', async () => {
+        vi.mocked(listAdminAssemblies).mockResolvedValue([
+            assembly({ id: 'x1', title: 'Pauta do lucro', declaration_id: 'd1', dividend_on_hold: true }),
+            assembly({ id: 'x2', title: 'Pauta comum' }),
+        ])
+        renderPage()
+        const retida = (await screen.findByText(/Pauta do lucro/)).closest('li') as HTMLElement
+        expect(within(retida).getByText('Dividendo retido')).toBeInTheDocument()
+        const comum = screen.getByText(/Pauta comum/).closest('li') as HTMLElement
+        expect(within(comum).queryByText('Dividendo retido')).not.toBeInTheDocument()
+    })
+
     it('lista as assembleias com situação, datas e o link dos votos', async () => {
         renderPage()
         expect(await screen.findByText('Acme: Orçamento de capital')).toBeInTheDocument()

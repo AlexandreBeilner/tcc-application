@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '../../../services/client'
 import type { AdminAssembly, AgendaTemplate, AssemblyPause, CatalogAsset } from '../../../services/admin'
+import type { TemplateDraft } from './types'
 import {
     ASSEMBLY_SETTING_TEXT,
     blankDraft,
     companyOptions,
     describeAssemblyError,
     describeEffect,
+    describeEffectPreview,
     describeOutcome,
     draftToContent,
     hasGlobalPause,
     pausedCompanyIds,
     pauseScopeLabel,
+    readTemplateEffects,
     suggestKey,
     toDraft,
     unitFor,
@@ -35,6 +38,8 @@ const assembly = (overrides: Partial<AdminAssembly> = {}): AdminAssembly => ({
     min_voters: 3,
     effect_pending: false,
     paused: false,
+    declaration_id: null,
+    dividend_on_hold: false,
     ...overrides,
 })
 
@@ -115,6 +120,7 @@ describe('describeAssemblyError', () => {
 describe('rascunho de pauta', () => {
     const template: AgendaTemplate = {
         key: 'capital_budget',
+        purpose: 'general',
         sector: null,
         title: 'Orçamento de capital',
         description: 'Descrição da pauta.',
@@ -139,19 +145,63 @@ describe('rascunho de pauta', () => {
         ],
     }
 
-    it('vai e volta sem perder nada (a intensidade usa vírgula na tela)', () => {
+    it('vai e volta sem perder nada (a intensidade usa vírgula na tela) e o efeito antigo vira lista', () => {
         const draft = toDraft(template)
-        expect(draft.options[0].intensity).toBe('0,8')
-        expect(draft.options[1].direction).toBe('-1')
+        expect(draft.purpose).toBe('general')
+        expect(draft.options[0].effects).toEqual([{ metric: 'base_growth_pct', direction: '1', intensity: '0,8', value: 'quarterly' }])
+        expect(draft.options[1].effects[0].direction).toBe('-1')
         const built = draftToContent(draft)
         expect(built).toEqual({
             content: {
+                purpose: 'general',
                 sector: null,
                 title: 'Orçamento de capital',
                 description: 'Descrição da pauta.',
-                options: template.options,
+                options: template.options.map((o) => ({ ...o, effect: { effects: [o.effect] } })),
             },
         })
+    })
+
+    it('lê os dois formatos de efeito (a lista nova e o objeto antigo)', () => {
+        const one = { metric: 'payout_ratio_pct', direction: -1, intensity: 1 }
+        const two = { metric: 'dividend_policy', value: 'annual' }
+        expect(readTemplateEffects(one)).toEqual([one])
+        expect(readTemplateEffects({ effects: [one, two] })).toEqual([one, two])
+    })
+
+    it('pauta de destinação do lucro vai e volta com dois efeitos e a política com o valor-alvo', () => {
+        const profit: AgendaTemplate = {
+            ...template,
+            purpose: 'profit',
+            options: [
+                {
+                    key: 'reinvestir',
+                    label: 'Reinvestir',
+                    gain: 'g',
+                    loss: 'l',
+                    effect: {
+                        effects: [
+                            { metric: 'payout_ratio_pct', direction: -1, intensity: 1 },
+                            { metric: 'dividend_policy', value: 'semiannual' },
+                        ],
+                    },
+                },
+                {
+                    key: 'distribuir',
+                    label: 'Distribuir',
+                    gain: 'g',
+                    loss: 'l',
+                    effect: { effects: [{ metric: 'pn_dividend_premium_pct', direction: 1, intensity: 0.5 }] },
+                },
+            ],
+        }
+        const draft = toDraft(profit)
+        expect(draft.purpose).toBe('profit')
+        expect(draft.options[0].effects.map((e) => e.metric)).toEqual(['payout_ratio_pct', 'dividend_policy'])
+        expect(draft.options[0].effects[1].value).toBe('semiannual')
+        const built = draftToContent(draft)
+        expect('content' in built && built.content.purpose).toBe('profit')
+        expect('content' in built && built.content.options.map((o) => o.effect)).toEqual(profit.options.map((o) => o.effect))
     })
 
     it('aceita ponto ou vírgula e apara os textos', () => {
@@ -164,24 +214,50 @@ describe('rascunho de pauta', () => {
             label: 'L',
             gain: 'g',
             loss: 'l',
-            intensity: i === 0 ? '0.25' : ' 1 ',
+            effects: [{ ...o.effects[0], intensity: i === 0 ? '0.25' : ' 1 ' }],
         }))
         const built = draftToContent(draft)
         expect('content' in built && built.content.sector).toBe('Varejo')
         expect('content' in built && built.content.title).toBe('T')
-        expect('content' in built && built.content.options.map((o) => o.effect.intensity)).toEqual([0.25, 1])
+        expect('content' in built && built.content.options.map((o) => 'effects' in o.effect && o.effect.effects[0].intensity)).toEqual([
+            0.25, 1,
+        ])
     })
 
     it.each([
-        ['chave vazia', { key: '' }, /chave da opção 1/],
-        ['rótulo vazio', { label: ' ' }, /rótulo, ganho e perda da opção 1/],
-        ['intensidade vazia', { intensity: '' }, /intensidade da opção 1/],
-        ['intensidade que não é número', { intensity: 'muita' }, /intensidade da opção 1/],
-    ])('recusa %s antes de enviar', (_name, patch, message) => {
+        ['chave vazia', (d: TemplateDraft) => void (d.options[0].key = ''), /chave da opção 1/],
+        ['rótulo vazio', (d: TemplateDraft) => void (d.options[0].label = ' '), /rótulo, ganho e perda da opção 1/],
+        ['intensidade vazia', (d: TemplateDraft) => void (d.options[0].effects[0].intensity = ''), /intensidade da opção 1/],
+        [
+            'intensidade que não é número',
+            (d: TemplateDraft) => void (d.options[0].effects[0].intensity = 'muita'),
+            /intensidade da opção 1/,
+        ],
+        [
+            'a mesma alavanca duas vezes',
+            (d: TemplateDraft) => void d.options[0].effects.push({ ...d.options[0].effects[0], direction: '-1' }),
+            /não pode mexer na mesma alavanca duas vezes/,
+        ],
+    ])('recusa %s antes de enviar', (_name, mutate, message) => {
         const draft = toDraft(template)
-        draft.options[0] = { ...draft.options[0], ...patch }
+        mutate(draft)
         const built = draftToContent(draft)
         expect('error' in built && built.error).toMatch(message)
+    })
+
+    it('a política não precisa de intensidade, e a intensidade em branco não a impede', () => {
+        const draft = toDraft(template)
+        draft.options[0].effects = [{ metric: 'dividend_policy', direction: '1', intensity: '', value: 'annual' }]
+        const built = draftToContent(draft)
+        expect('content' in built && built.content.options[0].effect).toEqual({ effects: [{ metric: 'dividend_policy', value: 'annual' }] })
+    })
+
+    it('descreve o efeito de uma opção no painel, inclusive a política', () => {
+        expect(describeEffectPreview({ metric: 'payout', direction: -1, intensity: 1 })).toBe('payout desce, intensidade 1')
+        expect(describeEffectPreview({ metric: 'pn_premium', direction: 1, intensity: 0.5 })).toBe(
+            'prêmio da ação PN sobe, intensidade 0,5',
+        )
+        expect(describeEffectPreview({ metric: 'dividend_policy', value: 'semiannual' })).toBe('política de dividendo vira semestral')
     })
 
     it('sugere a chave a partir do título, sem acento nem símbolos', () => {

@@ -26,6 +26,7 @@ const open: AssemblySummary = {
     outcome: null,
     outcomeReason: null,
     voterCount: null,
+    dividendOnHold: false,
 }
 
 function renderIt() {

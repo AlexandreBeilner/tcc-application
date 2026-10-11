@@ -68,6 +68,51 @@ beforeEach(() => {
     vi.mocked(getEngineSettings).mockResolvedValue(engineSettings())
 })
 
+describe('AdminAssembleiaParametros: destinação do lucro (Fase F2)', () => {
+    const engineRow = (key: string, value: number, def: number, min: number, max: number) => ({
+        key,
+        value,
+        default: def,
+        min,
+        max,
+        overridden: false,
+        updated_by: null,
+        updated_at: null,
+        version: 0,
+    })
+
+    it('mostra os parâmetros de payout, prêmio da PN e retenção do dividendo, cada um com padrão e faixa', async () => {
+        vi.mocked(getEngineSettings).mockResolvedValue({
+            editable: [
+                engineRow('governance_payout_step_centipp', 1000, 1000, 1, 5000),
+                engineRow('governance_payout_min_pct', 20, 20, 0, 100),
+                engineRow('governance_payout_max_pct', 90, 90, 0, 100),
+                engineRow('governance_payout_cooldown_days', 90, 90, 0, 720),
+                engineRow('governance_premium_step_centipp', 500, 500, 1, 2000),
+                engineRow('governance_premium_min_pct', 10, 10, 10, 100),
+                engineRow('governance_premium_max_pct', 30, 30, 10, 100),
+                engineRow('governance_hold_declarations', 0, 0, 0, 1),
+                engineRow('governance_declaration_safety_days', 60, 60, 1, 80),
+            ] as EngineSettings['editable'],
+            read_only: [],
+        })
+        renderPage()
+        const payout = await card('Faixa de efeito no payout')
+        expect(within(payout).getByText(/Faixa permitida: 1 a 5000/)).toBeInTheDocument()
+        expect(within(payout).getByText(/\(padrão\)/)).toBeInTheDocument()
+        expect(await card('Payout mínimo da empresa')).toBeInTheDocument()
+        expect(await card('Payout máximo da empresa')).toBeInTheDocument()
+        expect(await card('Intervalo entre mudanças de destinação do lucro')).toBeInTheDocument()
+        expect(await card('Faixa de efeito no prêmio da ação PN')).toBeInTheDocument()
+        expect(await card('Prêmio mínimo da ação PN')).toBeInTheDocument()
+        expect(await card('Prêmio máximo da ação PN')).toBeInTheDocument()
+        const hold = await card('Reter o dividendo até a assembleia decidir')
+        expect(within(hold).getByText(/Ligue só junto das assembleias/)).toBeInTheDocument()
+        expect(within(hold).getByText(/Faixa permitida: 0 a 1/)).toBeInTheDocument()
+        expect(await card('Prazo de segurança do dividendo retido')).toBeInTheDocument()
+    })
+})
+
 describe('AdminAssembleiaParametros', () => {
     it('mostra os parâmetros do backend e os do motor, cada um com padrão e faixa', async () => {
         renderPage()

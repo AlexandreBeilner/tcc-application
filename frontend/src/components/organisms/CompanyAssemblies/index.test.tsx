@@ -57,6 +57,32 @@ describe('CompanyAssemblies (MO.6.6)', () => {
         expect(listAssemblies).toHaveBeenCalledWith('token', { companyId: 'c1', limit: 3 })
     })
 
+    it('com o dividendo retido pela assembleia aberta, avisa na página da empresa', async () => {
+        vi.mocked(listAssemblies).mockResolvedValue({
+            open: [
+                {
+                    id: 'a1',
+                    kind: 'shareholder',
+                    subjectRef: 'c1',
+                    subjectLabel: 'Acme',
+                    title: 'O que fazer com o lucro',
+                    status: 'open',
+                    opensAt: '2026-10-01T00:00:00Z',
+                    closesAt: '2099-10-08T00:00:00Z',
+                    effectAppliesAt: '2099-10-09T00:00:00Z',
+                    effectAppliedAt: null,
+                    outcome: null,
+                    outcomeReason: null,
+                    voterCount: null,
+                    dividendOnHold: true,
+                },
+            ],
+            closed: [],
+        })
+        renderIt()
+        expect(await screen.findByText(/O dividendo deste balanço depende da assembleia em andamento/)).toBeInTheDocument()
+    })
+
     it('recurso desligado não renderiza nada na página da empresa', async () => {
         vi.mocked(listAssemblies).mockRejectedValue(new ApiError(404, 'x'))
         const { container } = renderIt()

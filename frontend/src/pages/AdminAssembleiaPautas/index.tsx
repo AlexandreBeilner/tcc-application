@@ -5,17 +5,23 @@ import { Select } from '../../components/atoms/Select'
 import { ConfirmDialog } from '../../components/molecules/ConfirmDialog'
 import {
     blankDraft,
+    blankEffect,
     blankOption,
     DIRECTION_OPTIONS,
     describeAssemblyError,
     draftToContent,
     METRIC_OPTIONS,
+    OPTION_EFFECTS_MAX,
+    OPTION_EFFECTS_MIN,
+    POLICY_METRIC,
+    POLICY_OPTIONS,
+    PURPOSE_OPTIONS,
     suggestKey,
     TEMPLATE_OPTIONS_MAX,
     TEMPLATE_OPTIONS_MIN,
     toDraft,
 } from '../../features/admin/assemblies'
-import type { OptionDraft, TemplateDraft } from '../../features/admin/assemblies'
+import type { EffectDraft, OptionDraft, TemplateDraft } from '../../features/admin/assemblies'
 import { MACRO_EVENT_SECTORS } from '../../features/admin/targetOptions'
 import {
     useAgendaTemplatesQuery,
@@ -73,6 +79,35 @@ export function AdminAssembleiaPautas() {
         setDraft((prev) => ({ ...prev, options: prev.options.map((o, i) => (i === index ? { ...o, ...next } : o)) }))
     }
 
+    function patchEffect(optionIndex: number, effectIndex: number, next: Partial<EffectDraft>) {
+        setDraft((prev) => ({
+            ...prev,
+            options: prev.options.map((o, i) =>
+                i === optionIndex ? { ...o, effects: o.effects.map((e, j) => (j === effectIndex ? { ...e, ...next } : e)) } : o,
+            ),
+        }))
+    }
+
+    // A segunda alavanca nasce numa métrica que a opção ainda não usa (o catálogo não aceita repetir).
+    function addEffect(optionIndex: number) {
+        setDraft((prev) => ({
+            ...prev,
+            options: prev.options.map((o, i) => {
+                if (i !== optionIndex) return o
+                const used = new Set(o.effects.map((e) => e.metric))
+                const metric = METRIC_OPTIONS.find((m) => !used.has(m.value))?.value ?? blankEffect().metric
+                return { ...o, effects: [...o.effects, { ...blankEffect(), metric }] }
+            }),
+        }))
+    }
+
+    function removeEffect(optionIndex: number, effectIndex: number) {
+        setDraft((prev) => ({
+            ...prev,
+            options: prev.options.map((o, i) => (i === optionIndex ? { ...o, effects: o.effects.filter((_, j) => j !== effectIndex) } : o)),
+        }))
+    }
+
     function save() {
         setNotice(null)
         setError(null)
@@ -124,9 +159,10 @@ export function AdminAssembleiaPautas() {
                 <div>
                     <h1 className={styles.title}>Catálogo de pautas</h1>
                     <p className={styles.subtitle}>
-                        Cada pauta tem dois lados, com ganho e perda, e um efeito só no crescimento ou na qualidade da empresa. A edição
-                        vale para as próximas assembleias e para as propostas na fila; as assembleias abertas guardam a própria cópia. Pauta
-                        não se apaga: desative.
+                        Cada pauta tem de dois a quatro lados, com ganho e perda, e cada lado mexe em uma ou duas alavancas da empresa:
+                        crescimento, qualidade, payout, prêmio da ação PN ou política de dividendo. A pauta de destinação do lucro só abre
+                        quando o dividendo do balanço está retido. A edição vale para as próximas assembleias e para as propostas na fila;
+                        as assembleias abertas guardam a própria cópia. Pauta não se apaga: desative.
                     </p>
                 </div>
                 <Link to="/admin/assembleias" className={styles.link}>
@@ -177,7 +213,8 @@ export function AdminAssembleiaPautas() {
                                     </div>
                                 </div>
                                 <p className={styles.meta}>
-                                    {template.key} · {template.sector ?? 'Qualquer setor'} · {template.options.length} opções · em{' '}
+                                    {template.key} · {template.purpose === 'profit' ? 'Destinação do lucro' : 'Geral'} ·{' '}
+                                    {template.sector ?? 'Qualquer setor'} · {template.options.length} opções · em{' '}
                                     {template.usage.assemblies} assembleias e {template.usage.active_proposals} propostas ativas
                                 </p>
                             </li>
@@ -215,6 +252,15 @@ export function AdminAssembleiaPautas() {
                                 setKeyTouched(true)
                                 patch({ key: event.target.value })
                             }}
+                        />
+                    </label>
+                    <label className={styles.field}>
+                        <span>Finalidade</span>
+                        <Select
+                            aria-label="Finalidade da pauta"
+                            value={draft.purpose}
+                            options={PURPOSE_OPTIONS}
+                            onChange={(purpose) => patch({ purpose: purpose === 'profit' ? 'profit' : 'general' })}
                         />
                     </label>
                     <label className={styles.field}>
@@ -270,35 +316,69 @@ export function AdminAssembleiaPautas() {
                                     onChange={(event) => patchOption(index, { loss: event.target.value })}
                                 />
                             </label>
-                            <div className={styles.inline}>
-                                <label className={styles.field}>
-                                    <span>Mexe em</span>
-                                    <Select
-                                        aria-label={`Métrica da opção ${index + 1}`}
-                                        value={option.metric}
-                                        options={METRIC_OPTIONS}
-                                        onChange={(metric) => patchOption(index, { metric })}
-                                    />
-                                </label>
-                                <label className={styles.field}>
-                                    <span>Sentido</span>
-                                    <Select
-                                        aria-label={`Sentido da opção ${index + 1}`}
-                                        value={option.direction}
-                                        options={DIRECTION_OPTIONS}
-                                        onChange={(direction) => patchOption(index, { direction: direction === '-1' ? '-1' : '1' })}
-                                    />
-                                </label>
-                                <label className={styles.field}>
-                                    <span>Intensidade (0 a 1)</span>
-                                    <input
-                                        className={styles.input}
-                                        inputMode="decimal"
-                                        value={option.intensity}
-                                        onChange={(event) => patchOption(index, { intensity: event.target.value })}
-                                    />
-                                </label>
-                            </div>
+                            {option.effects.map((effect, effectIndex) => {
+                                const label = `${index + 1}${option.effects.length > 1 ? `, efeito ${effectIndex + 1}` : ''}`
+                                return (
+                                    <div key={effectIndex} className={styles.inline}>
+                                        <label className={styles.field}>
+                                            <span>Mexe em</span>
+                                            <Select
+                                                aria-label={`Alavanca da opção ${label}`}
+                                                value={effect.metric}
+                                                options={METRIC_OPTIONS}
+                                                onChange={(metric) => patchEffect(index, effectIndex, { metric })}
+                                            />
+                                        </label>
+                                        {effect.metric === POLICY_METRIC ? (
+                                            <label className={styles.field}>
+                                                <span>Passa a pagar</span>
+                                                <Select
+                                                    aria-label={`Política da opção ${label}`}
+                                                    value={effect.value}
+                                                    options={POLICY_OPTIONS}
+                                                    onChange={(value) => patchEffect(index, effectIndex, { value })}
+                                                />
+                                            </label>
+                                        ) : (
+                                            <>
+                                                <label className={styles.field}>
+                                                    <span>Sentido</span>
+                                                    <Select
+                                                        aria-label={`Sentido da opção ${label}`}
+                                                        value={effect.direction}
+                                                        options={DIRECTION_OPTIONS}
+                                                        onChange={(direction) =>
+                                                            patchEffect(index, effectIndex, { direction: direction === '-1' ? '-1' : '1' })
+                                                        }
+                                                    />
+                                                </label>
+                                                <label className={styles.field}>
+                                                    <span>Intensidade (0 a 1)</span>
+                                                    <input
+                                                        className={styles.input}
+                                                        aria-label={`Intensidade da opção ${label}`}
+                                                        inputMode="decimal"
+                                                        value={effect.intensity}
+                                                        onChange={(event) =>
+                                                            patchEffect(index, effectIndex, { intensity: event.target.value })
+                                                        }
+                                                    />
+                                                </label>
+                                            </>
+                                        )}
+                                        {option.effects.length > OPTION_EFFECTS_MIN && (
+                                            <button type="button" className={styles.small} onClick={() => removeEffect(index, effectIndex)}>
+                                                Remover efeito {effectIndex + 1}
+                                            </button>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                            {option.effects.length < OPTION_EFFECTS_MAX && (
+                                <button type="button" className={styles.small} onClick={() => addEffect(index)}>
+                                    Adicionar segundo efeito
+                                </button>
+                            )}
                             {draft.options.length > TEMPLATE_OPTIONS_MIN && (
                                 <button
                                     type="button"
@@ -320,8 +400,9 @@ export function AdminAssembleiaPautas() {
                         </button>
                     )}
                     <p className={styles.hint}>
-                        A intensidade é a fração da faixa do motor que a opção usa: 1 usa a faixa inteira. O texto aparece no app, então não
-                        use travessão.
+                        A intensidade é a fração da faixa do motor que a opção usa: 1 usa a faixa inteira. Uma opção mexe em no máximo duas
+                        alavancas, sempre diferentes, e a ficha do app as mostra no mesmo peso, sem recomendar lado. O texto aparece no app,
+                        então não use travessão.
                     </p>
 
                     {formError && (

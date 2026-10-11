@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAssembliesQuery } from '../../../features/assemblies/useAssemblies'
 import { AssemblyCard } from '../../molecules/AssemblyCard'
+import { DividendOnHoldNotice } from '../../molecules/DividendOnHoldNotice'
 import { ProposalsPanel } from '../ProposalsPanel'
 import styles from './index.module.css'
 
@@ -26,6 +27,8 @@ export function CompanyAssemblies({ companyId }: { companyId: string }) {
             <p className={styles.lead}>
                 Depois de cada balanço, quem tinha ações da empresa decide uma pauta. Todo acionista é afetado igual, tenha votado ou não.
             </p>
+
+            <DividendOnHoldNotice companyId={companyId} />
 
             {open.length === 0 && closed.length === 0 && (
                 <p className={styles.muted}>Nenhuma assembleia por enquanto. Uma nova abre depois do próximo balanço da empresa.</p>

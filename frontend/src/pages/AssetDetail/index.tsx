@@ -16,6 +16,7 @@ import { useMarketClosedReason } from '../../features/market/useMarketClosedReas
 import { useTradingHaltReason } from '../../features/market/useTradingHaltQuery'
 import { useAssetQuotesQuery } from '../../features/market/useAssetQuotesQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
+import { DividendOnHoldNotice } from '../../components/molecules/DividendOnHoldNotice'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { formatCurrency } from '../../features/portfolio/format'
 import { formatSignedPercent } from '../../features/market/format'
@@ -156,6 +157,7 @@ export function AssetDetail() {
 
                     {asset.equity && (
                         <>
+                            <DividendOnHoldNotice companyId={asset.equity.company.id} />
                             <EquityIndicatorsPanel indicators={asset.equity.indicators} />
                             <button
                                 type="button"

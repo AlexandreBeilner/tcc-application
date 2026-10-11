@@ -4,17 +4,22 @@ import type {
     AdminAssemblyStatus,
     AgendaTemplate,
     AgendaTemplateContent,
+    AgendaTemplateEffect,
+    AdminEffectPreview,
     AssemblyPause,
     AssemblySettingKey,
     CatalogAsset,
 } from '../../../services/admin'
-import type { OptionDraft, SettingText, TemplateDraft } from './types'
+import type { EffectDraft, OptionDraft, SettingText, TemplateDraft } from './types'
 
-export type { OptionDraft, SettingText, TemplateDraft } from './types'
+export type { EffectDraft, OptionDraft, SettingText, TemplateDraft } from './types'
 
 export const REASON_MAX_LENGTH = 300
 export const TEMPLATE_OPTIONS_MIN = 2
 export const TEMPLATE_OPTIONS_MAX = 4
+// Uma opção mexe em no máximo duas alavancas.
+export const OPTION_EFFECTS_MIN = 1
+export const OPTION_EFFECTS_MAX = 2
 
 // Texto digitado pra confirmar a pausa global (regra transversal 6 da Fase N).
 export const PAUSE_ALL_CONFIRMATION = 'PAUSAR ASSEMBLEIAS'
@@ -140,30 +145,65 @@ export function describeAssemblyError(err: unknown): string {
 const METRICS: Record<string, string> = {
     base_growth_pct: 'Crescimento',
     quality_multiplier: 'Qualidade',
+    payout_ratio_pct: 'Payout (parte do lucro distribuída)',
+    pn_dividend_premium_pct: 'Prêmio da ação PN',
+    dividend_policy: 'Política de dividendo',
 }
 
 export const METRIC_OPTIONS = Object.entries(METRICS).map(([value, label]) => ({ value, label }))
+
+export const POLICY_METRIC = 'dividend_policy'
 
 export const DIRECTION_OPTIONS = [
     { value: '1', label: 'Sobe' },
     { value: '-1', label: 'Desce' },
 ]
 
+export const POLICY_OPTIONS = [
+    { value: 'quarterly', label: 'Trimestral' },
+    { value: 'semiannual', label: 'Semestral' },
+    { value: 'annual', label: 'Anual' },
+]
+
+export const PURPOSE_OPTIONS = [
+    { value: 'general', label: 'Geral (abre depois do balanço)' },
+    { value: 'profit', label: 'Destinação do lucro (abre quando o dividendo fica retido)' },
+]
+
+export function blankEffect(): EffectDraft {
+    return { metric: 'base_growth_pct', direction: '1', intensity: '0,5', value: 'quarterly' }
+}
+
 export function blankOption(): OptionDraft {
-    return { key: '', label: '', gain: '', loss: '', metric: 'base_growth_pct', direction: '1', intensity: '0,5' }
+    return { key: '', label: '', gain: '', loss: '', effects: [blankEffect()] }
 }
 
 export function blankDraft(): TemplateDraft {
-    return { key: '', sector: '', title: '', description: '', options: [blankOption(), blankOption()] }
+    return { key: '', purpose: 'general', sector: '', title: '', description: '', options: [blankOption(), blankOption()] }
 }
 
 function formatIntensity(value: number): string {
     return String(value).replace('.', ',')
 }
 
+// Os efeitos de uma opção, no formato novo (`{ effects: [...] }`) ou no antigo (um efeito só).
+export function readTemplateEffects(effect: AgendaTemplate['options'][number]['effect']): AgendaTemplateEffect[] {
+    return 'effects' in effect && Array.isArray(effect.effects) ? effect.effects : [effect as AgendaTemplateEffect]
+}
+
+function toEffectDraft(effect: AgendaTemplateEffect): EffectDraft {
+    return {
+        metric: effect.metric,
+        direction: effect.direction === -1 ? '-1' : '1',
+        intensity: formatIntensity(effect.intensity ?? 0.5),
+        value: effect.value ?? 'quarterly',
+    }
+}
+
 export function toDraft(template: AgendaTemplate): TemplateDraft {
     return {
         key: template.key,
+        purpose: template.purpose ?? 'general',
         sector: template.sector ?? '',
         title: template.title,
         description: template.description,
@@ -172,43 +212,69 @@ export function toDraft(template: AgendaTemplate): TemplateDraft {
             label: o.label,
             gain: o.gain,
             loss: o.loss,
-            metric: o.effect.metric,
-            direction: o.effect.direction === -1 ? '-1' : '1',
-            intensity: formatIntensity(o.effect.intensity),
+            effects: readTemplateEffects(o.effect).map(toEffectDraft),
         })),
     }
 }
 
 // Converte o rascunho no conteúdo enviado. Só confere o que o formulário precisa pra montar o
-// pedido (campo vazio, intensidade que não é número); tamanho e faixa são do backend (422).
+// pedido (campo vazio, intensidade que não é número, alavanca repetida); tamanho e faixa são do
+// backend (422). O efeito sai sempre no formato novo, uma lista.
 export function draftToContent(draft: TemplateDraft): { content: AgendaTemplateContent } | { error: string } {
     const options: AgendaTemplateContent['options'] = []
     for (const [index, option] of draft.options.entries()) {
         const n = index + 1
-        const intensity = Number(option.intensity.trim().replace(',', '.'))
         if (option.key.trim() === '') return { error: `Informe a chave da opção ${n}.` }
         if (option.label.trim() === '' || option.gain.trim() === '' || option.loss.trim() === '') {
             return { error: `Preencha rótulo, ganho e perda da opção ${n}.` }
         }
-        if (option.intensity.trim() === '' || !Number.isFinite(intensity)) {
-            return { error: `A intensidade da opção ${n} precisa ser um número entre 0 e 1.` }
+        if (new Set(option.effects.map((e) => e.metric)).size !== option.effects.length) {
+            return { error: `A opção ${n} não pode mexer na mesma alavanca duas vezes.` }
+        }
+        const effects: AgendaTemplateEffect[] = []
+        for (const effect of option.effects) {
+            if (effect.metric === POLICY_METRIC) {
+                effects.push({ metric: effect.metric, value: effect.value })
+                continue
+            }
+            const intensity = Number(effect.intensity.trim().replace(',', '.'))
+            if (effect.intensity.trim() === '' || !Number.isFinite(intensity)) {
+                return { error: `A intensidade da opção ${n} precisa ser um número entre 0 e 1.` }
+            }
+            effects.push({ metric: effect.metric, direction: Number(effect.direction), intensity })
         }
         options.push({
             key: option.key.trim(),
             label: option.label.trim(),
             gain: option.gain.trim(),
             loss: option.loss.trim(),
-            effect: { metric: option.metric, direction: Number(option.direction), intensity },
+            effect: { effects },
         })
     }
     return {
         content: {
+            purpose: draft.purpose,
             sector: draft.sector.trim() === '' ? null : draft.sector.trim(),
             title: draft.title.trim(),
             description: draft.description.trim(),
             options,
         },
     }
+}
+
+const PREVIEW_METRIC_LABELS = {
+    growth: 'crescimento',
+    quality: 'qualidade',
+    payout: 'payout',
+    pn_premium: 'prêmio da ação PN',
+} as const
+
+const POLICY_VALUE_LABELS: Record<string, string> = { quarterly: 'trimestral', semiannual: 'semestral', annual: 'anual' }
+
+// Um efeito de opção como o painel o mostra: o que mexe e quanto da faixa do motor usa.
+export function describeEffectPreview(effect: AdminEffectPreview): string {
+    if (effect.metric === 'dividend_policy') return `política de dividendo vira ${POLICY_VALUE_LABELS[effect.value] ?? effect.value}`
+    return `${PREVIEW_METRIC_LABELS[effect.metric]} ${effect.direction === 1 ? 'sobe' : 'desce'}, intensidade ${String(effect.intensity).replace('.', ',')}`
 }
 
 // Chave da pauta nova a partir do título (minúsculas, sem acento, com _). O admin pode editar.

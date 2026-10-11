@@ -52,6 +52,15 @@
     color: var(--color-text-primary);
 }
 
+.effects {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
 .effect {
     margin: 0;
     font-size: var(--font-size-sm);

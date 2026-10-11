@@ -1,4 +1,4 @@
-import { describeEffect, percentLabel } from '../../../features/assemblies/assemblyText'
+import { describeEffects, percentLabel } from '../../../features/assemblies/assemblyText'
 import type { AssemblyOption, OptionScore } from '../../../services/assemblies'
 import { Button } from '../../atoms/Button'
 import styles from './index.module.css'
@@ -20,7 +20,7 @@ interface AssemblyOptionCardProps {
 // Uma das duas opções da pauta: o que ganha, o que perde, o que ela mexe e o placar. Os dois lados
 // têm o mesmo peso visual (nenhum é "o certo") e o placar usa a mesma cor nos dois.
 export function AssemblyOptionCard({ option, score, mine, winner, canVote, pending, onVote, hasVoted }: AssemblyOptionCardProps) {
-    const effect = describeEffect(option.effect)
+    const effects = describeEffects(option)
     const percent = score?.weightPercent ?? 0
     const voters = score?.voters ?? 0
 
@@ -41,7 +41,15 @@ export function AssemblyOptionCard({ option, score, mine, winner, canVote, pendi
                     <dd className={styles.sideText}>{option.loss}</dd>
                 </div>
             </dl>
-            {effect && <p className={styles.effect}>{effect}</p>}
+            {effects.length > 0 && (
+                <ul className={styles.effects} aria-label="O que esta opção muda na empresa">
+                    {effects.map((text) => (
+                        <li key={text} className={styles.effect}>
+                            {text}
+                        </li>
+                    ))}
+                </ul>
+            )}
 
             <div className={styles.score}>
                 <div className={styles.bar} role="img" aria-label={`${percentLabel(percent)} das ações de quem votou`}>

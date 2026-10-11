@@ -30,6 +30,8 @@ const detail = (): AdminAssemblyDetail => ({
         min_voters: 3,
         effect_pending: true,
         paused: true,
+        declaration_id: null,
+        dividend_on_hold: false,
     },
     options: [
         {
@@ -39,6 +41,10 @@ const detail = (): AdminAssemblyDetail => ({
             gain: 'Cresce.',
             loss: 'Margem menor.',
             effect: { metric: 'growth', direction: 1, intensity: 0.5 },
+            effects: [
+                { metric: 'growth', direction: 1, intensity: 0.5 },
+                { metric: 'payout', direction: -1, intensity: 1 },
+            ],
             position: 0,
             voters: 1,
             weight: 10,
@@ -50,6 +56,7 @@ const detail = (): AdminAssemblyDetail => ({
             gain: 'Margem.',
             loss: 'Cresce menos.',
             effect: null,
+            effects: [{ metric: 'dividend_policy', value: 'annual' }],
             position: 1,
             voters: 1,
             weight: 30,
@@ -140,6 +147,9 @@ describe('AdminAssembleiaDetalhe', () => {
         expect(within(items[1]).getByText('Vencedora')).toBeInTheDocument()
         expect(within(items[1]).getByText(/75%/)).toBeInTheDocument()
         expect(within(items[0]).getByText(/crescimento sobe, intensidade 0,5/)).toBeInTheDocument()
+        // Dois efeitos na mesma opção, e a política com o valor-alvo (Fase F2).
+        expect(within(items[0]).getByText(/payout desce, intensidade 1/)).toBeInTheDocument()
+        expect(within(items[1]).getByText(/política de dividendo vira anual/)).toBeInTheDocument()
     })
 
     it('assembleia inexistente mostra o aviso e o caminho de volta', async () => {

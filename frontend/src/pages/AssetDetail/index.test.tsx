@@ -4,11 +4,13 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
+import { listAssemblies } from '../../services/assemblies'
 import { getAsset, getAssetBook, getAssetQuotes, getMyAccount, getTradingHalts } from '../../services/market'
 import { AssetDetail } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
+vi.mock('../../services/assemblies', () => ({ listAssemblies: vi.fn() }))
 vi.mock('../../services/market', () => ({
     getAsset: vi.fn(),
     getAssetBook: vi.fn(),
@@ -51,6 +53,7 @@ describe('AssetDetail (tela 4.5)', () => {
             setUser: vi.fn(),
         })
         vi.mocked(getAssetQuotes).mockResolvedValue({ quotes: [] })
+        vi.mocked(listAssemblies).mockResolvedValue({ open: [], closed: [] })
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
         vi.mocked(getAssetBook).mockResolvedValue(emptyBook)
         vi.mocked(getTradingHalts).mockResolvedValue({ global: false, asset_ids: [] })
@@ -96,6 +99,62 @@ describe('AssetDetail (tela 4.5)', () => {
 
         fireEvent.click(screen.getByText('Ver empresa: Petrobras S.A.'))
         await waitFor(() => expect(screen.getByText('tela de empresa')).toBeInTheDocument())
+    })
+
+    it('ação com o dividendo retido pela assembleia: avisa na tela do ativo (MO.6.14)', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        vi.mocked(listAssemblies).mockResolvedValue({
+            open: [
+                {
+                    id: 'as1',
+                    kind: 'shareholder',
+                    subjectRef: 'c1',
+                    subjectLabel: 'Petrobras S.A.',
+                    title: 'O que fazer com o lucro',
+                    status: 'open',
+                    opensAt: '2026-10-01T00:00:00Z',
+                    closesAt: '2099-10-08T00:00:00Z',
+                    effectAppliesAt: '2099-10-09T00:00:00Z',
+                    effectAppliedAt: null,
+                    outcome: null,
+                    outcomeReason: null,
+                    voterCount: null,
+                    dividendOnHold: true,
+                },
+            ],
+            closed: [],
+        })
+        renderPage()
+        expect(await screen.findByText(/O dividendo deste balanço depende da assembleia em andamento/)).toBeInTheDocument()
+        expect(listAssemblies).toHaveBeenCalledWith('token', { companyId: 'c1', status: 'open' })
+    })
+
+    it('sem assembleia retendo o dividendo a tela do ativo não traz aviso (MO.6.14)', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: {
+                id: 'a1',
+                ticker: 'PETR4',
+                name: 'Petrobras',
+                type: 'acao',
+                is_sandbox: false,
+                current_price: 30,
+                equity: { company: { id: 'c1', name: 'Petrobras S.A.', cnpj: '00', sector: 'Energia' }, dividend_history: [] },
+            },
+        })
+        renderPage()
+        await waitFor(() => expect(screen.getByText('PETR4')).toBeInTheDocument())
+        await waitFor(() => expect(listAssemblies).toHaveBeenCalled())
+        expect(screen.queryByText(/depende da assembleia em andamento/)).not.toBeInTheDocument()
     })
 
     it('com posição real e provento recebido (tarefa S.16), o card "Sua posição" mostra retorno total maior que o de preço', async () => {

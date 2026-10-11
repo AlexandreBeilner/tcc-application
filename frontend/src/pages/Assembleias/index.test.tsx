@@ -25,6 +25,7 @@ const summary = (over: Partial<AssemblySummary>): AssemblySummary => ({
     outcome: null,
     outcomeReason: null,
     voterCount: null,
+    dividendOnHold: false,
     ...over,
 })
 

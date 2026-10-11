@@ -28,6 +28,7 @@ const detail = (over: Partial<AssemblyDetail> = {}): AssemblyDetail => ({
         outcome: null,
         outcomeReason: null,
         voterCount: null,
+        dividendOnHold: false,
         description: 'O que fazer com o lucro do trimestre.',
     },
     options: [
@@ -38,9 +39,10 @@ const detail = (over: Partial<AssemblyDetail> = {}): AssemblyDetail => ({
             gain: 'Mais crescimento',
             loss: 'Menos dividendo',
             effect: { metric: 'growth', direction: 1, intensity: 0.8 },
+            effects: [{ metric: 'growth', direction: 1, intensity: 0.8 }],
             position: 0,
         },
-        { id: 'o2', key: 'distribuir', label: 'Distribuir', gain: 'Mais dividendo', loss: 'Menos crescimento', effect: null, position: 1 },
+        { id: 'o2', key: 'distribuir', label: 'Distribuir', gain: 'Mais dividendo', loss: 'Menos crescimento', effect: null, effects: [], position: 1 },
     ],
     scoreboard: {
         voters: 3,

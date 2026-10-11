@@ -1,4 +1,11 @@
-import type { AssemblyDetail, AssemblyEffectPreview, AssemblySummary, VoteDenialReason } from '../../../services/assemblies'
+import type {
+    AssemblyDetail,
+    AssemblyEffectPreview,
+    AssemblyOption,
+    AssemblySummary,
+    DividendPolicyValue,
+    VoteDenialReason,
+} from '../../../services/assemblies'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -8,13 +15,39 @@ function intensityWord(intensity: number): string {
     return 'forte'
 }
 
-// O que a opção mexe, sem veredito: nunca diz qual lado é melhor e nunca cita valor. O tamanho
-// final é do motor; aqui só aparece a fração da faixa dele que a opção usa.
+const POLICY_PHRASES: Record<DividendPolicyValue, string> = {
+    quarterly: 'passa a pagar dividendo a cada trimestre',
+    semiannual: 'passa a pagar dividendo a cada semestre',
+    annual: 'passa a pagar dividendo uma vez por ano',
+}
+
+export const DIVIDEND_POLICY_LABELS: Record<DividendPolicyValue, string> = {
+    quarterly: 'Trimestral',
+    semiannual: 'Semestral',
+    annual: 'Anual',
+}
+
+const TARGETS: Record<'growth' | 'quality' | 'payout' | 'pn_premium', string> = {
+    growth: 'o ritmo de crescimento da empresa',
+    quality: 'a qualidade da operação (margem e alavancagem)',
+    payout: 'a parte do lucro que a empresa distribui como dividendo',
+    pn_premium: 'o dividendo extra da ação PN em relação à ON',
+}
+
+// O que um efeito da opção mexe, sem veredito: nunca diz qual lado é melhor e nunca cita valor. O
+// tamanho final é do motor; aqui só aparece a fração da faixa dele que a opção usa.
 export function describeEffect(effect: AssemblyEffectPreview | null): string | null {
     if (!effect) return null
-    const target = effect.metric === 'growth' ? 'o ritmo de crescimento da empresa' : 'a qualidade da operação (margem e alavancagem)'
+    if (effect.metric === 'dividend_policy') return `A empresa ${POLICY_PHRASES[effect.value]}.`
     const verb = effect.direction === 1 ? 'Empurra para cima' : 'Empurra para baixo'
-    return `${verb} ${target}, com força ${intensityWord(effect.intensity)}.`
+    return `${verb} ${TARGETS[effect.metric]}, com força ${intensityWord(effect.intensity)}.`
+}
+
+// Todos os efeitos da opção, na ordem da pauta e com o mesmo peso (nenhum é o principal). Opção de
+// uma assembleia anterior à lista de efeitos cai no efeito único.
+export function describeEffects(option: Pick<AssemblyOption, 'effect' | 'effects'>): string[] {
+    const effects = option.effects?.length ? option.effects : option.effect ? [option.effect] : []
+    return effects.map((e) => describeEffect(e)).filter((text): text is string => text !== null)
 }
 
 // Prazo em linguagem de calendário: "fecha em 3 dias", "fecha hoje", "encerrada".

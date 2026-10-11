@@ -166,6 +166,9 @@ export function AdminAssembleias() {
                                                         {ASSEMBLY_STATUS_LABELS[assembly.status]}
                                                     </span>
                                                     {assembly.paused && <span className={`${styles.badge} ${styles.dashed}`}>Pausada</span>}
+                                                    {assembly.dividend_on_hold && (
+                                                        <span className={`${styles.badge} ${styles.dashed}`}>Dividendo retido</span>
+                                                    )}
                                                     {effect && <span className={`${styles.badge} ${styles.dashed}`}>{effect}</span>}
                                                 </div>
                                                 <p className={styles.itemTitle}>

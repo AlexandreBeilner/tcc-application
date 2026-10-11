@@ -1,13 +1,11 @@
 import { Link, useParams } from 'react-router-dom'
-import { ASSEMBLY_STATUS_LABELS, describeEffect, describeOutcome } from '../../features/admin/assemblies'
+import { ASSEMBLY_STATUS_LABELS, describeEffect, describeEffectPreview, describeOutcome } from '../../features/admin/assemblies'
 import { useAdminAssemblyDetailQuery } from '../../features/admin/useAdminAssembliesQuery'
 import { formatDateTime } from '../../features/admin/timeFormat'
 import { ApiError } from '../../services/client'
 import styles from './index.module.css'
 
 const numberFormat = new Intl.NumberFormat('pt-BR')
-
-const METRIC_LABEL = { growth: 'crescimento', quality: 'qualidade' } as const
 
 // Detalhe de uma assembleia no painel (MO.6.8): quem votou em quê, com o peso (ações na data de
 // corte). Exceção deliberada do administrador, como o patrimônio: o público nunca vê voto por pessoa
@@ -103,13 +101,11 @@ export function AdminAssembleiaDetalhe() {
                                         <p className={styles.text}>
                                             Ganho: {option.gain} Perda: {option.loss}
                                         </p>
-                                        {option.effect && (
-                                            <p className={styles.meta}>
-                                                Efeito: {METRIC_LABEL[option.effect.metric]}{' '}
-                                                {option.effect.direction === 1 ? 'sobe' : 'desce'}, intensidade{' '}
-                                                {String(option.effect.intensity).replace('.', ',')}
+                                        {option.effects.map((effect) => (
+                                            <p key={describeEffectPreview(effect)} className={styles.meta}>
+                                                Efeito: {describeEffectPreview(effect)}
                                             </p>
-                                        )}
+                                        ))}
                                         <div className={styles.bar} role="img" aria-label={`${percent}% do peso dos votos`}>
                                             <div className={styles.barFill} style={{ width: `${percent}%` }} />
                                         </div>

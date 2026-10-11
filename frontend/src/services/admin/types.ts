@@ -551,7 +551,20 @@ export interface FundBotInput {
 export type PaceSettingKey = 'ticks_per_day' | 'max_catch_up'
 // Governança das assembleias (MO.6.8): faixa de efeito, rampa e cooldown, editados na tela das Assembleias.
 export type GovernanceSettingKey =
-    'governance_growth_step_centipp' | 'governance_quality_step_centi' | 'governance_ramp_ticks' | 'governance_cooldown_days'
+    | 'governance_growth_step_centipp'
+    | 'governance_quality_step_centi'
+    | 'governance_ramp_ticks'
+    | 'governance_cooldown_days'
+    // Destinação do lucro (Fase F2): payout, prêmio da PN e retenção do dividendo do balanço.
+    | 'governance_payout_step_centipp'
+    | 'governance_payout_min_pct'
+    | 'governance_payout_max_pct'
+    | 'governance_payout_cooldown_days'
+    | 'governance_premium_step_centipp'
+    | 'governance_premium_min_pct'
+    | 'governance_premium_max_pct'
+    | 'governance_hold_declarations'
+    | 'governance_declaration_safety_days'
 export type EngineSettingKey = PaceSettingKey | GovernanceSettingKey
 export type EngineSettingGroup = 'pace' | 'governance'
 
@@ -1193,7 +1206,15 @@ export interface AdminAssembly {
     effect_pending: boolean
     // Há pausa vigente cobrindo esta assembleia.
     paused: boolean
+    // Assembleia de destinação do lucro (Fase F2): a declaração de dividendo que ela libera, e se o
+    // dividendo ainda está retido por ela.
+    declaration_id: string | null
+    dividend_on_hold: boolean
 }
+
+export type AdminEffectPreview =
+    | { metric: 'growth' | 'quality' | 'payout' | 'pn_premium'; direction: 1 | -1; intensity: number }
+    | { metric: 'dividend_policy'; value: 'quarterly' | 'semiannual' | 'annual' }
 
 export interface AdminAssemblyOption {
     id: string
@@ -1201,7 +1222,9 @@ export interface AdminAssemblyOption {
     label: string
     gain: string
     loss: string
-    effect: { metric: 'growth' | 'quality'; direction: 1 | -1; intensity: number } | null
+    // O primeiro efeito (para quem lê um só) e todos eles, de 1 a 2, na ordem da pauta.
+    effect: AdminEffectPreview | null
+    effects: AdminEffectPreview[]
     position: number
     voters: number
     weight: number
@@ -1270,10 +1293,12 @@ export interface AssemblySetting {
     updated_at: string | null
 }
 
+// Um efeito de pauta: alavanca e sentido e intensidade, ou, na política de dividendo, o valor-alvo.
 export interface AgendaTemplateEffect {
     metric: string
-    direction: number
-    intensity: number
+    direction?: number
+    intensity?: number
+    value?: string
 }
 
 export interface AgendaTemplateOption {
@@ -1281,10 +1306,15 @@ export interface AgendaTemplateOption {
     label: string
     gain: string
     loss: string
-    effect: AgendaTemplateEffect
+    // De 1 a 2 efeitos (`{ effects: [...] }`); pauta anterior à Fase F2 traz o objeto de um efeito só.
+    effect: AgendaTemplateEffect | { effects: AgendaTemplateEffect[] }
 }
 
+export type AgendaTemplatePurpose = 'general' | 'profit'
+
 export interface AgendaTemplateContent {
+    // `general` abre pelo balanço; `profit` só a partir do dividendo retido (destinação do lucro).
+    purpose?: AgendaTemplatePurpose
     sector: string | null
     title: string
     description: string
@@ -1292,6 +1322,7 @@ export interface AgendaTemplateContent {
 }
 
 export interface AgendaTemplate extends AgendaTemplateContent {
+    purpose: AgendaTemplatePurpose
     key: string
     active: boolean
     created_at: string
