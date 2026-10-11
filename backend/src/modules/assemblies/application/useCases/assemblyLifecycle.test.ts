@@ -5,6 +5,7 @@ import { DEFAULT_PROPOSAL_PARAMS } from '../../domain/proposals'
 import { SHAREHOLDER_KIND, shareholderPolicies } from '../../domain/shareholderPolicies'
 import { createFakeAssemblyRepository } from '../../test/fakes/fakeAssemblyRepository'
 import { createFakeProposalRepository } from '../../test/fakes/fakeProposalRepository'
+import { createFakeAssemblyPauseRepository } from '../../test/fakes/fakeAssemblyPauseRepository'
 import { AssemblyKindRegistry } from '../assemblyKinds'
 import type { CompanyReportFact } from '../ports/companyReportSource'
 import { AnnounceClosedAssembliesUseCase } from './announceClosedAssemblies'
@@ -61,6 +62,7 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
   })
   const repository = createFakeAssemblyRepository()
   const proposals = createFakeProposalRepository()
+  const pauses = createFakeAssemblyPauseRepository()
   let holdings: HoldingsSnapshot = { takenAt: t0, holdings: [] }
   const snapshots = {
     take: vi.fn(async () => holdings),
@@ -70,8 +72,9 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
   const reportSource = { listRecentReports: vi.fn(async () => reports) }
   const catalog = { listActive: vi.fn(async () => options.templates ?? [template]) }
   const create = new CreateAssemblyUseCase(kinds, repository, now)
+  let currentMinVoters = options.minVoters ?? 3
   const tally = new TallyAssemblyUseCase(kinds, repository, snapshots, () => ({
-    minVoters: options.minVoters ?? 3,
+    minVoters: currentMinVoters,
   }))
   const open = new OpenDueAssembliesUseCase(
     create,
@@ -82,10 +85,12 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     proposals,
     () => DEFAULT_PROPOSAL_PARAMS,
     () => DEFAULT_LIFECYCLE_PARAMS,
+    pauses,
+    () => currentMinVoters,
     now,
   )
   const close = new CloseDueAssembliesUseCase(repository, tally, now)
-  const apply = new ApplyDueAssemblyEffectsUseCase(kinds, repository, now)
+  const apply = new ApplyDueAssemblyEffectsUseCase(kinds, repository, pauses, now)
   const feed = { publishParticipation: vi.fn(async () => undefined) }
   const mailer = { sendResult: vi.fn(async () => undefined) }
   const announce = new AnnounceClosedAssembliesUseCase(
@@ -102,6 +107,7 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     announce,
     repository,
     proposals,
+    pauses,
     effect,
     snapshots,
     reportSource,
@@ -110,6 +116,7 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     apply,
     run: new RunAssemblyLifecycleUseCase(close, open, apply, announce),
     advance: (ms: number) => (clock = new Date(clock.getTime() + ms)),
+    setMinVoters: (n: number) => (currentMinVoters = n),
     setHoldings: (h: HoldingsSnapshot) => (holdings = h),
     setReports: (r: CompanyReportFact[]) => (reports = r),
     first: () => [...repository.items.values()][0],
@@ -535,5 +542,112 @@ describe('AnnounceClosedAssembliesUseCase (MO.6.7)', () => {
     const ctx = await closedAssembly(['ana', 'bia', 'caio'])
     const result = await ctx.run.execute()
     expect(result.announce.announced).toBe(1)
+  })
+})
+
+describe('pausa do painel no ciclo (MO.6.8)', () => {
+  async function closedApproved(ctx: ReturnType<typeof setup>) {
+    await ctx.open.execute()
+    ctx.setHoldings({
+      takenAt: t0,
+      holdings: ['u1', 'u2', 'u3'].map((userId) => ({ userId, quantity: 10 })),
+    })
+    await vote(ctx, [
+      ['u1', 10],
+      ['u2', 10],
+      ['u3', 10],
+    ])
+    ctx.advance(7 * DAY)
+    await ctx.close.execute()
+  }
+
+  const pauseBy = (
+    ctx: ReturnType<typeof setup>,
+    scope: 'global' | 'subject',
+    subjectRef?: string,
+  ) =>
+    ctx.pauses.create(
+      {
+        scope,
+        kind: scope === 'subject' ? SHAREHOLDER_KIND : null,
+        subjectRef: subjectRef ?? null,
+        reason: 'revisão',
+      },
+      'admin-1',
+      t0,
+    )
+
+  it('pausa global impede abrir, sem nem consultar o motor, e retomar abre dentro da janela', async () => {
+    const ctx = setup()
+    const created = await pauseBy(ctx, 'global')
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0 })
+    expect(ctx.reportSource.listRecentReports).not.toHaveBeenCalled()
+    expect(ctx.repository.items.size).toBe(0)
+
+    if (created.status !== 'created') throw new Error('pausa não criada')
+    await ctx.pauses.lift(created.pause.id, 'admin-1', t0)
+    expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 0 })
+  })
+
+  it('pausa de uma empresa só barra a dela', async () => {
+    const ctx = setup()
+    ctx.setReports([report, { ...report, companyId: 'company-2', name: 'Beta', reportDay: 92 }])
+    await pauseBy(ctx, 'subject', 'company-1')
+    expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 0 })
+    expect(ctx.first().assembly.subjectRef).toBe('company-2')
+  })
+
+  it('pausa impede aplicar o efeito, que fica pendente e é entregue depois de retomar', async () => {
+    const ctx = setup()
+    await closedApproved(ctx)
+    ctx.advance(1 * DAY)
+    const created = await pauseBy(ctx, 'subject', 'company-1')
+    expect(await ctx.apply.execute()).toEqual({ applied: 0, failed: 0 })
+    expect(ctx.effect.apply).not.toHaveBeenCalled()
+    expect(ctx.first().assembly.effectAppliedAt).toBeNull()
+
+    if (created.status !== 'created') throw new Error('pausa não criada')
+    await ctx.pauses.lift(created.pause.id, 'admin-1', t0)
+    expect(await ctx.apply.execute()).toEqual({ applied: 1, failed: 0 })
+  })
+
+  it('pausa global também segura o efeito de qualquer empresa', async () => {
+    const ctx = setup()
+    await closedApproved(ctx)
+    ctx.advance(1 * DAY)
+    await pauseBy(ctx, 'global')
+    expect(await ctx.apply.execute()).toEqual({ applied: 0, failed: 0 })
+    expect(ctx.effect.apply).not.toHaveBeenCalled()
+  })
+
+  it('a pausa não impede fechar e apurar: o prazo de voto é uma promessa a quem vota', async () => {
+    const ctx = setup()
+    await ctx.open.execute()
+    await pauseBy(ctx, 'global')
+    ctx.advance(8 * DAY)
+    expect((await ctx.run.execute()).close.closed).toBe(1)
+  })
+})
+
+describe('quórum congelado na abertura (MO.6.8)', () => {
+  it('mudar o parâmetro depois de abrir não muda o quórum da assembleia aberta', async () => {
+    const ctx = setup({ minVoters: 3 })
+    await ctx.open.execute()
+    expect(ctx.first().assembly.minVoters).toBe(3)
+
+    // O painel baixa o quórum para 1, mas esta assembleia abriu com 3: um voto só não decide.
+    ctx.setMinVoters(1)
+    ctx.setHoldings({ takenAt: t0, holdings: [{ userId: 'u1', quantity: 10 }] })
+    await vote(ctx, [['u1', 10]])
+    ctx.advance(8 * DAY)
+    await ctx.close.execute()
+    expect(ctx.first().assembly).toMatchObject({ outcome: 'not_approved', outcomeReason: 'quorum' })
+  })
+
+  it('a assembleia aberta depois da mudança nasce com o quórum novo', async () => {
+    const ctx = setup({ minVoters: 3 })
+    ctx.setMinVoters(5)
+    await ctx.open.execute()
+    expect(ctx.first().assembly.minVoters).toBe(5)
   })
 })

@@ -25,6 +25,7 @@ function assembly(over: Partial<Assembly>): Assembly {
     templateKey: 't',
     effectAppliedAt: null,
     resultAnnouncedAt: null,
+    minVoters: null,
     createdAt: at(10),
     ...over,
   }

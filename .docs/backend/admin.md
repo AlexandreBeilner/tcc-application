@@ -59,7 +59,7 @@ Valem para todas as rotas `/admin/*`:
 - **Sem cache:** toda resposta leva `Cache-Control: no-store`.
 - **Limite de taxa:** 600 requisições por minuto por IP (`429` com `Retry-After`). O painel faz polling, então o teto é folgado; serve pra frear laço descontrolado. Janela fixa em memória (uma instância do backend); com réplicas, migrar o contador pro Redis.
 - **Token curto:** token de admin expira em 2 horas (ver `auth.md`).
-- **Reautenticação em ação destrutiva:** `POST /admin/tick`, `POST /admin/tick/advance`, `POST /admin/scheduler/pause`, `POST /admin/halts` (pausa de negociação) e `POST /admin/orders/cancel-batch` devolvem `401 { error: "reauth_required" }` se a senha não foi conferida nos últimos 5 minutos (login conta). A checagem vem **depois** do `403` de papel (usuário comum nunca vê `reauth_required`) e **antes** de qualquer efeito ou auditoria. Retomar o temporizador e levantar pausa não são destrutivos e não pedem. Fluxo: `POST /auth/reauth` → token novo → repetir a ação.
+- **Reautenticação em ação destrutiva:** `POST /admin/tick`, `POST /admin/tick/advance`, `POST /admin/scheduler/pause`, `POST /admin/halts` (pausa de negociação), `POST /admin/assemblies/pauses` (pausa das assembleias) e `POST /admin/orders/cancel-batch` devolvem `401 { error: "reauth_required" }` se a senha não foi conferida nos últimos 5 minutos (login conta). A checagem vem **depois** do `403` de papel (usuário comum nunca vê `reauth_required`) e **antes** de qualquer efeito ou auditoria. Retomar o temporizador e levantar pausa não são destrutivos e não pedem. Fluxo: `POST /auth/reauth` → token novo → repetir a ação.
 - **Auditoria de sessão:** `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed` entram em `admin_audit_log` (`target_type = session`). `admin.password_reset_denied` (sempre `failed`) registra o pedido de redefinição de senha por e-mail para uma conta admin, que é negado e não envia nada (D7, `POST /auth/forgot-password`).
 - **2FA** fica de fora (Fase 2).
 
@@ -72,7 +72,7 @@ Valem para todas as rotas `/admin/*`:
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `admin.password_reset_denied`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `admin.password_reset_denied`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`, e as do painel das assembleias `assembly.pause`, `assembly.resume`, `assembly.setting_update`, `assembly.setting_reset`, `assembly.template_create`, `assembly.template_update`, `assembly.template_activate`, `assembly.template_deactivate`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.
@@ -358,24 +358,106 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 
 ### Parâmetros de simulação (tarefa N.7)
 
-Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve as faixas e o efeito): só `ticks_per_day` e `max_catch_up` são editáveis.
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve as faixas e o efeito). Dois grupos de chaves editáveis, cada um lido pela sua tela: o **ritmo** (`ticks_per_day`, `max_catch_up`, tela de Tempo) e a **governança das assembleias** (`governance_growth_step_centipp`, `governance_quality_step_centi`, `governance_ramp_ticks`, `governance_cooldown_days`, tela de Assembleias, MO.6.8; faixa de efeito, rampa e cooldown da MO.6.2). O motor guarda tudo junto; o backend só devolve o grupo pedido.
 
 #### `GET /admin/settings`
 
-- **Sucesso:** `200` → `{ editable: [{ key, value, default, min, max, overridden, updated_by, updated_at, version }], read_only: [{ key, value, reason }] }`.
+- **Payload (query), opcional:** `group` (`pace` padrão, ou `governance`), validado por `engineSettingsQuerySchema`.
+- **Sucesso:** `200` → `{ editable: [{ key, value, default, min, max, overridden, updated_by, updated_at, version }], read_only: [{ key, value, reason }] }`, com `editable` só do grupo pedido.
+- **Erros:** `400` — `group` desconhecido (o motor não é chamado).
 
 #### `PUT /admin/settings/:key`
 
 - **Payload (JSON):** `value` (inteiro), validado por `updateEngineSettingBodySchema`. O `admin_id` vem do token.
-- **Sucesso:** `200` → o mesmo corpo do `GET`, com o valor novo.
+- **Sucesso:** `200` → o mesmo corpo do `GET` (do grupo da chave), com o valor novo.
 - **Erros:** `400` — `value` não é inteiro (o motor não é chamado); `404` — `key` não é editável (o motor não é chamado); `422` — fora da faixa, com a mensagem do motor.
 - **Auditoria:** `settings.update`, `target_type = engine_setting`, `target_id` = a chave, `payload = { key, value }`; a recusa do motor grava `result = failed` com o motivo. O valor anterior não vai no payload: está na linha anterior da mesma chave.
 
 #### `DELETE /admin/settings/:key`
 
-- **Sucesso:** `200` → o mesmo corpo do `GET`, com a chave no padrão do ambiente.
+- **Sucesso:** `200` → o mesmo corpo do `GET` (do grupo da chave), com a chave no padrão do ambiente.
 - **Erros:** `404` — `key` não é editável.
 - **Auditoria:** `settings.reset`, `target_id` = a chave, `payload = { key }`.
+
+### Assembleias (tarefa MO.6.8)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum) e **funcionam com o recurso desligado** (`ASSEMBLIES_ENABLED` só liga o ciclo e as rotas de usuário): é antes de ligar que se calibra (MO.6.9). A regra vive no módulo `assemblies`; aqui a borda, a auditoria e a tradução dos erros (`404`, `409`, `422`). Corpos e respostas em `snake_case`, como o restante do painel. **Privacidade:** o admin vê o voto por pessoa e o peso em ações (exceção deliberada, como o patrimônio absoluto, ver `CLAUDE.md`); **a leitura não é auditada, toda escrita é**.
+
+#### `GET /admin/assemblies`
+
+- **Payload (query), opcional:** `status` (`scheduled`, `open` ou `closed`), validado por `assemblyListQuerySchema`; sem ele devolve os três (as 100 mais recentes).
+- **Sucesso:** `200` → `{ assemblies: [{ id, kind, subject_ref, subject_label, title, status, opens_at, closes_at, effect_applies_at, effect_applied_at, outcome, outcome_reason, voter_count, winning_option_id, min_voters, effect_pending, paused }] }`. `min_voters` é o quórum congelado na abertura (`null` em assembleia anterior ao parâmetro). `effect_pending`: aprovada, efeito já devido e ainda não entregue ao motor. `paused`: há pausa vigente cobrindo a assembleia.
+- **Erros:** `400` — `status` inválido.
+
+#### `GET /admin/assemblies/:id`
+
+- **Sucesso:** `200` → `{ assembly, options: [{ id, key, label, gain, loss, effect: { metric ('growth' | 'quality'), direction, intensity } | null, position, voters, weight }], min_voters, counted_voters, holders, votes: [{ user_id, username, name, option_id, weight, eligible, created_at, updated_at }] }`. `weight` são as ações na data de corte (nulo e `eligible = false` quando a pessoa não era acionista: o voto é descartado na apuração); `holders` são as pessoas com posição na data de corte; `min_voters` é o quórum que vale para esta assembleia (o da abertura, ou o de agora se anterior ao parâmetro). Assembleia ainda `scheduled` não tem snapshot nem voto.
+- **Erros:** `400` — `id` não é UUID; `404` — inexistente.
+
+#### `GET /admin/assemblies/pauses`
+
+- **Sucesso:** `200` → `{ active: [...], recent: [...] }`; item `{ id, scope ('global' | 'company'), company_id | null, reason, created_by, created_at, lifted_at | null, lifted_by | null }`. `recent` são as últimas encerradas (até 20).
+
+#### `POST /admin/assemblies/pauses`
+
+- **Payload (JSON):** `scope` (`global` | `company`), `company_id` (id da empresa; obrigatório com `company`, proibido com `global`), `reason` (1 a 300 caracteres, aparado), validados por `pauseAssembliesBodySchema`. Exige senha conferida há pouco (`requireRecentAuth`, como a pausa de negociação). O `admin_id` vem do token.
+- **Regra:** a pausa **impede abrir assembleia nova e aplicar efeito no motor**. Fechar e apurar seguem (o prazo de voto é uma promessa a quem vota) e votar continua liberado. Nada se perde: a assembleia que ficaria agendada e o efeito pendente esperam; na rodada seguinte à retomada o ciclo abre e aplica (de hora em hora, ou ao reiniciar). **Limite:** um balanço que passar da janela de recuperação (`catch_up_days`) durante a pausa não abre assembleia depois. Uma pausa global vale para qualquer kind; a de empresa, só para ela. Uma vigente por escopo.
+- **Sucesso:** `201` → a pausa criada.
+- **Erros:** `400` — corpo inválido; `409` — já existe pausa vigente no escopo; `422` — motivo vazio ou fora do tamanho.
+- **Auditoria:** `assembly.pause`, `target_type = assembly_pause`, `target_id` = id da pausa, `payload = { scope, subject_ref | null, reason }`; a recusa grava `result = failed`.
+
+#### `POST /admin/assemblies/pauses/:id/lift`
+
+- **Payload:** nenhum (`id` UUID no caminho).
+- **Sucesso:** `200` → a pausa encerrada.
+- **Erros:** `400` — `id` não é UUID; `404` — inexistente; `409` — já encerrada.
+- **Auditoria:** `assembly.resume`, `target_id` = id da pausa.
+
+#### `GET /admin/assemblies/settings`
+
+- **Sucesso:** `200` → `{ settings: [{ key, value, default, min, max, overridden, updated_by, updated_at }] }`, os 11 parâmetros do backend: `min_voters` (1-1000), `duration_days` (1-60, dias reais), `open_delay_days` (1-30, dias simulados), `catch_up_days` (1-30, dias simulados), `effect_delay_days` (1-30, dias reais), `monthly_free_credits` (1-10), `free_credit_min_level` (1-100), `participation_xp` (1-500), `proposal_monthly_cap` (1-20), `proposal_min_support` (1-50), `proposal_ttl_days` (1-180, dias reais). `default` é o valor inicial do servidor (variável de ambiente `ASSEMBLY_*` ou padrão do código); sem linha gravada vale ele. A faixa de efeito, a rampa e o cooldown são do motor (`GET /admin/settings?group=governance`).
+
+#### `PUT /admin/assemblies/settings/:key`
+
+- **Payload (JSON):** `value` (inteiro), validado por `updateAssemblySettingBodySchema`; `key` por `assemblySettingKeySchema`. O `admin_id` vem do token.
+- **Regra:** vale **só para as próximas assembleias** e passa a valer na hora no processo (e a cada rodada do ciclo, que relê a tabela). O quórum (`min_voters`) é gravado na assembleia ao abrir, então mudar depois não altera uma já aberta; duração e atrasos já foram aplicados às datas dela. Crédito mensal, nível mínimo, XP e os limites de proposta valem a partir da próxima consulta.
+- **Sucesso:** `200` → `{ settings }` (a lista nova).
+- **Erros:** `400` — `value` não é inteiro; `404` — chave desconhecida; `422` — fora da faixa (a mensagem traz a faixa).
+- **Auditoria:** `assembly.setting_update`, `target_type = assembly_setting`, `target_id` = a chave, `payload = { key, value }`; a recusa grava `result = failed`.
+
+#### `DELETE /admin/assemblies/settings/:key`
+
+- **Sucesso:** `200` → `{ settings }`, com a chave de volta ao valor inicial.
+- **Erros:** `404` — chave desconhecida.
+- **Auditoria:** `assembly.setting_reset`, `target_id` = a chave, `payload = { key }`.
+
+#### `GET /admin/assemblies/agenda-templates`
+
+- **Sucesso:** `200` → `{ templates: [{ key, sector | null, title, description, options: [{ key, label, gain, loss, effect: { metric, direction, intensity } }], active, created_at, usage: { assemblies, active_proposals } }] }`, todas as pautas (ativas ou não) por chave. `usage` mostra onde a pauta já foi usada.
+
+#### `POST /admin/assemblies/agenda-templates`
+
+- **Payload (JSON):** `key`, `sector` (texto ou `null` para qualquer setor), `title`, `description`, `options` (de 2 a 4), cada uma com `key`, `label`, `gain`, `loss` e `effect` `{ metric, direction, intensity }`; formato validado por `createAgendaTemplateBodySchema`.
+- **Regra (módulo `assemblies`, `validateTemplateInput`):** chave da pauta de 3 a 60 caracteres (minúsculas, números e `_`, começando por letra) e **definitiva**; chave de opção de 2 a 40, única na pauta; título 3-120, descrição 10-500, setor 2-40, rótulo 3-100, ganho e perda 3-200; **sem travessão** em nenhum texto (aparece no app); efeito só em `base_growth_pct` ou `quality_multiplier`, `direction` 1 ou -1, `intensity` em (0, 1] (fração da faixa do motor; o motor valida de novo ao aplicar). O `effect` guardado tem só esses três campos.
+- **Sucesso:** `201` → a pauta criada, ativa.
+- **Erros:** `400` — formato; `409` — já existe pauta com a chave; `422` — regra acima.
+- **Auditoria:** `assembly.template_create`, `target_type = agenda_template`, `target_id` = a chave, `payload = { sector, title, options (as chaves) }`.
+
+#### `PUT /admin/assemblies/agenda-templates/:key`
+
+- **Payload (JSON):** o mesmo conteúdo do `POST`, sem `key` (validado por `agendaTemplateContentSchema`). Nunca troca a chave nem o estado ativo.
+- **Regra:** vale para o **sorteio das próximas assembleias** e para as **propostas na fila** (que referenciam a pauta pela chave). As assembleias já abertas guardam a própria cópia das opções (`assembly_options`) e **não mudam**.
+- **Sucesso:** `200` → a pauta atualizada.
+- **Erros:** `400` — formato; `404` — pauta inexistente; `422` — regra.
+- **Auditoria:** `assembly.template_update`, mesmo `payload` do `POST`.
+
+#### `POST /admin/assemblies/agenda-templates/:key/active`
+
+- **Payload (JSON):** `active` (booleano).
+- **Regra:** desativar tira a pauta do sorteio e das propostas novas; **pauta nunca se apaga** (propostas e assembleias a referenciam).
+- **Sucesso:** `200` → a pauta atualizada.
+- **Erros:** `400` — `active` não é booleano; `404` — inexistente.
+- **Auditoria:** `assembly.template_activate` ou `assembly.template_deactivate`, `target_id` = a chave.
 
 ### Catálogo de ativos (tarefa N.12)
 

@@ -37,14 +37,89 @@ import { createEngineHoldingsSnapshotProvider } from './infrastructure/engine/en
 import { createEngineShareholderEffect } from './infrastructure/engine/engineShareholderEffect'
 import { createDrizzleAgendaCatalog } from './infrastructure/persistence/drizzleAgendaCatalog'
 import { createDrizzleAssemblyRepository } from './infrastructure/persistence/drizzleAssemblyRepository'
+import { createDrizzleAgendaCatalogAdmin } from './infrastructure/persistence/drizzleAgendaCatalogAdmin'
+import { createDrizzleAssemblyPauseRepository } from './infrastructure/persistence/drizzleAssemblyPauseRepository'
+import { createDrizzleAssemblySettingsStore } from './infrastructure/persistence/drizzleAssemblySettingsStore'
+import { AssemblySettingsService } from './application/assemblySettingsService'
+import {
+  GetAdminAssemblyDetailUseCase,
+  ListAdminAssembliesUseCase,
+} from './application/useCases/adminAssemblies'
+import {
+  CreateAgendaTemplateUseCase,
+  ListAgendaTemplatesAdminUseCase,
+  SetAgendaTemplateActiveUseCase,
+  UpdateAgendaTemplateUseCase,
+} from './application/useCases/agendaTemplatesAdmin'
+import {
+  LiftAssemblyPauseUseCase,
+  ListAssemblyPausesUseCase,
+  PauseAssembliesUseCase,
+} from './application/useCases/assemblyPauses'
 
 // Composição do módulo `assemblies` (único lugar que instancia os adapters concretos). Hoje só
 // devolve o job do ciclo (abrir, fechar e aplicar), ligado em `server.ts`, e o router (voto e
 // "minha situação", propostas de pauta e apoio; leitura e placar entram na MO.6.6).
-export interface AssembliesCompositionDeps {
+// Parte do módulo que o painel usa e que existe mesmo com o recurso desligado: parâmetros, pausas,
+// catálogo de pautas e leitura das assembleias (MO.6.8). Editar parâmetros e pautas antes de ligar
+// é o que a calibração (MO.6.9) precisa. `config` é o objeto vivo que o resto do módulo lê.
+export interface AssemblyAdminCoreDeps {
   db: Database
   engineUrl: string
   config: AssemblyConfig
+}
+
+export function createAssemblyKinds(engineUrl: string): AssemblyKindRegistry {
+  return new AssemblyKindRegistry().register(SHAREHOLDER_KIND, {
+    policies: shareholderPolicies,
+    effect: createEngineShareholderEffect(engineUrl),
+  })
+}
+
+export function createAssemblyAdminCore(deps: AssemblyAdminCoreDeps) {
+  const repository = createDrizzleAssemblyRepository(deps.db)
+  const pauses = createDrizzleAssemblyPauseRepository(deps.db)
+  const snapshots = createEngineHoldingsSnapshotProvider(deps.engineUrl)
+  const kinds = createAssemblyKinds(deps.engineUrl)
+  const catalogAdmin = createDrizzleAgendaCatalogAdmin(deps.db)
+  // O valor inicial (env ou padrão) é a cópia de antes de qualquer edição do painel.
+  const settings = new AssemblySettingsService(
+    structuredClone(deps.config),
+    deps.config,
+    createDrizzleAssemblySettingsStore(deps.db),
+  )
+  return {
+    repository,
+    pauses,
+    snapshots,
+    kinds,
+    settings,
+    listAssemblies: new ListAdminAssembliesUseCase(repository, pauses),
+    getAssembly: new GetAdminAssemblyDetailUseCase(
+      kinds,
+      repository,
+      snapshots,
+      pauses,
+      () => deps.config.params.minVoters,
+    ),
+    listPauses: new ListAssemblyPausesUseCase(pauses),
+    pauseAssemblies: new PauseAssembliesUseCase(pauses),
+    liftPause: new LiftAssemblyPauseUseCase(pauses),
+    listTemplates: new ListAgendaTemplatesAdminUseCase(catalogAdmin),
+    createTemplate: new CreateAgendaTemplateUseCase(catalogAdmin),
+    updateTemplate: new UpdateAgendaTemplateUseCase(catalogAdmin),
+    setTemplateActive: new SetAgendaTemplateActiveUseCase(catalogAdmin),
+  }
+}
+
+export type AssemblyAdminCore = ReturnType<typeof createAssemblyAdminCore>
+
+export interface AssembliesCompositionDeps {
+  config: AssemblyConfig
+  // Repositório, pausas, parâmetros e kinds compartilhados com o painel.
+  core: AssemblyAdminCore
+  engineUrl: string
+  db: Database
   authMiddleware: AuthMiddleware
   // Cache curto do placar de assembleia aberta.
   redis: Redis
@@ -63,12 +138,7 @@ export interface AssembliesCompositionDeps {
 }
 
 export function createAssembliesModule(deps: AssembliesCompositionDeps) {
-  const repository = createDrizzleAssemblyRepository(deps.db)
-  const snapshots = createEngineHoldingsSnapshotProvider(deps.engineUrl)
-  const kinds = new AssemblyKindRegistry().register(SHAREHOLDER_KIND, {
-    policies: shareholderPolicies,
-    effect: createEngineShareholderEffect(deps.engineUrl),
-  })
+  const { repository, snapshots, kinds, pauses } = deps.core
 
   const agendaCatalog = createDrizzleAgendaCatalog(deps.db)
   const proposals = createDrizzleProposalRepository(deps.db)
@@ -89,8 +159,10 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
       proposals,
       () => deps.config.proposals,
       () => deps.config.lifecycle,
+      pauses,
+      () => deps.config.params.minVoters,
     ),
-    new ApplyDueAssemblyEffectsUseCase(kinds, repository),
+    new ApplyDueAssemblyEffectsUseCase(kinds, repository, pauses),
     new AnnounceClosedAssembliesUseCase(
       kinds,
       repository,
@@ -101,6 +173,7 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
         recipients: deps.recipients,
       }),
     ),
+    () => deps.core.settings.refresh(),
   )
   const access = new VoteAccessService(
     kinds,

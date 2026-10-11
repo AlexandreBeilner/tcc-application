@@ -34,6 +34,25 @@ describe('engineSettingsAdmin', () => {
     expect(result.editable.map((s) => s.key)).toEqual(sampleSettings.editable.map((s) => s.key))
   })
 
+  it('o grupo de governança devolve só os parâmetros da assembleia e nunca o ritmo', async () => {
+    const governance = { ...sampleSettings.editable[0], key: 'governance_ramp_ticks' }
+    respond(200, { ...sampleSettings, editable: [...sampleSettings.editable, governance] })
+    const result = await engine().list('governance')
+    expect(result.editable.map((s) => s.key)).toEqual(['governance_ramp_ticks'])
+  })
+
+  it('gravar e restaurar um parâmetro de governança devolve o grupo dele', async () => {
+    const governance = { ...sampleSettings.editable[0], key: 'governance_cooldown_days' }
+    respond(200, { ...sampleSettings, editable: [...sampleSettings.editable, governance] })
+    const saved = await engine().set('governance_cooldown_days', 60, 'admin-1')
+    expect(saved.editable.map((s) => s.key)).toEqual(['governance_cooldown_days'])
+    expect((await engine().reset('governance_cooldown_days')).editable).toHaveLength(1)
+    // O ritmo continua no grupo dele.
+    expect((await engine().set('ticks_per_day', 12, 'admin-1')).editable.map((s) => s.key)).toEqual(
+      sampleSettings.editable.map((s) => s.key),
+    )
+  })
+
   it('set envia PUT com o valor e o admin_id', async () => {
     respond(200, sampleSettings)
     await engine().set('ticks_per_day', 12, 'admin-1')

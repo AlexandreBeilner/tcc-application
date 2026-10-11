@@ -81,7 +81,7 @@ export class GetAssemblyUseCase {
             decidedAt: assembly.decidedAt as Date,
           }
         : null,
-      minVoters: this.minVoters(),
+      minVoters: assembly.minVoters ?? this.minVoters(),
     }
   }
 

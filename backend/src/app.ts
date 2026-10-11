@@ -60,6 +60,23 @@ import { ListEngineSettingsUseCase } from './modules/admin/application/useCases/
 import { UpdateEngineSettingUseCase } from './modules/admin/application/useCases/updateEngineSetting'
 import { ResetEngineSettingUseCase } from './modules/admin/application/useCases/resetEngineSetting'
 import { createAdminSettingsRouter } from './modules/admin/interfaces/http/adminSettingsRouter'
+import { createAdminAssembliesRouter } from './modules/admin/interfaces/http/adminAssembliesRouter'
+import { createInProcessAssemblyAdmin } from './modules/admin/infrastructure/assemblies/inProcessAssemblyAdmin'
+import { createDrizzleVoterIdentityReader } from './modules/admin/infrastructure/persistence/drizzleVoterIdentityReader'
+import {
+  CreateAgendaTemplateAdminUseCase,
+  GetAssemblyAdminDetailUseCase,
+  LiftAssemblyPauseAdminUseCase,
+  ListAgendaTemplatesAdminUseCase,
+  ListAssembliesAdminUseCase,
+  ListAssemblyPausesAdminUseCase,
+  ListAssemblySettingsAdminUseCase,
+  PauseAssembliesAdminUseCase,
+  ResetAssemblySettingAdminUseCase,
+  SetAgendaTemplateActiveAdminUseCase,
+  UpdateAgendaTemplateAdminUseCase,
+  UpdateAssemblySettingAdminUseCase,
+} from './modules/admin/application/useCases/assemblyAdmin'
 import { createEngineBotAdmin } from './modules/admin/infrastructure/engine/engineBotAdmin'
 import { FundAdminBotUseCase } from './modules/admin/application/useCases/fundAdminBot'
 import { GetAdminBotActivityUseCase } from './modules/admin/application/useCases/getAdminBotActivity'
@@ -324,7 +341,7 @@ import { SimulateFixedIncomeUseCase } from './modules/market/application/useCase
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
 import { RecordAssemblyParticipationUseCase } from './modules/socialfeed/application/useCases/recordAssemblyParticipation'
-import { createAssembliesModule } from './modules/assemblies/composition'
+import { createAssembliesModule, createAssemblyAdminCore } from './modules/assemblies/composition'
 import { loadAssemblyConfig } from './modules/assemblies/infrastructure/config/assemblyConfig'
 import { createDrizzleAssemblyRepository } from './modules/assemblies/infrastructure/persistence/drizzleAssemblyRepository'
 import { createInProcessAssemblyCalendarSource } from './modules/market/infrastructure/assemblies/inProcessAssemblyCalendarSource'
@@ -912,10 +929,18 @@ export function createApp(deps: AppDeps = {}): Express {
   // Assembleia de Acionistas (MO.6.3/6.4): rotas de voto e o ciclo só existem com
   // `ASSEMBLIES_ENABLED=on` (desligada por padrão até a calibração, MO.6.9).
   const assemblyConfig = loadAssemblyConfig(process.env)
+  // Parâmetros, pausas, catálogo e leitura do painel existem mesmo com o recurso desligado
+  // (MO.6.8): é antes de ligar que se calibra. Os parâmetros gravados pelo painel entram por cima
+  // do valor inicial; falha ao ler mantém o valor inicial e a próxima rodada tenta de novo.
+  const assemblyCore = createAssemblyAdminCore({ db, engineUrl, config: assemblyConfig })
+  assemblyCore.settings
+    .refresh()
+    .catch((err) => console.error('assembleias: falha ao ler os parâmetros do painel', err))
   const assemblies = assemblyConfig.enabled
     ? createAssembliesModule({
         db,
         engineUrl,
+        core: assemblyCore,
         config: assemblyConfig,
         authMiddleware,
         redis: redisClient,
@@ -923,7 +948,9 @@ export function createApp(deps: AppDeps = {}): Express {
         getProgression,
         userRepository,
         awardXp,
-        recordAssemblyParticipation: new RecordAssemblyParticipationUseCase(socialFeedEventRepository),
+        recordAssemblyParticipation: new RecordAssemblyParticipationUseCase(
+          socialFeedEventRepository,
+        ),
         enqueueEmail,
         recipients: createDrizzleRecipientDirectory(db),
       })
@@ -1088,6 +1115,28 @@ export function createApp(deps: AppDeps = {}): Express {
       listEngineSettings,
       updateEngineSetting,
       resetEngineSetting,
+      authMiddleware,
+    }),
+  )
+  const assemblyAdmin = createInProcessAssemblyAdmin({
+    ...assemblyCore,
+    settings: assemblyCore.settings,
+    readVoters: createDrizzleVoterIdentityReader(db),
+  })
+  app.use(
+    createAdminAssembliesRouter({
+      listAssemblies: new ListAssembliesAdminUseCase(assemblyAdmin),
+      getAssembly: new GetAssemblyAdminDetailUseCase(assemblyAdmin),
+      listPauses: new ListAssemblyPausesAdminUseCase(assemblyAdmin),
+      pauseAssemblies: new PauseAssembliesAdminUseCase(assemblyAdmin, recordAdminAction),
+      liftPause: new LiftAssemblyPauseAdminUseCase(assemblyAdmin, recordAdminAction),
+      listSettings: new ListAssemblySettingsAdminUseCase(assemblyAdmin),
+      updateSetting: new UpdateAssemblySettingAdminUseCase(assemblyAdmin, recordAdminAction),
+      resetSetting: new ResetAssemblySettingAdminUseCase(assemblyAdmin, recordAdminAction),
+      listTemplates: new ListAgendaTemplatesAdminUseCase(assemblyAdmin),
+      createTemplate: new CreateAgendaTemplateAdminUseCase(assemblyAdmin, recordAdminAction),
+      updateTemplate: new UpdateAgendaTemplateAdminUseCase(assemblyAdmin, recordAdminAction),
+      setTemplateActive: new SetAgendaTemplateActiveAdminUseCase(assemblyAdmin, recordAdminAction),
       authMiddleware,
     }),
   )

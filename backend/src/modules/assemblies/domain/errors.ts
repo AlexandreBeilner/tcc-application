@@ -28,3 +28,13 @@ export class ProposalDeniedError extends Error {
 export class ProposalNotFoundError extends Error {}
 // Empresa que o motor não conhece.
 export class CompanyNotFoundError extends Error {}
+// Parâmetro de assembleia desconhecido ou valor fora da faixa permitida (painel, MO.6.8).
+export class InvalidAssemblySettingError extends Error {}
+// Pausa recusada por regra: já existe uma vigente no escopo, ou escopo/motivo inválidos.
+export class AssemblyPauseConflictError extends Error {}
+export class InvalidAssemblyPauseError extends Error {}
+export class AssemblyPauseNotFoundError extends Error {}
+// Pauta do catálogo malformada (painel, MO.6.8) ou inexistente.
+export class InvalidAgendaTemplateError extends Error {}
+export class AgendaTemplateNotFoundError extends Error {}
+export class AgendaTemplateConflictError extends Error {}

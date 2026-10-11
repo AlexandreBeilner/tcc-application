@@ -23,7 +23,7 @@ Cada tarefa documenta as suas rotas neste arquivo, no mesmo commit.
 - **Apuração** (`tallyVotes`): peso e elegibilidade vêm da política do kind sobre o snapshot da data de corte; voto de quem não é elegível, de peso zero ou em opção fora da pauta é descartado e não conta para o mínimo. Menos votantes distintos que `minVoters` → `not_approved / quorum`; empate no topo → `not_approved / tie`; ambos mantêm o status quo.
 - **Janela de voto** (`isOpenForVoting`): `status = open` e `opens_at <= agora < closes_at`. Vale também para trocar o voto. O repositório trava a linha da assembleia ao gravar, então voto e fechamento se serializam.
 - **Crédito**: `creditMonthKey` (Brasília, UTC-3) e `hasFreeCredit(usado, monthlyFreeCredits)`. O consumo no primeiro voto é do caso de uso da MO.6.4.
-- **Parâmetros** (`AssemblyParams`: `minVoters`, `monthlyFreeCredits`) entram por função em `TallyAssemblyUseCase`; `DEFAULT_ASSEMBLY_PARAMS` (3 e 1) é só o ponto de partida até a tabela editável pelo admin (MO.6.8).
+- **Parâmetros** (`AssemblyParams`: `minVoters`, `monthlyFreeCredits`, `freeCreditMinLevel`) entram por função; `DEFAULT_ASSEMBLY_PARAMS` é o valor inicial, que o painel sobrepõe pela tabela `assembly_settings` (MO.6.8, ver abaixo). **O quórum é congelado na assembleia** (`assemblies.min_voters`, gravado ao abrir): a apuração e o detalhe usam o da abertura, e só uma assembleia anterior ao parâmetro (`null`) usa o de agora.
 
 ## Extensão por kind
 
@@ -45,7 +45,7 @@ Job (`RunAssemblyLifecycleUseCase`, ligado em `server.ts`) a cada hora (`ASSEMBL
 
 ### Parâmetros
 
-Por variável de ambiente até a tabela editável da MO.6.8 (valor inválido cai no padrão): `ASSEMBLY_OPEN_DELAY_DAYS` (2), `ASSEMBLY_CATCH_UP_DAYS` (7), `ASSEMBLY_DURATION_DAYS` (7), `ASSEMBLY_EFFECT_DELAY_DAYS` (1), `ASSEMBLY_MIN_VOTERS` (3), `ASSEMBLY_PARTICIPATION_XP` (10). **Unidade:** o atraso de abertura conta dias **simulados** (é o que o motor sabe do balanço); duração e atraso do efeito contam dias **reais** (é o prazo que a pessoa vive ao votar).
+Valor inicial por variável de ambiente (valor inválido cai no padrão), **sobreposto pelo que o painel grava em `assembly_settings`** (MO.6.8, ver "Painel admin"): `ASSEMBLY_OPEN_DELAY_DAYS` (2), `ASSEMBLY_CATCH_UP_DAYS` (7), `ASSEMBLY_DURATION_DAYS` (7), `ASSEMBLY_EFFECT_DELAY_DAYS` (1), `ASSEMBLY_MIN_VOTERS` (3), `ASSEMBLY_PARTICIPATION_XP` (10). **Unidade:** o atraso de abertura conta dias **simulados** (é o que o motor sabe do balanço); duração e atraso do efeito contam dias **reais** (é o prazo que a pessoa vive ao votar).
 
 ### Calendário
 
@@ -143,3 +143,13 @@ Qualquer pessoa autenticada lê (Bearer; sem PRO, sem ações). Só existem com 
   - `result`: `null` enquanto aberta; depois do fechamento `{ outcome, reason, winningOptionId, voterCount, decidedAt }` (público antes de o efeito valer).
   - `description`: contexto da pauta vindo do catálogo (`null` se a pauta saiu do catálogo ativo).
 - **Erros:** `400` id que não é UUID · `401` · `404`.
+
+## Painel admin: pausa, parâmetros e pautas (MO.6.8)
+
+Rotas em `.docs/backend/admin.md#assembleias-tarefa-mo68` (admin, auditadas). O módulo expõe `createAssemblyAdminCore` (composição), que existe **com o recurso desligado**: repositório, pausas, parâmetros, catálogo editável e leitura com voto por pessoa. Três tabelas novas (migração `0047`):
+
+- **`assembly_settings`** (`key`, `value`, `updated_by`, `updated_at`): uma linha por parâmetro alterado; restaurar apaga a linha. `AssemblySettingsService` mantém o objeto de configuração vivo (o mesmo que `composition.ts` lê a cada uso) e o atualiza ao gravar e **no começo de cada rodada do ciclo**, então o painel vale sem reiniciar. Linha gravada fora da faixa é ignorada (nunca derruba o ciclo). Faixas em `domain/settings.ts`.
+- **`assembly_pauses`** (`scope` `global | subject`, `kind`, `subject_ref`, `scope_key`, `reason`, quem criou e quem retomou): uma vigente por escopo (índice único parcial em `scope_key`). `OpenDueAssembliesUseCase` e `ApplyDueAssemblyEffectsUseCase` consultam as vigentes a cada rodada: a global barra tudo (sem nem chamar o motor), a de empresa só a dela. Fechar, apurar e publicar o resultado não são afetados.
+- **`assemblies.min_voters`**: coluna nova (nula em assembleias antigas).
+
+O catálogo editável (`agenda_templates`) ganha `AgendaCatalogAdmin` (todas as pautas, com o uso) e validação em `domain/agendaTemplates.ts`; o ciclo continua lendo só as ativas (`AgendaCatalog.listActive`).

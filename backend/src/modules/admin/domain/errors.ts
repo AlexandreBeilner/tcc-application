@@ -165,3 +165,11 @@ export class InvalidAdminAnnouncementError extends Error {}
 
 // Integridade financeira (N.21). Já há uma verificação em andamento (409 do motor).
 export class IntegrityAlreadyRunningError extends Error {}
+
+// Painel das assembleias (MO.6.8). Traduzidas pelo adapter a partir das recusas do módulo dono e
+// mapeadas pelo router: 404, 409 e 422.
+export class AdminAssemblyNotFoundError extends Error {}
+// Já existe pausa vigente no escopo, pauta com a mesma chave, ou pausa já retomada.
+export class AdminAssemblyConflictError extends Error {}
+// Parâmetro fora da faixa, pausa sem motivo, pauta malformada.
+export class InvalidAdminAssemblyError extends Error {}

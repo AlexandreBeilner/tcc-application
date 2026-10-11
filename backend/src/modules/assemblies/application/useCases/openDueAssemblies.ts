@@ -1,8 +1,10 @@
 import { shareholderDedupeKey, pickTemplate, planSchedule } from '../../domain/lifecycle'
 import type { LifecycleParams } from '../../domain/lifecycle'
+import { isPaused } from '../../domain/pause'
 import { pickProposedTemplate, rankProposals, type ProposalParams } from '../../domain/proposals'
 import { SHAREHOLDER_KIND } from '../../domain/shareholderPolicies'
 import type { AgendaCatalog } from '../ports/agendaCatalog'
+import type { AssemblyPauseReader } from '../ports/assemblyPauseRepository'
 import type { AssemblyRepository } from '../ports/assemblyRepository'
 import type { CompanyReportSource } from '../ports/companyReportSource'
 import type { HoldingsSnapshotProvider } from '../ports/holdingsSnapshotProvider'
@@ -23,6 +25,9 @@ export interface OpenDueResult {
 // A pauta é a proposta mais apoiada da empresa (MO.6.5: fila vinda de PRO, com o mínimo de
 // apoios, desempate pela mais antiga); sem proposta que sirva, vale o sorteio determinístico do
 // catálogo. A proposta escolhida é consumida na criação; as demais continuam na fila até expirar.
+//
+// Pausa do painel (MO.6.8): empresa pausada (ou pausa global) não abre assembleia nesta rodada e
+// nada é perdido; ao retomar, o balanço ainda dentro da janela de recuperação abre normalmente.
 export class OpenDueAssembliesUseCase {
   constructor(
     private readonly create: CreateAssemblyUseCase,
@@ -33,6 +38,9 @@ export class OpenDueAssembliesUseCase {
     private readonly proposals: ProposalRepository,
     private readonly proposalParams: () => ProposalParams,
     private readonly params: () => LifecycleParams,
+    private readonly pauses: AssemblyPauseReader,
+    // Quórum de agora: fica congelado na assembleia que abre (editar depois não a muda).
+    private readonly minVoters: () => number,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -43,13 +51,17 @@ export class OpenDueAssembliesUseCase {
     await this.proposals
       .expireDue(now)
       .catch((err) => console.error('assembleias: falha ao expirar propostas', err))
-    const [reports, templates] = await Promise.all([
+    const paused = await this.pauses.listActive()
+    // Pausa global: nem consulta o motor.
+    if (paused.some((p) => p.scope === 'global')) return { opened: 0, failed: 0 }
+    const [allReports, templates] = await Promise.all([
       this.reports.listRecentReports(
         params.openDelayDays,
         params.openDelayDays + params.catchUpDays,
       ),
       this.catalog.listActive(SHAREHOLDER_KIND),
     ])
+    const reports = allReports.filter((r) => !isPaused(paused, SHAREHOLDER_KIND, r.companyId))
     const result: OpenDueResult = { opened: 0, failed: 0 }
     for (const report of reports) {
       try {
@@ -70,6 +82,7 @@ export class OpenDueAssembliesUseCase {
           title: template.title,
           subjectLabel: report.name,
           templateKey: template.key,
+          minVoters: this.minVoters(),
           options: template.options,
         })
         if (assembly.status !== 'scheduled') continue

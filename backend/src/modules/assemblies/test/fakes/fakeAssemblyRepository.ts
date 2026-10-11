@@ -45,6 +45,7 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
           templateKey: input.templateKey ?? null,
           effectAppliedAt: null,
           resultAnnouncedAt: null,
+          minVoters: input.minVoters ?? null,
           createdAt: now,
         },
         options: input.options.map((o, position) => ({

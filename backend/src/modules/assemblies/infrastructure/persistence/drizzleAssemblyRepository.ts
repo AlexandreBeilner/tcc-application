@@ -39,6 +39,7 @@ function toAssembly(row: typeof assemblies.$inferSelect): Assembly {
     templateKey: row.templateKey,
     effectAppliedAt: row.effectAppliedAt,
     resultAnnouncedAt: row.resultAnnouncedAt,
+    minVoters: row.minVoters,
     createdAt: row.createdAt,
   }
 }
@@ -85,6 +86,7 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
             title: input.title ?? null,
             subjectLabel: input.subjectLabel ?? null,
             templateKey: input.templateKey ?? null,
+            minVoters: input.minVoters ?? null,
             createdAt: now,
           })
           .onConflictDoNothing({ target: assemblies.dedupeKey })

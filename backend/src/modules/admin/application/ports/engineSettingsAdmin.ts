@@ -1,6 +1,16 @@
 // Espelha GET/PUT/DELETE /admin/settings do motor (tarefa N.7) — mesmos nomes de campo
 // (snake_case), sem tradução.
-export type EngineSettingKey = 'ticks_per_day' | 'max_catch_up'
+export type PaceSettingKey = 'ticks_per_day' | 'max_catch_up'
+// Faixa de efeito, rampa e cooldown da Assembleia de Acionistas (MO.6.2), editados na tela das
+// assembleias (MO.6.8). O motor aplica a decisão com os valores do momento em que a recebe.
+export type GovernanceSettingKey =
+  | 'governance_growth_step_centipp'
+  | 'governance_quality_step_centi'
+  | 'governance_ramp_ticks'
+  | 'governance_cooldown_days'
+export type EngineSettingKey = PaceSettingKey | GovernanceSettingKey
+// Cada tela lê o seu grupo: o Tempo (10.11) só o ritmo, as Assembleias só a governança.
+export type EngineSettingGroup = 'pace' | 'governance'
 
 export interface EditableSetting {
   key: EngineSettingKey
@@ -30,7 +40,7 @@ export interface EngineSettings {
 // faixa de cada chave é validada no domínio do motor; `adminId` vai pra ele gravar quem
 // alterou por último.
 export interface EngineSettingsAdmin {
-  list(): Promise<EngineSettings>
+  list(group?: EngineSettingGroup): Promise<EngineSettings>
   set(key: EngineSettingKey, value: number, adminId: string): Promise<EngineSettings>
   reset(key: EngineSettingKey): Promise<EngineSettings>
 }

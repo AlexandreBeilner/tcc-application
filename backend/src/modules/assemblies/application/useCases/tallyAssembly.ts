@@ -22,6 +22,8 @@ export class TallyAssemblyUseCase {
       this.repository.listVotes(assemblyId),
       this.snapshots.get(found.assembly),
     ])
-    return tallyVotes(found.options, votes, snapshot, policies, this.params())
+    // O quórum é o da abertura: mudar o parâmetro no painel vale só para as próximas assembleias.
+    const minVoters = found.assembly.minVoters ?? this.params().minVoters
+    return tallyVotes(found.options, votes, snapshot, policies, { minVoters })
   }
 }

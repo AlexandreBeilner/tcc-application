@@ -840,6 +840,9 @@ export const assemblies = pgTable(
     effectAppliedAt: timestamp('effect_applied_at', { withTimezone: true }),
     // Quando o resultado foi publicado (feed social e e-mail, MO.6.7); nulo = ainda não publicado.
     resultAnnouncedAt: timestamp('result_announced_at', { withTimezone: true }),
+    // Quórum fixado na abertura (MO.6.8): editar o parâmetro depois não muda as regras de quem já
+    // está votando. Nulo (assembleia anterior ao parâmetro editável) usa o valor de agora.
+    minVoters: integer('min_voters'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -875,6 +878,43 @@ export const agendaTemplates = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('agenda_templates_kind_active_idx').on(table.kind, table.active)],
+)
+
+// Parâmetros das assembleias editados no painel (MO.6.8). Uma linha por chave; sem linha vale o
+// valor inicial (variável de ambiente ou padrão do código). Restaurar apaga a linha.
+export const assemblySettings = pgTable('assembly_settings', {
+  key: varchar('key', { length: 60 }).primaryKey(),
+  value: integer('value').notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Pausa do ciclo das assembleias (MO.6.8), no padrão das pausas de negociação: global (todas) ou de
+// um assunto (uma empresa). Pausar só impede abrir e aplicar; nada se perde, retomar continua de
+// onde parou. `scope_key` ('global' ou 'kind:assunto') garante uma pausa vigente por escopo.
+export const assemblyPauses = pgTable(
+  'assembly_pauses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    scope: text('scope').notNull(),
+    kind: text('kind'),
+    subjectRef: text('subject_ref'),
+    scopeKey: varchar('scope_key', { length: 200 }).notNull(),
+    reason: text('reason').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    liftedAt: timestamp('lifted_at', { withTimezone: true }),
+    liftedBy: uuid('lifted_by').references(() => users.id),
+  },
+  (table) => [
+    check('assembly_pauses_scope_chk', sql`${table.scope} IN ('global', 'subject')`),
+    uniqueIndex('assembly_pauses_active_unique')
+      .on(table.scopeKey)
+      .where(sql`lifted_at IS NULL`),
+    index('assembly_pauses_created_idx').on(table.createdAt),
+  ],
 )
 
 // Opções da pauta (catálogo fechado, sem texto livre): cada uma com ganho e perda explícitos.

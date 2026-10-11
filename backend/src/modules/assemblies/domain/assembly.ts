@@ -35,6 +35,8 @@ export interface Assembly {
   effectAppliedAt: Date | null
   // Quando o resultado foi publicado no feed social e por e-mail (MO.6.7); nulo = ainda não.
   resultAnnouncedAt: Date | null
+  // Quórum fixado na abertura (MO.6.8); nulo = assembleia anterior ao parâmetro, vale o de agora.
+  minVoters: number | null
   createdAt: Date
 }
 
@@ -120,6 +122,8 @@ export interface NewAssemblyInput {
   title?: string
   subjectLabel?: string
   templateKey?: string
+  // Quórum desta assembleia, congelado na criação.
+  minVoters?: number
   options: Array<Omit<AgendaOption, 'id' | 'assemblyId' | 'position'>>
 }
 

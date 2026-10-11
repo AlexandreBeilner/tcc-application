@@ -18,9 +18,13 @@ export class RunAssemblyLifecycleUseCase {
     private readonly openDue: Pick<OpenDueAssembliesUseCase, 'execute'>,
     private readonly applyDue: Pick<ApplyDueAssemblyEffectsUseCase, 'execute'>,
     private readonly announceClosed: Pick<AnnounceClosedAssembliesUseCase, 'execute'>,
+    // Relê os parâmetros gravados pelo painel (MO.6.8) antes de cada rodada.
+    private readonly beforeRun: () => Promise<void> = async () => {},
   ) {}
 
   async execute(): Promise<LifecycleRunResult> {
+    // Falha ao reler os parâmetros mantém os últimos valores conhecidos e nunca para o ciclo.
+    await this.beforeRun().catch(failedStage('parâmetros', undefined))
     const close = await this.closeDue
       .execute()
       .catch(failedStage('fechar', { closed: 0, approved: 0, failed: 1 }))
