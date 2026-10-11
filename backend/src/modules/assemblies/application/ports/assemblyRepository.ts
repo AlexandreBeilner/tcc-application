@@ -21,6 +21,11 @@ export interface AssemblyDecision {
   decidedAt: Date
 }
 
+export type CastVoteResult =
+  | { status: 'cast'; changed: boolean; creditConsumed: boolean }
+  | { status: 'closed' }
+  | { status: 'no_credit' }
+
 export interface AssemblyRepository {
   // Cria assembleia e opções numa transação. Idempotente pelo `dedupeKey`: se já existe, devolve a
   // existente com `created: false` (reexecutar o job de abertura não duplica).
@@ -46,6 +51,21 @@ export interface AssemblyRepository {
     now: Date,
   ): Promise<boolean>
   listVotes(assemblyId: string): Promise<Vote[]>
+  findVote(assemblyId: string, userId: string): Promise<Vote | null>
+  // Grava ou troca o voto e, quando `credit` vem, consome o crédito do mês, tudo numa transação:
+  // trava a assembleia (voto e fechamento se serializam) e a pessoa no mês (dois votos simultâneos
+  // em assembleias diferentes não gastam o mesmo crédito). Quem já tem voto nesta assembleia nunca
+  // consome crédito de novo. `closed`: fora da janela; `no_credit`: saldo do mês esgotado. Nada é
+  // gravado nesses dois casos (o crédito não se perde).
+  castVote(
+    input: {
+      assemblyId: string
+      userId: string
+      optionId: string
+      credit?: { monthKey: string; monthlyFreeCredits: number }
+    },
+    now: Date,
+  ): Promise<CastVoteResult>
   // Créditos gratuitos já consumidos pela pessoa no mês de calendário (`monthKey`).
   countCreditsUsed(userId: string, monthKey: string): Promise<number>
   // Registra o consumo (idempotente por pessoa e assembleia).

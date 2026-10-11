@@ -220,6 +220,78 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
     async listVotes(assemblyId) {
       return db.select().from(assemblyVotes).where(eq(assemblyVotes.assemblyId, assemblyId))
     },
+    async findVote(assemblyId, userId) {
+      const [row] = await db
+        .select()
+        .from(assemblyVotes)
+        .where(and(eq(assemblyVotes.assemblyId, assemblyId), eq(assemblyVotes.userId, userId)))
+      return row ?? null
+    },
+    async castVote(input, now) {
+      return db.transaction(async (tx) => {
+        const [row] = await tx
+          .select({
+            status: assemblies.status,
+            opensAt: assemblies.opensAt,
+            closesAt: assemblies.closesAt,
+          })
+          .from(assemblies)
+          .where(eq(assemblies.id, input.assemblyId))
+          .for('update')
+        if (!row || row.status !== 'open' || now < row.opensAt || now >= row.closesAt) {
+          return { status: 'closed' as const }
+        }
+        const [current] = await tx
+          .select({ userId: assemblyVotes.userId })
+          .from(assemblyVotes)
+          .where(
+            and(
+              eq(assemblyVotes.assemblyId, input.assemblyId),
+              eq(assemblyVotes.userId, input.userId),
+            ),
+          )
+        const needsCredit = !current && input.credit !== undefined
+        if (needsCredit && input.credit) {
+          // Serializa os votos da mesma pessoa no mês: o saldo é lido e gasto sem corrida.
+          await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(hashtext(${`assembly-credit:${input.userId}:${input.credit.monthKey}`}))`,
+          )
+          const [{ total }] = await tx
+            .select({ total: sql<number>`count(*)::int` })
+            .from(assemblyVoteCredits)
+            .where(
+              and(
+                eq(assemblyVoteCredits.userId, input.userId),
+                eq(assemblyVoteCredits.monthKey, input.credit.monthKey),
+              ),
+            )
+          if (total >= input.credit.monthlyFreeCredits) return { status: 'no_credit' as const }
+          await tx
+            .insert(assemblyVoteCredits)
+            .values({
+              userId: input.userId,
+              assemblyId: input.assemblyId,
+              monthKey: input.credit.monthKey,
+              consumedAt: now,
+            })
+            .onConflictDoNothing()
+        }
+        await tx
+          .insert(assemblyVotes)
+          .values({
+            assemblyId: input.assemblyId,
+            userId: input.userId,
+            optionId: input.optionId,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: [assemblyVotes.assemblyId, assemblyVotes.userId],
+            set: { optionId: input.optionId, updatedAt: now },
+          })
+        return { status: 'cast' as const, changed: Boolean(current), creditConsumed: needsCredit }
+      })
+    },
     async countCreditsUsed(userId, monthKey) {
       const [{ total }] = await db
         .select({ total: sql<number>`count(*)::int` })

@@ -5,7 +5,7 @@ export interface AssemblyConfig {
   // Desligado por padrão: ligar só depois da calibração (MO.6.9).
   enabled: boolean
   lifecycle: LifecycleParams
-  tally: Pick<AssemblyParams, 'minVoters'>
+  params: AssemblyParams
 }
 
 function positiveInt(raw: string | undefined, fallback: number): number {
@@ -30,6 +30,16 @@ export function loadAssemblyConfig(env: NodeJS.ProcessEnv): AssemblyConfig {
         DEFAULT_LIFECYCLE_PARAMS.effectDelayDays,
       ),
     },
-    tally: { minVoters: positiveInt(env.ASSEMBLY_MIN_VOTERS, DEFAULT_ASSEMBLY_PARAMS.minVoters) },
+    params: {
+      minVoters: positiveInt(env.ASSEMBLY_MIN_VOTERS, DEFAULT_ASSEMBLY_PARAMS.minVoters),
+      monthlyFreeCredits: positiveInt(
+        env.ASSEMBLY_MONTHLY_FREE_CREDITS,
+        DEFAULT_ASSEMBLY_PARAMS.monthlyFreeCredits,
+      ),
+      freeCreditMinLevel: positiveInt(
+        env.ASSEMBLY_FREE_CREDIT_MIN_LEVEL,
+        DEFAULT_ASSEMBLY_PARAMS.freeCreditMinLevel,
+      ),
+    },
   }
 }

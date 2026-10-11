@@ -7,3 +7,12 @@ export class AssemblyNotOpenError extends Error {}
 export class InvalidAssemblyOptionError extends Error {}
 // Datas fora de ordem ou pauta malformada na criação.
 export class InvalidAssemblyError extends Error {}
+// Voto recusado por regra (`reason` diz qual; o texto não culpa a pessoa e a 6.6 o traduz em convite).
+export class VoteDeniedError extends Error {
+  constructor(
+    readonly reason: string,
+    message: string,
+  ) {
+    super(message)
+  }
+}

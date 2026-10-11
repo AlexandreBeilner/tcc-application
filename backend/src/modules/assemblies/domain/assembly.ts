@@ -82,11 +82,14 @@ export interface AssemblyParams {
   minVoters: number
   // Quantos votos gratuitos por mês de calendário quem não é PRO tem.
   monthlyFreeCredits: number
+  // Nível mínimo para usar o crédito gratuito (decisão do autor: 3).
+  freeCreditMinLevel: number
 }
 
 export const DEFAULT_ASSEMBLY_PARAMS: AssemblyParams = {
   minVoters: 3,
   monthlyFreeCredits: 1,
+  freeCreditMinLevel: 3,
 }
 
 export interface OptionTotal {

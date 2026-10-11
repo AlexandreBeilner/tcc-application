@@ -137,6 +137,47 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
     async listVotes(assemblyId) {
       return fake.votes.filter((v) => v.assemblyId === assemblyId)
     },
+    async findVote(assemblyId, userId) {
+      return fake.votes.find((v) => v.assemblyId === assemblyId && v.userId === userId) ?? null
+    },
+    async castVote(input, now) {
+      const item = fake.items.get(input.assemblyId)
+      if (!item) return { status: 'closed' }
+      const { assembly } = item
+      if (assembly.status !== 'open' || now < assembly.opensAt || now >= assembly.closesAt) {
+        return { status: 'closed' }
+      }
+      const current = fake.votes.find(
+        (v) => v.assemblyId === input.assemblyId && v.userId === input.userId,
+      )
+      const needsCredit = !current && input.credit !== undefined
+      if (needsCredit && input.credit) {
+        const used = fake.credits.filter(
+          (c) => c.userId === input.userId && c.monthKey === input.credit?.monthKey,
+        ).length
+        if (used >= input.credit.monthlyFreeCredits) return { status: 'no_credit' }
+      }
+      if (current) {
+        current.optionId = input.optionId
+        current.updatedAt = now
+      } else {
+        fake.votes.push({
+          assemblyId: input.assemblyId,
+          userId: input.userId,
+          optionId: input.optionId,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      if (needsCredit && input.credit) {
+        fake.credits.push({
+          userId: input.userId,
+          assemblyId: input.assemblyId,
+          monthKey: input.credit.monthKey,
+        })
+      }
+      return { status: 'cast', changed: Boolean(current), creditConsumed: needsCredit }
+    },
     async countCreditsUsed(userId, monthKey) {
       return fake.credits.filter((c) => c.userId === userId && c.monthKey === monthKey).length
     },

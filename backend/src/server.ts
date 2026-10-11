@@ -18,12 +18,12 @@ import { createBillingReconciliation } from './modules/billing/composition'
 import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
 import { startBillingReconciliationScheduler } from './modules/billing/infrastructure/scheduler/billingReconciliationScheduler'
 import { createRedisClient } from './infra/redisClient'
+import { assertProductionConfig } from './infra/productionConfigGuard'
 import type { GenerateMonthlyRetrospectivesUseCase } from './modules/retrospectives/application/useCases/generateMonthlyRetrospectives'
 import { startRetrospectiveScheduler } from './modules/retrospectives/infrastructure/scheduler/retrospectiveScheduler'
 import { startDuelScheduler } from './modules/duels/infrastructure/scheduler/duelScheduler'
 import type { SettleDueDuelsUseCase } from './modules/duels/application/useCases/settleDueDuels'
-import { createAssembliesModule } from './modules/assemblies/composition'
-import { loadAssemblyConfig } from './modules/assemblies/infrastructure/config/assemblyConfig'
+import type { RunAssemblyLifecycleUseCase } from './modules/assemblies/application/useCases/runAssemblyLifecycle'
 import { startAssemblyScheduler } from './modules/assemblies/infrastructure/scheduler/assemblyScheduler'
 import { createPayrollComposition } from './modules/payroll/composition'
 import { startPayrollScheduler } from './modules/payroll/infrastructure/scheduler/payrollScheduler'
@@ -49,6 +49,10 @@ const DEFAULT_BILLING_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
 const DEFAULT_ASSEMBLY_INTERVAL_MS = 60 * 60 * 1000
 
 async function main() {
+  // LW.3.8: com DEPLOY_ENV=production, recusa subir com segredo/URL/provedor de desenvolvimento.
+  // Vem antes de tudo, inclusive das migrações, pra uma configuração errada nunca tocar o banco.
+  assertProductionConfig(process.env)
+
   // Configuração de e-mail (EM.1.2): valida na subida, pra uma chave faltando derrubar o
   // processo aqui e não na primeira requisição. O worker do outbox liga mais abaixo.
   const emailConfig = loadEmailConfig(process.env)
@@ -140,13 +144,9 @@ async function main() {
 
   // Assembleia de Acionistas (MO.6.3): desligada por padrão (`ASSEMBLIES_ENABLED=on` liga), porque
   // só entra no ar depois da calibração (MO.6.9).
-  const assemblyConfig = loadAssemblyConfig(process.env)
-  if (assemblyConfig.enabled) {
-    const { runAssemblyLifecycle } = createAssembliesModule({
-      db,
-      engineUrl,
-      config: assemblyConfig,
-    })
+  const runAssemblyLifecycle = app.locals.runAssemblyLifecycle as
+    RunAssemblyLifecycleUseCase | undefined
+  if (runAssemblyLifecycle) {
     startAssemblyScheduler(
       runAssemblyLifecycle,
       Number(process.env.ASSEMBLY_INTERVAL_MS || Number.NaN) || DEFAULT_ASSEMBLY_INTERVAL_MS,

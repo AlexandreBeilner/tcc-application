@@ -323,6 +323,7 @@ import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
+import { createAssembliesModule } from './modules/assemblies/composition'
 import { loadAssemblyConfig } from './modules/assemblies/infrastructure/config/assemblyConfig'
 import { createDrizzleAssemblyRepository } from './modules/assemblies/infrastructure/persistence/drizzleAssemblyRepository'
 import { createInProcessAssemblyCalendarSource } from './modules/market/infrastructure/assemblies/inProcessAssemblyCalendarSource'
@@ -903,6 +904,20 @@ export function createApp(deps: AppDeps = {}): Express {
     recordDuelResult: new RecordDuelResultUseCase(socialFeedEventRepository),
     cosmeticsReader,
   })
+  // Assembleia de Acionistas (MO.6.3/6.4): rotas de voto e o ciclo só existem com
+  // `ASSEMBLIES_ENABLED=on` (desligada por padrão até a calibração, MO.6.9).
+  const assemblyConfig = loadAssemblyConfig(process.env)
+  const assemblies = assemblyConfig.enabled
+    ? createAssembliesModule({
+        db,
+        engineUrl,
+        config: assemblyConfig,
+        authMiddleware,
+        proAccess: billing.proAccessGuard,
+        getProgression,
+        userRepository,
+      })
+    : null
   // Retrospectiva mensal (MO.5.4): contagens do mês, dias de atividade e rentabilidade percentual.
   const retrospectives = createRetrospectivesModule({
     db,
@@ -1245,6 +1260,11 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use(cosmetics.router)
   app.use(leagues.router)
   app.use(duels.router)
+  if (assemblies) {
+    app.use(assemblies.router)
+    // O job do ciclo é ligado em `server.ts` (nunca em testes de rota).
+    app.locals.runAssemblyLifecycle = assemblies.runAssemblyLifecycle
+  }
   app.use(retrospectives.router)
   app.locals.generateMonthlyRetrospectives = retrospectives.generateMonthly
   // O job que encerra os duelos vencidos é ligado em `server.ts` (nunca em testes de rota).

@@ -3,8 +3,7 @@
 Fundação genérica das assembleias (MO.6.1). Só `kind = shareholder` está registrado hoje; o
 desenho é extensível por `kind` (M9).
 
-**Ainda não há rotas HTTP** (o ciclo abaixo roda em job, sem rota). Elas entram com os casos de uso que as justificam: voto e crédito
-(MO.6.4), propostas e apoio (MO.6.5), leitura e placar (MO.6.6) e pausa/auditoria no admin (MO.6.8).
+**Rotas HTTP:** voto e "minha situação" (MO.6.4, abaixo). Elas só existem com `ASSEMBLIES_ENABLED=on` (sem a chave, 404). Propostas e apoio entram na MO.6.5, leitura e placar na MO.6.6, pausa e auditoria no admin na MO.6.8.
 Cada tarefa documenta as suas rotas neste arquivo, no mesmo commit.
 
 ## Modelo
@@ -48,3 +47,31 @@ Por variável de ambiente até a tabela editável da MO.6.8 (valor inválido cai
 ### Calendário
 
 Com o ciclo ligado, `GET /market/calendar` (ver `market.md`) acrescenta fatos globais de mercado `assembly_open`, `assembly_close` e `assembly_effect` (este só se a pauta não foi reprovada), com `title` = "Empresa: pauta", `relevance: "market"` e sem valor em reais. Ficam de fora com `scope=mine`. Instante real vira dia simulado pelo relógio do motor (`GET /market/clock`). Falha ao ler as assembleias nunca derruba o calendário.
+
+## Voto e elegibilidade (MO.6.4)
+
+Autenticação: Bearer token, `userId` sempre do token. `:id` precisa ser UUID (`400`). Só existem com `ASSEMBLIES_ENABLED=on`.
+
+### `POST /assemblies/:id/vote`
+
+- **Payload:** `{ "optionId": uuid }` (Zod). A opção precisa ser da pauta desta assembleia.
+- **Sucesso:** `201` no primeiro voto, `200` ao trocar o voto. Corpo: `{ optionId, changed, creditConsumed }` (`creditConsumed` é `true` só no primeiro voto de quem usou o crédito gratuito; PRO e troca de voto nunca consomem).
+- **Erros:** `400` corpo inválido ou opção de outra assembleia · `401` · `404` assembleia inexistente · `409 { error, reason: "not_open" }` fora da janela de votação · `403 { error, reason }` com um dos motivos abaixo.
+- **Regra** (`CastVoteUseCase` + `VoteAccessService` + `resolveVoteAccess`, nesta ordem):
+  1. janela aberta (`status = open` e `opens_at <= agora < closes_at`);
+  2. **posição na data de corte** (snapshot do motor, que já exclui bots): sem ela `403 not_shareholder`, **mesmo para PRO**;
+  3. quem **já votou** troca o voto até o fechamento sem PRO, crédito, nível ou e-mail (cancelar o plano nunca desfaz o que a pessoa já fez; o peso continua o do snapshot);
+  4. **PRO** vota sem gastar crédito e sem exigência de nível ou e-mail (consulta ao `ProAccessGuard`, nunca claim de JWT);
+  5. quem não é PRO usa o **crédito mensal**: `403 email_not_verified` (verifique seu e-mail), `403 level_too_low` (a partir do nível `ASSEMBLY_FREE_CREDIT_MIN_LEVEL`, padrão 3) e `403 no_credit` com o texto `requer plano PRO ou crédito de voto`.
+- **Atomicidade:** `AssemblyRepository.castVote` faz numa transação só: trava a assembleia (voto e fechamento se serializam, nenhum voto entra depois da apuração), trava a pessoa no mês (advisory lock, então dois votos simultâneos em assembleias diferentes gastam um crédito só), confere o saldo, grava o voto e consome o crédito. Voto recusado nunca gasta crédito.
+- **Crédito:** `ASSEMBLY_MONTHLY_FREE_CREDITS` por **mês de calendário de Brasília, o do primeiro voto** (`assembly_vote_credits.month_key`).
+
+### `GET /assemblies/:id/me`
+
+- **Sucesso:** `200` → `{ assemblyId, isPro, canVote, reason, message, myVote: { optionId } | null, myShares, credit: { monthKey, limit, used, available, minLevel } }`. `reason` é um de `not_open`, `not_shareholder`, `email_not_verified`, `level_too_low`, `no_credit` (ou `null`); `message` é o texto pronto, sem culpa. `myShares` são as ações **da própria pessoa** na data de corte (nunca valor em reais nem dado de outra pessoa; `null` fora da janela).
+- **Erros:** `400` · `401` · `404`.
+- **Regra:** `GetMyVotingStatusUseCase` usa o mesmo `VoteAccessService` do voto, então a tela (MO.6.6) mostra o botão, o saldo e o convite ao PRO sem repetir regra no frontend.
+
+### Parâmetros novos
+
+`ASSEMBLY_MONTHLY_FREE_CREDITS` (1) e `ASSEMBLY_FREE_CREDIT_MIN_LEVEL` (3), junto dos demais `ASSEMBLY_*`, até a tabela editável da MO.6.8.

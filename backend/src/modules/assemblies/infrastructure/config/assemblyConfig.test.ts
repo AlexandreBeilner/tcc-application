@@ -6,7 +6,7 @@ describe('loadAssemblyConfig', () => {
     expect(loadAssemblyConfig({})).toEqual({
       enabled: false,
       lifecycle: { openDelayDays: 2, catchUpDays: 7, durationDays: 7, effectDelayDays: 1 },
-      tally: { minVoters: 3 },
+      params: { minVoters: 3, monthlyFreeCredits: 1, freeCreditMinLevel: 3 },
     })
   })
 
@@ -23,6 +23,14 @@ describe('loadAssemblyConfig', () => {
       ASSEMBLY_EFFECT_DELAY_DAYS: '-1',
     })
     expect(cfg.lifecycle).toMatchObject({ durationDays: 5, openDelayDays: 2, effectDelayDays: 1 })
-    expect(cfg.tally.minVoters).toBe(10)
+    expect(cfg.params.minVoters).toBe(10)
+  })
+
+  it('crédito mensal e nível mínimo são parâmetros', () => {
+    const cfg = loadAssemblyConfig({
+      ASSEMBLY_MONTHLY_FREE_CREDITS: '2',
+      ASSEMBLY_FREE_CREDIT_MIN_LEVEL: '5',
+    })
+    expect(cfg.params).toMatchObject({ monthlyFreeCredits: 2, freeCreditMinLevel: 5 })
   })
 })
