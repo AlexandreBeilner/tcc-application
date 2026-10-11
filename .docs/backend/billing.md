@@ -58,6 +58,8 @@ Para testar o app sem contas de loja nem RevenueCat. Fora do modo `dev` estas ro
 
 ## Funil e painel de conversão (MO.1.3 / MO.7.1)
 
+**Retenção (ponto 048, decisão de 2026-10-11):** os eventos ficam 12 meses (`FUNNEL_RETENTION_MONTHS`) e são apagados por `PurgeOldFunnelEventsUseCase`, agendado uma vez por dia no `server.ts` (`startFunnelRetentionScheduler`, roda com qualquer provedor). Excluir a conta (`DELETE /me`) não apaga os eventos: a conta é anonimizada (sem nome, e-mail, username nem senha), então o que resta já não identifica ninguém, e o prazo de 12 meses vale igual. A Política de Privacidade (`/privacidade`) cita a medição e o prazo.
+
 Medição própria no Postgres (`funnel_events`), sem ferramenta de terceiro: nenhum dado de usuário sai da plataforma. Um evento guarda só quem, qual passo, de que ponto de convite e (na compra) qual plano; **nunca valor em reais nem patrimônio** (RNF09). Passos: `invite_viewed`, `plans_opened`, `purchase_started` (reportados pelo app) e `subscribed`, `cancelled` (gravados só pelo servidor, a partir dos mesmos fatos que geram o e-mail de boas-vindas e o de encerramento; assinatura de teste das lojas e concessão promocional não geram evento). Pontos de convite (`source`): `league`, `duel`, `cosmetics`, `retrospective` e `assembly` (os cinco convites) e `direct` (abriu `/planos` sem passar por um convite). A gravação é idempotente por `dedupe_key`.
 
 ### `POST /billing/funnel`

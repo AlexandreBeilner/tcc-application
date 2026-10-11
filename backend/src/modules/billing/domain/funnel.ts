@@ -5,6 +5,11 @@ import type { Subscription } from './subscription'
 // Funil de conversão do PRO (MO.1.3/MO.7.1). Funções puras: nomes de evento, pontos de convite e o
 // cálculo das métricas do painel. Nenhum evento carrega valor em reais nem patrimônio (RNF09).
 
+// Por quanto tempo os eventos ficam (ponto 048, decisão do autor em 2026-10-11): depois disso são
+// apagados. A conta excluída é anonimizada (sem nome, e-mail nem username), então o que sobra de
+// evento dela dentro do prazo já não identifica ninguém.
+export const FUNNEL_RETENTION_MONTHS = 12
+
 // Quem reporta cada evento: os três primeiros vêm do cliente (`POST /billing/funnel`); `subscribed`
 // e `cancelled` só o servidor grava, a partir do ciclo de vida da assinatura.
 export const CLIENT_FUNNEL_EVENTS = ['invite_viewed', 'plans_opened', 'purchase_started'] as const

@@ -47,6 +47,12 @@ const DATA_ROWS = [
         basis: 'Execução do contrato (art. 7º, V)',
     },
     {
+        data: 'Passos de contato com o plano PRO (viu um convite, abriu a página de planos, iniciou a compra, assinou ou cancelou, com o ponto do app de onde veio)',
+        purpose:
+            'Entender quais convites ao PRO funcionam e melhorar a oferta. Medimos por conta própria, sem ferramenta de terceiro, e nenhum desses registros leva valor em reais nem patrimônio.',
+        basis: 'Legítimo interesse (art. 7º, IX)',
+    },
+    {
         data: 'Registros técnicos (endereço IP, data e hora de acesso, erros)',
         purpose: 'Segurança, prevenção a abuso e correção de falhas.',
         basis: 'Legítimo interesse (art. 7º, IX) e obrigação legal (Marco Civil da Internet, art. 15)',
@@ -70,8 +76,8 @@ export function PoliticaPrivacidade() {
                 </header>
 
                 <p>
-                    Esta política explica quais dados pessoais a plataforma Selucra coleta, para que usa, com quem compartilha e quais
-                    são os seus direitos, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018, a LGPD).
+                    Esta política explica quais dados pessoais a plataforma Selucra coleta, para que usa, com quem compartilha e quais são
+                    os seus direitos, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018, a LGPD).
                 </p>
 
                 <section className={styles.section}>
@@ -86,8 +92,8 @@ export function PoliticaPrivacidade() {
                 <section className={styles.section}>
                     <h2>2. O que é a plataforma</h2>
                     <p>
-                        O Selucra é uma plataforma educacional gamificada de educação financeira. Todas as operações de investimento
-                        são <strong>simulações com dinheiro fictício e dados sintéticos</strong>. Não movimentamos dinheiro real, não somos
+                        O Selucra é uma plataforma educacional gamificada de educação financeira. Todas as operações de investimento são{' '}
+                        <strong>simulações com dinheiro fictício e dados sintéticos</strong>. Não movimentamos dinheiro real, não somos
                         corretora e nada aqui é recomendação de investimento.
                     </p>
                 </section>
@@ -163,8 +169,9 @@ export function PoliticaPrivacidade() {
                     <p>
                         Mantemos seus dados enquanto sua conta estiver ativa. Ao excluir a conta, seus dados pessoais (nome, e-mail, nome de
                         usuário, senha, foto e vínculo com o Google) são anonimizados e você deixa de conseguir entrar. O histórico fictício
-                        de operações e do ranking permanece sem identificar você, porque faz parte de um registro imutável do mercado.
-                        Registros técnicos de acesso são mantidos pelo prazo mínimo exigido em lei.
+                        de operações e do ranking permanece sem identificar você, porque faz parte de um registro imutável do mercado. Os
+                        registros de contato com o plano PRO são apagados depois de 12 meses e, se você excluir a conta antes, ficam sem
+                        nenhum dado que identifique você. Registros técnicos de acesso são mantidos pelo prazo mínimo exigido em lei.
                     </p>
                 </section>
 

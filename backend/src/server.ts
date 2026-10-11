@@ -14,7 +14,11 @@ import { createHtmlEmailRenderer } from './modules/notifications/infrastructure/
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
 import { createRankingSnapshotComposition } from './modules/ranking/composition'
 import { startRankingSnapshotScheduler } from './modules/ranking/infrastructure/scheduler/rankingSnapshotScheduler'
-import { createBillingReconciliation } from './modules/billing/composition'
+import {
+  createBillingReconciliation,
+  createFunnelRetentionPurge,
+} from './modules/billing/composition'
+import { startFunnelRetentionScheduler } from './modules/billing/infrastructure/scheduler/funnelRetentionScheduler'
 import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
 import { startBillingReconciliationScheduler } from './modules/billing/infrastructure/scheduler/billingReconciliationScheduler'
 import { createRedisClient } from './infra/redisClient'
@@ -43,6 +47,8 @@ const DEFAULT_DUEL_SETTLE_INTERVAL_MS = 60 * 60 * 1000
 const DEFAULT_RETROSPECTIVE_INTERVAL_MS = 60 * 60 * 1000
 // Cadência da reconciliação de assinaturas (MO.2.5): rede de segurança do webhook, não precisa ser fina.
 const DEFAULT_BILLING_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
+// Retenção do funil de conversão (ponto 048): uma limpeza por dia basta.
+const FUNNEL_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 // Cadência do ciclo das assembleias (MO.6.3): abrir, fechar e aplicar. Os prazos são de dias, então
 // checar de hora em hora basta; tudo é idempotente.
@@ -154,6 +160,8 @@ async function main() {
   } else {
     console.log('assembleias: ciclo desligado (ASSEMBLIES_ENABLED=on para ligar)')
   }
+
+  startFunnelRetentionScheduler(createFunnelRetentionPurge(db), FUNNEL_RETENTION_INTERVAL_MS)
 
   // Cobrança (MO.2.5): só reconcilia com o provedor ligado; desligado, não há nada pra reconsultar.
   const billingConfig = loadBillingConfig(process.env)

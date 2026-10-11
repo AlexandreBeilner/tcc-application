@@ -9,8 +9,10 @@ import { DevSubscriptionUseCase } from './application/useCases/devSubscription'
 import type { BillingPrices } from './domain/funnel'
 import { GetBillingConversionUseCase } from './application/useCases/getBillingConversion'
 import { RecordFunnelEventUseCase } from './application/useCases/recordFunnelEvent'
+import { PurgeOldFunnelEventsUseCase } from './application/useCases/purgeOldFunnelEvents'
 import {
   createDrizzleFunnelReader,
+  createDrizzleFunnelRetention,
   createDrizzleFunnelRecorder,
 } from './infrastructure/persistence/drizzleFunnelEvents'
 import { ListActiveProUserIdsUseCase } from './application/useCases/listActiveProUserIds'
@@ -97,6 +99,11 @@ function createBillingCore(deps: BillingCoreDeps) {
       deps.prices ?? { monthlyCents: null, annualCents: null },
     ),
   }
+}
+
+// Limpeza de retenção do funil (`server.ts`): roda com qualquer provedor, o funil é gravado sempre.
+export function createFunnelRetentionPurge(db: Database) {
+  return new PurgeOldFunnelEventsUseCase(createDrizzleFunnelRetention(db))
 }
 
 // Job de reconciliação (`server.ts`): só existe com o provedor ligado, senão não há o que reconsultar.

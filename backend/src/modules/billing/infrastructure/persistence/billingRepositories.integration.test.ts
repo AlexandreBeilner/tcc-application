@@ -10,7 +10,11 @@ import { entitlement, NOW, day } from '../../test/fixtures'
 import { createDrizzleBillingUserLookup } from './drizzleBillingUserLookup'
 import { createDrizzleReconciliationAudience } from './drizzleReconciliationAudience'
 import { createDrizzleBillingWebhookEventLog } from './drizzleBillingWebhookEventLog'
-import { createDrizzleFunnelReader, createDrizzleFunnelRecorder } from './drizzleFunnelEvents'
+import {
+  createDrizzleFunnelReader,
+  createDrizzleFunnelRecorder,
+  createDrizzleFunnelRetention,
+} from './drizzleFunnelEvents'
 import { createDrizzleSubscriptionRepository } from './drizzleSubscriptionRepository'
 
 // Integração (MO.2.1): só roda com TEST_DATABASE_URL apontando pra um banco DESCARTÁVEL (apaga
@@ -192,6 +196,18 @@ describe.skipIf(!databaseUrl)('repositórios de cobrança (banco real)', () => {
       await recorder.record(event(userId, 'plans_opened', 'league', 'k1', NOW))
 
       expect(await db.select().from(schema.funnelEvents)).toHaveLength(1)
+    })
+
+    it('a retenção apaga só o que é anterior ao corte (ponto 048)', async () => {
+      const recorder = createDrizzleFunnelRecorder(db)
+      await recorder.record(event(userId, 'plans_opened', 'league', 'old', day(-400)))
+      await recorder.record(event(userId, 'plans_opened', 'duel', 'recent', NOW))
+
+      const removed = await createDrizzleFunnelRetention(db).purgeOlderThan(day(-365))
+
+      expect(removed).toBe(1)
+      const left = await db.select().from(schema.funnelEvents)
+      expect(left.map((row) => row.dedupeKey)).toEqual(['recent'])
     })
 
     it('listAll devolve todas as assinaturas', async () => {

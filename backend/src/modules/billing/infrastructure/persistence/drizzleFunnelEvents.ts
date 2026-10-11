@@ -1,7 +1,8 @@
-import { sql } from 'drizzle-orm'
+import { lt, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { funnelEvents } from '../../../../db/schema'
 import type { FunnelReader } from '../../application/ports/funnelReader'
+import type { FunnelRetention } from '../../application/ports/funnelRetention'
 import type { FunnelRecorder } from '../../application/ports/funnelRecorder'
 import { FUNNEL_SOURCES } from '../../domain/funnel'
 import type { FunnelSource, FunnelSummary, SourceFunnel } from '../../domain/funnel'
@@ -20,6 +21,18 @@ export function createDrizzleFunnelRecorder(db: Database): FunnelRecorder {
           createdAt: event.at,
         })
         .onConflictDoNothing({ target: funnelEvents.dedupeKey })
+    },
+  }
+}
+
+export function createDrizzleFunnelRetention(db: Database): FunnelRetention {
+  return {
+    async purgeOlderThan(cutoff) {
+      const removed = await db
+        .delete(funnelEvents)
+        .where(lt(funnelEvents.createdAt, cutoff))
+        .returning({ id: funnelEvents.id })
+      return removed.length
     },
   }
 }
