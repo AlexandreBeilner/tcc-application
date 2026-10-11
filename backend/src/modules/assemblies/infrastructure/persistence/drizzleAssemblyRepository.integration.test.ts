@@ -8,6 +8,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
 import type { NewAssemblyInput } from '../../domain/assembly'
+import { parseEngineEffect } from '../engine/engineShareholderEffect'
+import { createDrizzleAgendaCatalog } from './drizzleAgendaCatalog'
 import { createDrizzleAssemblyRepository } from './drizzleAssemblyRepository'
 
 // Integração (MO.6.1): só roda com TEST_DATABASE_URL apontando pra um banco DESCARTÁVEL (apaga as
@@ -137,5 +139,88 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
     expect(await repo.countCreditsUsed(ids[1], '2026-10')).toBe(1)
     expect(await repo.countCreditsUsed(ids[1], '2026-11')).toBe(0)
     expect(await repo.countCreditsUsed(ids[2], '2026-10')).toBe(0)
+  })
+
+  it('lista as abertas vencidas e as aprovadas com efeito devido, e marca o efeito uma vez só', async () => {
+    const repo = createDrizzleAssemblyRepository(db)
+    const { assembly, options } = await repo.create(
+      { ...input, title: 'Orçamento', subjectLabel: 'Acme', templateKey: 'capital_budget' },
+      now,
+    )
+    await repo.markOpen(assembly.id)
+    expect(await repo.listOpenDue(new Date('2026-10-17T11:59:59Z'), 10)).toHaveLength(0)
+    const due = await repo.listOpenDue(new Date('2026-10-17T12:00:00Z'), 10)
+    expect(due).toHaveLength(1)
+    expect(due[0]).toMatchObject({
+      title: 'Orçamento',
+      subjectLabel: 'Acme',
+      templateKey: 'capital_budget',
+      effectAppliedAt: null,
+    })
+
+    await repo.close(assembly.id, {
+      outcome: 'approved',
+      reason: 'decided',
+      winningOptionId: options[0].id,
+      voterCount: 3,
+      decidedAt: now,
+    })
+    expect(await repo.listApprovedPendingEffect(new Date('2026-10-20T11:59:59Z'), 10)).toHaveLength(
+      0,
+    )
+    const pending = await repo.listApprovedPendingEffect(new Date('2026-10-20T12:00:00Z'), 10)
+    expect(pending).toHaveLength(1)
+    expect(pending[0].options.map((o) => o.key)).toEqual(['a', 'b'])
+    expect(await repo.markEffectApplied(assembly.id, now)).toBe(true)
+    expect(await repo.markEffectApplied(assembly.id, now)).toBe(false)
+    expect(await repo.listApprovedPendingEffect(new Date('2026-10-21T00:00:00Z'), 10)).toHaveLength(
+      0,
+    )
+  })
+
+  it('assembleia não aprovada nunca entra na fila de efeitos', async () => {
+    const repo = createDrizzleAssemblyRepository(db)
+    const { assembly } = await repo.create(input, now)
+    await repo.markOpen(assembly.id)
+    await repo.close(assembly.id, {
+      outcome: 'not_approved',
+      reason: 'quorum',
+      winningOptionId: null,
+      voterCount: 1,
+      decidedAt: now,
+    })
+    expect(await repo.listApprovedPendingEffect(new Date('2027-01-01T00:00:00Z'), 10)).toHaveLength(
+      0,
+    )
+  })
+
+  it('o catálogo semeado tem pautas de dois lados com efeito válido, gerais e por setor', async () => {
+    const templates = await createDrizzleAgendaCatalog(db).listActive('shareholder')
+    expect(templates.length).toBeGreaterThanOrEqual(15)
+    expect(templates.some((t) => t.sector === null)).toBe(true)
+    const sectors = new Set(templates.map((t) => t.sector).filter(Boolean))
+    expect(sectors).toEqual(
+      new Set([
+        'Varejo',
+        'Energia',
+        'Mineração',
+        'Agronegócio',
+        'Bancário/Financeiro',
+        'Tecnologia',
+      ]),
+    )
+    for (const template of templates) {
+      expect(template.options, template.key).toHaveLength(2)
+      for (const option of template.options) {
+        expect(option.gain && option.loss && option.label, template.key).toBeTruthy()
+        expect(
+          () => parseEngineEffect(option.effect),
+          `${template.key}/${option.key}`,
+        ).not.toThrow()
+        expect(
+          `${template.title}${template.description}${option.label}${option.gain}${option.loss}`,
+        ).not.toContain('—')
+      }
+    }
   })
 })

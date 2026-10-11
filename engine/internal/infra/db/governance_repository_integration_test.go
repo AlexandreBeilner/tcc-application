@@ -167,3 +167,44 @@ func TestGovernanceRepository_SnapshotDecisaoERampa(t *testing.T) {
 		t.Errorf("governança não pode escrever cotação: %d", events)
 	}
 }
+
+// ListCompanySchedules (MO.6.3) devolve a agenda de cada empresa com ação negociável, com os
+// tickers (ON antes de PN) e o dia corrente; empresa só com ativo sandbox fica de fora.
+func TestGovernanceRepository_ListCompanySchedules(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+	ctx := context.Background()
+	var acme, sand, on, pn, sandAsset string
+	for _, q := range []struct {
+		dest  *string
+		query string
+	}{
+		{&acme, `INSERT INTO companies (name, cnpj, sector, report_offset_days) VALUES ('Acme', '11111111000111', 'Tecnologia', 3) RETURNING id`},
+		{&sand, `INSERT INTO companies (name, cnpj, sector) VALUES ('Sandbox SA', '22222222000122', 'Varejo') RETURNING id`},
+		{&on, `INSERT INTO assets (ticker, name, type) VALUES ('ACME3', 'Acme ON', 'acao') RETURNING id`},
+		{&pn, `INSERT INTO assets (ticker, name, type) VALUES ('ACME4', 'Acme PN', 'acao') RETURNING id`},
+		{&sandAsset, `INSERT INTO assets (ticker, name, type, is_sandbox) VALUES ('SAND3', 'Sand ON', 'acao', true) RETURNING id`},
+	} {
+		if err := conn.QueryRowContext(ctx, q.query).Scan(q.dest); err != nil {
+			t.Fatalf("%s: %v", q.query, err)
+		}
+	}
+	if _, err := conn.ExecContext(ctx, `INSERT INTO variable_income_assets (asset_id, company_id, share_class, outstanding_shares)
+		VALUES ($1, $3, 'PN', 1000), ($2, $3, 'ON', 1000), ($4, $5, 'ON', 1000)`, pn, on, acme, sandAsset, sand); err != nil {
+		t.Fatal(err)
+	}
+
+	day, schedules, err := NewGovernanceRepository(conn).ListCompanySchedules(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(schedules) != 1 || schedules[0].CompanyID != acme {
+		t.Fatalf("schedules = %+v, esperado só a Acme", schedules)
+	}
+	s := schedules[0]
+	if s.Sector != "Tecnologia" || s.ReportOffsetDays != 3 || s.ReportFrequencyDays <= 0 || len(s.Tickers) != 2 || s.Tickers[0] != "ACME3" || s.Tickers[1] != "ACME4" {
+		t.Errorf("agenda = %+v", s)
+	}
+	if day < 0 {
+		t.Errorf("dia = %d", day)
+	}
+}

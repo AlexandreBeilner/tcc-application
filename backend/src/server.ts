@@ -22,6 +22,9 @@ import type { GenerateMonthlyRetrospectivesUseCase } from './modules/retrospecti
 import { startRetrospectiveScheduler } from './modules/retrospectives/infrastructure/scheduler/retrospectiveScheduler'
 import { startDuelScheduler } from './modules/duels/infrastructure/scheduler/duelScheduler'
 import type { SettleDueDuelsUseCase } from './modules/duels/application/useCases/settleDueDuels'
+import { createAssembliesModule } from './modules/assemblies/composition'
+import { loadAssemblyConfig } from './modules/assemblies/infrastructure/config/assemblyConfig'
+import { startAssemblyScheduler } from './modules/assemblies/infrastructure/scheduler/assemblyScheduler'
 import { createPayrollComposition } from './modules/payroll/composition'
 import { startPayrollScheduler } from './modules/payroll/infrastructure/scheduler/payrollScheduler'
 
@@ -40,6 +43,10 @@ const DEFAULT_DUEL_SETTLE_INTERVAL_MS = 60 * 60 * 1000
 const DEFAULT_RETROSPECTIVE_INTERVAL_MS = 60 * 60 * 1000
 // Cadência da reconciliação de assinaturas (MO.2.5): rede de segurança do webhook, não precisa ser fina.
 const DEFAULT_BILLING_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
+
+// Cadência do ciclo das assembleias (MO.6.3): abrir, fechar e aplicar. Os prazos são de dias, então
+// checar de hora em hora basta; tudo é idempotente.
+const DEFAULT_ASSEMBLY_INTERVAL_MS = 60 * 60 * 1000
 
 async function main() {
   // Configuração de e-mail (EM.1.2): valida na subida, pra uma chave faltando derrubar o
@@ -130,6 +137,24 @@ async function main() {
     Number(process.env.RETROSPECTIVE_INTERVAL_MS || Number.NaN) ||
       DEFAULT_RETROSPECTIVE_INTERVAL_MS,
   )
+
+  // Assembleia de Acionistas (MO.6.3): desligada por padrão (`ASSEMBLIES_ENABLED=on` liga), porque
+  // só entra no ar depois da calibração (MO.6.9).
+  const assemblyConfig = loadAssemblyConfig(process.env)
+  if (assemblyConfig.enabled) {
+    const { runAssemblyLifecycle } = createAssembliesModule({
+      db,
+      engineUrl,
+      config: assemblyConfig,
+    })
+    startAssemblyScheduler(
+      runAssemblyLifecycle,
+      Number(process.env.ASSEMBLY_INTERVAL_MS || Number.NaN) || DEFAULT_ASSEMBLY_INTERVAL_MS,
+    )
+    console.log('assembleias: ciclo ligado')
+  } else {
+    console.log('assembleias: ciclo desligado (ASSEMBLIES_ENABLED=on para ligar)')
+  }
 
   // Cobrança (MO.2.5): só reconcilia com o provedor ligado; desligado, não há nada pra reconsultar.
   const billingConfig = loadBillingConfig(process.env)

@@ -27,6 +27,12 @@ export interface Assembly {
   winningOptionId: string | null
   voterCount: number | null
   decidedAt: Date | null
+  // Contexto de exibição (nulos em assembleias criadas sem catálogo).
+  title: string | null
+  subjectLabel: string | null
+  templateKey: string | null
+  // Quando o resultado aprovado foi entregue ao motor; nulo = ainda não aplicado.
+  effectAppliedAt: Date | null
   createdAt: Date
 }
 
@@ -106,6 +112,9 @@ export interface NewAssemblyInput {
   snapshotAt: Date
   closesAt: Date
   effectAppliesAt: Date
+  title?: string
+  subjectLabel?: string
+  templateKey?: string
   options: Array<Omit<AgendaOption, 'id' | 'assemblyId' | 'position'>>
 }
 

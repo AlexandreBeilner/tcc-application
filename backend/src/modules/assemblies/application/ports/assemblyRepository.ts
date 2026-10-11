@@ -27,6 +27,15 @@ export interface AssemblyRepository {
   create(input: NewAssemblyInput, now: Date): Promise<AssemblyWithOptions & { created: boolean }>
   findById(id: string): Promise<AssemblyWithOptions | null>
   listByStatus(status: AssemblyStatus, limit: number): Promise<Assembly[]>
+  // Abertas cujo fechamento já passou (candidatas à apuração), as mais antigas primeiro.
+  listOpenDue(now: Date, limit: number): Promise<Assembly[]>
+  // Assembleias já abertas com algum marco (abertura, fechamento ou efeito) dentro da janela, para o
+  // Calendário de mercado.
+  listForCalendar(from: Date, to: Date): Promise<Assembly[]>
+  // Fechadas e aprovadas, com o efeito já devido e ainda não entregue ao motor.
+  listApprovedPendingEffect(now: Date, limit: number): Promise<AssemblyWithOptions[]>
+  // Marca o efeito como entregue (condicional: `false` se já estava marcado).
+  markEffectApplied(id: string, now: Date): Promise<boolean>
   // Transições condicionais ao estado: `false` se outro processo já mudou a assembleia.
   markOpen(id: string): Promise<boolean>
   close(id: string, decision: AssemblyDecision): Promise<boolean>

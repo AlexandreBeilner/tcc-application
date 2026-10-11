@@ -828,6 +828,13 @@ export const assemblies = pgTable(
     winningOptionId: uuid('winning_option_id'),
     voterCount: integer('voter_count'),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    // Contexto de exibição (MO.6.3): título da pauta, nome da empresa e a pauta do catálogo que
+    // originou a assembleia. Nulos em assembleias criadas sem catálogo.
+    title: text('title'),
+    subjectLabel: text('subject_label'),
+    templateKey: text('template_key'),
+    // Quando o resultado aprovado foi entregue ao motor (nulo = ainda não aplicado).
+    effectAppliedAt: timestamp('effect_applied_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -844,6 +851,25 @@ export const assemblies = pgTable(
       sql`${table.snapshotAt} <= ${table.opensAt} AND ${table.opensAt} < ${table.closesAt} AND ${table.closesAt} <= ${table.effectAppliesAt}`,
     ),
   ],
+)
+
+// Catálogo de pautas (MO.6.3): cada linha é uma pauta fechada de dois lados que o job de abertura
+// sorteia de forma determinística para uma empresa. `sector` nulo vale para qualquer setor.
+// `options` é uma lista `[{ key, label, gain, loss, effect }]`. Cresce por linha nova (migração
+// ou, na MO.6.8, painel admin); a MO.6.5 acrescenta proposta e apoio.
+export const agendaTemplates = pgTable(
+  'agenda_templates',
+  {
+    key: varchar('key', { length: 80 }).primaryKey(),
+    kind: text('kind').notNull(),
+    sector: text('sector'),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    options: jsonb('options').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('agenda_templates_kind_active_idx').on(table.kind, table.active)],
 )
 
 // Opções da pauta (catálogo fechado, sem texto livre): cada uma com ganho e perda explícitos.

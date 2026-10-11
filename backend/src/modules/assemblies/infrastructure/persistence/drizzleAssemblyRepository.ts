@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, between, eq, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import {
   assemblies,
@@ -34,6 +34,10 @@ function toAssembly(row: typeof assemblies.$inferSelect): Assembly {
     winningOptionId: row.winningOptionId,
     voterCount: row.voterCount,
     decidedAt: row.decidedAt,
+    title: row.title,
+    subjectLabel: row.subjectLabel,
+    templateKey: row.templateKey,
+    effectAppliedAt: row.effectAppliedAt,
     createdAt: row.createdAt,
   }
 }
@@ -77,6 +81,9 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
             snapshotAt: input.snapshotAt,
             closesAt: input.closesAt,
             effectAppliesAt: input.effectAppliesAt,
+            title: input.title ?? null,
+            subjectLabel: input.subjectLabel ?? null,
+            templateKey: input.templateKey ?? null,
             createdAt: now,
           })
           .onConflictDoNothing({ target: assemblies.dedupeKey })
@@ -111,6 +118,57 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
         .orderBy(asc(assemblies.closesAt))
         .limit(limit)
       return rows.map(toAssembly)
+    },
+    async listOpenDue(now, limit) {
+      const rows = await db
+        .select()
+        .from(assemblies)
+        .where(and(eq(assemblies.status, 'open'), lte(assemblies.closesAt, now)))
+        .orderBy(asc(assemblies.closesAt))
+        .limit(limit)
+      return rows.map(toAssembly)
+    },
+    async listForCalendar(from, to) {
+      const rows = await db
+        .select()
+        .from(assemblies)
+        .where(
+          and(
+            ne(assemblies.status, 'scheduled'),
+            or(
+              between(assemblies.opensAt, from, to),
+              between(assemblies.closesAt, from, to),
+              between(assemblies.effectAppliesAt, from, to),
+            ),
+          ),
+        )
+        .orderBy(asc(assemblies.opensAt))
+      return rows.map(toAssembly)
+    },
+    async listApprovedPendingEffect(now, limit) {
+      const rows = await db
+        .select({ id: assemblies.id })
+        .from(assemblies)
+        .where(
+          and(
+            eq(assemblies.status, 'closed'),
+            eq(assemblies.outcome, 'approved'),
+            isNull(assemblies.effectAppliedAt),
+            lte(assemblies.effectAppliesAt, now),
+          ),
+        )
+        .orderBy(asc(assemblies.effectAppliesAt))
+        .limit(limit)
+      const loaded = await Promise.all(rows.map((r) => load(r.id)))
+      return loaded.filter((l): l is AssemblyWithOptions => l !== null)
+    },
+    async markEffectApplied(id, now) {
+      const rows = await db
+        .update(assemblies)
+        .set({ effectAppliedAt: now })
+        .where(and(eq(assemblies.id, id), isNull(assemblies.effectAppliedAt)))
+        .returning({ id: assemblies.id })
+      return rows.length > 0
     },
     async markOpen(id) {
       const rows = await db

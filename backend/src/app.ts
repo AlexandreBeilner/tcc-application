@@ -323,6 +323,9 @@ import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
+import { loadAssemblyConfig } from './modules/assemblies/infrastructure/config/assemblyConfig'
+import { createDrizzleAssemblyRepository } from './modules/assemblies/infrastructure/persistence/drizzleAssemblyRepository'
+import { createInProcessAssemblyCalendarSource } from './modules/market/infrastructure/assemblies/inProcessAssemblyCalendarSource'
 import { GetMarketCalendarUseCase } from './modules/market/application/useCases/getMarketCalendar'
 import { GetMarketClockUseCase } from './modules/market/application/useCases/getMarketClock'
 import { GetTradingHaltsUseCase } from './modules/market/application/useCases/getTradingHalts'
@@ -482,7 +485,14 @@ export function createApp(deps: AppDeps = {}): Express {
   const getIndicatorHistory = new GetIndicatorHistoryUseCase(cachedIndicatorHistoryReader)
   const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
   const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
-  const getMarketCalendar = new GetMarketCalendarUseCase(marketCalendarReader)
+  // Marcos das assembleias no Calendário (MO.6.3): só com o ciclo ligado. O frontend precisa
+  // conhecer os tipos `assembly_*` antes (MO.6.6), por isso nasce atrás da mesma chave.
+  const getMarketCalendar = new GetMarketCalendarUseCase(
+    marketCalendarReader,
+    loadAssemblyConfig(process.env).enabled
+      ? createInProcessAssemblyCalendarSource(createDrizzleAssemblyRepository(db))
+      : undefined,
+  )
   const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)

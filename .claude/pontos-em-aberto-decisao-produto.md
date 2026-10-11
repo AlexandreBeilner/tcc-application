@@ -1012,3 +1012,11 @@ Nenhum ponto em aberto no momento.
 ### 048 · Política de Privacidade não cita a medição do funil de conversão (MO.7.1), achado em 2026-10-10
 
 O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convite ao PRO, abriu os planos, iniciou a compra, assinou ou cancelou, com o ponto de origem). Não sai da plataforma e não tem valor nem patrimônio, mas é tratamento de dado de uso por pessoa identificada. **Decisão do autor:** incluir um parágrafo na Política de Privacidade (`/privacidade`) e definir por quanto tempo os eventos ficam (hoje, indefinidamente) e se `DELETE /me` deve apagá-los (hoje a conta é anonimizada e as linhas ficam ligadas ao id).
+
+### 049 · Unidade dos prazos da Assembleia de Acionistas: dias simulados ou reais? (MO.6.3), achado em 2026-10-10
+
+- **Local:** `backend/src/modules/assemblies` (`OpenDueAssembliesUseCase`, `planSchedule`) e `.docs/backend/assemblies.md`.
+- **Origem:** a decisão "abre 2 dias depois do balanço, fica aberta 7 dias, efeito 1 dia depois de fechar" não diz se "dia" é simulado ou real. O balanço só existe em dia simulado, mas votar é um prazo vivido em tempo real. Implementado: o atraso de abertura em dias **simulados**, duração e atraso do efeito em dias **reais**.
+- **Problema:** com `days_per_real_day` maior que 1 (hoje o Temporizador anda 5 dias simulados por dia real), 2 dias simulados equivalem a menos de 1 dia real e o efeito de um trimestre (cooldown de 90 dias simulados do motor) pode chegar antes de a pessoa ver o resultado.
+- **Opções:** manter como está; ou converter tudo para dias reais (abrir quando passou N dias reais do balanço); ou tudo em dias simulados.
+- **Status:** em aberto, sem bloquear; revisar na calibração (MO.6.9).

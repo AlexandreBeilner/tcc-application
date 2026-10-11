@@ -90,8 +90,9 @@ type Settings interface {
 
 // Service orquestra snapshot, decisão e aplicação do efeito.
 type Service struct {
-	repo     Repository
-	settings Settings
+	repo      Repository
+	settings  Settings
+	schedules ScheduleReader
 }
 
 func NewService(repo Repository, settings Settings) *Service {

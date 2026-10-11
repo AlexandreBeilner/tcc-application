@@ -182,7 +182,8 @@ func main() {
 	// Governança corporativa (MO.6.2): snapshot de posições, decisão da Assembleia de Acionistas
 	// como evento e efeito gradual nos fundamentos, aplicado no próprio tick. Os parâmetros
 	// (faixa, rampa, cooldown) vêm de enginesetting.
-	governanceService := corporategovernance.NewService(db.NewGovernanceRepository(pool), settingsService)
+	governanceRepository := db.NewGovernanceRepository(pool)
+	governanceService := corporategovernance.NewService(governanceRepository, settingsService).WithSchedules(governanceRepository)
 	tickService.WithGovernance(governanceService)
 	schedulerAdmin := &httpserver.SchedulerAdminAPI{
 		Control:     schedulerControl,

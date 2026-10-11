@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/lib/pq"
+
 	"tcc-investimentos/engine/internal/domain"
 	"tcc-investimentos/engine/internal/domain/corporategovernance"
 	"tcc-investimentos/engine/internal/infra/eventstore"
@@ -308,4 +310,37 @@ func (r *GovernanceRepository) ApplyStep(ctx context.Context, decisionID string,
 		return false, err
 	}
 	return true, tx.Commit()
+}
+
+var _ corporategovernance.ScheduleReader = (*GovernanceRepository)(nil)
+
+// ListCompanySchedules devolve o dia simulado corrente e a agenda de balanço de cada empresa
+// que tem ação negociável no Mercado Ao Vivo (sandbox fora). Serve a GET /governance/reports.
+func (r *GovernanceRepository) ListCompanySchedules(ctx context.Context) (int, []corporategovernance.CompanySchedule, error) {
+	day, err := loadSimulatedDay(ctx, r.db)
+	if err != nil {
+		return 0, nil, err
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT c.id, c.name, c.sector, c.report_frequency_days, c.report_offset_days,
+		        COALESCE((SELECT schedule_cutover_day FROM market_calendar WHERE id = 1), 0),
+		        array_agg(a.ticker ORDER BY v.share_class, a.ticker)
+		 FROM companies c
+		 JOIN variable_income_assets v ON v.company_id = c.id
+		 JOIN assets a ON a.id = v.asset_id AND a.is_sandbox = false
+		 GROUP BY c.id, c.name, c.sector, c.report_frequency_days, c.report_offset_days
+		 ORDER BY c.name, c.id`)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []corporategovernance.CompanySchedule
+	for rows.Next() {
+		var s corporategovernance.CompanySchedule
+		if err := rows.Scan(&s.CompanyID, &s.Name, &s.Sector, &s.ReportFrequencyDays, &s.ReportOffsetDays, &s.ScheduleCutoverDay, pq.Array(&s.Tickers)); err != nil {
+			return 0, nil, err
+		}
+		out = append(out, s)
+	}
+	return day, out, rows.Err()
 }

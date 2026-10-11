@@ -48,6 +48,37 @@ func (f *fakeGovernance) GetDecision(_ context.Context, a string) (corporategove
 	return corporategovernance.Decision{AssemblyID: a, Status: corporategovernance.StatusCompleted}, f.decisionFound, f.err
 }
 
+func (f *fakeGovernance) RecentReports(_ context.Context, minDays, maxDays int) (corporategovernance.ReportsResult, error) {
+	if maxDays < minDays {
+		return corporategovernance.ReportsResult{}, corporategovernance.ErrInvalidInput
+	}
+	return corporategovernance.ReportsResult{SimulatedDay: 93, Reports: []corporategovernance.CompanyReport{
+		{CompanyID: govCompany, Name: "Beta", Sector: "Varejo", Tickers: []string{"BETA3"}, ReportDay: 91, DaysSinceReport: 2},
+	}}, f.err
+}
+
+func TestGovernance_Reports(t *testing.T) {
+	rec := callGovernance(t, &fakeGovernance{}, http.MethodGet, "/governance/reports?min_days=2&max_days=9", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var resp reportsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.SimulatedDay != 93 || len(resp.Reports) != 1 || resp.Reports[0].ReportDay != 91 || resp.Reports[0].Tickers[0] != "BETA3" || resp.Reports[0].Sector != "Varejo" {
+		t.Errorf("resposta = %+v", resp)
+	}
+	for name, q := range map[string]string{"sem parâmetros": "", "não inteiro": "?min_days=a&max_days=9", "janela invertida": "?min_days=9&max_days=2"} {
+		if rec := callGovernance(t, &fakeGovernance{}, http.MethodGet, "/governance/reports"+q, ""); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, esperado 400", name, rec.Code)
+		}
+	}
+	if rec := callGovernance(t, nil, http.MethodGet, "/governance/reports?min_days=0&max_days=9", ""); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("sem serviço: status = %d, esperado 503", rec.Code)
+	}
+}
+
 func callGovernance(t *testing.T, m governanceManager, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	var opts []Option

@@ -302,6 +302,13 @@
       "when": 1793400000000,
       "tag": "0042_add_assemblies",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0043_add_assembly_cycle_and_agenda_templates",
+      "breakpoints": true
     }
   ]
 }

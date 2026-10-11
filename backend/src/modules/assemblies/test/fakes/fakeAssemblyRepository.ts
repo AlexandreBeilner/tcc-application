@@ -40,6 +40,10 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
           winningOptionId: null,
           voterCount: null,
           decidedAt: null,
+          title: input.title ?? null,
+          subjectLabel: input.subjectLabel ?? null,
+          templateKey: input.templateKey ?? null,
+          effectAppliedAt: null,
           createdAt: now,
         },
         options: input.options.map((o, position) => ({
@@ -60,6 +64,39 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
         .map((i) => i.assembly)
         .filter((a) => a.status === status)
         .slice(0, limit)
+    },
+    async listOpenDue(now, limit) {
+      return [...fake.items.values()]
+        .map((i) => i.assembly)
+        .filter((a) => a.status === 'open' && a.closesAt <= now)
+        .slice(0, limit)
+    },
+    async listForCalendar(from, to) {
+      const within = (d: Date) => d >= from && d <= to
+      return [...fake.items.values()]
+        .map((i) => i.assembly)
+        .filter(
+          (a) =>
+            a.status !== 'scheduled' &&
+            (within(a.opensAt) || within(a.closesAt) || within(a.effectAppliesAt)),
+        )
+    },
+    async listApprovedPendingEffect(now, limit) {
+      return [...fake.items.values()]
+        .filter(
+          (i) =>
+            i.assembly.status === 'closed' &&
+            i.assembly.outcome === 'approved' &&
+            i.assembly.effectAppliedAt === null &&
+            i.assembly.effectAppliesAt <= now,
+        )
+        .slice(0, limit)
+    },
+    async markEffectApplied(id, now) {
+      const item = fake.items.get(id)
+      if (!item || item.assembly.effectAppliedAt) return false
+      item.assembly.effectAppliedAt = now
+      return true
     },
     async markOpen(id) {
       const item = fake.items.get(id)

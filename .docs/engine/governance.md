@@ -4,6 +4,14 @@ Lado do motor da **Assembleia de Acionistas** (MO.6.2). O backend (módulo `asse
 
 Ids de assembleia e de empresa são UUIDs (`400` se não forem).
 
+### `GET /governance/reports`
+
+- **Autenticação:** interna (rede do Compose, via backend)
+- **Payload:** query `min_days` e `max_days` (inteiros, `0 <= min_days <= max_days <= 400`).
+- **Sucesso:** `200` → `{ simulated_day, reports: [{ company_id, name, sector, tickers, report_day, days_since_report }] }`: o **último balanço já divulgado** de cada empresa com ação negociável no Mercado Ao Vivo, só quando ele saiu entre `min_days` e `max_days` dias antes do dia corrente. `tickers` vêm com a ON antes da PN. Ordem estável por nome.
+- **Erros:** `400` parâmetros ausentes, não inteiros ou janela inválida · `503` serviço desligado
+- **Regra:** é o gatilho de abertura das assembleias (MO.6.3). O calendário (`GET /market/calendar`) só mostra um `report` global, sem empresa; o dia real de cada balanço depende do atraso próprio (`report_offset_days`) e do dia de corte do escalonamento, então sai de `paymentschedule.DaysSinceReport`. O backend pede "balanço de 2 a 9 dias atrás" (atraso de abertura até o limite de recuperação depois de uma parada) e a idempotência da abertura é dele (`dedupe_key` por empresa e dia de balanço). Empresa só com ativo sandbox fica de fora; antes do primeiro balanço, ou no dia 0, devolve lista vazia.
+
 ### `POST /governance/snapshots`
 
 - **Autenticação:** interna (rede do Compose, via backend)

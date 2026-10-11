@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"tcc-investimentos/engine/internal/domain/corporategovernance"
@@ -21,6 +22,7 @@ type governanceManager interface {
 	GetSnapshot(ctx context.Context, assemblyID string) (corporategovernance.Snapshot, bool, error)
 	RecordDecision(ctx context.Context, in corporategovernance.DecisionInput) (corporategovernance.Decision, bool, error)
 	GetDecision(ctx context.Context, assemblyID string) (corporategovernance.Decision, bool, error)
+	RecentReports(ctx context.Context, minDays, maxDays int) (corporategovernance.ReportsResult, error)
 }
 
 // WithGovernance liga as rotas /governance; sem ela respondem 503.
@@ -215,5 +217,50 @@ func handleGovernanceGetDecision(m governanceManager) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, toDecisionResponse(decision))
+	}
+}
+
+type companyReportResponse struct {
+	CompanyID       string   `json:"company_id"`
+	Name            string   `json:"name"`
+	Sector          string   `json:"sector"`
+	Tickers         []string `json:"tickers"`
+	ReportDay       int      `json:"report_day"`
+	DaysSinceReport int      `json:"days_since_report"`
+}
+
+type reportsResponse struct {
+	SimulatedDay int                     `json:"simulated_day"`
+	Reports      []companyReportResponse `json:"reports"`
+}
+
+// handleGovernanceReports serve GET /governance/reports?min_days=&max_days=: o último balanço
+// já divulgado por empresa, quando saiu entre min_days e max_days dias antes do dia corrente.
+// É o gatilho da abertura das assembleias (o backend pede "balanço de 2 a 9 dias atrás").
+func handleGovernanceReports(m governanceManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if m == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "governança indisponível")
+			return
+		}
+		minDays, errMin := strconv.Atoi(r.URL.Query().Get("min_days"))
+		maxDays, errMax := strconv.Atoi(r.URL.Query().Get("max_days"))
+		if errMin != nil || errMax != nil {
+			writeCatalogError(w, http.StatusBadRequest, "min_days e max_days devem ser inteiros")
+			return
+		}
+		res, err := m.RecentReports(r.Context(), minDays, maxDays)
+		if err != nil {
+			writeGovernanceError(w, err)
+			return
+		}
+		out := reportsResponse{SimulatedDay: res.SimulatedDay, Reports: make([]companyReportResponse, 0, len(res.Reports))}
+		for _, rep := range res.Reports {
+			out.Reports = append(out.Reports, companyReportResponse{
+				CompanyID: rep.CompanyID, Name: rep.Name, Sector: rep.Sector, Tickers: rep.Tickers,
+				ReportDay: rep.ReportDay, DaysSinceReport: rep.DaysSinceReport,
+			})
+		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }
