@@ -1052,4 +1052,11 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Local:** tabela `agenda_templates` (migração `0043`) e `engine/internal/domain/corporategovernance`.
 - **Origem:** o ensaio de calibração de 12 meses simulados (`tmp/relatorio-calibracao-assembleia.md`) mostrou que das 34 opções ativas, 33 têm efeito de sentido positivo (crescimento ou qualidade sobem) e 1 negativo. Toda decisão aprovada melhora a empresa; o mercado inteiro deriva para cima (crescimento médio +0,23 p.p., qualidade +2% em 12 meses). O texto "o que ganha, o que perde" não tem contrapartida na mecânica.
 - **Opções:** (a) reescrever as pautas com troca real (um lado sobe uma métrica e baixa a outra) e acrescentar pautas, chegando a 25 ou mais; (b) manter e aceitar a deriva positiva (limitada pelo teto de 2 decisões por empresa por ano); (c) decaimento lento do fundamento de volta ao valor de cadastro.
-- **Status:** em aberto, aguardando decisão do autor. Não impede ligar a Assembleia, mas deve entrar antes de escalar a base.
+- **Status:** decidido em 2026-10-11 (opção (a), com extensão): pautas com troca real, 28 ou mais, em vozes variadas, **e** assembleia que decide também o payout, a política de dividendo e o prêmio da PN, com efeito composto de até 2 efeitos por opção e declaração de dividendo adiada durante a votação. Virou a Fase F2 do `backlog-monetizacao.md` (MO.6.10 a MO.6.15); o ponto fecha na MO.6.15, depois da nova calibração.
+
+### 054 · Recompra e emissão de ações como pauta da Assembleia (melhoria futura), registrado em 2026-10-11
+
+- **Local:** `engine/internal/domain/catalog` (`OutstandingShares`), `corporategovernance`, bots de liquidez.
+- **Origem:** ao ampliar as alavancas da assembleia (Fase F2), o autor deixou recompra e emissão de ações **de fora desta rodada**. Mexer em ações em circulação muda float, liquidez dos bots, lucro por ação, ETFs que contêm o ativo e posições de usuários.
+- **Para quando voltar:** definir se a recompra cancela ações (reduz o float) ou vira ação em tesouraria, quem vende (a conta de uma contraparte técnica, nunca usuário), como fica o snapshot de acionistas e o dividendo por ação, e recalibrar. Hoje a pauta "Captar emitindo ações novas" do rascunho usa só o efeito em qualidade e deve ser reescrita sem prometer emissão.
+- **Status:** adiado por decisão do autor (melhoria futura), sem tarefa aberta.
