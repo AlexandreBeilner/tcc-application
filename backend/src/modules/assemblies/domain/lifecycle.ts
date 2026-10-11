@@ -52,8 +52,18 @@ export interface AgendaTemplate {
   sector: string | null
   title: string
   description: string
+  // `general` abre pelo balanço; `profit` só abre a partir da declaração de dividendo retida.
+  purpose?: TemplatePurpose
   options: Array<Omit<AgendaOption, 'id' | 'assemblyId' | 'position'>>
 }
+
+export type TemplatePurpose = 'general' | 'profit'
+
+// Pauta sem finalidade gravada vale como geral.
+export function purposeOf(template: Pick<AgendaTemplate, 'purpose'>): TemplatePurpose {
+  return template.purpose ?? 'general'
+}
+export const TEMPLATE_PURPOSES: readonly TemplatePurpose[] = ['general', 'profit']
 
 function hash(text: string): number {
   let h = 2166136261

@@ -851,6 +851,10 @@ export const assemblies = pgTable(
     // Quórum fixado na abertura (MO.6.8): editar o parâmetro depois não muda as regras de quem já
     // está votando. Nulo (assembleia anterior ao parâmetro editável) usa o valor de agora.
     minVoters: integer('min_voters'),
+    // Declaração de dividendo retida no motor que esta assembleia vai liberar (MO.6.13): a decisão
+    // a libera com o payout novo, e fechar sem decisão a libera com o vigente. Nulo nas
+    // assembleias que não seguram dividendo.
+    declarationId: uuid('declaration_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -883,9 +887,15 @@ export const agendaTemplates = pgTable(
     description: text('description').notNull(),
     options: jsonb('options').notNull(),
     active: boolean('active').notNull().default(true),
+    // `general` é sorteada na abertura normal; `profit` só nas assembleias de destinação do lucro,
+    // abertas a partir da declaração de dividendo retida (MO.6.13).
+    purpose: text('purpose').notNull().default('general'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('agenda_templates_kind_active_idx').on(table.kind, table.active)],
+  (table) => [
+    index('agenda_templates_kind_active_idx').on(table.kind, table.active),
+    check('agenda_templates_purpose_chk', sql`${table.purpose} IN ('general', 'profit')`),
+  ],
 )
 
 // Parâmetros das assembleias editados no painel (MO.6.8). Uma linha por chave; sem linha vale o

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
 import type { NewAssemblyInput } from '../../domain/assembly'
-import { parseEngineEffect } from '../engine/engineShareholderEffect'
+import { parseEngineEffects } from '../engine/engineShareholderEffect'
 import { createDrizzleAgendaCatalog } from './drizzleAgendaCatalog'
 import { createDrizzleAssemblyRepository } from './drizzleAssemblyRepository'
 
@@ -86,6 +86,46 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
     expect(first.options.map((o) => o.key)).toEqual(['a', 'b'])
     expect(first.options[0].effect).toEqual({ x: 1 })
     expect(await db.select().from(schema.assemblies)).toHaveLength(1)
+  })
+
+  it('guarda a declaração de dividendo que a assembleia libera e acha a assembleia pela chave (MO.6.13)', async () => {
+    const repo = createDrizzleAssemblyRepository(db)
+    const declarationId = randomUUID()
+    const profit = {
+      ...input,
+      dedupeKey: 'shareholder:company-1:91',
+      declarationId,
+      options: [
+        {
+          key: 'a',
+          label: 'A',
+          gain: 'g',
+          loss: 'l',
+          effect: { effects: [{ metric: 'payout_ratio_pct', direction: -1, intensity: 1 }] },
+        },
+        {
+          key: 'b',
+          label: 'B',
+          gain: 'g',
+          loss: 'l',
+          effect: { effects: [{ metric: 'dividend_policy', value: 'annual' }] },
+        },
+      ],
+    }
+    const created = await repo.create(profit, now)
+    expect(created.assembly.declarationId).toBe(declarationId)
+    expect(created.options[0].effect).toEqual(profit.options[0].effect)
+    // Sem declaração é nulo, e a reabertura com a mesma chave devolve a que já existe.
+    const plain = await repo.create(input, now)
+    expect(plain.assembly.declarationId).toBeNull()
+    const again = await repo.create({ ...profit, declarationId: randomUUID() }, now)
+    expect(again.created).toBe(false)
+    expect(again.assembly.declarationId).toBe(declarationId)
+
+    const found = await repo.findByDedupeKey('shareholder:company-1:91')
+    expect(found?.assembly.id).toBe(created.assembly.id)
+    expect(found?.options).toHaveLength(2)
+    expect(await repo.findByDedupeKey('nao-existe')).toBeNull()
   })
 
   it('só aceita voto com a assembleia aberta e dentro da janela; trocar o voto mantém uma linha', async () => {
@@ -263,7 +303,7 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
       for (const option of template.options) {
         expect(option.gain && option.loss && option.label, template.key).toBeTruthy()
         expect(
-          () => parseEngineEffect(option.effect),
+          () => parseEngineEffects(option.effect),
           `${template.key}/${option.key}`,
         ).not.toThrow()
         expect(

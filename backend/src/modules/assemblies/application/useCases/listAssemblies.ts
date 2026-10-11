@@ -16,6 +16,17 @@ export interface AssemblySummary {
   outcome: Assembly['outcome']
   outcomeReason: Assembly['outcomeReason']
   voterCount: number | null
+  // O dividendo do balanço desta empresa está retido esperando esta assembleia (destinação do
+  // lucro, MO.6.13): aberta, ou aprovada e ainda sem o efeito entregue. Vira `false` quando o
+  // dividendo é liberado (fechada sem decisão, ou decisão aplicada).
+  dividendOnHold: boolean
+}
+
+// A assembleia ligada a uma declaração de dividendo ainda segura o dividendo?
+export function holdsDividend(a: Assembly): boolean {
+  if (!a.declarationId) return false
+  if (a.status !== 'closed') return true
+  return a.outcome === 'approved' && a.effectAppliedAt === null
 }
 
 export function toSummary(a: Assembly): AssemblySummary {
@@ -33,6 +44,7 @@ export function toSummary(a: Assembly): AssemblySummary {
     outcome: a.outcome,
     outcomeReason: a.outcomeReason,
     voterCount: a.voterCount,
+    dividendOnHold: holdsDividend(a),
   }
 }
 

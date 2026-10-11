@@ -2,7 +2,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { agendaTemplates } from '../../../../db/schema'
 import type { AgendaCatalog } from '../../application/ports/agendaCatalog'
-import type { AgendaTemplate } from '../../domain/lifecycle'
+import type { AgendaTemplate, TemplatePurpose } from '../../domain/lifecycle'
 
 export function createDrizzleAgendaCatalog(db: Database): AgendaCatalog {
   return {
@@ -18,6 +18,7 @@ export function createDrizzleAgendaCatalog(db: Database): AgendaCatalog {
         sector: row.sector,
         title: row.title,
         description: row.description,
+        purpose: row.purpose as TemplatePurpose,
         options: row.options as AgendaTemplate['options'],
       }))
     },

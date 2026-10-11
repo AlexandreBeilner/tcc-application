@@ -85,6 +85,53 @@ const templateBody = {
   ],
 }
 
+describe('adminAssembliesRouter: corpo da pauta com efeito composto (MO.6.13)', () => {
+  const composed = {
+    ...templateBody,
+    purpose: 'profit',
+    options: [
+      {
+        ...templateBody.options[0],
+        effect: {
+          effects: [
+            { metric: 'payout_ratio_pct', direction: -1, intensity: 1 },
+            { metric: 'dividend_policy', value: 'semiannual' },
+          ],
+        },
+      },
+    ],
+  }
+
+  it('o formato novo (lista de efeitos, política com valor) e a finalidade passam da borda', async () => {
+    // O módulo dono valida o conteúdo: aqui só se prova que o corpo chega a ele (404 do stub),
+    // em vez de morrer como 400 no esquema.
+    const { app, adminToken } = buildApp(new AdminAssemblyNotFoundError('x'))
+    const res = await request(app)
+      .post('/admin/assemblies/agenda-templates')
+      .set('Authorization', adminToken())
+      .send(composed)
+    expect(res.status).toBe(404)
+  })
+
+  it('o formato antigo (um efeito só) continua aceito', async () => {
+    const { app, adminToken } = buildApp(new AdminAssemblyNotFoundError('x'))
+    const res = await request(app)
+      .post('/admin/assemblies/agenda-templates')
+      .set('Authorization', adminToken())
+      .send(templateBody)
+    expect(res.status).toBe(404)
+  })
+
+  it('finalidade fora de general e profit é recusada na borda', async () => {
+    const { app, adminToken } = buildApp(new AdminAssemblyNotFoundError('x'))
+    const res = await request(app)
+      .post('/admin/assemblies/agenda-templates')
+      .set('Authorization', adminToken())
+      .send({ ...composed, purpose: 'outra' })
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('adminAssembliesRouter: erros de domínio na borda HTTP', () => {
   it.each([
     [new AdminAssemblyNotFoundError('não encontrada'), 404],

@@ -41,6 +41,39 @@ describe('engineSettingsAdmin', () => {
     expect(result.editable.map((s) => s.key)).toEqual(['governance_ramp_ticks'])
   })
 
+  it('os parâmetros de payout, prêmio da PN e retenção do dividendo entram no grupo de governança (MO.6.10 a MO.6.12)', async () => {
+    const keys = [
+      'governance_payout_step_centipp',
+      'governance_payout_min_pct',
+      'governance_payout_max_pct',
+      'governance_payout_cooldown_days',
+      'governance_premium_step_centipp',
+      'governance_premium_min_pct',
+      'governance_premium_max_pct',
+      'governance_hold_declarations',
+      'governance_declaration_safety_days',
+    ]
+    respond(200, {
+      ...sampleSettings,
+      editable: [
+        ...sampleSettings.editable,
+        ...keys.map((key) => ({ ...sampleSettings.editable[0], key })),
+      ],
+    })
+    expect((await engine().list('governance')).editable.map((s) => s.key)).toEqual(keys)
+    // E nunca aparecem na tela do ritmo.
+    respond(200, {
+      ...sampleSettings,
+      editable: [
+        ...sampleSettings.editable,
+        ...keys.map((key) => ({ ...sampleSettings.editable[0], key })),
+      ],
+    })
+    expect((await engine().list()).editable.map((s) => s.key)).toEqual(
+      sampleSettings.editable.map((s) => s.key),
+    )
+  })
+
   it('gravar e restaurar um parâmetro de governança devolve o grupo dele', async () => {
     const governance = { ...sampleSettings.editable[0], key: 'governance_cooldown_days' }
     respond(200, { ...sampleSettings, editable: [...sampleSettings.editable, governance] })

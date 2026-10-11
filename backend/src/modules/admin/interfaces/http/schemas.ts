@@ -244,6 +244,15 @@ export const engineSettingKeySchema = z.enum([
   'governance_quality_step_centi',
   'governance_ramp_ticks',
   'governance_cooldown_days',
+  'governance_payout_step_centipp',
+  'governance_payout_min_pct',
+  'governance_payout_max_pct',
+  'governance_payout_cooldown_days',
+  'governance_premium_step_centipp',
+  'governance_premium_min_pct',
+  'governance_premium_max_pct',
+  'governance_hold_declarations',
+  'governance_declaration_safety_days',
 ])
 
 // GET /admin/settings?group=: cada tela pede o seu grupo (padrão: o ritmo do Temporizador).
@@ -546,14 +555,13 @@ const agendaOptionSchema = z.object({
   label: z.string(),
   gain: z.string(),
   loss: z.string(),
-  effect: z.object({
-    metric: z.string(),
-    direction: z.number(),
-    intensity: z.number(),
-  }),
+  // Formato novo (`{ effects: [...] }`, de 1 a 2 efeitos) ou o antigo (um efeito só); o módulo
+  // `assemblies` valida alavanca, sentido, intensidade e valor da política.
+  effect: z.record(z.string(), z.unknown()),
 })
 
 export const agendaTemplateContentSchema = z.object({
+  purpose: z.enum(['general', 'profit']).optional(),
   sector: z.string().nullable(),
   title: z.string(),
   description: z.string(),

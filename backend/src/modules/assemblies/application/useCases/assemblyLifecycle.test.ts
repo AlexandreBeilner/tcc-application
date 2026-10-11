@@ -8,6 +8,7 @@ import { createFakeProposalRepository } from '../../test/fakes/fakeProposalRepos
 import { createFakeAssemblyPauseRepository } from '../../test/fakes/fakeAssemblyPauseRepository'
 import { AssemblyKindRegistry } from '../assemblyKinds'
 import type { CompanyReportFact } from '../ports/companyReportSource'
+import type { PendingDeclaration } from '../ports/declarationSource'
 import { AnnounceClosedAssembliesUseCase } from './announceClosedAssemblies'
 import { ApplyDueAssemblyEffectsUseCase } from './applyDueAssemblyEffects'
 import { CloseDueAssembliesUseCase } from './closeDueAssemblies'
@@ -76,6 +77,14 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
   const tally = new TallyAssemblyUseCase(kinds, repository, snapshots, () => ({
     minVoters: currentMinVoters,
   }))
+  // Declarações retidas no motor (MO.6.13): a lista que o motor devolve e as liberações pedidas.
+  let pendingDeclarations: PendingDeclaration[] = []
+  const declarations = {
+    listPending: vi.fn(async () => pendingDeclarations),
+    release: vi.fn<(id: string, reason: 'no_decision' | 'admin') => Promise<void>>(
+      async () => undefined,
+    ),
+  }
   const cooldownLeft = new Map<string, number>()
   const cooldowns = {
     daysLeft: vi.fn(async (companyId: string) => cooldownLeft.get(companyId) ?? 0),
@@ -91,10 +100,11 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     () => DEFAULT_LIFECYCLE_PARAMS,
     pauses,
     cooldowns,
+    declarations,
     () => currentMinVoters,
     now,
   )
-  const close = new CloseDueAssembliesUseCase(repository, tally, now)
+  const close = new CloseDueAssembliesUseCase(repository, tally, declarations, now)
   const apply = new ApplyDueAssemblyEffectsUseCase(kinds, repository, pauses, now)
   const feed = { publishParticipation: vi.fn(async () => undefined) }
   const mailer = { sendResult: vi.fn(async () => undefined) }
@@ -115,6 +125,8 @@ function setup(options: { minVoters?: number; templates?: AgendaTemplate[] } = {
     pauses,
     cooldownLeft,
     cooldowns,
+    declarations,
+    setPending: (list: PendingDeclaration[]) => (pendingDeclarations = list),
     effect,
     snapshots,
     reportSource,
@@ -679,5 +691,265 @@ describe('quórum congelado na abertura (MO.6.8)', () => {
     ctx.setMinVoters(5)
     await ctx.open.execute()
     expect(ctx.first().assembly.minVoters).toBe(5)
+  })
+})
+
+describe('assembleia de destinação do lucro (MO.6.13)', () => {
+  const profitTemplate: AgendaTemplate = {
+    key: 'destino_lucro',
+    kind: SHAREHOLDER_KIND,
+    sector: null,
+    purpose: 'profit',
+    title: 'O que fazer com o lucro',
+    description: 'd',
+    options: [
+      {
+        key: 'reinvestir',
+        label: 'Reinvestir',
+        gain: 'g',
+        loss: 'l',
+        effect: {
+          effects: [
+            { metric: 'payout_ratio_pct', direction: -1, intensity: 1 },
+            { metric: 'base_growth_pct', direction: 1, intensity: 0.5 },
+          ],
+        },
+      },
+      {
+        key: 'distribuir',
+        label: 'Distribuir',
+        gain: 'g',
+        loss: 'l',
+        effect: { effects: [{ metric: 'payout_ratio_pct', direction: 1, intensity: 1 }] },
+      },
+    ],
+  }
+  const declaration: PendingDeclaration = {
+    id: '11111111-1111-4111-8111-111111111111',
+    companyId: 'company-1',
+    name: 'Acme',
+    sector: 'Tecnologia',
+    tickers: ['ACME3'],
+    reportDay: 91,
+    daysHeld: 3,
+    safetyDeadlineDay: 151,
+    decisionAssemblyId: null,
+    releaseRequested: false,
+  }
+  const both = { templates: [template, profitTemplate] }
+
+  it('abre a pauta de destinação do lucro, ligada à declaração, no lugar da assembleia comum', async () => {
+    const ctx = setup(both)
+    ctx.setPending([declaration])
+    expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 0 })
+    expect(ctx.repository.items.size).toBe(1)
+    const { assembly, options } = ctx.first()
+    expect(assembly).toMatchObject({
+      templateKey: 'destino_lucro',
+      declarationId: declaration.id,
+      status: 'open',
+      subjectLabel: 'Acme',
+      dedupeKey: 'shareholder:company-1:91',
+    })
+    expect(options[0].effect).toEqual(profitTemplate.options[0].effect)
+    expect(ctx.snapshots.take).toHaveBeenCalledTimes(1)
+    expect(ctx.declarations.release).not.toHaveBeenCalled()
+  })
+
+  it('sem declaração retida o balanço abre a pauta geral, nunca a de destinação do lucro', async () => {
+    const ctx = setup(both)
+    await ctx.open.execute()
+    expect(ctx.first().assembly).toMatchObject({
+      templateKey: 'capital_budget',
+      declarationId: null,
+    })
+  })
+
+  it('só pauta de destinação do lucro no catálogo: balanço sem declaração não abre nada', async () => {
+    const ctx = setup({ templates: [profitTemplate] })
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0 })
+    expect(ctx.repository.items.size).toBe(0)
+  })
+
+  it('reexecutar não duplica a assembleia nem o snapshot nem pede liberação', async () => {
+    const ctx = setup(both)
+    ctx.setPending([declaration])
+    await ctx.open.execute()
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0 })
+    expect(ctx.repository.items.size).toBe(1)
+    expect(ctx.snapshots.take).toHaveBeenCalledTimes(1)
+    expect(ctx.declarations.release).not.toHaveBeenCalled()
+  })
+
+  it('declaração recém-retida (antes do atraso de abertura) espera, sem liberar nem abrir', async () => {
+    const ctx = setup(both)
+    ctx.setPending([{ ...declaration, daysHeld: 1 }])
+    ctx.setReports([])
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0 })
+    expect(ctx.repository.items.size).toBe(0)
+    expect(ctx.declarations.release).not.toHaveBeenCalled()
+  })
+
+  it('o período de espera de fundamentos não barra a de destinação do lucro', async () => {
+    const ctx = setup(both)
+    ctx.cooldownLeft.set('company-1', 40)
+    ctx.setPending([declaration])
+    expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 0 })
+  })
+
+  it('empresa pausada: libera o dividendo com o payout vigente e não abre assembleia', async () => {
+    const ctx = setup(both)
+    ctx.setPending([declaration])
+    await ctx.pauses.create(
+      { scope: 'subject', kind: SHAREHOLDER_KIND, subjectRef: 'company-1', reason: 'revisão' },
+      'admin-1',
+      t0,
+    )
+    const result = await ctx.open.execute()
+    expect(result).toEqual({ opened: 0, failed: 0, released: 1 })
+    expect(ctx.declarations.release).toHaveBeenCalledWith(declaration.id, 'no_decision')
+    expect(ctx.repository.items.size).toBe(0)
+  })
+
+  it('pausa global libera todas as declarações sem nem consultar os balanços', async () => {
+    const ctx = setup(both)
+    ctx.setPending([declaration, { ...declaration, id: 'decl-2', companyId: 'company-2' }])
+    await ctx.pauses.create(
+      { scope: 'global', kind: null, subjectRef: null, reason: 'revisão' },
+      'admin-1',
+      t0,
+    )
+    const result = await ctx.open.execute()
+    expect(result).toEqual({ opened: 0, failed: 0, released: 2 })
+    expect(ctx.reportSource.listRecentReports).not.toHaveBeenCalled()
+  })
+
+  it('catálogo sem pauta de destinação do lucro: libera o dividendo em vez de segurá-lo', async () => {
+    const ctx = setup({ templates: [template] })
+    ctx.setPending([declaration])
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0, released: 1 })
+    expect(ctx.declarations.release).toHaveBeenCalledWith(declaration.id, 'no_decision')
+    expect(ctx.repository.items.size).toBe(0)
+  })
+
+  it('declaração que passou da janela de abertura sem assembleia é liberada', async () => {
+    const ctx = setup(both)
+    ctx.setPending([{ ...declaration, daysHeld: 10 }])
+    ctx.setReports([])
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0, released: 1 })
+    expect(ctx.repository.items.size).toBe(0)
+  })
+
+  it('declaração antiga com a assembleia já aberta segue esperando: nada de liberar', async () => {
+    const ctx = setup(both)
+    ctx.setPending([declaration])
+    await ctx.open.execute()
+    ctx.setPending([{ ...declaration, daysHeld: 20 }])
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0 })
+    expect(ctx.declarations.release).not.toHaveBeenCalled()
+  })
+
+  it('declaração já ligada a uma decisão ou com liberação pedida fica com o motor', async () => {
+    const ctx = setup(both)
+    ctx.setPending([
+      { ...declaration, decisionAssemblyId: 'a-x' },
+      { ...declaration, id: 'decl-2', companyId: 'company-2', releaseRequested: true },
+    ])
+    ctx.setReports([])
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0 })
+    expect(ctx.declarations.release).not.toHaveBeenCalled()
+    expect(ctx.repository.items.size).toBe(0)
+  })
+
+  it('já existe assembleia comum para este balanço (aberta antes da retenção): libera o dividendo', async () => {
+    const ctx = setup(both)
+    await ctx.open.execute()
+    ctx.setPending([declaration])
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 0, released: 1 })
+    expect(ctx.repository.items.size).toBe(1)
+    expect(ctx.first().assembly.declarationId).toBeNull()
+  })
+
+  it('motor fora do ar ao ler as declarações: nada abre, nem a comum, e conta como falha', async () => {
+    const ctx = setup(both)
+    ctx.declarations.listPending.mockRejectedValueOnce(new Error('motor fora'))
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 1 })
+    expect(ctx.repository.items.size).toBe(0)
+    // A rodada seguinte, com o motor de volta, abre normalmente.
+    expect(await ctx.open.execute()).toEqual({ opened: 1, failed: 0 })
+  })
+
+  it('falha ao liberar uma declaração conta como falha e não impede as outras', async () => {
+    const ctx = setup({ templates: [template] })
+    ctx.setPending([declaration, { ...declaration, id: 'decl-2', companyId: 'company-2' }])
+    ctx.declarations.release.mockRejectedValueOnce(new Error('motor fora'))
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    expect(await ctx.open.execute()).toEqual({ opened: 0, failed: 1, released: 1 })
+  })
+
+  describe('fechamento', () => {
+    async function openAndClose(votes: Array<[string, number]>, optionIndex = 0) {
+      const ctx = setup({ ...both, minVoters: 3 })
+      ctx.setPending([declaration])
+      await ctx.open.execute()
+      ctx.setHoldings({
+        takenAt: t0,
+        holdings: votes.map(([userId, quantity]) => ({ userId, quantity })),
+      })
+      await vote(ctx, votes, optionIndex)
+      ctx.advance(8 * DAY)
+      const result = await ctx.close.execute()
+      return { ctx, result }
+    }
+
+    it('sem quórum libera o dividendo com o payout vigente', async () => {
+      const { ctx, result } = await openAndClose([['u1', 10]])
+      expect(result.approved).toBe(0)
+      expect(ctx.declarations.release).toHaveBeenCalledTimes(1)
+      expect(ctx.declarations.release).toHaveBeenCalledWith(declaration.id, 'no_decision')
+    })
+
+    it('aprovada não libera: quem libera é a decisão, depois de aplicada no motor', async () => {
+      const { ctx, result } = await openAndClose([
+        ['u1', 10],
+        ['u2', 10],
+        ['u3', 10],
+      ])
+      expect(result.approved).toBe(1)
+      expect(ctx.declarations.release).not.toHaveBeenCalled()
+    })
+
+    it('o efeito aprovado chega ao motor com o id da declaração que a assembleia libera', async () => {
+      const { ctx } = await openAndClose([
+        ['u1', 10],
+        ['u2', 10],
+        ['u3', 10],
+      ])
+      ctx.advance(2 * DAY)
+      await ctx.apply.execute()
+      expect(ctx.effect.apply).toHaveBeenCalledTimes(1)
+      const [assembly] = ctx.effect.apply.mock.calls[0] as unknown as [{ declarationId: string }]
+      expect(assembly.declarationId).toBe(declaration.id)
+    })
+
+    it('falha ao liberar é registrada e não desfaz o fechamento (o prazo do motor cobre)', async () => {
+      const ctx = setup({ ...both, minVoters: 3 })
+      ctx.setPending([declaration])
+      await ctx.open.execute()
+      ctx.declarations.release.mockRejectedValueOnce(new Error('motor fora'))
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      ctx.advance(8 * DAY)
+      expect(await ctx.close.execute()).toEqual({ closed: 1, approved: 0, failed: 0 })
+      expect(ctx.first().assembly.status).toBe('closed')
+    })
+
+    it('assembleia comum (sem declaração) fechada sem quórum não pede liberação nenhuma', async () => {
+      const ctx = setup({ minVoters: 3 })
+      await ctx.open.execute()
+      ctx.advance(8 * DAY)
+      await ctx.close.execute()
+      expect(ctx.declarations.release).not.toHaveBeenCalled()
+    })
   })
 })

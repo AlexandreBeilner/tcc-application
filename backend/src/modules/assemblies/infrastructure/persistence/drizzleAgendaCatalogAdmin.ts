@@ -6,6 +6,7 @@ import type {
   AgendaTemplateAdminView,
   AgendaTemplateOptionInput,
 } from '../../domain/agendaTemplates'
+import type { TemplatePurpose } from '../../domain/lifecycle'
 
 function toView(
   row: typeof agendaTemplates.$inferSelect,
@@ -14,6 +15,7 @@ function toView(
   return {
     key: row.key,
     kind: row.kind,
+    purpose: row.purpose as TemplatePurpose,
     sector: row.sector,
     title: row.title,
     description: row.description,
@@ -86,6 +88,7 @@ export function createDrizzleAgendaCatalogAdmin(db: Database): AgendaCatalogAdmi
         .values({
           key,
           kind,
+          purpose: input.purpose ?? 'general',
           sector: input.sector,
           title: input.title,
           description: input.description,
@@ -101,6 +104,7 @@ export function createDrizzleAgendaCatalogAdmin(db: Database): AgendaCatalogAdmi
       const [row] = await db
         .update(agendaTemplates)
         .set({
+          purpose: input.purpose ?? 'general',
           sector: input.sector,
           title: input.title,
           description: input.description,

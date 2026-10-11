@@ -17,6 +17,15 @@ const GROUP_KEYS: Record<EngineSettingGroup, ReadonlySet<string>> = {
     'governance_quality_step_centi',
     'governance_ramp_ticks',
     'governance_cooldown_days',
+    'governance_payout_step_centipp',
+    'governance_payout_min_pct',
+    'governance_payout_max_pct',
+    'governance_payout_cooldown_days',
+    'governance_premium_step_centipp',
+    'governance_premium_min_pct',
+    'governance_premium_max_pct',
+    'governance_hold_declarations',
+    'governance_declaration_safety_days',
   ]),
 }
 

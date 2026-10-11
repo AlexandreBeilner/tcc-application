@@ -37,6 +37,8 @@ export interface Assembly {
   resultAnnouncedAt: Date | null
   // Quórum fixado na abertura (MO.6.8); nulo = assembleia anterior ao parâmetro, vale o de agora.
   minVoters: number | null
+  // Declaração de dividendo retida no motor que esta assembleia libera (MO.6.13); nulo nas demais.
+  declarationId: string | null
   createdAt: Date
 }
 
@@ -124,6 +126,8 @@ export interface NewAssemblyInput {
   templateKey?: string
   // Quórum desta assembleia, congelado na criação.
   minVoters?: number
+  // Declaração de dividendo retida que a decisão libera (assembleia de destinação do lucro).
+  declarationId?: string
   options: Array<Omit<AgendaOption, 'id' | 'assemblyId' | 'position'>>
 }
 

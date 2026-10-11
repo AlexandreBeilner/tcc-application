@@ -34,6 +34,7 @@ import { createEngineCompanyCooldownReader } from './infrastructure/engine/engin
 import { createEngineCompanyStandingReader } from './infrastructure/engine/engineCompanyStandingReader'
 import { createDrizzleProposalRepository } from './infrastructure/persistence/drizzleProposalRepository'
 import { createEngineCompanyReportSource } from './infrastructure/engine/engineCompanyReportSource'
+import { createEngineDeclarationSource } from './infrastructure/engine/engineDeclarationSource'
 import { createEngineHoldingsSnapshotProvider } from './infrastructure/engine/engineHoldingsSnapshotProvider'
 import { createEngineShareholderEffect } from './infrastructure/engine/engineShareholderEffect'
 import { createDrizzleAgendaCatalog } from './infrastructure/persistence/drizzleAgendaCatalog'
@@ -144,13 +145,14 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
   const agendaCatalog = createDrizzleAgendaCatalog(deps.db)
   const proposals = createDrizzleProposalRepository(deps.db)
   const standings = createEngineCompanyStandingReader(deps.engineUrl)
+  const declarations = createEngineDeclarationSource(deps.engineUrl)
   const proStatus = createInProcessProStatus(deps.proAccess)
   const proposalParams = () => deps.config.proposals
 
   const create = new CreateAssemblyUseCase(kinds, repository)
   const tally = new TallyAssemblyUseCase(kinds, repository, snapshots, () => deps.config.params)
   const runAssemblyLifecycle = new RunAssemblyLifecycleUseCase(
-    new CloseDueAssembliesUseCase(repository, tally),
+    new CloseDueAssembliesUseCase(repository, tally, declarations),
     new OpenDueAssembliesUseCase(
       create,
       repository,
@@ -162,6 +164,7 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
       () => deps.config.lifecycle,
       pauses,
       createEngineCompanyCooldownReader(standings),
+      declarations,
       () => deps.config.params.minVoters,
     ),
     new ApplyDueAssemblyEffectsUseCase(kinds, repository, pauses),

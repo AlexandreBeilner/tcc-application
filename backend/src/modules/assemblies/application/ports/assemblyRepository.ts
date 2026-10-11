@@ -31,6 +31,8 @@ export interface AssemblyRepository {
   // existente com `created: false` (reexecutar o job de abertura não duplica).
   create(input: NewAssemblyInput, now: Date): Promise<AssemblyWithOptions & { created: boolean }>
   findById(id: string): Promise<AssemblyWithOptions | null>
+  // A assembleia criada com esta chave de idempotência, se existe.
+  findByDedupeKey(dedupeKey: string): Promise<AssemblyWithOptions | null>
   listByStatus(status: AssemblyStatus, limit: number): Promise<Assembly[]>
   // Leitura pública: abertas (as que fecham primeiro vêm antes) ou encerradas (as mais recentes
   // primeiro), opcionalmente de uma só empresa. Assembleia ainda `scheduled` nunca é pública.

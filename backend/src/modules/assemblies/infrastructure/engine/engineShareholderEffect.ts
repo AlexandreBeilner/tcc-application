@@ -1,31 +1,21 @@
 import type { EffectApplier } from '../../application/assemblyKinds'
+import { describeEffectProblem, readOptionEffects, type OptionEffect } from '../../domain/effects'
 import { engineJson } from './engineClient'
 
-const METRICS = ['base_growth_pct', 'quality_multiplier'] as const
-type Metric = (typeof METRICS)[number]
-
-interface EngineEffect {
-  metric: Metric
-  direction: 1 | -1
-  intensity: number
-}
-
-// O efeito vem do catálogo de pautas e nunca carrega valor absoluto: só métrica, sentido e que
-// fração da faixa do motor usar. Valida aqui para um catálogo malformado falhar com mensagem clara
-// (o motor valida de novo, e é ele quem decide o tamanho da mudança).
-export function parseEngineEffect(raw: Record<string, unknown>): EngineEffect {
-  const { metric, direction, intensity } = raw
-  if (!METRICS.includes(metric as Metric))
-    throw new Error(`métrica de efeito inválida: ${String(metric)}`)
-  if (direction !== 1 && direction !== -1) throw new Error('direção do efeito precisa ser 1 ou -1')
-  if (typeof intensity !== 'number' || !(intensity > 0 && intensity <= 1)) {
-    throw new Error('intensidade do efeito precisa estar em (0, 1]')
-  }
-  return { metric: metric as Metric, direction, intensity }
+// O efeito vem do catálogo de pautas e nunca carrega valor absoluto de degrau: só alavanca, sentido
+// e que fração da faixa do motor usar (a política de dividendo traz o valor-alvo). Valida aqui para
+// um catálogo malformado falhar com mensagem clara (o motor valida de novo, e é ele quem decide o
+// tamanho da mudança).
+export function parseEngineEffects(raw: Record<string, unknown>): OptionEffect[] {
+  const effects = readOptionEffects(raw)
+  if (!effects) throw new Error(`efeitos da opção inválidos: ${describeEffectProblem(raw)}`)
+  return effects
 }
 
 // Entrega ao motor a decisão JÁ aprovada (`POST /governance/decisions`, idempotente pelo id da
-// assembleia). Pauta que não passou (`winningOption` nulo) nunca chega ao motor.
+// assembleia), com de 1 a 2 efeitos. Na assembleia de destinação do lucro vai junto o id da
+// declaração de dividendo retida, que o motor libera quando o efeito de destinação for aplicado.
+// Pauta que não passou (`winningOption` nulo) nunca chega ao motor.
 export function createEngineShareholderEffect(engineUrl: string): EffectApplier {
   return {
     async apply(assembly, winningOption) {
@@ -37,7 +27,8 @@ export function createEngineShareholderEffect(engineUrl: string): EffectApplier 
           assembly_id: assembly.id,
           company_id: assembly.subjectRef,
           option_key: winningOption.key,
-          effect: parseEngineEffect(winningOption.effect),
+          ...(assembly.declarationId ? { declaration_id: assembly.declarationId } : {}),
+          effects: parseEngineEffects(winningOption.effect),
         }),
       })
     },

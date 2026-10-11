@@ -7,6 +7,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { createDrizzleAgendaCatalog } from './drizzleAgendaCatalog'
 import { createDrizzleAgendaCatalogAdmin } from './drizzleAgendaCatalogAdmin'
 import { createDrizzleAssemblyPauseRepository } from './drizzleAssemblyPauseRepository'
 import { createDrizzleAssemblyRepository } from './drizzleAssemblyRepository'
@@ -198,6 +199,36 @@ describe.skipIf(!databaseUrl)('painel das assembleias (banco real)', () => {
       expect((await catalog.find('shareholder', key))?.active).toBe(false)
       // A lista do painel traz também as desativadas; o sorteio do ciclo (listActive) não.
       expect((await catalog.listAll('shareholder')).some((t) => t.key === key)).toBe(true)
+    })
+
+    it('a finalidade da pauta (geral ou destinação do lucro) é gravada, editável e sorteada à parte (MO.6.13)', async () => {
+      const catalog = createDrizzleAgendaCatalogAdmin(db)
+      const key = `${prefix}_p`
+      const composed = {
+        effects: [
+          { metric: 'payout_ratio_pct', direction: -1, intensity: 1 },
+          { metric: 'dividend_policy', value: 'semiannual' },
+        ],
+      }
+      const profit = {
+        ...content,
+        purpose: 'profit' as const,
+        options: content.options.map((o) => ({ ...o, effect: composed })),
+      }
+      const created = await catalog.create('shareholder', key, profit)
+      expect(created).toMatchObject({ status: 'created', template: { purpose: 'profit' } })
+      // O jsonb guarda o efeito composto como veio e a leitura do sorteio traz a finalidade.
+      const active = (await createDrizzleAgendaCatalog(db).listActive('shareholder')).find(
+        (t) => t.key === key,
+      )
+      expect(active?.purpose).toBe('profit')
+      expect(active?.options[0].effect).toEqual(composed)
+
+      const edited = await catalog.update('shareholder', key, { ...profit, purpose: 'general' })
+      expect(edited?.purpose).toBe('general')
+      // Sem finalidade informada vale geral (as pautas anteriores ao campo).
+      const legacy = await catalog.create('shareholder', `${key}2`, content)
+      expect(legacy).toMatchObject({ template: { purpose: 'general' } })
     })
 
     it('pauta inexistente devolve null; o catálogo semeado aparece com o uso', async () => {

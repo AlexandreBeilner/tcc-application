@@ -3,6 +3,7 @@ import { AssemblyNotFoundError } from '../../domain/errors'
 import {
   buildScoreboard,
   readEffectPreview,
+  readEffectPreviews,
   type EffectPreview,
   type Scoreboard,
 } from '../../domain/scoreboard'
@@ -21,8 +22,11 @@ export interface AssemblyDetail {
     label: string
     gain: string
     loss: string
-    // Sem lado recomendado: só o que a opção mexe e o quanto da faixa do motor ela usa.
+    // Sem lado recomendado: só o que a opção mexe e o quanto da faixa do motor ela usa. `effects`
+    // lista de 1 a 2 efeitos, no mesmo peso e na ordem da pauta; `effect` é o primeiro, mantido
+    // para quem lê um só.
     effect: EffectPreview | null
+    effects: EffectPreview[]
     position: number
   }>
   scoreboard: Scoreboard
@@ -69,6 +73,7 @@ export class GetAssemblyUseCase {
         gain: o.gain,
         loss: o.loss,
         effect: readEffectPreview(o.effect),
+        effects: readEffectPreviews(o.effect),
         position: o.position,
       })),
       scoreboard,

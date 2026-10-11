@@ -1,13 +1,16 @@
 // Edição do catálogo de pautas pelo painel (MO.6.8). A pauta continua fechada e de dois lados, sem
-// texto livre solto: este módulo só valida o formato e o efeito (métrica, sentido e intensidade
-// dentro da faixa), que o motor valida de novo ao aplicar.
+// texto livre solto: este módulo só valida o formato e os efeitos (de 1 a 2 por opção: alavanca,
+// sentido e intensidade, ou o valor da política), que o motor valida de novo ao aplicar.
 import { InvalidAgendaTemplateError } from './errors'
 import type { AgendaOption } from './assembly'
-import { readEffectPreview } from './scoreboard'
+import { TEMPLATE_PURPOSES, type TemplatePurpose } from './lifecycle'
+import { describeEffectProblem, readOptionEffects, toStoredEffect } from './effects'
 
 export type AgendaTemplateOptionInput = Omit<AgendaOption, 'id' | 'assemblyId' | 'position'>
 
 export interface AgendaTemplateInput {
+  // Opcional na entrada (vale `general`); sempre preenchida na saída da validação.
+  purpose?: TemplatePurpose
   sector: string | null
   title: string
   description: string
@@ -15,6 +18,7 @@ export interface AgendaTemplateInput {
 }
 
 export interface AgendaTemplateAdminView extends AgendaTemplateInput {
+  purpose: TemplatePurpose
   key: string
   kind: string
   active: boolean
@@ -99,23 +103,26 @@ export function validateTemplateInput(input: AgendaTemplateInput): AgendaTemplat
         `a chave da opção ${n} deve ter de 2 a 40 caracteres: minúsculas, números e _`,
       )
     }
-    if (readEffectPreview(option.effect) === null) {
-      throw new InvalidAgendaTemplateError(
-        `o efeito da opção ${n} precisa de métrica (crescimento ou qualidade), sentido (1 ou -1) e intensidade de 0 (exclusive) a 1`,
-      )
+    const effects = readOptionEffects(option.effect)
+    if (effects === null) {
+      throw new InvalidAgendaTemplateError(`na opção ${n}, ${describeEffectProblem(option.effect)}`)
     }
-    const { metric, direction, intensity } = option.effect
     return {
       key: option.key,
       label: text(option.label, `o rótulo da opção ${n}`, TEMPLATE_LIMITS.optionLabel),
       gain: text(option.gain, `o ganho da opção ${n}`, TEMPLATE_LIMITS.optionSide),
       loss: text(option.loss, `a perda da opção ${n}`, TEMPLATE_LIMITS.optionSide),
-      // Só os três campos conhecidos: o jsonb nunca guarda sobra do que o painel enviou.
-      effect: { metric, direction, intensity },
+      // Só os campos conhecidos de cada efeito, sempre no formato novo (lista): o jsonb nunca
+      // guarda sobra do que o painel enviou.
+      effect: toStoredEffect(effects),
     }
   })
   if (new Set(options.map((o) => o.key)).size !== options.length) {
     throw new InvalidAgendaTemplateError('as chaves das opções não podem se repetir')
   }
-  return { sector, title, description, options }
+  const purpose = input.purpose ?? 'general'
+  if (!TEMPLATE_PURPOSES.includes(purpose)) {
+    throw new InvalidAgendaTemplateError('a finalidade deve ser general ou profit')
+  }
+  return { purpose, sector, title, description, options }
 }

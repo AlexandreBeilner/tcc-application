@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { Assembly } from '../../domain/assembly'
 import { AssemblyNotFoundError } from '../../domain/errors'
 import { SHAREHOLDER_KIND, shareholderPolicies } from '../../domain/shareholderPolicies'
 import type { Scoreboard } from '../../domain/scoreboard'
@@ -6,7 +7,7 @@ import { createFakeAssemblyRepository } from '../../test/fakes/fakeAssemblyRepos
 import { AssemblyKindRegistry } from '../assemblyKinds'
 import { CreateAssemblyUseCase } from './createAssembly'
 import { GetAssemblyUseCase } from './getAssembly'
-import { ListAssembliesUseCase } from './listAssemblies'
+import { holdsDividend, ListAssembliesUseCase } from './listAssemblies'
 
 const DAY = 24 * 60 * 60 * 1000
 const NOW = new Date('2026-10-10T12:00:00Z')
@@ -137,7 +138,9 @@ describe('GetAssemblyUseCase', () => {
       status: 'open',
     })
     expect(detail.options[0].effect).toEqual({ metric: 'growth', direction: 1, intensity: 0.5 })
+    expect(detail.options[0].effects).toEqual([{ metric: 'growth', direction: 1, intensity: 0.5 }])
     expect(detail.options[1].effect).toBeNull()
+    expect(detail.options[1].effects).toEqual([])
     expect(detail.scoreboard).toEqual({
       voters: 2,
       options: [
@@ -179,5 +182,88 @@ describe('GetAssemblyUseCase', () => {
       AssemblyNotFoundError,
     )
     await expect(ctx.get.execute('nada')).rejects.toBeInstanceOf(AssemblyNotFoundError)
+  })
+})
+
+describe('ficha da pauta com efeito composto (MO.6.13)', () => {
+  it('lista os dois efeitos na ordem da pauta, sem valor absoluto e sem lado recomendado', async () => {
+    const ctx = await setup()
+    const { assembly, options } = await ctx.repository.create(
+      {
+        kind: SHAREHOLDER_KIND,
+        subjectRef: 'c1',
+        dedupeKey: 'composto',
+        opensAt: NOW,
+        snapshotAt: NOW,
+        closesAt: new Date(NOW.getTime() + 7 * DAY),
+        effectAppliesAt: new Date(NOW.getTime() + 8 * DAY),
+        options: [
+          {
+            key: 'a',
+            label: 'A',
+            gain: 'g',
+            loss: 'l',
+            effect: {
+              effects: [
+                { metric: 'payout_ratio_pct', direction: -1, intensity: 1 },
+                { metric: 'base_growth_pct', direction: 1, intensity: 0.5 },
+              ],
+            },
+          },
+          {
+            key: 'b',
+            label: 'B',
+            gain: 'g',
+            loss: 'l',
+            effect: { effects: [{ metric: 'dividend_policy', value: 'annual' }] },
+          },
+        ],
+      },
+      NOW,
+    )
+    await ctx.repository.markOpen(assembly.id)
+    const detail = await ctx.get.execute(assembly.id)
+    expect(detail.options.map((o) => o.effects)).toEqual([
+      [
+        { metric: 'payout', direction: -1, intensity: 1 },
+        { metric: 'growth', direction: 1, intensity: 0.5 },
+      ],
+      [{ metric: 'dividend_policy', value: 'annual' }],
+    ])
+    // `effect` segue sendo o primeiro, para quem ainda lê um só.
+    expect(detail.options[0].effect).toEqual({ metric: 'payout', direction: -1, intensity: 1 })
+    expect(options).toHaveLength(2)
+  })
+})
+
+describe('dividendo retido pela assembleia (MO.6.13)', () => {
+  const base = {
+    declarationId: 'decl-1',
+    status: 'open',
+    outcome: null,
+    effectAppliedAt: null,
+  } as Partial<Assembly>
+  const hold = (patch: Partial<Assembly>) => holdsDividend({ ...base, ...patch } as Assembly)
+
+  it('retém enquanto aberta e, se aprovada, até o efeito ser entregue', () => {
+    expect(hold({})).toBe(true)
+    expect(hold({ status: 'scheduled' })).toBe(true)
+    expect(hold({ status: 'closed', outcome: 'approved' })).toBe(true)
+  })
+
+  it('libera quando o efeito foi entregue ou a pauta não passou', () => {
+    expect(hold({ status: 'closed', outcome: 'approved', effectAppliedAt: new Date() })).toBe(false)
+    expect(hold({ status: 'closed', outcome: 'not_approved' })).toBe(false)
+  })
+
+  it('assembleia sem declaração nunca retém', () => {
+    expect(hold({ declarationId: null })).toBe(false)
+  })
+
+  it('o resumo público leva o indicador', async () => {
+    const ctx = await setup()
+    const { assembly } = await ctx.make('c1', 5, 'open')
+    expect((await ctx.list.execute({ closedLimit: 5 })).open[0].dividendOnHold).toBe(false)
+    expect(assembly.declarationId).toBeNull()
   })
 })

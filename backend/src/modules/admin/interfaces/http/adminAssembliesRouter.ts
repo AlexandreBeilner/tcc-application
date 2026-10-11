@@ -74,6 +74,8 @@ function serializeRow(a: AdminAssemblyRow) {
     min_voters: a.minVoters,
     effect_pending: a.effectPending,
     paused: a.paused,
+    declaration_id: a.declarationId,
+    dividend_on_hold: a.dividendOnHold,
   }
 }
 
@@ -126,6 +128,7 @@ function serializeSetting(s: AssemblySettingRow) {
 function serializeTemplate(t: AgendaTemplateAdminItem) {
   return {
     key: t.key,
+    purpose: t.purpose,
     sector: t.sector,
     title: t.title,
     description: t.description,

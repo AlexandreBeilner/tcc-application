@@ -46,6 +46,7 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
           effectAppliedAt: null,
           resultAnnouncedAt: null,
           minVoters: input.minVoters ?? null,
+          declarationId: input.declarationId ?? null,
           createdAt: now,
         },
         options: input.options.map((o, position) => ({
@@ -57,6 +58,9 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
       }
       fake.items.set(id, created)
       return { ...created, created: true }
+    },
+    async findByDedupeKey(dedupeKey) {
+      return [...fake.items.values()].find((i) => i.assembly.dedupeKey === dedupeKey) ?? null
     },
     async findById(id) {
       return fake.items.get(id) ?? null

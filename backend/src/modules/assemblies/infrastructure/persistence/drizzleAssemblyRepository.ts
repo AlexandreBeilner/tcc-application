@@ -40,6 +40,7 @@ function toAssembly(row: typeof assemblies.$inferSelect): Assembly {
     effectAppliedAt: row.effectAppliedAt,
     resultAnnouncedAt: row.resultAnnouncedAt,
     minVoters: row.minVoters,
+    declarationId: row.declarationId,
     createdAt: row.createdAt,
   }
 }
@@ -87,6 +88,7 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
             subjectLabel: input.subjectLabel ?? null,
             templateKey: input.templateKey ?? null,
             minVoters: input.minVoters ?? null,
+            declarationId: input.declarationId ?? null,
             createdAt: now,
           })
           .onConflictDoNothing({ target: assemblies.dedupeKey })
@@ -113,6 +115,13 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
       return { ...((await load(existing.id)) as AssemblyWithOptions), created: false }
     },
     findById: load,
+    async findByDedupeKey(dedupeKey) {
+      const [row] = await db
+        .select({ id: assemblies.id })
+        .from(assemblies)
+        .where(eq(assemblies.dedupeKey, dedupeKey))
+      return row ? load(row.id) : null
+    },
     async listByStatus(status, limit) {
       const rows = await db
         .select()

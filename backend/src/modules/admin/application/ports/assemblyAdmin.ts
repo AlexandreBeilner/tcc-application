@@ -20,6 +20,8 @@ export interface AdminAssemblyRow {
   minVoters: number | null
   // Aprovada, com o efeito já devido e ainda não entregue.
   effectPending: boolean
+  declarationId: string | null
+  dividendOnHold: boolean
   // Há pausa vigente cobrindo esta assembleia.
   paused: boolean
 }
@@ -44,7 +46,8 @@ export interface AdminAssemblyDetailView {
     label: string
     gain: string
     loss: string
-    effect: { metric: 'growth' | 'quality'; direction: 1 | -1; intensity: number } | null
+    effect: AssemblyEffectPreview | null
+    effects: AssemblyEffectPreview[]
     position: number
     voters: number
     weight: number
@@ -90,16 +93,29 @@ export interface AssemblySettingRow {
   updatedAt: Date | null
 }
 
+// Efeito de uma opção como o painel o mostra: só alavanca, sentido e intensidade (a política de
+// dividendo traz o valor-alvo no lugar).
+export type AssemblyEffectPreview =
+  | {
+      metric: 'growth' | 'quality' | 'payout' | 'pn_premium'
+      direction: 1 | -1
+      intensity: number
+    }
+  | { metric: 'dividend_policy'; value: 'quarterly' | 'semiannual' | 'annual' }
+
 export interface AgendaTemplateOptionView {
   key: string
   label: string
   gain: string
   loss: string
-  // { metric, direction, intensity }; o módulo dono valida o formato e a faixa.
+  // `{ effects: [{ metric, direction, intensity } | { metric: 'dividend_policy', value }] }` (ou o
+  // formato antigo, um efeito só); o módulo dono valida o formato e a faixa.
   effect: Record<string, unknown>
 }
 
 export interface AgendaTemplateContent {
+  // `general` abre pelo balanço; `profit` só a partir da declaração de dividendo retida.
+  purpose?: 'general' | 'profit'
   sector: string | null
   title: string
   description: string
@@ -107,6 +123,7 @@ export interface AgendaTemplateContent {
 }
 
 export interface AgendaTemplateAdminItem extends AgendaTemplateContent {
+  purpose: 'general' | 'profit'
   key: string
   active: boolean
   createdAt: Date

@@ -1,13 +1,23 @@
 // Espelha GET/PUT/DELETE /admin/settings do motor (tarefa N.7) — mesmos nomes de campo
 // (snake_case), sem tradução.
 export type PaceSettingKey = 'ticks_per_day' | 'max_catch_up'
-// Faixa de efeito, rampa e cooldown da Assembleia de Acionistas (MO.6.2), editados na tela das
-// assembleias (MO.6.8). O motor aplica a decisão com os valores do momento em que a recebe.
+// Faixa de efeito, rampa e cooldown da Assembleia de Acionistas (MO.6.2), mais payout, prêmio da PN
+// e retenção da declaração de dividendo (MO.6.10 a MO.6.12), editados na tela das assembleias
+// (MO.6.8). O motor aplica a decisão com os valores do momento em que a recebe.
 export type GovernanceSettingKey =
   | 'governance_growth_step_centipp'
   | 'governance_quality_step_centi'
   | 'governance_ramp_ticks'
   | 'governance_cooldown_days'
+  | 'governance_payout_step_centipp'
+  | 'governance_payout_min_pct'
+  | 'governance_payout_max_pct'
+  | 'governance_payout_cooldown_days'
+  | 'governance_premium_step_centipp'
+  | 'governance_premium_min_pct'
+  | 'governance_premium_max_pct'
+  | 'governance_hold_declarations'
+  | 'governance_declaration_safety_days'
 export type EngineSettingKey = PaceSettingKey | GovernanceSettingKey
 // Cada tela lê o seu grupo: o Tempo (10.11) só o ritmo, as Assembleias só a governança.
 export type EngineSettingGroup = 'pace' | 'governance'

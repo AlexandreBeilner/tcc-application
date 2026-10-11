@@ -1,6 +1,7 @@
 import type { AgendaOption, Assembly } from '../../domain/assembly'
 import { AssemblyNotFoundError } from '../../domain/errors'
-import { readEffectPreview, type EffectPreview } from '../../domain/scoreboard'
+import { readEffectPreview, readEffectPreviews, type EffectPreview } from '../../domain/scoreboard'
+import { holdsDividend } from './listAssemblies'
 import type { AssemblyKindRegistry } from '../assemblyKinds'
 import type { AssemblyPauseReader } from '../ports/assemblyPauseRepository'
 import type { AssemblyRepository } from '../ports/assemblyRepository'
@@ -27,6 +28,10 @@ export interface AdminAssemblyRow {
   // Aprovada, com o efeito já devido e ainda não entregue: espera a retomada se há pausa vigente.
   effectPending: boolean
   paused: boolean
+  // Assembleia de destinação do lucro (MO.6.13): a declaração de dividendo que ela libera e se o
+  // dividendo ainda está retido por ela.
+  declarationId: string | null
+  dividendOnHold: boolean
 }
 
 function toRow(a: Assembly, now: Date, paused: boolean): AdminAssemblyRow {
@@ -52,6 +57,8 @@ function toRow(a: Assembly, now: Date, paused: boolean): AdminAssemblyRow {
       a.effectAppliedAt === null &&
       a.effectAppliesAt <= now,
     paused,
+    declarationId: a.declarationId,
+    dividendOnHold: holdsDividend(a),
   }
 }
 
@@ -98,6 +105,7 @@ export interface AdminAssemblyDetail {
     gain: string
     loss: string
     effect: EffectPreview | null
+    effects: EffectPreview[]
     position: number
     voters: number
     weight: number
@@ -163,6 +171,7 @@ export class GetAdminAssemblyDetailUseCase {
         gain: o.gain,
         loss: o.loss,
         effect: readEffectPreview(o.effect),
+        effects: readEffectPreviews(o.effect),
         position: o.position,
         voters: totals.get(o.id)?.voters ?? 0,
         weight: totals.get(o.id)?.weight ?? 0,

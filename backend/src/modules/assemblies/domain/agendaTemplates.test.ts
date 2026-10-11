@@ -65,10 +65,103 @@ describe('validação das pautas do painel', () => {
         option('bb'),
       ],
     })
+    // Sempre no formato novo (lista), mesmo quando o painel mandou o antigo (um efeito só).
     expect(result.options[0].effect).toEqual({
-      metric: 'base_growth_pct',
-      direction: 1,
-      intensity: 0.5,
+      effects: [{ metric: 'base_growth_pct', direction: 1, intensity: 0.5 }],
+    })
+  })
+
+  describe('efeito composto e as novas alavancas (MO.6.13)', () => {
+    const policyAndPayout = {
+      effects: [
+        { metric: 'payout_ratio_pct', direction: -1, intensity: 1 },
+        { metric: 'base_growth_pct', direction: 1, intensity: 0.5, extra: 1 },
+      ],
+    }
+
+    it('aceita dois efeitos em alavancas diferentes e guarda só os campos conhecidos', () => {
+      const result = validateTemplateInput({
+        ...valid,
+        options: [option('aa', { effect: policyAndPayout }), option('bb')],
+      })
+      expect(result.options[0].effect).toEqual({
+        effects: [
+          { metric: 'payout_ratio_pct', direction: -1, intensity: 1 },
+          { metric: 'base_growth_pct', direction: 1, intensity: 0.5 },
+        ],
+      })
+    })
+
+    it('aceita a política de dividendo com o valor-alvo e o prêmio da PN', () => {
+      const result = validateTemplateInput({
+        ...valid,
+        options: [
+          option('aa', {
+            effect: {
+              effects: [
+                { metric: 'dividend_policy', value: 'semiannual', direction: 7 },
+                { metric: 'pn_dividend_premium_pct', direction: 1, intensity: 1 },
+              ],
+            },
+          }),
+          option('bb'),
+        ],
+      })
+      expect(result.options[0].effect).toEqual({
+        effects: [
+          { metric: 'dividend_policy', value: 'semiannual' },
+          { metric: 'pn_dividend_premium_pct', direction: 1, intensity: 1 },
+        ],
+      })
+    })
+
+    it.each([
+      ['três efeitos', [1, 2, 3]],
+      ['nenhum efeito', []],
+      ['a mesma alavanca duas vezes', ['payout_ratio_pct', 'payout_ratio_pct']],
+      ['política com valor inválido', ['dividend_policy_invalid']],
+      ['um dos efeitos inválido', ['payout_ratio_pct', 'preco']],
+    ])('recusa %s', (_name, spec) => {
+      const effects = spec.map((item) => {
+        if (item === 'dividend_policy_invalid')
+          return { metric: 'dividend_policy', value: 'mensal' }
+        if (typeof item === 'number') {
+          return {
+            metric: ['base_growth_pct', 'quality_multiplier', 'payout_ratio_pct'][item - 1],
+            direction: 1,
+            intensity: 1,
+          }
+        }
+        return { metric: item, direction: 1, intensity: 1 }
+      })
+      expect(() =>
+        validateTemplateInput({
+          ...valid,
+          options: [option('aa', { effect: { effects } }), option('bb')],
+        }),
+      ).toThrow(InvalidAgendaTemplateError)
+    })
+
+    it('a mensagem diz em qual opção está o problema', () => {
+      expect(() =>
+        validateTemplateInput({
+          ...valid,
+          options: [option('aa'), option('bb', { effect: { effects: [] } })],
+        }),
+      ).toThrow(/opção 2.*1 a 2 efeitos/)
+    })
+  })
+
+  describe('finalidade da pauta', () => {
+    it('vale geral quando não vem informada, e aceita profit', () => {
+      expect(validateTemplateInput(valid).purpose).toBe('general')
+      expect(validateTemplateInput({ ...valid, purpose: 'profit' }).purpose).toBe('profit')
+    })
+
+    it('recusa finalidade desconhecida', () => {
+      expect(() =>
+        validateTemplateInput({ ...valid, purpose: 'x' as unknown as 'general' }),
+      ).toThrow(/finalidade/)
     })
   })
 
