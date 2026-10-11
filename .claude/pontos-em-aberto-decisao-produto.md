@@ -1068,3 +1068,11 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Origem:** o sorteio da pauta filtra só por setor. Numa empresa sem ação PN o efeito do prêmio é ignorado pelo motor (`skipped_not_applicable`) e a pauta fica só com o outro efeito (crescimento). No ensaio da recalibração quase todos os efeitos de prêmio caíram assim, porque o mundo sintético quase não tem PN.
 - **Opções:** (a) filtrar a pauta por empresas que têm PN (regra nova no sorteio e nas propostas); (b) manter, aceitando que a pauta vale só pelo crescimento nessas empresas; (c) reescrever a pauta para não depender de a empresa ter PN.
 - **Status:** aberto. Minha recomendação (e do relatório) é manter (b) por ora e revisar com dados reais; o autor aprovou o relatório sem pedir a regra nova.
+
+### 056 · Curva do patrimônio da carteira inteira desde a abertura da conta, registrado em 2026-10-11
+
+- **Local:** `backend/src/modules/ranking/domain/networth.ts` (replay de eventos) e a futura tela "Meus ativos" (Fase I do `backlog-monetizacao.md`).
+- **Origem:** ao pedir a tela de ativos com "rendimento desde o início", o autor pode estar falando de duas coisas: o retorno de **cada ativo desde a compra** (contra o preço médio, que a MO.8.x entrega) e a **evolução do patrimônio da carteira inteira desde que a conta foi aberta** (um gráfico de linha, por exemplo de R$ 10.000 até hoje). A segunda exige série histórica de patrimônio, que hoje só o ranking calcula (replay de `market_events` em janelas fixas, renda fixa a custo e sem marcação a mercado).
+- **Opções:** (a) ficar só com o retorno por ativo e o resultado agregado contra o custo (decisão proposta na Fase I); (b) gravar um instantâneo diário de patrimônio por usuário e desenhar a curva, com custo de armazenamento e um job novo; (c) calcular a curva sob demanda por replay, mais barato de manter e mais caro por consulta.
+- **Status:** aberto. Recomendação: (a) agora, e reavaliar (b) quando houver pedido real de gráfico de evolução.
+

@@ -33,7 +33,7 @@ hardcoded em código ou lição. Meta: mesmo valor nas três plataformas.
 
 ## Como usar este arquivo
 
-1. Siga a ordem das fases (A → H; a H é só lista de adiados). A Fase A é quase toda trabalho fora do código (contas, lojas,
+1. Siga a ordem das fases (A → J; a H é só lista de adiados; I e J são de 2026-10-11). A Fase A é quase toda trabalho fora do código (contas, lojas,
    termos) e **bloqueia a produção**, não o desenvolvimento: dá pra começar a Fase B em paralelo com
    RevenueCat em modo de teste.
 2. Cada tarefa é escopo de uma sessão. Ao concluir, marque ✅ e acrescente o bullet de Entregável
@@ -622,6 +622,119 @@ Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 
 
 ---
 
+## Fase I — Meus ativos: a carteira por ativo, com rendimento desde a compra (criada 2026-10-11)
+
+**Origem:** o autor não encontrou, em lugar nenhum, uma tela com **todos os ativos que possui e quanto cada um rendeu desde que comprou**. Hoje o Portfólio mostra só o patrimônio e a rosca por categoria; a posição de um ativo só aparece dentro da página dele ("Sua posição": quantidade, preço médio, preço atual, proventos, retorno de preço e total), e o card de patrimônio leva ao Extrato, que é uma lista de eventos, não de posições. É o padrão mínimo de qualquer corretora, e o que falta para o jogador entender o que tem.
+
+**O que já existe e esta fase reaproveita (conferido no código, 2026-10-11):**
+- `GET /market/me/account` devolve todas as posições (`positions` e `fixedIncomePositions`) com `ticker`, `name`, `type`, `isSandbox`, `quantity`, `averagePrice`; a renda variável traz também `markPrice` (marcação a mercado) e `dividendsReceived`; a renda fixa traz `averageRate`.
+- **Lacuna:** a renda fixa **não** traz valor atual. O motor já calcula (`GET /fixed-income/positions?valuation=true` devolve `current_value` bruto e `net_value` líquido de IR, a mesma conta do resgate), mas o backend gamificado não repassa. Sem isso a tela não mostra rendimento de Tesouro/CDB.
+- As fórmulas de retorno já existem no `PositionSummaryCard` da página do ativo (`(preço atual - preço médio) / preço médio` e o total com proventos). A tela nova usa a **mesma conta**, extraída para função pura, para os números nunca divergirem.
+- `groupPositionsByCategory` (rosca) já calcula valor por categoria; posição zerada continua vindo da API (UPSERT, nunca DELETE), então toda lista filtra `quantity > 0`.
+
+**Decisões propostas (o autor confirma ao abrir a primeira tarefa; padrão = a recomendada):**
+1. **Rota e nome:** `/ativos`, título "Meus ativos". Entradas: card de patrimônio do Portfólio, rosca (por categoria) e atalho "Ver todos" na seção de movimentações. Não entra na barra de navegação principal.
+2. **"Desde o início" = desde a compra, por ativo** (contra o preço médio), mais o resultado agregado da carteira (valor atual das posições menos o custo, e com proventos). A **curva do patrimônio da carteira inteira desde a abertura da conta** exige série histórica de patrimônio que hoje só o ranking calcula, em janelas fixas: **fora desta fase**, registrar como ponto em aberto se o autor quiser.
+3. **Modo Aprendizado** (sandbox) numa aba própria da tela, nunca misturado aos totais do Mercado Ao Vivo (RF12/RNF08).
+4. **Renda fixa:** o resultado principal é sobre o valor **bruto** de hoje; o **líquido de IR** (o que o resgate creditaria) aparece como informação secundária ("Líquido se resgatar hoje"). Sem valor atual (avaliação que falhou), cai no custo e mostra "sem avaliação agora", nunca um zero inventado.
+5. **Extrato** continua existindo em `/extrato`, acessível por "Ver extrato completo".
+
+### MO.8.1 · Backend: valor atual da renda fixa em `GET /market/me/account`
+- **Descrição:** o caso de uso `GetMyAccountUseCase` passa a pedir ao motor `GET /fixed-income/positions?valuation=true` e repassa `currentValue` e `netValue` (camelCase) por posição de renda fixa do Mercado Ao Vivo; sandbox continua sem os campos. A avaliação é opt-in no motor porque custa uma consulta por posição: medir a latência com uma carteira grande (20 posições de renda fixa) e, se passar do aceitável, cachear por poucos segundos (mesmo padrão do placar da Assembleia). Falha na avaliação de uma posição nunca derruba a rota: o campo some e o frontend cai no custo.
+- **Aceite:** `GET /market/me/account` devolve `currentValue`/`netValue` nas posições de renda fixa reais; teste do caso de uso com fakes (com valor, sem valor, falha parcial), do adapter do motor (`fetch` simulado) e do router; `.docs/backend/market.md` atualizado; lint, build e testes do backend; validado ponta a ponta numa stack descartável (imagens do Dockerfile) com uma compra de Tesouro Selic e uma de CDB.
+- **Dependências:** nenhuma. Checklist do backend do `CLAUDE.md`.
+
+### MO.8.2 · Frontend: cálculo de posição e resumo da carteira (funções puras)
+- **Descrição:** módulo `features/portfolio/positionReturns` com funções puras e testes table-driven: por posição, **custo** (`quantity x averagePrice`; na renda fixa, o valor aplicado), **valor atual** (`markPrice ?? averagePrice` na renda variável; `currentValue` na renda fixa, com queda para o custo), **resultado em R$ e em %**, **retorno total com proventos** (só renda variável), **peso na carteira** (% do valor atual do Mercado Ao Vivo) e o **resumo** (custo total, valor atual total, resultado, proventos). O `PositionSummaryCard` da página do ativo passa a usar as mesmas funções (a conta deixa de existir em dois lugares). Categorias reaproveitam `CATEGORY_BY_TYPE` da rosca.
+- **Aceite:** testes cobrem posição ganhando, perdendo, zerada (fora da lista), sem `markPrice`, renda fixa com e sem avaliação, sandbox fora do resumo ao vivo; a soma do valor atual por categoria bate com a rosca; o `PositionSummaryCard` continua com os mesmos números.
+- **Dependências:** MO.8.1 (para a renda fixa).
+
+### MO.8.3 · Tela "Meus ativos" (`/ativos`)
+- **Descrição:** tela nova, padrão de corretora, seguindo `identidade-visual-padroes.md` (home broker sóbrio, sem teatro de gamificação em tela de dado). Cabeçalho com **valor atual das posições**, **resultado total em R$ e %** (verde ou vermelho, com sinal e seta) e proventos recebidos. Abas: **Mercado Ao Vivo** (padrão) e **Modo Aprendizado**. Filtro por categoria (Ações, FIIs, ETFs, Renda fixa) lido de `?categoria=`, ordenação (valor atual, resultado %, ticker). **Desktop (>= 1024 px):** tabela com ticker e nome, quantidade, preço médio, preço atual, valor atual, resultado (R$ e %), peso e proventos. **Mobile e tablet:** um cartão por ativo (nunca tabela com rolagem horizontal), com ticker e valor no topo, resultado em chip colorido, e preço médio e preço atual em linha secundária. A linha leva à página do ativo. Estados: carregando (skeleton do tamanho final), vazio (convite para o Mercado e para a Trilha), erro, filtro sem resultado. Sem travessão em nenhum texto; textos de apoio curtos explicando "Preço médio" e "Resultado" (a diferença entre retorno de preço e total já está na página do ativo).
+- **Aceite:** a soma dos valores atuais por categoria bate com a rosca e com o card de patrimônio; o resultado de cada ativo bate com o "Sua posição" da página dele; a 360, 390, 820 e 1280 px não há rolagem horizontal da página e a leitura é confortável (alvos de toque de pelo menos 44 px, foco visível, contraste AA em dark e light); testes de tela (lista, filtro por categoria, aba sandbox, estados) e de rota; `inventario-telas-plataforma-investimentos.md` ganha a tela nova e a seção 2.1 é atualizada.
+- **Dependências:** MO.8.2 e MO.9.4 (componente de variação colorida).
+
+### MO.8.4 · Ligar as entradas: card de patrimônio e rosca levam a "Meus ativos"
+- **Descrição:** o card "Mercado Ao Vivo" do Portfólio passa a navegar para `/ativos` (hoje vai a `/extrato`; o `aria-label` muda de "Ver extrato" para "Ver meus ativos"). Na rosca, **clicar numa categoria (fatia ou linha da legenda) navega para `/ativos?categoria=<categoria>`** em vez de só fixar o destaque; passar o mouse ou focar continua destacando a fatia e mostrando valor e % no furo (nada de informação só no hover). Em tela de toque a linha da legenda é o alvo principal (com seta à direita para indicar que abre outra tela). A faixa do Modo Aprendizado continua indo ao extrato de aprendizado ou passa a `/ativos` na aba de aprendizado (decisão do autor ao implementar). Acessibilidade de teclado da rosca (setas, Enter, Esc) preservada.
+- **Aceite:** teste de integração: clicar no card abre `/ativos`; clicar em "Ações" abre `/ativos?categoria=acoes` já filtrado; legenda por teclado; extrato segue acessível pelo link "Ver extrato completo". Atualiza a seção 2.1 do inventário de telas.
+- **Dependências:** MO.8.3.
+
+### MO.8.5 · Validação ponta a ponta da Fase I
+- **Descrição:** stack descartável com imagens reais (motor e backend), usuário com ações de vários setores, um FII, um ETF e renda fixa (Tesouro Selic e CDB), avançando o relógio para os preços e a renda fixa se moverem; conferir números contra a página de cada ativo e contra o Extrato; passada visual nos três breakpoints.
+- **Aceite:** relatório curto com a conferência número a número; nenhum desvio entre `/ativos`, página do ativo e rosca.
+- **Dependências:** MO.8.1 a MO.8.4.
+
+---
+
+## Fase J — Ajustes visuais, navegação e descoberta do PRO (criada 2026-10-11)
+
+**Origem:** revisão do autor da tela de Portfólio, da navegação e da visibilidade do PRO. Itens e o que o código mostra hoje:
+- **Portfólio vazio e mal distribuído:** abaixo da rosca não há nada; existe um botão "Conquistas" (que já está no menu do avatar) e o "Investir" fica solto na coluna lateral.
+- **Rosca:** a legenda fica ao lado (`flex` com `min-width: 220px` na legenda) e, ao reduzir a tela, não vai para baixo com o gráfico centralizado.
+- **Movimentações:** não há lista de eventos recentes no Portfólio (só o Extrato completo). O Extrato mapeia `initial_deposit`, compra, venda, aporte e resgate de renda fixa e provento, mas **não mapeia `salary_payment`, `admin_credit` e os eventos de ETF**, que hoje apareceriam com o nome técnico.
+- **Cores:** a variação de preço (`daily_change_pct`) é impressa só como texto nas listas do Mercado; há cor de ganho e perda apenas em partes (página do ativo, Classificação).
+- **Listas de ativos:** `AssetTable` (tabela no desktop, cartões empilhados no mobile) é funcional e seca.
+- **Navegação:** a barra principal tem Portfólio, Trilha, Mercado, **Calculadora** e Classificação; "Assembleias" está só no menu do avatar.
+- **PRO:** o menu do avatar não tem entrada para `/planos`; o PRO só aparece nos convites contextuais (liga, duelo, retrospectiva, assembleia). Quem não tropeça num convite nunca descobre o plano nem o que ele traz.
+
+**Decisões propostas (o autor confirma ao abrir a tarefa correspondente; padrão = a recomendada):**
+1. **"Investir"** vira a ação primária **dentro do card de patrimônio** do Portfólio (e no estado vazio), uma só vez; sai da coluna lateral. "Conquistas" sai do Portfólio (continua no menu do avatar e na Classificação).
+2. **Barra de navegação:** "Assembleias" entra no lugar de "Calculadora". A Calculadora vai para o **menu do avatar** (bloco de ferramentas) e mantém o gate de desbloqueio da trilha (`calculator`). **Se a Assembleia estiver desligada** (`ASSEMBLIES_ENABLED` off, a API responde 404), a barra mantém a Calculadora: nunca uma aba que leva a erro nem uma barra com 4 itens.
+3. **PRO visível sem pressão:** selo "PRO" no cabeçalho para assinantes e um link discreto "Conhecer o PRO" para quem não é; item no menu do avatar; um cartão informativo no Portfólio que explica o que o PRO traz (dispensável por 30 dias, mesmo mecanismo do `ProInvite`, nunca bloqueia nada). Limite ético já fixado (`estrategia-monetizacao.md`): **nunca escassez artificial, contagem regressiva ou texto que culpe**; só convite e clareza do que se ganha.
+4. **Cores de variação:** verde para alta e vermelho para queda, **sempre com sinal (+ ou −) e seta**, para não depender só de cor (daltonismo), em todo lugar em que uma variação ou retorno é mostrado.
+
+### MO.9.1 · Portfólio: reorganizar o conteúdo
+- **Descrição:** tirar o botão "Conquistas"; levar "Investir" para o card de patrimônio (e manter no estado vazio, com "Ir para a Trilha"); rever a hierarquia da tela (patrimônio, rosca, movimentações recentes à esquerda; missões, retomar lição e o cartão do PRO à direita no desktop; coluna única no mobile e tablet, com a ordem: patrimônio, rosca, movimentações, missões). Atualizar a seção 2.1 do inventário.
+- **Aceite:** sem botão "Conquistas"; "Investir" aparece uma vez, no card; sem espaço morto no desktop; nenhum overflow a 360 px; testes de tela atualizados.
+- **Dependências:** nenhuma (a lista de movimentações entra na MO.9.3).
+
+### MO.9.2 · Rosca responsiva: legenda abaixo, gráfico centralizado
+- **Descrição:** quando não há largura para gráfico e legenda lado a lado, a legenda vai **abaixo** e o gráfico fica **centralizado**; a legenda ocupa a largura toda, com linhas de pelo menos 44 px de altura. Usar container query (ou breakpoint explícito) em vez do `flex` com `min-width` de hoje, para o comportamento depender da largura do **bloco**, não só da janela (o Portfólio tem coluna de 2/3 no desktop). A legenda mostra categoria, valor e %, mais uma seta à direita (as linhas navegam, ver MO.8.4).
+- **Aceite:** de 320 a 1440 px nunca há overflow; quando empilhada, a rosca está centralizada; lado a lado só quando cabe sem espremer; testes do componente e passada visual nos três breakpoints.
+- **Dependências:** nenhuma (o clique que navega é da MO.8.4).
+
+### MO.9.3 · Últimas movimentações no Portfólio
+- **Descrição:** seção "Últimas movimentações" abaixo da rosca com as **10 mais recentes** do Mercado Ao Vivo (`GET /market/me/events?limit=10`, o motor já devolve mais recente primeiro): compra e venda de ações, aporte e resgate de renda fixa, **provento recebido**, **salário**, crédito do administrador, e o que mais o jogador enxerga como dinheiro entrando ou saindo. Cada linha: ícone por tipo, rótulo claro ("Compra de VALE3", "Provento de ITUB4", "Salário"), quantidade e preço quando houver, valor com sinal e cor (entrada em verde, saída em vermelho) e data relativa ("hoje", "ontem", dia e mês). Eventos técnicos (`bot_*`, `assembly_decision`, `etf_*` de fundo) ficam fora. Link "Ver extrato completo" no rodapé. Estados: vazio ("Suas movimentações aparecem aqui"), carregando, erro. **Consertar de passagem o Extrato:** mapear `salary_payment`, `admin_credit` e os eventos de ETF que o usuário vê, para não aparecerem com nome técnico.
+- **Aceite:** 10 itens no máximo, ordem correta, sinais e cores corretos, sandbox fora (o Extrato continua tendo o escopo de aprendizado); o rótulo do ativo vem do catálogo (não do id); testes com a lista de eventos (cada tipo), vazio e erro; três breakpoints.
+- **Dependências:** MO.9.4 (cores e sinal).
+
+### MO.9.4 · Componente de variação (verde, vermelho, sinal e seta) e auditoria
+- **Descrição:** componente atômico `Delta` (valor em % e/ou R$, sinal explícito, seta para cima ou para baixo, `tabular-nums`, verde de ganho e vermelho de perda dos tokens, neutro para zero, `aria-label` falando "alta de 2,0%" para leitor de tela). Auditar **todos** os lugares em que aparece variação ou retorno e trocar para o componente: listas do Mercado (`daily_change_pct`), páginas do ativo e da empresa, retorno de preço e total, Classificação (rentabilidade), Extrato e movimentações (valor), duelos e ligas (placar de rentabilidade), Calendário (proventos estimados) e os novos "Meus ativos". Conferir contraste AA em dark e light.
+- **Aceite:** nenhuma variação percentual ou retorno impresso sem cor, sinal e seta (varredura por busca no código mais passada visual); testes do componente (positivo, negativo, zero, indefinido `—`); lista das telas tocadas no Entregável.
+- **Dependências:** nenhuma. Pré-requisito de MO.8.3 e MO.9.3, então vem primeiro.
+
+### MO.9.5 · Listas e grades de ativos mais agradáveis
+- **Descrição:** redesenhar `AssetTable` e os cartões do Mercado (Ações, FIIs, ETFs, Renda fixa) e a `CompanyAssetList`, no padrão "corretora" de `identidade-visual-padroes.md`: ticker em destaque e nome em linha secundária, preço alinhado à direita, variação em chip colorido (MO.9.4), mini sparkline opcional onde já houver série, setor ou tipo em etiqueta discreta, densidade confortável (linhas de pelo menos 56 px no mobile), hover e foco visíveis, linha inteira clicável, skeletons do tamanho final. Cartões no mobile com hierarquia clara (nome, preço, variação) e sem texto espremido. Sem animação gratuita; respeitar `prefers-reduced-motion`.
+- **Aceite:** passada visual nos três breakpoints em dark e light; nenhuma rolagem horizontal; testes de tela existentes atualizados; antes e depois registrados no Entregável.
+- **Dependências:** MO.9.4.
+
+### MO.9.6 · Navegação: Assembleias na barra principal, Calculadora no menu
+- **Descrição:** trocar "Calculadora" por "Assembleias" na `TabBar` (ícone de edifício, mesmo do menu do avatar), com a regra da decisão 2: **só** quando a Assembleia está ligada; desligada, a Calculadora permanece. A Calculadora ganha item no menu do avatar (bloco "Ferramentas") com o gate de trilha de hoje (`RequiresUnlock`, chave `calculator`); o ponto no sino de assembleia aberta continua. Atualizar a seção 0.1 do inventário de telas (navegação primária) e os testes da `TabBar`. O cuidado de 5 itens no mobile (rótulos que cabem a 360 px) vale.
+- **Aceite:** com o recurso ligado a barra tem Portfólio, Trilha, Mercado, Assembleias, Classificação; desligado, mantém a Calculadora; a Calculadora continua acessível e travada pela trilha como antes; sem aba que leve a 404; testes e três breakpoints.
+- **Dependências:** nenhuma.
+
+### MO.9.7 · Assembleias: bloco que explica o PRO
+- **Descrição:** na lista `/assembleias` (coluna fixa à direita no desktop, abaixo das regras no mobile) e na ficha, um bloco curto "Como o PRO participa": **quem é PRO vota em toda assembleia de uma empresa que possui e propõe pautas do catálogo; quem não é PRO tem 1 voto por mês (nível 3 e e-mail verificado); o resultado vale para todos os acionistas, tenham votado ou não** (regras fechadas da Fase F). Para quem não é PRO, um link "Ver o que o PRO inclui" para `/planos` (origem `assembly` no funil); para PRO, "Você vota em todas". Tom informativo, sem escassez; some o convite repetido quando o `ProInvite` contextual já está na tela.
+- **Aceite:** texto fiel às regras reais (conferir contra `assemblies/domain`), sem travessão; PRO e não PRO veem versões diferentes; três breakpoints; testes de tela.
+- **Dependências:** nenhuma.
+
+### MO.9.8 · PRO visível: entradas, selo e cartão no Portfólio
+- **Descrição:** (a) **item "Plano PRO"** no menu do avatar (e "Gerenciar plano" para assinante); (b) **selo "PRO"** discreto no cabeçalho para assinantes e link "Conhecer o PRO" para quem não é; (c) **cartão "O que o PRO traz"** na coluna lateral do Portfólio (3 a 4 benefícios com ícone: ligas privadas, duelos, retrospectiva, voz nas assembleias; botão "Ver planos"), dispensável por 30 dias com o mesmo mecanismo do `ProInvite`, **nunca** para quem já é PRO; (d) origens novas no funil (`portfolio`, `menu`, `header`): migração que amplia a CHECK de `funnel_events.source` (como a `0045`), rótulos do painel de conversão e `.docs/backend/billing.md`. Respeita o limite ético: sem escassez, sem contagem regressiva, nada bloqueia o core loop.
+- **Aceite:** quem não é PRO encontra o plano em até 2 toques de qualquer tela; assinante vê o selo e "Gerenciar plano"; o cartão some ao dispensar e para PRO; o funil registra as novas origens (teste de integração em Postgres descartável); lint, build e testes do backend e do frontend.
+- **Dependências:** MO.9.1 (lugar do cartão).
+
+### MO.9.9 · Página de planos: deixar claro o que se obtém
+- **Descrição:** reorganizar `/planos` para responder em uma tela "o que eu ganho e quanto custa": topo com a promessa em uma frase; **benefícios com ícone e um exemplo visual de cada** (liga, duelo, retrospectiva, assembleia, identidade); **quadro comparativo Gratuito x PRO** (o que continua grátis: toda a trilha, o mercado, XP e streak; o que o PRO acrescenta); preços mensal e anual com a economia do anual em reais; garantia e cancelamento fácil visíveis (7 dias, política de reembolso, gerenciar em Configurações); perguntas curtas (renova sozinho, como cancelar, o que acontece com meu progresso se eu sair: **nada é apagado**). Sem pressão e sem urgência artificial.
+- **Aceite:** o comparativo bate com as regras reais de cada âncora; três breakpoints; testes de tela; textos revisados contra as regras de redação (sem travessão, sem termo técnico sem definição).
+- **Dependências:** MO.9.8.
+
+### MO.9.10 · Passada visual de suavidade e consistência
+- **Descrição:** revisão transversal das telas tocadas pela Fase J e pela Fase I: espaçamento e ritmo vertical (escala de espaçamento dos tokens), hierarquia tipográfica, bordas e sombras mais suaves (menos linhas duras, mais contraste de superfície), cores de acento só onde significam algo, **contraste AA em dark e light**, alvos de toque de pelo menos 44 px, foco visível, `prefers-reduced-motion`, estados de carregando, vazio e erro com o mesmo desenho em todas as telas. Inclui os dois acabamentos pendentes da validação da MO.6.14 (link "Ver todas" que quebra em duas linhas no celular, na seção de assembleias da empresa, e o campo "Mexe em" do editor de pautas do admin com texto cortado). Registrar antes e depois.
+- **Aceite:** checklist de UX preenchido por tela (contraste, toque, foco, estados), passada nos três breakpoints em dark e light, sem regressão nos testes.
+- **Dependências:** MO.9.1 a MO.9.9.
+
+---
+
 ## Fase H — Adiado, não abrir tarefa
 
 | Item | Por que adiado | Condição para reabrir |
@@ -649,3 +762,5 @@ Nenhuma cobrança real sai sem MO.1.2, MO.2.5 (reconciliação) e, no caso do ap
 
 **Atualização (2026-10-10):** com o lançamento só na web, a sequência efetiva é a de `backlog-lancamento-web-pwa.md`;
 a Fase D e o trecho "(app) 4.1 → 4.4" desta lista ficam congelados, e a MO.4.4 deixa de ser exigência para cobrar.
+
+**Fases I e J (2026-10-11):** `MO.9.4 → MO.8.1 → MO.8.2 → MO.9.1 → MO.9.2 → MO.8.3 → MO.8.4 → MO.9.3 → MO.8.5 → MO.9.5 → MO.9.6 → MO.9.7 → MO.9.8 → MO.9.9 → MO.9.10`. Racional: o componente de variação (9.4) é pré-requisito da tela nova e das movimentações; o backend da renda fixa (8.1) destrava os números da tela; a reorganização do Portfólio e a rosca (9.1, 9.2) vêm antes de ligar o clique que navega (8.4); o visual das listas (9.5) e a navegação (9.6) vêm depois de a tela nova existir; as peças do PRO (9.7 a 9.9) fecham antes da passada visual geral (9.10). Nenhuma mexe no motor.
