@@ -16,8 +16,8 @@ interface CommonEmailConfig {
   outboxIntervalMs: number
   // Cadência com que os jobs de engajamento (resumo semanal, EM.7.x) checam se estão na janela.
   engagementIntervalMs: number
-  // Lembrete de sequência em risco (EM.7.3): desligado por padrão até medir cancelamento e
-  // reclamação do resumo semanal (plano 7). `EMAIL_STREAK_REMINDER=on` liga.
+  // Lembrete de sequência em risco (EM.7.3): ligado por padrão (decisão do ponto 045, 2026-10-11);
+  // `EMAIL_STREAK_REMINDER=off` desliga.
   streakReminderEnabled: boolean
 }
 
@@ -66,7 +66,7 @@ export function loadEmailConfig(env: NodeJS.ProcessEnv): EmailConfig {
     delayBetweenSendsMs: Math.ceil(1000 / sendRps),
     outboxIntervalMs,
     engagementIntervalMs,
-    streakReminderEnabled: read('EMAIL_STREAK_REMINDER')?.toLowerCase() === 'on',
+    streakReminderEnabled: read('EMAIL_STREAK_REMINDER')?.toLowerCase() !== 'off',
   }
 
   if (provider === 'resend') {

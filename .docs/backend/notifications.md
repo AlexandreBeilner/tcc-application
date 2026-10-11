@@ -30,7 +30,7 @@ Nenhum caso de uso de negócio fala com o provedor: quem precisa mandar e-mail d
 | `RESEND_WEBHOOK_SECRET` | `whsec_...` do endpoint de webhook; sem ele a rota não existe e o backend avisa no log. |
 | `EMAIL_FROM`, `EMAIL_REPLY_TO` | Remetente (obrigatório com `resend`) e resposta humana opcional. |
 | `EMAIL_SEND_RPS`, `EMAIL_OUTBOX_INTERVAL_MS` | Cadência do worker (padrões acima). |
-| `EMAIL_STREAK_REMINDER` | `on` liga o lembrete de sequência em risco (EM.7.3). Desligado por padrão até medir cancelamento e reclamação do resumo semanal. |
+| `EMAIL_STREAK_REMINDER` | `off` desliga o lembrete de sequência em risco (EM.7.3). Ligado por padrão (decisão do autor, ponto 045, 2026-10-11); acompanhe cancelamento e reclamação do resumo semanal e desligue se piorarem. |
 | `EMAIL_ENGAGEMENT_INTERVAL_MS` | De quanto em quanto tempo os jobs de engajamento checam se estão na janela (padrão 15 min). |
 
 ---
@@ -121,7 +121,7 @@ Template `assembly_result`, categoria `social` (opt-in, desligada por padrão). 
 
 ### Lembrete de sequência em risco (EM.7.3, E13, D9)
 
-`SendStreakRemindersUseCase`, template `streak_reminder`. **Desligado por padrão** (`EMAIL_STREAK_REMINDER=on` liga): o plano manda medir cancelamento e reclamação do resumo semanal antes. **Quem recebe:** `engagement` ligado, conta ativa e e-mail verificado (suspensa nunca recebe opcional), sequência atual de **3 dias ou mais** e **última atividade qualificada ontem** (UTC, o dia do streak): quem já fez a atividade de hoje não recebe, e quem não fez ontem já perdeu a sequência e não é cobrado por isso. **Janela:** 17h a 19h59 de Brasília (o dia do streak termina às 21h de Brasília). **Teto de 1 por dia** pela chave `streak-reminder:<userId>:<dia>`. **Tom:** convite, nunca cobrança: "Sua sequência de N dias segue de pé até as 21h de hoje (horário de Brasília). Quer fazer uma lição rápida?", sem escassez, culpa, contagem regressiva ou menção ao que se perde (o teste do template trava essas palavras). Regras provisórias: ponto 045 de `pontos-em-aberto-decisao-produto.md`.
+`SendStreakRemindersUseCase`, template `streak_reminder`. **Ligado por padrão** (`EMAIL_STREAK_REMINDER=off` desliga; decisão do autor em 2026-10-11, ponto 045). **Quem recebe:** `engagement` ligado, conta ativa e e-mail verificado (suspensa nunca recebe opcional), sequência atual de **3 dias ou mais** e **última atividade qualificada ontem** (UTC, o dia do streak): quem já fez a atividade de hoje não recebe, e quem não fez ontem já perdeu a sequência e não é cobrado por isso. **Janela:** 17h a 19h59 de Brasília (o dia do streak termina às 21h de Brasília). **Teto de 1 por dia** pela chave `streak-reminder:<userId>:<dia>`. **Tom:** convite, nunca cobrança: "Sua sequência de N dias segue de pé até as 21h de hoje (horário de Brasília). Quer fazer uma lição rápida?", sem escassez, culpa, contagem regressiva ou menção ao que se perde (o teste do template trava essas palavras). Regras decididas no ponto 045 de `pontos-em-aberto-decisao-produto.md`.
 
 ### Exportação e exclusão de conta (LGPD)
 

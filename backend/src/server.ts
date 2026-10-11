@@ -111,8 +111,7 @@ async function main() {
   startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs)
 
   startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails)
-  // O lembrete de sequência (EM.7.3) só liga com `EMAIL_STREAK_REMINDER=on`: o plano manda medir
-  // cancelamento e reclamação do resumo semanal antes.
+  // O lembrete de sequência (EM.7.3) nasce ligado (ponto 045); `EMAIL_STREAK_REMINDER=off` desliga.
   startEngagementScheduler(
     [
       { name: 'resumo semanal', execute: () => sendWeeklyDigest.execute() },
