@@ -20,6 +20,8 @@ export interface Achievement {
   // Desativada (N.19): deixa de ser concedida e some pra quem ainda não a tem,
   // mas nunca é tirada de quem já ganhou.
   isActive: boolean
+  // Rara de verdade (ponto 044): marcada no catálogo; só ela dispara o e-mail de conquista rara.
+  isRare: boolean
 }
 
 // Os números que qualquer critério de conquista pode consultar — agregado em

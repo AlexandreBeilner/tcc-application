@@ -22,6 +22,7 @@ export interface CatalogAchievement {
   criteriaType: AchievementCriteriaKey
   criteriaValue: number
   isActive: boolean
+  isRare: boolean
   // Quantos usuários já ganharam.
   unlockedCount: number
 }
@@ -45,6 +46,7 @@ export interface AchievementChanges {
   criteriaType?: AchievementCriteriaKey
   criteriaValue?: number
   isActive?: boolean
+  isRare?: boolean
 }
 
 export type MissionVerificationKind = 'lesson_completion' | 'server_check' | 'client_reported'

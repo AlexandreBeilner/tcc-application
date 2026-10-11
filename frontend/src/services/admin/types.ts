@@ -776,6 +776,8 @@ export interface CatalogAchievement {
     criteria_type: AchievementCriteriaType
     criteria_value: number
     is_active: boolean
+    // Rara de verdade, marcada no catálogo (ponto 044): só ela dispara o e-mail de conquista rara.
+    is_rare: boolean
     // Quantos usuários já ganharam.
     unlocked_count: number
 }
@@ -792,7 +794,7 @@ export interface CreateAchievementInput {
     criteria_value: number
 }
 
-export type UpdateAchievementInput = Partial<CreateAchievementInput> & { is_active?: boolean }
+export type UpdateAchievementInput = Partial<CreateAchievementInput> & { is_active?: boolean; is_rare?: boolean }
 
 export type MissionVerification = 'lesson_completion' | 'server_check' | 'client_reported'
 

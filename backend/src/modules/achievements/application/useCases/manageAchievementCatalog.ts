@@ -66,6 +66,7 @@ export class UpdateAchievementUseCase {
     const updated = await this.achievementRepository.update(id, {
       ...merged,
       ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
+      ...(patch.isRare !== undefined ? { isRare: patch.isRare } : {}),
     })
     if (!updated) throw new AchievementNotFoundError('conquista não encontrada')
     return updated

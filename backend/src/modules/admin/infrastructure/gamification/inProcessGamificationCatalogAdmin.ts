@@ -46,6 +46,7 @@ function toCatalogAchievement(entry: AchievementCatalogEntry): CatalogAchievemen
     criteriaType: entry.criteriaType,
     criteriaValue: entry.criteriaValue,
     isActive: entry.isActive,
+    isRare: entry.isRare,
     unlockedCount: entry.unlockedCount,
   }
 }

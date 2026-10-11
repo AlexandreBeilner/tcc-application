@@ -339,6 +339,7 @@ export const updateAchievementBodySchema = z
     criteria_type: achievementCriteriaSchema.optional(),
     criteria_value: z.number().positive().optional(),
     is_active: z.boolean().optional(),
+    is_rare: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'informe ao menos um campo' })
 

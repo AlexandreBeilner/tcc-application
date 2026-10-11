@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Achievement } from '../../domain/achievement'
-import {
-  createFakeAchievementMailer,
-  createFakeRarityReader,
-} from '../../test/fakes/fakeAchievementNotifications'
+import { createFakeAchievementMailer } from '../../test/fakes/fakeAchievementNotifications'
 import { createFakeAchievementRepository } from '../../test/fakes/fakeAchievementRepository'
 import { createFakeProgressSnapshotReader } from '../../test/fakes/fakeProgressSnapshotReader'
 import { CheckAndUnlockAchievementsUseCase } from './checkAndUnlockAchievements'
@@ -16,6 +13,7 @@ const catalog: Achievement[] = [
     criteriaType: 'streak_days',
     criteriaValue: 7,
     isActive: true,
+    isRare: false,
   },
   {
     id: 'a-lessons-10',
@@ -24,6 +22,7 @@ const catalog: Achievement[] = [
     criteriaType: 'lessons_completed',
     criteriaValue: 10,
     isActive: true,
+    isRare: false,
   },
   {
     id: 'a-networth-12000',
@@ -32,6 +31,7 @@ const catalog: Achievement[] = [
     criteriaType: 'net_worth',
     criteriaValue: 12000,
     isActive: true,
+    isRare: false,
   },
   {
     id: 'a-trades-1',
@@ -40,6 +40,7 @@ const catalog: Achievement[] = [
     criteriaType: 'trades_executed',
     criteriaValue: 1,
     isActive: true,
+    isRare: false,
   },
 ]
 
@@ -61,7 +62,6 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
     const useCase = new CheckAndUnlockAchievementsUseCase(
       achievementRepository,
       progressSnapshotReader,
-      createFakeRarityReader(),
       createFakeAchievementMailer(),
     )
 
@@ -89,7 +89,6 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
     const useCase = new CheckAndUnlockAchievementsUseCase(
       achievementRepository,
       progressSnapshotReader,
-      createFakeRarityReader(),
       createFakeAchievementMailer(),
     )
     await useCase.execute({ userId: 'u1' })
@@ -107,7 +106,6 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
     const useCase = new CheckAndUnlockAchievementsUseCase(
       achievementRepository,
       progressSnapshotReader,
-      createFakeRarityReader(),
       createFakeAchievementMailer(),
     )
 
@@ -128,27 +126,28 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
       assembliesParticipated: 0,
     }
 
-    function setup(rarity: { holders: number; population: number }) {
+    function setup(isRare: boolean) {
       const mailer = createFakeAchievementMailer()
       const useCase = new CheckAndUnlockAchievementsUseCase(
-        createFakeAchievementRepository(catalog),
+        createFakeAchievementRepository(
+          catalog.map((a) => (a.id === 'a-trades-1' ? { ...a, isRare } : a)),
+        ),
         createFakeProgressSnapshotReader({ u1: snapshot }),
-        createFakeRarityReader({ 'a-trades-1': rarity }),
         mailer,
       )
       return { mailer, useCase }
     }
 
-    it('avisa quando a conquista recém-desbloqueada é rara', async () => {
-      const { mailer, useCase } = setup({ holders: 3, population: 100 })
+    it('avisa quando a conquista recém-desbloqueada está marcada como rara no catálogo', async () => {
+      const { mailer, useCase } = setup(true)
 
       await useCase.execute({ userId: 'u1' })
 
       expect(mailer.sent.map((s) => [s.userId, s.achievement.id])).toEqual([['u1', 'a-trades-1']])
     })
 
-    it('não avisa quando a conquista é comum', async () => {
-      const { mailer, useCase } = setup({ holders: 60, population: 100 })
+    it('não avisa quando a conquista não está marcada como rara, mesmo com poucos donos', async () => {
+      const { mailer, useCase } = setup(false)
 
       await useCase.execute({ userId: 'u1' })
 
@@ -156,7 +155,7 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
     })
 
     it('não avisa de novo numa conferência em que nada foi desbloqueado', async () => {
-      const { mailer, useCase } = setup({ holders: 3, population: 100 })
+      const { mailer, useCase } = setup(true)
 
       await useCase.execute({ userId: 'u1' })
       await useCase.execute({ userId: 'u1' })
@@ -166,11 +165,12 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
 
     it('falha no aviso nunca desfaz nem derruba o desbloqueio', async () => {
       const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      const repository = createFakeAchievementRepository(catalog)
+      const repository = createFakeAchievementRepository(
+        catalog.map((a) => (a.id === 'a-trades-1' ? { ...a, isRare: true } : a)),
+      )
       const useCase = new CheckAndUnlockAchievementsUseCase(
         repository,
         createFakeProgressSnapshotReader({ u1: snapshot }),
-        createFakeRarityReader({ 'a-trades-1': { holders: 1, population: 100 } }),
         {
           sendRareUnlocked: async () => {
             throw new Error('outbox fora')

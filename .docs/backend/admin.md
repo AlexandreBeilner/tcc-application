@@ -162,7 +162,7 @@ Seis rotas, todas só para `role: 'admin'` (`401` sem token, `403` para usuário
 
 #### `GET /admin/gamification/achievements`
 
-- **Sucesso:** `200` → `{ achievements: [{ id, name, description, criteria_type, criteria_value, is_active, unlocked_count }], criteria: [{ type, label, value_kind }] }`. `unlocked_count` é quantos usuários já ganharam. `criteria` é a **lista fechada** de regras que o código sabe avaliar (`net_worth`, `streak_days`, `lessons_completed`, `trades_executed`, `micro_decisions_streak`, `track_completed_no_errors`, `lesson_reviewed`), com `value_kind` `integer` ou `currency`: o painel escolhe uma, nunca digita expressão.
+- **Sucesso:** `200` → `{ achievements: [{ id, name, description, criteria_type, criteria_value, is_active, is_rare, unlocked_count }], criteria: [{ type, label, value_kind }] }`. `unlocked_count` é quantos usuários já ganharam. `criteria` é a **lista fechada** de regras que o código sabe avaliar (`net_worth`, `streak_days`, `lessons_completed`, `trades_executed`, `micro_decisions_streak`, `track_completed_no_errors`, `lesson_reviewed`), com `value_kind` `integer` ou `currency`: o painel escolhe uma, nunca digita expressão.
 
 #### `POST /admin/gamification/achievements`
 
@@ -172,7 +172,7 @@ Seis rotas, todas só para `role: 'admin'` (`401` sem token, `403` para usuário
 
 #### `PATCH /admin/gamification/achievements/:id`
 
-- **Payload:** qualquer subconjunto, ao menos um campo: `name`, `description` (`null` limpa), `criteria_type`, `criteria_value`, `is_active`.
+- **Payload:** qualquer subconjunto, ao menos um campo: `name`, `description` (`null` limpa), `criteria_type`, `criteria_value`, `is_active`, `is_rare` (marca a conquista como rara no catálogo; é o que dispara o e-mail de conquista rara, ponto 044; nasce `false` na criação e se marca por aqui).
 - **Sucesso:** `200` → a conquista atualizada. O estado final é validado (trocar só o tipo de critério de uma meta em reais por um de contagem é recusado se a meta não for inteira). **Desativar nunca remove o que o usuário já ganhou**: a conquista deixa de ser concedida e some pra quem ainda não a tem; mudar meta ou regra só vale pras próximas concessões, ninguém é revogado. Auditoria: `achievement.update` só com os campos pedidos.
 - **Erros:** `400`; `404`; `409`; `422`.
 

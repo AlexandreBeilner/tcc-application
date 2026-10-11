@@ -35,6 +35,7 @@ const streak7: Achievement = {
   criteriaType: 'streak_days',
   criteriaValue: 7,
   isActive: true,
+  isRare: false,
 }
 
 const feedRead: Mission = {
@@ -142,6 +143,7 @@ describe('GET /admin/gamification/achievements', () => {
         criteria_type: 'streak_days',
         criteria_value: 7,
         is_active: true,
+        is_rare: false,
         unlocked_count: 2,
       },
     ])
@@ -256,6 +258,19 @@ describe('PATCH /admin/gamification/achievements/:id', () => {
       payload: { criteria_value: 10, is_active: false },
     })
     expect(auditLog.entries[0].payload).not.toHaveProperty('name')
+  })
+
+  it('marca a conquista como rara (ponto 044) e audita o campo', async () => {
+    const { app, adminToken, auth, auditLog } = await buildApp()
+
+    const res = await request(app)
+      .patch(`/admin/gamification/achievements/${ACH_ID}`)
+      .set(auth(adminToken))
+      .send({ is_rare: true })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ id: ACH_ID, is_rare: true })
+    expect(auditLog.entries[0].payload).toMatchObject({ is_rare: true })
   })
 
   it('recusa corpo vazio e id que não é uuid (400), inexistente (404) e meta inválida (422)', async () => {

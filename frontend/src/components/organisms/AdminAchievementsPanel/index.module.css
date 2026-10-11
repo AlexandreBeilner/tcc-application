@@ -93,6 +93,12 @@
     font-size: var(--font-size-xs);
 }
 
+.badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
 .badge {
     display: inline-block;
     padding: 2px var(--space-2);

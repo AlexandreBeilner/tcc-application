@@ -9,6 +9,8 @@ export interface AchievementSeed {
   description: string
   criteriaType: (typeof achievementCriteriaType.enumValues)[number]
   criteriaValue: string
+  // Rara de verdade (ponto 044): ponto de partida editável no painel; quem decide é o catálogo.
+  isRare?: boolean
 }
 
 // Catálogo mínimo (tarefa 5.2) — 8 conquistas ilustrativas cobrindo os 4
@@ -29,6 +31,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Mantenha um streak de 30 dias consecutivos.',
     criteriaType: 'streak_days',
     criteriaValue: '30',
+    isRare: true,
   },
   {
     seedKey: 'lessons_10',
@@ -48,6 +51,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Complete todas as 35 lições da trilha.',
     criteriaType: 'lessons_completed',
     criteriaValue: '35',
+    isRare: true,
   },
   {
     seedKey: 'net_worth_12k',
@@ -62,6 +66,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Alcance R$ 25.000,00 de patrimônio no Mercado Ao Vivo.',
     criteriaType: 'net_worth',
     criteriaValue: '25000.00',
+    isRare: true,
   },
   {
     seedKey: 'trades_1',
@@ -91,6 +96,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Complete uma trilha inteira sem nenhum erro na aposta.',
     criteriaType: 'track_completed_no_errors',
     criteriaValue: '1',
+    isRare: true,
   },
   {
     seedKey: 'lesson_reviewed',

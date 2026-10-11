@@ -14,6 +14,7 @@ function toAchievement(row: typeof achievements.$inferSelect): Achievement {
     // convertido aqui, único lugar que sabe do formato físico da coluna.
     criteriaValue: Number(row.criteriaValue),
     isActive: row.isActive,
+    isRare: row.isRare,
   }
 }
 
@@ -49,6 +50,7 @@ export function createDrizzleAchievementRepository(db: Database): AchievementRep
       if (patch.criteriaType !== undefined) set.criteriaType = patch.criteriaType
       if (patch.criteriaValue !== undefined) set.criteriaValue = String(patch.criteriaValue)
       if (patch.isActive !== undefined) set.isActive = patch.isActive
+      if (patch.isRare !== undefined) set.isRare = patch.isRare
       if (Object.keys(set).length === 0) {
         const [current] = await db
           .select()

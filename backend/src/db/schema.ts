@@ -131,6 +131,9 @@ export const achievements = pgTable('achievements', {
   // nome, que o painel agora pode editar (casar por nome criaria duplicata a cada
   // seed depois de um renomear). Nula nas conquistas criadas pelo painel.
   seedKey: varchar('seed_key', { length: 50 }).unique(),
+  // Conquista rara de verdade (ponto 044, decisão 2026-10-11): marcada no catálogo pelo painel,
+  // independente do tamanho da base. É o que dispara o e-mail de conquista rara.
+  isRare: boolean('is_rare').notNull().default(false),
 })
 
 export const userAchievements = pgTable(

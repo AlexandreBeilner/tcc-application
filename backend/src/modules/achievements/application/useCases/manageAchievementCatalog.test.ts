@@ -5,10 +5,7 @@ import {
   AchievementNotFoundError,
   InvalidAchievementError,
 } from '../../domain/errors'
-import {
-  createFakeAchievementMailer,
-  createFakeRarityReader,
-} from '../../test/fakes/fakeAchievementNotifications'
+import { createFakeAchievementMailer } from '../../test/fakes/fakeAchievementNotifications'
 import { createFakeAchievementRepository } from '../../test/fakes/fakeAchievementRepository'
 import { createFakeProgressSnapshotReader } from '../../test/fakes/fakeProgressSnapshotReader'
 import { CheckAndUnlockAchievementsUseCase } from './checkAndUnlockAchievements'
@@ -26,6 +23,7 @@ const streak7: Achievement = {
   criteriaType: 'streak_days',
   criteriaValue: 7,
   isActive: true,
+  isRare: false,
 }
 
 function build() {
@@ -37,6 +35,18 @@ function build() {
     update: new UpdateAchievementUseCase(repository),
   }
 }
+
+describe('UpdateAchievementUseCase: raridade (ponto 044)', () => {
+  it('marca e desmarca a conquista como rara sem mexer no resto', async () => {
+    const { update } = build()
+
+    const marked = await update.execute('a1', { isRare: true })
+    expect(marked).toMatchObject({ isRare: true, isActive: true, criteriaValue: 7 })
+
+    const unmarked = await update.execute('a1', { isRare: false })
+    expect(unmarked.isRare).toBe(false)
+  })
+})
 
 describe('ListAchievementCatalogUseCase', () => {
   it('lista ativas e desativadas, com quantos usuários ganharam cada uma', async () => {
@@ -160,7 +170,6 @@ describe('conquista desativada', () => {
       check: new CheckAndUnlockAchievementsUseCase(
         repository,
         snapshot,
-        createFakeRarityReader(),
         createFakeAchievementMailer(),
       ),
       listForUser: new ListAchievementsUseCase(repository, snapshot),

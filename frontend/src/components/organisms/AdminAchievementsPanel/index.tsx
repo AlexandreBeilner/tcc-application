@@ -211,15 +211,41 @@ export function AdminAchievementsPanel() {
         )
     }
 
+    function setRare(achievement: CatalogAchievement, isRare: boolean) {
+        update.mutate(
+            { id: achievement.id, changes: { is_rare: isRare } },
+            {
+                onSuccess: () => {
+                    setNotice(
+                        isRare
+                            ? `Conquista "${achievement.name}" marcada como rara.`
+                            : `Conquista "${achievement.name}" não é mais marcada como rara.`,
+                    )
+                    setError(null)
+                },
+                onError: (err) => {
+                    setNotice(null)
+                    setError(describeCatalogError(err))
+                },
+            },
+        )
+    }
+
     const status = (achievement: CatalogAchievement) => (
-        <span className={`${styles.badge} ${achievement.is_active ? '' : styles.dashed}`}>
-            {achievement.is_active ? 'Ativa' : 'Desativada'}
+        <span className={styles.badges}>
+            <span className={`${styles.badge} ${achievement.is_active ? '' : styles.dashed}`}>
+                {achievement.is_active ? 'Ativa' : 'Desativada'}
+            </span>
+            {achievement.is_rare && <span className={styles.badge}>Rara</span>}
         </span>
     )
     const actions = (achievement: CatalogAchievement) => (
         <div className={styles.rowActions}>
             <button type="button" className={styles.link} disabled={busy} onClick={() => setDialog({ kind: 'form', achievement })}>
                 Editar
+            </button>
+            <button type="button" className={styles.link} disabled={busy} onClick={() => setRare(achievement, !achievement.is_rare)}>
+                {achievement.is_rare ? 'Tirar marca de rara' : 'Marcar como rara'}
             </button>
             {achievement.is_active ? (
                 <button
@@ -244,7 +270,8 @@ export function AdminAchievementsPanel() {
         <section className={styles.root} aria-label="Conquistas">
             <div className={styles.toolbar}>
                 <p className={styles.intro}>
-                    Desativar uma conquista só impede novas concessões. Quem já ganhou continua com ela, no perfil e na lista.
+                    Desativar uma conquista só impede novas concessões. Quem já ganhou continua com ela, no perfil e na lista. A marca de
+                    rara decide quais conquistas disparam o e-mail de conquista rara, independente de quantas pessoas as têm.
                 </p>
                 <Button onClick={() => setDialog({ kind: 'form', achievement: null })} disabled={!catalog || busy}>
                     Nova conquista
