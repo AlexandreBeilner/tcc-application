@@ -14,7 +14,7 @@ function validEnv(overrides: Record<string, string | undefined> = {}): NodeJS.Pr
     JWT_SECRET: STRONG_SECRET,
     EMAIL_PROVIDER: 'resend',
     BILLING_PROVIDER: 'revenuecat',
-    FRONTEND_URL: 'https://selucra.com.br',
+    FRONTEND_URL: 'https://app.selucra.com.br',
     PUBLIC_API_URL: 'https://api.selucra.com.br',
     DATABASE_URL: 'postgres://gamification_app:SenhaLongaDoBanco123@postgres:5432/gamification',
     REDIS_URL: 'redis://:SenhaLongaDoRedis123@redis:6379/1',
@@ -109,7 +109,7 @@ describe('findProductionConfigProblems', () => {
       'FRONTEND_URL é obrigatória em produção',
     ])
     expect(
-      findProductionConfigProblems(validEnv({ FRONTEND_URL: 'http://selucra.com.br' })),
+      findProductionConfigProblems(validEnv({ FRONTEND_URL: 'http://app.selucra.com.br' })),
     ).toEqual(['FRONTEND_URL precisa usar https em produção'])
     expect(
       findProductionConfigProblems(validEnv({ PUBLIC_API_URL: 'https://localhost:8000' })),

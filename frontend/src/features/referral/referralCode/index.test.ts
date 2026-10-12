@@ -34,6 +34,6 @@ describe('referralCode', () => {
     })
 
     it('monta o link de convite', () => {
-        expect(buildInviteLink('https://selucra.com.br', 'ABCD2345')).toBe('https://selucra.com.br/login?ref=ABCD2345')
+        expect(buildInviteLink('https://app.selucra.com.br', 'ABCD2345')).toBe('https://app.selucra.com.br/login?ref=ABCD2345')
     })
 })

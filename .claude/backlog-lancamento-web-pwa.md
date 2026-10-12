@@ -142,8 +142,9 @@ decidido ainda; **a primeira tarefa é escolher a hospedagem** (decisão do auto
 - **O que fazer:** escolher onde roda o frontend estático (CDN) e onde rodam os containers (backend, motor, gateway, Postgres, Redis; Postgres gerenciado é o mais seguro para backup). Definir `staging` e `produção`. Registrar a decisão e o custo mensal estimado.
 - **Aceite:** decisão registrada neste arquivo e na spec.
 
-### LW.3.2 · Domínio, HTTPS, CORS e cabeçalhos
+### LW.3.2 · Domínio, HTTPS, CORS e cabeçalhos ✅ parcial (2026-10-12; código feito, falta o domínio real)
 - **O que fazer:** domínio (landing em `selucra.com.br`, app em `app.selucra.com.br`, API em `api.selucra.com.br`; decisão de 2026-10-11), certificado, `FRONTEND_URL=https://app.selucra.com.br` (hoje o padrão é `localhost:5173`; atualizar também os exemplos em `.env.example` e `productionConfigGuard.test.ts`), `VITE_GATEWAY_URL`, cabeçalhos de segurança (CSP compatível com Stripe/RevenueCat, HSTS, `X-Content-Type-Options`), `Cache-Control` por tipo (HTML e `sw.js` sem cache longo; assets com hash imutáveis). Confirmar `trust proxy` do Express atrás do gateway (limitador de taxa depende do IP real). Atualizar os redirecionamentos do Google OAuth (origem e callback de produção) no Console.
+- **Entregável (2026-10-12):** exemplos do `.env.example` e testes de `productionConfigGuard.test.ts` e do link de convite agora usam `app.selucra.com.br` (app) e `api.selucra.com.br` (API); `infra/env/*.example`, runbook e checklist já estavam certos. Conferido: `FRONTEND_URL` é a origem do app (CORS, links de e-mail), `VITE_GATEWAY_URL=https://api.selucra.com.br` só no build do Pages, redirecionamento do Google `https://api.selucra.com.br/auth/google/callback` e origem `https://app.selucra.com.br`. Testes verdes (guarda 23, convite 10). **Pendente (contas):** domínio, certificado e cadastro no Console do Google.
 - **Aceite:** login e-mail/senha, login Google e checkout funcionando no domínio real.
 - **Dependências:** LW.3.1.
 
