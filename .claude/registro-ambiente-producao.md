@@ -56,7 +56,7 @@ Nenhum segredo aqui. "Mora em" diz onde a credencial está.
 | **RevenueCat** | Projeto com **Web Billing**; produtos `selucra_monthly` (R$ 9,90) e o anual (R$ 89,90); entitlement `pro`; offering `default` (Current) com pacotes Monthly e Annual; webhook de **produção** para `https://api.selucra.com.br/billing/webhook` (ambiente Production) e outro de **sandbox** para o staging | `prod.env` / `staging.env`; chave pública no Pages |
 | **Stripe** | Conta **real** conectada ao RevenueCat (a de teste só no sandbox). Cobrança real ligada em 2026-10-12 | conta Stripe |
 | **Cloudflare R2** | Bucket privado `selucra-backups`, token só desse bucket (leitura e escrita) | `prod.env` (`R2_*`) |
-| **healthchecks.io** | Checks do backup (1 dia, tolerância 2 h) e do teste de restauração (7 dias); o do host (15 min) está em "a confirmar" | URLs de ping em `prod.env` e `/etc/selucra/host-health.env` |
+| **healthchecks.io** | Checks do backup (1 dia, tolerância 2 h), do teste de restauração (7 dias) e do host (15 min, `HOST_MONITOR_URL` em `/etc/selucra/host-health.env`) | URLs de ping em `prod.env` e `/etc/selucra/host-health.env` |
 | **UptimeRobot** (gratuito) | 3 monitores a cada 5 min: `https://api.selucra.com.br/health/ready`, `https://app.selucra.com.br` e `https://selucra.com.br`; alerta por e-mail | conta UptimeRobot |
 
 ### Proteção contra tentativa repetida de senha (duas camadas)
@@ -189,10 +189,7 @@ contador**, a regularizar quando houver receita.
 
 ## 10. A confirmar (não consegui verificar daqui)
 
-Itens que o autor informou ou que dependem de painéis que não vejo; confirmar e riscar:
-- [ ] `selucra.com.br` e `www` ativos no projeto `selucra-landing`, com `www` redirecionando para a raiz.
-- [ ] Check do healthchecks.io do **host** e a `HOST_MONITOR_URL` em `/etc/selucra/host-health.env` (no console, como root).
-- [ ] A compra real aparece em `/admin/assinaturas` como **não sandbox**.
+Itens que dependem de painéis que não vejo. Já confirmados pelo autor em 2026-10-12: Email Routing, regra de Rate Limiting da Cloudflare, check do host, landing em `selucra.com.br` e `www`, e a compra real aparecendo em `/admin/assinaturas`. Ainda abertos:
 - [ ] Domínio verificado no Stripe e no RevenueCat para o checkout web (LW.4.3).
 - [ ] Restauração **do zero e cronometrada** (meta: menos de 2 horas) a partir só da chave principal e do runbook.
 
