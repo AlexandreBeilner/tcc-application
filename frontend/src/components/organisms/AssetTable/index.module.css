@@ -7,9 +7,30 @@
     width: 100%;
 }
 
-/* Mobile/tablet: tabela escondida, lista de cards empilhados (backlog 6.5,
-   nota de responsividade da 4.2/4.4 — nunca tabela com scroll horizontal
-   em tela estreita). */
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* Etiqueta discreta (risco, tipo). */
+.tag {
+    display: inline-block;
+    padding: 2px var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* Mobile/tablet: tabela escondida, cartões empilhados (nunca tabela com scroll horizontal em tela
+   estreita). */
 .table {
     display: none;
     width: 100%;
@@ -27,38 +48,139 @@
     border-bottom: 1px solid var(--color-border);
 }
 
+.end {
+    text-align: right;
+}
+
 .tr {
     cursor: pointer;
+    transition: background-color 120ms ease;
 }
 
 .tr:hover {
     background: var(--color-bg-surface-elevated);
 }
 
+.tr:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: -2px;
+}
+
 .td {
-    padding: var(--space-3);
+    height: 60px;
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--color-border);
     color: var(--color-text-primary);
     font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.titleCell {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+}
+
+.sparkCell {
+    display: inline-flex;
 }
 
 .cards {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 64px;
     padding: var(--space-3) var(--space-4);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-bg-surface);
+    color: var(--color-text-primary);
     text-align: left;
     cursor: pointer;
     font-family: inherit;
+    transition:
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+
+.cardNoSpark {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.card:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-bg-surface-elevated);
+}
+
+.card:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 1px;
+}
+
+.cardMain {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+
+.cardTitle {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+}
+
+.cardSubtitle {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cardMain .tag {
+    margin-top: 2px;
+}
+
+.cardValues {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.cardPrice {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cardChange {
+    display: inline-flex;
+}
+
+/* Sem a sparkline o grid fecha em duas colunas; com ela, a coluna do meio é a do gráfico. Em
+   tela muito estreita ela some para o nome não ser espremido. */
+.cardSpark {
+    justify-self: end;
+}
+
+.cardExtras {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    grid-column: 1 / -1;
 }
 
 .cardRow {
@@ -79,6 +201,54 @@
     font-weight: 500;
 }
 
+@media (max-width: 359px) {
+    .cardSpark {
+        display: none;
+    }
+}
+
+.skeletonList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.skeletonRow {
+    height: 64px;
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface-elevated);
+    animation: assetListSkeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes assetListSkeleton {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeletonRow {
+        animation: none;
+    }
+
+    .tr,
+    .card {
+        transition: none;
+    }
+}
+
+/* Tablet: dois cartões por linha, em vez de um cartão esticado com buraco no meio. */
+@media (min-width: 768px) {
+    .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (min-width: 1024px) {
     .table {
         display: table;
@@ -86,5 +256,9 @@
 
     .cards {
         display: none;
+    }
+
+    .skeletonRow {
+        height: 60px;
     }
 }

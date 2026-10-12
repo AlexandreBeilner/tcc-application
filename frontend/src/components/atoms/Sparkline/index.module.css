@@ -1,0 +1,21 @@
+.sparkline,
+.placeholder {
+    display: block;
+    flex: none;
+}
+
+.sparkline path {
+    stroke: currentColor;
+}
+
+.up {
+    color: var(--color-gain-500);
+}
+
+.down {
+    color: var(--color-loss-500);
+}
+
+.flat {
+    color: var(--color-text-muted);
+}

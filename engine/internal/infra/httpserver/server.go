@@ -73,6 +73,7 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /positions", handleListPositions(userData))
 	mux.HandleFunc("GET /fixed-income/positions", handleListFixedIncomePositions(userData, fixedIncome))
 	mux.HandleFunc("GET /assets", handleListAssets(catalog))
+	mux.HandleFunc("GET /assets/quotes", handleListRecentPrices(catalog))
 	mux.HandleFunc("GET /assets/{id}", handleGetAsset(catalog))
 	mux.HandleFunc("GET /assets/{id}/quotes", handleGetAssetQuoteHistory(catalog))
 	mux.HandleFunc("GET /assets/{id}/book", handleGetAssetBook(catalog, orders))

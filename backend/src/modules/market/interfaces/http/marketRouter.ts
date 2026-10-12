@@ -19,6 +19,7 @@ import type { PurchaseFixedIncomeUseCase } from '../../application/useCases/purc
 import type { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
 import type { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import type { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
+import type { GetAssetPriceSeriesUseCase } from '../../application/useCases/getAssetPriceSeries'
 import type { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
 import type { GetMarketCalendarUseCase } from '../../application/useCases/getMarketCalendar'
 import type { GetMarketClockUseCase } from '../../application/useCases/getMarketClock'
@@ -26,6 +27,7 @@ import type { GetTradingHaltsUseCase } from '../../application/useCases/getTradi
 import {
   fixedIncomeTaxRateQuerySchema,
   getAssetQuotesQuerySchema,
+  getAssetPriceSeriesQuerySchema,
   indicatorHistoryQuerySchema,
   listAssetsQuerySchema,
   listMyEventsQuerySchema,
@@ -40,6 +42,7 @@ export interface MarketRouterDeps {
   listAssets: ListAssetsUseCase
   getAsset: GetAssetUseCase
   getAssetQuotes: GetAssetQuotesUseCase
+  getAssetPriceSeries: GetAssetPriceSeriesUseCase
   getAssetBook: GetAssetBookUseCase
   getCompany: GetCompanyUseCase
   getMyAccount: GetMyAccountUseCase
@@ -98,6 +101,22 @@ export function createMarketRouter(deps: MarketRouterDeps): Router {
         includeSandbox: parsed.data.include_sandbox,
       })
       res.status(200).json({ assets })
+    } catch (err) {
+      sendEngineError(err, res)
+    }
+  })
+
+  // Declarada ANTES de `/market/assets/:id`: senão "quotes" seria lido como id.
+  router.get('/market/assets/quotes', deps.authMiddleware.authenticate, async (req, res) => {
+    const parsed = getAssetPriceSeriesQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'parâmetros inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      const series = await deps.getAssetPriceSeries.execute({ days: parsed.data.days })
+      res.status(200).json({ series })
     } catch (err) {
       sendEngineError(err, res)
     }

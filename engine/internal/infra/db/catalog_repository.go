@@ -683,6 +683,37 @@ func (r *CatalogRepository) ListQuoteHistory(ctx context.Context, assetID string
 	return entries, rows.Err()
 }
 
+// ListRecentPricesByAsset devolve os days preços mais recentes de cada
+// ativo com cotação, cronológicos e indexados por asset_id, numa única
+// consulta (ROW_NUMBER particionado) — base da sparkline das listas do
+// Mercado (MO.9.5), sem uma query por ativo.
+func (r *CatalogRepository) ListRecentPricesByAsset(ctx context.Context, days int) (map[string][]float64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT asset_id, price FROM (
+		   SELECT asset_id, price, simulated_day,
+		          ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY simulated_day DESC) AS rn
+		   FROM asset_quotes
+		 ) ranked WHERE rn <= $1
+		 ORDER BY asset_id, simulated_day ASC`,
+		days,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	series := make(map[string][]float64)
+	for rows.Next() {
+		var assetID string
+		var price float64
+		if err := rows.Scan(&assetID, &price); err != nil {
+			return nil, err
+		}
+		series[assetID] = append(series[assetID], price)
+	}
+	return series, rows.Err()
+}
+
 // FindCompanyByID devolve a empresa de id id, se existir — usado por GET
 // /companies/:id (tarefa 3.10).
 func (r *CatalogRepository) FindCompanyByID(ctx context.Context, id string) (catalog.CompanyRecord, bool, error) {

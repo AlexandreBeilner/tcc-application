@@ -236,6 +236,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - Abas: **Ações · ETFs · FIIs** (a aba de FIIs faltava no wireframe original e precisa existir, já que está no escopo).
   - Tabela — colunas variam por aba (mesma diferenciação da tela de detalhe, 4.5): **Ações** — ticker, risco, último preço, variação do dia; **ETFs** — ticker, índice replicado, último preço, variação do dia; **FIIs** — ticker, perfil (tijolo/papel), segmento (se tijolo), último preço, Dividend Yield.
   - Mesma lógica de bloqueio por trilha da lista de renda fixa.
+  - **Visual (MO.9.5):** padrão "corretora": ticker em destaque, nome em linha secundária, preço à direita, variação em chip (`Delta`), etiqueta de risco e **mini sparkline de 30 dias** (série real, uma chamada em lote `GET /market/assets/quotes`, cache de 5 min no backend; sem série a lista segue sem o gráfico). Mobile: cartões de pelo menos 64 px; tablet: 2 cartões por linha; desktop: tabela com coluna "Últimos 30 dias".
 - **Ações:** clique na linha/botão "Comprar" → **4.5 Detalhe de Ativo (Renda Variável)**.
 - **Estados especiais:** nenhum ativo disponível na aba (raro).
 - **Dados envolvidos:** `assets`, `variable_income_assets`, `companies`, `etf_details`, `fii_details`.

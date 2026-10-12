@@ -36,6 +36,15 @@ Pacote de domínio: `engine/internal/domain/catalog/` (+ `etf`/`fii`/`fixedincom
 
 ---
 
+### `GET /assets/quotes`
+
+*(MO.9.5 — base da sparkline das listas do Mercado.)*
+
+- **Payload:** query `days` (opcional, inteiro de 1 a 90, padrão 30); fora disso é `400`.
+- **Sucesso:** `200` → `{ "series": { "<asset_id>": [preço, ...] } }`, os `days` preços mais recentes de cada ativo cotado, em ordem cronológica. Ativo sem linha em `asset_quotes` fica fora do mapa; sem nenhuma cotação, `{ "series": {} }` (objeto, nunca `null`).
+- **Erros:** `400` — `days` inválido. `500`/`503` — erro de leitura / catálogo indisponível.
+- **Regra:** `CatalogRepository.ListRecentPricesByAsset`, uma única consulta (`ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY simulated_day DESC)`), sem consulta por ativo. Rota literal vence `GET /assets/{id}` no `ServeMux`.
+
 ### `GET /assets/{id}/quotes`
 
 - **Autenticação:** interno, mesma observação de `GET /assets`.

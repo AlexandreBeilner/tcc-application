@@ -64,6 +64,8 @@ type fakeCatalogReader struct {
 
 	quoteHistory    []catalog.QuoteHistoryEntry
 	quoteHistoryErr error
+	recentPrices    map[string][]float64
+	recentPricesErr error
 
 	etfNAV      catalog.ETFNAV
 	etfNAVFound bool
@@ -123,6 +125,10 @@ func (f *fakeCatalogReader) ListCurrentQuotes(_ context.Context) (map[string]cat
 
 func (f *fakeCatalogReader) ListQuoteHistory(_ context.Context, _ string, _ int) ([]catalog.QuoteHistoryEntry, error) {
 	return f.quoteHistory, f.quoteHistoryErr
+}
+
+func (f *fakeCatalogReader) ListRecentPricesByAsset(_ context.Context, _ int) (map[string][]float64, error) {
+	return f.recentPrices, f.recentPricesErr
 }
 
 func (f *fakeCatalogReader) FindLatestFundamentals(_ context.Context, _ string) (catalog.FundamentalsSnapshot, bool, error) {
@@ -840,6 +846,55 @@ func TestHandleGetAssetQuoteHistory(t *testing.T) {
 	}
 	if len(body) != 2 || body[0].SimulatedDay != 1 || body[1].SimulatedDay != 2 {
 		t.Errorf("body = %+v, want série cronológica de 2 dias", body)
+	}
+}
+
+func TestHandleListRecentPrices(t *testing.T) {
+	reader := &fakeCatalogReader{recentPrices: map[string][]float64{"a": {10, 11, 12}, "b": {5}}}
+
+	rec := getCatalog(t, reader, "/assets/quotes?days=10")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body recentPricesResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(body.Series) != 2 || len(body.Series["a"]) != 3 || body.Series["b"][0] != 5 {
+		t.Errorf("body = %+v, want 2 séries", body)
+	}
+}
+
+func TestHandleListRecentPrices_SemCotacaoDevolveMapaVazio(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{}, "/assets/quotes")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Body.String(); got != "{\"series\":{}}\n" && got != "{\"series\":{}}" {
+		t.Errorf("body = %q, want série vazia (objeto, nunca null)", got)
+	}
+}
+
+func TestHandleListRecentPrices_DaysInvalido(t *testing.T) {
+	for _, q := range []string{"0", "91", "abc"} {
+		rec := getCatalog(t, &fakeCatalogReader{}, "/assets/quotes?days="+q)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("days=%s: status = %d, want %d", q, rec.Code, http.StatusBadRequest)
+		}
+	}
+}
+
+func TestHandleListRecentPrices_SemCatalogReader(t *testing.T) {
+	rec := getCatalog(t, nil, "/assets/quotes")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHandleListRecentPrices_ErroInterno(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{recentPricesErr: context.DeadlineExceeded}, "/assets/quotes")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 }
 

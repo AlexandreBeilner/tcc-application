@@ -26,6 +26,16 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Erros:** `400` — `type` inválido. `401` — token ausente/inválido. Qualquer erro do motor (`503`/`500`) é repassado com o mesmo status.
 - **Regra:** `ListAssetsUseCase` → `CatalogReader.listAssets`, filtrando `is_sandbox` no backend (o motor continua devolvendo tudo).
 
+### `GET /market/assets/quotes`
+
+*(MO.9.5 — sparkline das listas do Mercado. Declarada antes de `/market/assets/:id` no router, senão "quotes" seria lido como id.)*
+
+- **Autenticação:** Bearer token.
+- **Payload:** query `days` (opcional, inteiro de 1 a 90, padrão 30); fora disso é `400`.
+- **Sucesso:** `200` → `{ series: { "<asset_id>": [preço, ...] } }`, preços em ordem cronológica (o último é o mais recente). Ativo sem cotação (renda fixa, ou ainda sem tick) não aparece no mapa. Proxy de `GET /assets/quotes` do motor, **uma chamada para todo o catálogo** (sem N+1).
+- **Erros:** `400` — `days` inválido. `401`. Erro do motor repassado com o mesmo status.
+- **Regra:** `GetAssetPriceSeriesUseCase` → `AssetPriceSeriesReader`, decorado por cache Redis (`market:price-series:<days>`, TTL 5 min, a mesma série para qualquer usuário). Redis fora do ar nunca derruba a leitura (miss/no-op).
+
 ### `GET /market/assets/:id`
 
 - **Autenticação:** Bearer token.

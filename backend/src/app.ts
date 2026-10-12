@@ -344,6 +344,10 @@ import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCase
 import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
+import { GetAssetPriceSeriesUseCase } from './modules/market/application/useCases/getAssetPriceSeries'
+import { createEngineAssetPriceSeriesReader } from './modules/market/infrastructure/engine/engineAssetPriceSeriesReader'
+import { createRedisAssetPriceSeriesCache } from './modules/market/infrastructure/cache/redisAssetPriceSeriesCache'
+import { createRedisAssetPriceSeriesCacheStore } from './modules/market/infrastructure/cache/redisAssetPriceSeriesCacheStore'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
 import { RecordAssemblyParticipationUseCase } from './modules/socialfeed/application/useCases/recordAssemblyParticipation'
 import { createAssembliesModule, createAssemblyAdminCore } from './modules/assemblies/composition'
@@ -508,6 +512,14 @@ export function createApp(deps: AppDeps = {}): Express {
     createRedisIndicatorHistoryCacheStore(redisClient),
   )
   const getIndicatorHistory = new GetIndicatorHistoryUseCase(cachedIndicatorHistoryReader)
+  // Séries de preço pra sparkline das listas (MO.9.5): uma chamada em lote ao
+  // motor, com cache Redis por `days` (sem N+1, nem por abertura de lista).
+  const getAssetPriceSeries = new GetAssetPriceSeriesUseCase(
+    createRedisAssetPriceSeriesCache(
+      createEngineAssetPriceSeriesReader(engineUrl),
+      createRedisAssetPriceSeriesCacheStore(redisClient),
+    ),
+  )
   const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
   const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
   // Marcos das assembleias no Calendário (MO.6.3): só com o ciclo ligado. O frontend precisa
@@ -1394,6 +1406,7 @@ export function createApp(deps: AppDeps = {}): Express {
       simulateFixedIncome,
       getFixedIncomeTaxRate,
       getIndicatorHistory,
+      getAssetPriceSeries,
       getMarketClock,
       getMarketCalendar,
       getTradingHalts,

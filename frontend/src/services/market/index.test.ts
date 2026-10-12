@@ -3,6 +3,7 @@ import {
     cancelOrder,
     getAsset,
     getAssetBook,
+    getAssetPriceSeries,
     getAssetQuotes,
     getCompany,
     getIndicatorHistory,
@@ -77,6 +78,14 @@ describe('services/market', () => {
         const fetchMock = mockFetchOnce({ quotes: [] })
         await getAssetQuotes('token', 'a1', 90)
         expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/a1/quotes?days=90')
+    })
+
+    it('getAssetPriceSeries faz GET /market/assets/quotes, com days quando informado', async () => {
+        const fetchMock = mockFetchOnce({ series: { a1: [1, 2] } })
+        expect(await getAssetPriceSeries('token')).toEqual({ series: { a1: [1, 2] } })
+        await getAssetPriceSeries('token', 14)
+        expect(fetchMock.mock.calls[0][0]).toBe('/market/assets/quotes')
+        expect(fetchMock.mock.calls[1][0]).toBe('/market/assets/quotes?days=14')
     })
 
     it('getIndicatorHistory sem days faz GET /market/indicators sem query', async () => {
