@@ -15,7 +15,9 @@ ambiente descartável; o que falta provar é a mesma coisa no servidor e com os 
 
 **Cobrança real em produção ligada em 2026-10-12 por decisão do autor, sem contador:** Stripe real e RevenueCat de produção conectados, webhook em `https://api.selucra.com.br/billing/webhook`, `VITE_REVENUECAT_WEB_PUBLIC_KEY` de produção no `selucra-app`; **compra real do autor aprovada de ponta a ponta (virou PRO)**. Risco assumido e registrado: identificação do fornecedor sem CPF e endereço nos Termos (Decreto 7.962/2013) e obrigações fiscais a regularizar quando houver receita; guardar os extratos do Stripe desde o primeiro dia.
 
-**Falta (nesta ordem sugerida):** (1) conferir o reembolso real (revogar o PRO) e que a compra entrou em `/admin/assinaturas` como não sandbox; (2) contador, termos e política revisados (seção 10), a regularizar assim que houver receita; (3) PWA em aparelho real (seção 11) e ensaio geral em staging (LW.5.3); (4) restauração cronometrada do zero (RTO) e ensaio do `deploy.sh` com o `pull` do GHCR; (5) landing em `selucra.com.br` e `www`, se ainda não conferida.
+**Ciclo de cobrança real provado em produção (2026-10-12):** compra real vira PRO, cancelamento desliga a renovação e mantém o PRO até o vencimento, e **reembolso pelo botão do RevenueCat** devolve o dinheiro e revoga o PRO na hora. Achados: (a) o contrato do webhook recusava `null` e respondia 400 (corrigido no PR #111, primeiro deploy normal com `deploy.sh`); (b) reembolso direto no Stripe não revoga nada e a assinatura continua renovando, então **reembolso de cliente é sempre pelo RevenueCat** (tabela de suporte no runbook).
+
+**Falta (nesta ordem sugerida):** (1) conferir que a compra real entrou em `/admin/assinaturas` como não sandbox; (2) contador, termos e política revisados (seção 10), a regularizar assim que houver receita; (3) PWA em aparelho real (seção 11) e ensaio geral em staging (LW.5.3); (4) restauração cronometrada do zero (RTO) e ensaio do `deploy.sh` com o `pull` do GHCR; (5) landing em `selucra.com.br` e `www`, se ainda não conferida.
 
 ## 0. Ordem sugerida (do que destrava mais para o que destrava menos)
 

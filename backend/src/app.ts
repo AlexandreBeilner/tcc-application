@@ -404,6 +404,12 @@ import {
   createResetPasswordRateLimiter,
 } from './modules/auth/interfaces/http/passwordResetRateLimit'
 import {
+  authRateLimitDisabled,
+  createGoogleTokenRateLimiter,
+  createLoginRateLimiters,
+  createRegisterRateLimiter,
+} from './modules/auth/interfaces/http/loginRateLimit'
+import {
   createEmailPreferencesComposition,
   createEnqueueEmailUseCase,
 } from './modules/notifications/composition'
@@ -1077,6 +1083,17 @@ export function createApp(deps: AppDeps = {}): Express {
   // (tarefa 6.10.8) — mesma pasta do volume Docker, montado na raiz do
   // gateway (`location /` já faz proxy de tudo, `gateway/nginx.conf`).
   app.use('/avatars', express.static(avatarStorageDir))
+  // Login, cadastro e login Google por token: força bruta e criação de contas em massa. O login
+  // limita por IP e por e-mail; ver `loginRateLimit.ts` para os números e o que cada um cobre.
+  if (authRateLimitDisabled(process.env)) {
+    console.warn(
+      'AUTH_RATE_LIMIT=off: limites de login, cadastro e Google desligados (só desenvolvimento)',
+    )
+  } else {
+    app.use('/auth/login', ...createLoginRateLimiters())
+    app.use('/auth/register', createRegisterRateLimiter())
+    app.use('/auth/google/token', createGoogleTokenRateLimiter())
+  }
   // Conferência de senha é alvo de força bruta: teto bem menor que o do painel.
   app.use('/auth/reauth', createRateLimiter({ windowMs: 5 * 60_000, max: 10 }))
   // Recuperação de senha (EM.2.2): teto por IP e por e-mail no pedido, por IP na troca.

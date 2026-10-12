@@ -104,6 +104,13 @@ describe('findProductionConfigProblems', () => {
     ])
   })
 
+  it('recusa AUTH_RATE_LIMIT=off em produção e no staging', () => {
+    expect(findProductionConfigProblems(validEnv({ AUTH_RATE_LIMIT: 'off' }))).toEqual([
+      'AUTH_RATE_LIMIT=off desliga a proteção contra força bruta e só vale em desenvolvimento',
+    ])
+    expect(findProductionConfigProblems(validEnv({ AUTH_RATE_LIMIT: 'on' }))).toEqual([])
+  })
+
   it('exige FRONTEND_URL e PUBLIC_API_URL em https e fora de localhost', () => {
     expect(findProductionConfigProblems(validEnv({ FRONTEND_URL: undefined }))).toEqual([
       'FRONTEND_URL é obrigatória em produção',
