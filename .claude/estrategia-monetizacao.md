@@ -2,7 +2,7 @@
 
 > **Atualização 2026-10-10 — decisões fechadas pelo autor** (backlog em
 > `backlog-monetizacao.md`): **B2C puro**; assinatura em **web, Android e iOS** via **RevenueCat** (na web, Stripe conectado a ele, sem Pix);
-> **mensal R$ 19,97 e anual R$ 199,97, sem trial** (sujeito às faixas de BRL das lojas). O PRO é
+> **mensal R$ 9,90 e anual R$ 89,90, sem trial** (revisado em 2026-10-11; antes 19,97/199,97) (sujeito às faixas de BRL das lojas). O PRO é
 > **guiado por desejo, não por conteúdo**: âncoras são **ligas privadas e duelos**, **identidade
 > visível** (cosméticos, molduras, selo) e **retrospectiva compartilhável**, mais a **Assembleia de
 > Acionistas** (seção 5, reescrita: só PRO vota, evento público, quem não paga ganha 1 crédito de voto
@@ -80,8 +80,8 @@ ganhar reconhecimento de mercado depois de lançada, não como estratégia de la
 
 ### Assinatura PRO (mensal ou anual) — tudo incluso, sem item avulso
 
-**Planos e plataformas (decidido em 2026-10-10):** mensal R$ 19,97 e anual R$ 199,97 (equivale a
-~R$ 16,66/mês, "dois meses grátis"), sem período de teste gratuito. Valem igual na web, no Android
+**Planos e plataformas (decidido em 2026-10-10):** mensal R$ 9,90 e anual R$ 89,90 (equivale a
+~R$ 7,49/mês, ~24% de desconto; revisado em 2026-10-11, antes 19,97/199,97), sem período de teste gratuito. Valem igual na web, no Android
 e no iOS; a cobrança passa pela loja de cada plataforma (as lojas exigem isso dentro de apps e
 ficam com comissão), mas o usuário vê **um** plano PRO só, reconhecido em qualquer lugar onde
 entrar com a mesma conta. Sem trial, a conversão depende de o grátis já mostrar valor e de o
@@ -223,7 +223,7 @@ vantagem privada comprada sobre o resultado.
 
 Resolvido em 2026-10-10:
 
-- **Preço e planos**: mensal R$ 19,97 e anual R$ 199,97, sem trial (confirmar o valor exato nas
+- **Preço e planos**: mensal R$ 9,90 e anual R$ 89,90, sem trial (revisado em 2026-10-11; confirmar o valor exato nas
   faixas de BRL das lojas, tarefa MO.1.1). O custo de infra em produção continua sem medição, então
   o preço é ponto de partida a validar (MO.6.3), não valor definitivo.
 - **Escopo**: o autor decidiu avançar; o trabalho está quebrado em `backlog-monetizacao.md`, em

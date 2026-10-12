@@ -134,7 +134,7 @@ em integrações Stripe e não é aceitável aqui — dinheiro real entra no pri
 
 Documentado pra não ser redecidido do zero numa sessão futura, mas nenhuma tem resposta aqui:
 
-- ~~Preço e moeda~~ **Decidido 2026-10-10:** BRL, mensal R$ 19,97 e anual R$ 199,97 (sujeito às faixas das lojas).
+- ~~Preço e moeda~~ **Decidido 2026-10-10:** BRL, mensal R$ 9,90 e anual R$ 89,90 (revisado em 2026-10-11; antes 19,97/199,97; sujeito às faixas das lojas).
 - ~~Trial gratuito~~ **Decidido 2026-10-10:** sem trial.
 - Nota fiscal/Stripe Tax: o produto brasileiro pode exigir emissão de NF-e por fora do Stripe
   (Stripe Tax não emite NF-e brasileira). Isso é trabalho de integração adicional não coberto aqui

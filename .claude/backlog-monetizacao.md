@@ -12,7 +12,7 @@ os dois documentos são o "porquê"; este arquivo quebra em tarefas, uma por ses
 | M1 | **B2C puro.** Turmas/escolas (B2B) estão fora do plano. |
 | M2 | ~~Assinatura em todas as plataformas: web, Android e iOS.~~ **Revisada em 2026-10-10 (LW1): lançamento só na web.** Android e iOS ficam adiados (Fase D congelada); o desenho multiplataforma continua válido e o código nativo já feito fica inerte. Ver `backlog-lancamento-web-pwa.md`. |
 | M3 | **RevenueCat** é a camada única de assinatura (Stripe na web, Google Play Billing no Android, StoreKit no iOS). O backend não fala com Stripe, Apple nem Google diretamente. |
-| M4 | **Dois planos, sem trial**: mensal **R$ 19,97** e anual **R$ 199,97** (~R$ 16,66/mês, ~17% de desconto). Um único entitlement `pro`. |
+| M4 | **Dois planos, sem trial**: mensal **R$ 9,90** e anual **R$ 89,90** (~R$ 7,49/mês, ~24% de desconto). Um único entitlement `pro`. **Revisado em 2026-10-11** (antes 19,97/199,97 e depois 19,90/199,90). |
 | M5 | **Pagamento nunca bloqueia o core loop** (lições centrais, XP/streak, compra/venda, ranking oficial). Cancelar nunca apaga progresso, só pausa capacidades. Regras da seção 2 e 6 da estratégia continuam valendo. |
 | M6 | **Upsell só como convite**, nunca escassez ou cronômetro (limite ético de `proposta-engajamento-licoes.md`). |
 | M7 | **O PRO é guiado por desejo, não por conteúdo.** Âncoras: ligas privadas e duelos, identidade visível (cosméticos, molduras, selo) e retrospectiva compartilhável; a quarta é a Assembleia de Acionistas (M8). Conteúdo avulso vende mal e fica fora do centro. |
@@ -24,7 +24,7 @@ os dois documentos são o "porquê"; este arquivo quebra em tarefas, uma por ses
 
 **Decisão de 2026-10-10 (LW2):** o **RevenueCat continua** como camada única mesmo só com a web (Stripe conectado, M12); só reavaliar a troca por Stripe direto se o custo mensal incomodar. **Para o lançamento, MO.1.1 vale só para a web** (sem Apple/Google; ver LW.4.1) e **MO.5.6 vira navegador + PWA instalado** (LW.5.1).
 
-**Decisões de 2026-10-10 (ponto 046):** preço final **R$ 19,90 / R$ 199,90** (a MO.1.1 só confirma que existem nas lojas); ligas até 3 por assinante e 20 membros; duelos 1v1 de 7 dias, até 3 simultâneos, XP só por participar; cosméticos: selo PRO + 6 molduras + 8 títulos, sem temas.
+**Decisões de 2026-10-10 (ponto 046):** preço final **R$ 19,90 / R$ 199,90, revisado em 2026-10-11 para R$ 9,90 / R$ 89,90** (a MO.1.1 só confirma que existem nas lojas); ligas até 3 por assinante e 20 membros; duelos 1v1 de 7 dias, até 3 simultâneos, XP só por participar; cosméticos: selo PRO + 6 molduras + 8 títulos, sem temas.
 
 **Ressalva de preço:** Apple e Google trabalham com faixas de preço pré-definidas, e o valor
 terminado em `,97` pode não existir em BRL. A tarefa MO.1.1 confirma o preço real nos consoles
@@ -92,8 +92,7 @@ iOS        ─ compra via StoreKit (SDK react-native-purchases) ─────�
   - Criar os dois produtos de assinatura (mensal e anual) em cada loja e no Stripe, no mesmo grupo
     de assinatura, e mapear ambos para o entitlement `pro` no RevenueCat (um Offering `default`
     com os dois pacotes).
-  - **Confirmar o preço realmente disponível** em BRL em cada loja (M4: `19,97`/`199,97` pode virar
-    `19,90`/`199,90`), registrar o valor final aqui e na estratégia.
+  - **Confirmar o preço realmente disponível** em BRL em cada loja (M4 revisado em 2026-10-11: **`9,90`/`89,90`**; os valores antigos `19,97`/`19,90` não valem mais), registrar o valor final aqui e na estratégia.
   - Web (M12): conectar a conta Stripe ao RevenueCat (só o dono do projeto conecta; instalar o app do
     RevenueCat pelo marketplace do Stripe), criar os produtos e preços recorrentes no Stripe (um
     preço por produto, só valor fixo recorrente, sem camadas nem uso), importá-los no catálogo do
@@ -615,7 +614,7 @@ Decisões (M8, M9) e o desenho extensível estão na análise técnica (seção 
 - **Entregável:** **Decisões do autor (2026-10-11, ponto 052):** a indicação só conta quando a pessoa indicada **conclui a primeira lição** (sem limite por IP; risco aceito); escada 5, 20 e 50 convites = 1 semana de PRO cada, e **+1 semana a cada 50** acima de 50, sem teto; cada marco libera **uma conquista e um título novo** (sem moldura). **Backend:** módulo `referrals` (DDD lite: domínio puro em `domain/referral.ts`, 3 casos de uso, ports, adapters Drizzle, router, composição) e migração `0049` (`when` 1794100000000: tabelas `referral_codes`, `referrals` com `referred_id` único e `CHECK referrer <> referred`, `referral_milestones` como dado, `referral_rewards` com chave `(pessoa, marco)`; enum `referrals_qualified`; coluna `cosmetic_items.unlock_referrals`; 3 títulos `Mensageiro`, `Embaixador`, `Patrono`). `GET /me/referral` (código gerado na primeira leitura). O código entra em `POST /auth/register`, `GET /auth/google?ref=` (viaja no `state` do OAuth) e `POST /auth/google/token`, e só vale quando a chamada **cria** a conta; código ruim é ignorado em silêncio. `AdvanceLessonUseCase` avisa o módulo pela port `LessonCompletionListener` (best-effort); `QualifyReferralUseCase` valida a indicação de forma condicional, cria os marcos alcançados, concede o PRO (serializado por indicador com advisory lock) e reavalia as conquistas. **PRO promocional:** `GrantPromotionalProUseCase` no `billing`, com adapter do RevenueCat (`POST /v1/subscribers/{id}/entitlements/{ent}/promotional` com `end_time_ms`, **conferido na documentação atual em 2026-10-11**), adapter `dev` e adapter desligado; o fim da concessão é gravado **antes** da chamada (repetir é duplicata para o provedor) e falha deixa o marco pendente para a próxima tentativa. Conquistas `referrals_qualified` 5/20/50 (seed) e títulos liberados por contagem (`CosmeticLockedError` vira `403`). **Frontend:** `/login?ref=` abre direto no cadastro e leva o código (também ao Google), página `/convidar` (link, copiar e compartilhar, progresso, escada) nos 3 breakpoints, item no menu do avatar, título bloqueado com o motivo no seletor de identidade. **Testes:** domínio table-driven, casos de uso com fakes (auto-indicação, conta contada uma vez, marcos, empilhar, falha do provedor, repetição), adapters (RevenueCat com `fetch` simulado), integração em Postgres descartável (constraints e 5 indicações concorrentes concedem 1 vez), auth, lições, cosméticos e frontend. **Validado de ponta a ponta** (stack real em containers descartáveis, billing `dev`): 6 cadastros com o código, 5 primeiras lições concluídas, PRO promocional de 7 dias, conquista e título liberados, 6º convite sem nova concessão. **Não validado:** o RevenueCat real (sem chave) e o login com Google real. **Pendente (MO.2.5):** só a tela do painel admin para conceder PRO, que reaproveita o mesmo caso de uso.
 
 ### MO.7.3 · Teste de preço e desconto do anual
-- **Descrição:** com dados reais, avaliar anual a ~17% contra 25 a 30% e a faixa do mensal; só mexer
+- **Descrição:** com dados reais, avaliar a faixa do mensal (hoje R$ 9,90) e o anual (hoje R$ 89,90, ~24% de desconto; era 17% antes da revisão de 2026-10-11); só mexer
   no preço pela configuração dos produtos.
 - **Aceite:** decisão registrada com os números.
 - **Dependências:** MO.7.1 e volume de assinantes suficiente.
