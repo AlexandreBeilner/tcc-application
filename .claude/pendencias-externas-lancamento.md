@@ -89,7 +89,7 @@ caracteres, Trivy sem bloquear), bases com versão fixa, `REGISTRY_PREFIX=ghcr.i
 
 ## 4. Cloudflare Pages: app, landing e staging (LW.3.16, LW.3.4, LW.6.x)
 
-**Pronto no código:** `frontend/public/_headers` e `_redirects` já existem (conferir a CSP na LW.3.16, **ainda por fazer em código**);
+**Pronto no código:** `frontend/public/_headers` e `_redirects` já existem (CSP, cabeçalhos e cache prontos e provados na LW.3.16; a regra de fora é refazer o checkout em staging);
 `landing/` estático com CI próprio. Variáveis do frontend são **embutidas na hora do build** (trocar o valor exige novo build).
 
 **Falta fazer (autor):**
@@ -223,6 +223,5 @@ roteiro manual em `backlog-lancamento-web-pwa.md` (LW.2.6, andamento de 2026-10-
 
 ## 13. Ainda por fazer em código (não depende de serviço externo)
 
-Para não confundir com a lista acima: **LW.3.2** (exemplos e teste da guarda com os domínios reais), **LW.3.4** (CI do frontend e
-workflows de deploy, validados com `actionlint`), **LW.3.16** (CSP do
-`_headers`, depende de checar o `git status` do frontend por haver outra sessão trabalhando nele) e **LW.5.1/5.2**.
+Para não confundir com a lista acima: LW.3.2, LW.3.4, LW.3.11 e LW.3.16 já estão feitas no código (o que falta de cada uma é conta, servidor
+ou aparelho, listado nas seções acima). Resta só **LW.5.1/5.2** (roteiro mobile, link de privacidade e inventário do que está parado para mesclar).

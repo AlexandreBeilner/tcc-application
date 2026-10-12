@@ -1,4 +1,38 @@
-# Cloudflare Pages (LW.2.2 / LW.3.16). A CSP entra na LW.3.16.
+# Cloudflare Pages (LW.2.2 / LW.3.16). Limite do Pages: 2000 caracteres por linha e 100 regras.
+#
+# A CSP abaixo vale para o app (app.selucra.com.br) e para o staging (staging.selucra.com.br), que
+# servem o mesmo build. Por isso `connect-src` e `img-src` listam as duas APIs; o valor real de
+# VITE_GATEWAY_URL é embutido no build, então só uma das duas é usada em cada ambiente.
+#
+# O que cada origem externa é (conferido na documentação da Stripe, "Security guide / CSP", e no
+# código do @revenuecat/purchases-js 1.70.0, que é o que a tela /planos carrega sob demanda):
+#   js.stripe.com e *.js.stripe.com   script e iframes do Stripe Elements (pagamento do RevenueCat Web Billing)
+#   hooks.stripe.com                  iframe de 3D Secure e meios de pagamento com redirecionamento
+#   api.stripe.com                    chamadas do Stripe.js
+#   *.stripe.com                      imagens (bandeiras, ícones)
+#   api.revenuecat.com, e.revenue.cat ofertas, compra e eventos do SDK
+#   sdk.revenuecat-static.com         tela de pagamento do SDK
+#   da08ctfrofx1b.cloudfront.net      imagens e ativos do SDK do RevenueCat
+# Sem 'unsafe-eval' e sem script inline: o build não usa nenhum dos dois. 'unsafe-inline' só em
+# style-src, porque o React usa o atributo style e o SDK de pagamento injeta <style>.
+# Fontes são locais (LW.2.5); o service worker precisa de worker-src 'self'.
+# Para mudar um domínio do pagamento: abrir /planos no build de produção, olhar o console por
+# "Refused to ..." e acrescentar só o que foi recusado.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.selucra.com.br https://api-staging.selucra.com.br https://*.stripe.com https://da08ctfrofx1b.cloudfront.net https://sdk.revenuecat-static.com; font-src 'self'; connect-src 'self' https://api.selucra.com.br https://api-staging.selucra.com.br https://api.revenuecat.com https://e.revenue.cat https://sdk.revenuecat-static.com https://api.stripe.com; frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://sdk.revenuecat-static.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), bluetooth=(), serial=()
+  Strict-Transport-Security: max-age=31536000
+  X-Robots-Tag: noindex, nofollow
+
+# O HTML nunca fica em cache longo: o navegador precisa ver o index.html novo para achar os assets novos.
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
 
 # O service worker e o manifest nunca ficam em cache longo: o navegador precisa ver a versão nova a cada visita.
 /sw.js
@@ -14,7 +48,3 @@
 # Arquivos com hash no nome nunca mudam de conteúdo.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
-
-# O app não é indexado (a vitrine é a landing).
-/*
-  X-Robots-Tag: noindex, nofollow
