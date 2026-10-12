@@ -44,7 +44,7 @@ O Docker publica portas por `iptables` e **passa por cima do `ufw`**: por isso o
 | Assinado | data e nome | |
 
 1. `docker network create selucra-edge`
-2. Copiar `docker-compose.*.yml` e `infra/` para `/opt/selucra/`; criar `prod.env` a partir de `infra/env/prod.env.example` (segredos com `openssl rand -hex 24` / `-base64 48`). **Guardar uma cópia do `prod.env` em local seguro** (o `SIMULATION_SEED` é imutável e some com o servidor).
+2. Copiar `docker-compose.*.yml` e `infra/` para `/opt/selucra/` (conferir com `sha256sum` dos dois lados: `docker-compose.edge.yml` e `docker-compose.prod.yml` são arquivos diferentes). Gerar os `.env` **no servidor**, com os segredos criados ali: `/opt/selucra/infra/server/init-env.sh staging <sha> --acme-email <email>` e o mesmo com `prod` (o Caddy lê o `ACME_EMAIL` do `prod.env`, então ele precisa existir mesmo antes de produção subir). O script comenta como `PENDENTE` o que depende de conta externa e liga `BILLING_PROVIDER=disabled` sem chave real. **Produção só sobe com `EMAIL_PROVIDER=resend`** (a guarda recusa o resto); o staging aceita `log`, por isso **o staging sobe primeiro**. **Guardar uma cópia dos `.env` em local seguro** (o `SIMULATION_SEED` é imutável e some com o servidor).
 3. `docker login ghcr.io` com o token de leitura (`read:packages`) do usuário de deploy.
 4. `$PROD up -d` e, depois, `docker compose -p selucra-edge --env-file /opt/selucra/prod.env -f /opt/selucra/docker-compose.edge.yml up -d`. As migrações rodam no boot do backend e do motor.
 5. **Seeds (uma vez, nesta ordem; todos idempotentes):**
