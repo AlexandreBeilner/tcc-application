@@ -5,7 +5,7 @@ import { readStored, STORAGE_KEYS, writeStored } from '../../../utils/storage'
 // simplesmente volta a aparecer.
 export const PRO_INVITE_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000
 
-export type ProInviteContext = 'league' | 'duel' | 'cosmetics' | 'retrospective' | 'assembly'
+export type ProInviteContext = 'league' | 'duel' | 'cosmetics' | 'retrospective' | 'assembly' | 'portfolio'
 
 function readAll(): Partial<Record<ProInviteContext, number>> {
     try {

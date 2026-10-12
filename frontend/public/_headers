@@ -1,0 +1,20 @@
+# Cloudflare Pages (LW.2.2 / LW.3.16). A CSP entra na LW.3.16.
+
+# O service worker e o manifest nunca ficam em cache longo: o navegador precisa ver a versão nova a cada visita.
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+/offline.html
+  Cache-Control: no-cache
+
+# Arquivos com hash no nome nunca mudam de conteúdo.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# O app não é indexado (a vitrine é a landing).
+/*
+  X-Robots-Tag: noindex, nofollow

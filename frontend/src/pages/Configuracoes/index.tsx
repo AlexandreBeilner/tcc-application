@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Moon, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/atoms/Avatar'
 import { Button } from '../../components/atoms/Button'
+import { InstallInvite } from '../../components/molecules/InstallInvite'
 import { EmailPreferencesSection } from '../../components/organisms/EmailPreferencesSection'
 import { CosmeticsPicker } from '../../components/organisms/CosmeticsPicker'
 import { PlanSection } from '../../components/organisms/PlanSection'
@@ -337,6 +338,8 @@ export function Configuracoes() {
                             </button>
                         </div>
                     </section>
+
+                    <InstallInvite placement="settings" />
 
                     <section className={styles.section}>
                         <h2 className={styles.sectionTitle}>Provedores conectados</h2>

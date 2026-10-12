@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router-dom'
+import { UpdateNotice } from './components/molecules/UpdateNotice'
 import { AuthProvider } from './features/auth/AuthContext'
 import { RewardRevealProvider } from './features/shell/RewardRevealProvider'
 import { ThemeProvider } from './features/theme/ThemeContext'
@@ -17,6 +18,7 @@ export function App() {
                 <AuthProvider>
                     <RewardRevealProvider>
                         <RouterProvider router={router} />
+                        <UpdateNotice />
                     </RewardRevealProvider>
                 </AuthProvider>
             </ThemeProvider>

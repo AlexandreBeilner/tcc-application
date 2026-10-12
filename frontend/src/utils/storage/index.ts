@@ -13,6 +13,8 @@ export const STORAGE_KEYS = {
     assembliesSeen: { current: 'app.assemblies.seen', legacy: 'tcc.assemblies.seen' },
     // Convites ao PRO dispensados (MO.5.5): JSON { [contexto]: timestamp }. A chave `tcc.` nunca existiu
     // (o tipo exige o par); a leitura dela é inofensiva.
+    // Convite para instalar o app (LW.2.4): timestamp de quando foi dispensado.
+    installInviteDismissed: { current: 'app.installInvite.dismissed', legacy: 'tcc.installInvite.dismissed' },
     proInviteDismissed: { current: 'app.proInvite.dismissed', legacy: 'tcc.proInvite.dismissed' },
 } as const
 

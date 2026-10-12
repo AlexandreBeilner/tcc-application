@@ -28,7 +28,7 @@ const ALWAYS_FREE = [
     'Ranking, amigos e feed',
 ]
 
-const FUNNEL_SOURCES: FunnelSource[] = ['league', 'duel', 'cosmetics', 'retrospective', 'assembly']
+const FUNNEL_SOURCES: FunnelSource[] = ['league', 'duel', 'cosmetics', 'retrospective', 'assembly', 'portfolio', 'menu', 'header']
 
 // Ponto de convite de onde a pessoa veio (o `ProInvite` manda no estado do link); sem ele, abriu
 // os planos direto.

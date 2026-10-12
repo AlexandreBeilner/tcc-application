@@ -6,17 +6,16 @@
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#0e0f13" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Selucra" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta name="format-detection" content="telephone=no" />
+        <!-- Sem maximum-scale/user-scalable=no (WCAG 1.4.4): a pinça precisa funcionar. `viewport-fit=cover`
+             deixa o app ocupar a tela toda no iPhone; a TopBar e a TabBar respeitam env(safe-area-inset-*). -->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <!-- O app não é indexado: a vitrine de SEO é a landing em selucra.com.br (landing/). -->
         <meta name="robots" content="noindex, nofollow" />
-        <!-- Carrega Inter/Sora de verdade (pendência da tarefa 1.0, seção 7 do
-             doc de tokens — até aqui caía sempre no fallback system-ui). -->
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700&display=swap"
-            rel="stylesheet"
-        />
         <title>Selucra</title>
     </head>
     <body>

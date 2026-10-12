@@ -233,4 +233,25 @@ describe('Planos (MO.3.1)', () => {
             expect(reportFunnelEvent).toHaveBeenCalledWith('token', { event: 'purchase_started', source: 'league', plan: 'annual' }),
         )
     })
+
+    it('avisa que o app Android e iOS vem depois, sem link de loja (LW.1.2)', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage()
+
+        expect(await screen.findByText(/App Android e iOS em breve/)).toBeInTheDocument()
+        expect(screen.queryByRole('link', { name: /App Store|Google Play/i })).not.toBeInTheDocument()
+    })
+
+    it('dentro do app nativo o aviso "em breve" não aparece (LW.1.2)', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        Object.defineProperty(window, 'ReactNativeWebView', { value: {}, configurable: true })
+        try {
+            renderPage()
+            await screen.findByText('R$ 19,97')
+
+            expect(screen.queryByText(/App Android e iOS em breve/)).not.toBeInTheDocument()
+        } finally {
+            delete (window as unknown as Record<string, unknown>).ReactNativeWebView
+        }
+    })
 })

@@ -3,77 +3,9 @@ import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { RequiresUnlock } from '../features/lessons/RequiresUnlock'
 import { AdminShell } from '../components/templates/AdminShell'
 import { AppShell } from '../components/templates/AppShell'
-import { Amigos } from '../pages/Amigos'
-import { AssetDetail } from '../pages/AssetDetail'
 import { AuthCallback } from '../pages/AuthCallback'
-import { BuscarAmigos } from '../pages/BuscarAmigos'
-import { Calculator } from '../pages/Calculator'
-import { CancelarInscricao } from '../pages/CancelarInscricao'
-import { Classificacao } from '../pages/Classificacao'
-import { LigaDetalhe } from '../pages/LigaDetalhe'
-import { Ligas } from '../pages/Ligas'
-import { Convidar } from '../pages/Convidar'
-import { Retrospectiva } from '../pages/Retrospectiva'
-import { DuelDetalhe } from '../pages/DuelDetalhe'
-import { AssembleiaDetalhe } from '../pages/AssembleiaDetalhe'
-import { Assembleias } from '../pages/Assembleias'
-import { Duelos } from '../pages/Duelos'
-import { CompanyProfile } from '../pages/CompanyProfile'
-import { Configuracoes } from '../pages/Configuracoes'
-import { Conquistas } from '../pages/Conquistas'
-import { AdminAuditoria } from '../pages/AdminAuditoria'
-import { AdminEventoMacroDetalhe } from '../pages/AdminEventoMacroDetalhe'
-import { AdminEventosMacro } from '../pages/AdminEventosMacro'
-import { AdminConteudo } from '../pages/AdminConteudo'
-import { AdminConteudoLicao } from '../pages/AdminConteudoLicao'
-import { AdminConteudoNova } from '../pages/AdminConteudoNova'
-import { AdminGamificacao } from '../pages/AdminGamificacao'
-import { AdminMercado } from '../pages/AdminMercado'
-import { AdminMercadoAtivo } from '../pages/AdminMercadoAtivo'
-import { AdminOrdens } from '../pages/AdminOrdens'
-import { AdminCatalogo } from '../pages/AdminCatalogo'
-import { AdminAssembleiaDetalhe } from '../pages/AdminAssembleiaDetalhe'
-import { AdminAssembleiaParametros } from '../pages/AdminAssembleiaParametros'
-import { AdminAssembleiaPautas } from '../pages/AdminAssembleiaPautas'
-import { AdminAssembleias } from '../pages/AdminAssembleias'
-import { AdminParametros } from '../pages/AdminParametros'
-import { AdminPausas } from '../pages/AdminPausas'
-import { AdminSistema } from '../pages/AdminSistema'
-import { AdminBots } from '../pages/AdminBots'
-import { AdminTempo } from '../pages/AdminTempo'
-import { AdminUsuarioDetalhe } from '../pages/AdminUsuarioDetalhe'
-import { AdminUsuarios } from '../pages/AdminUsuarios'
-import { AdminAssinaturas } from '../pages/AdminAssinaturas'
-import { AdminVisaoGeral } from '../pages/AdminVisaoGeral'
-import { CriarEventoMacro } from '../pages/CriarEventoMacro'
-import { EquityList } from '../pages/EquityList'
-import { FixedIncomeDetail } from '../pages/FixedIncomeDetail'
-import { FixedIncomeList } from '../pages/FixedIncomeList'
-import { IndicadoresEconomicos } from '../pages/IndicadoresEconomicos'
-import { Lesson } from '../pages/Lesson'
 import { Login } from '../pages/Login'
-import { EsqueciSenha } from '../pages/EsqueciSenha'
-import { Market } from '../pages/Market'
-import { MeuPerfil } from '../pages/MeuPerfil'
-import { MinhasOrdens } from '../pages/MinhasOrdens'
-import { News } from '../pages/News'
 import { NotFound } from '../pages/NotFound'
-import { Onboarding } from '../pages/Onboarding'
-import { PerfilPublico } from '../pages/PerfilPublico'
-import { Planos } from '../pages/Planos'
-import { Portfolio } from '../pages/Portfolio'
-import { RedefinirSenha } from '../pages/RedefinirSenha'
-import { VerificarEmail } from '../pages/VerificarEmail'
-import { PoliticaPrivacidade } from '../pages/PoliticaPrivacidade'
-import { Reembolso } from '../pages/Reembolso'
-import { Termos } from '../pages/Termos'
-import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
-import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
-import { Statement } from '../pages/Statement'
-import { MyAssets } from '../pages/MyAssets'
-import { TrackMap } from '../pages/TrackMap'
-import { TrilhasHub } from '../pages/TrilhasHub'
-import { Glossario } from '../pages/Glossario'
 
 // <AppShell> (tab bar + top bar + <Outlet/>) envolve todas as rotas
 // autenticadas (tarefa 6.1) — as rotas de auth (1.1, `/auth/callback`) e
@@ -85,6 +17,10 @@ import { Glossario } from '../pages/Glossario'
 // do painel: `/admin` é a Visão geral (10.1), `/admin/mercado` o monitor ao vivo (N.8), `/admin/eventos` o histórico de
 // eventos macro e `/admin/eventos/novo` (10.2, tarefa 6.11) a criação — rotas
 // irmãs, mesmo padrão de nesting de `/amigos/*`.
+// LW.2.8: cada tela é um chunk próprio (`lazy`), carregado quando a rota é visitada; o bundle inicial
+// leva só o shell, o login e o roteador. Os chunks entram no pré-cache do service worker, então a
+// navegação continua rápida depois da primeira visita. Ficam fora do `lazy` só as telas de entrada
+// pequenas (login, callback do Google e 404), para o primeiro desenho não esperar um segundo download.
 export const router = createBrowserRouter([
     {
         path: '/login',
@@ -94,21 +30,21 @@ export const router = createBrowserRouter([
     // no fragmento (`#token=...`) do link do e-mail.
     {
         path: '/esqueci-senha',
-        element: <EsqueciSenha />,
+        lazy: async () => ({ Component: (await import('../pages/EsqueciSenha')).EsqueciSenha }),
     },
     {
         path: '/redefinir-senha',
-        element: <RedefinirSenha />,
+        lazy: async () => ({ Component: (await import('../pages/RedefinirSenha')).RedefinirSenha }),
     },
     // Verificação de e-mail (EM.3.3): pública, o token vem no fragmento do link.
     {
         path: '/verificar-email',
-        element: <VerificarEmail />,
+        lazy: async () => ({ Component: (await import('../pages/VerificarEmail')).VerificarEmail }),
     },
     // Cancelar inscrição de e-mail opcional (EM.6.1): pública, o token vem no fragmento do link.
     {
         path: '/cancelar-inscricao',
-        element: <CancelarInscricao />,
+        lazy: async () => ({ Component: (await import('../pages/CancelarInscricao')).CancelarInscricao }),
     },
     {
         path: '/auth/callback',
@@ -118,18 +54,18 @@ export const router = createBrowserRouter([
     // nos formulários da Google Play e da App Store.
     {
         path: '/privacidade',
-        element: <PoliticaPrivacidade />,
+        lazy: async () => ({ Component: (await import('../pages/PoliticaPrivacidade')).PoliticaPrivacidade }),
     },
     // LW.4.2: termos de uso e da assinatura PRO e política de reembolso, públicos como a privacidade.
-    { path: '/termos', element: <Termos /> },
-    { path: '/reembolso', element: <Reembolso /> },
+    { path: '/termos', lazy: async () => ({ Component: (await import('../pages/Termos')).Termos }) },
+    { path: '/reembolso', lazy: async () => ({ Component: (await import('../pages/Reembolso')).Reembolso }) },
     {
         element: <ProtectedRoute />,
         children: [
             // Irmã do shell, não filha: 1.2 é tela cheia, sem tab bar/top bar
             // (tarefa 6.2). <Onboarding> se auto-redireciona pra "/" se
             // `onboardingCompleted` já for `true`.
-            { path: '/onboarding', element: <Onboarding /> },
+            { path: '/onboarding', lazy: async () => ({ Component: (await import('../pages/Onboarding')).Onboarding }) },
             {
                 element: <AppShell />,
                 children: [
@@ -141,7 +77,7 @@ export const router = createBrowserRouter([
                     // abaixo.
                     {
                         element: <RequiresUnlock unlockKey="portfolio" />,
-                        children: [{ path: '/', element: <Portfolio /> }],
+                        children: [{ path: '/', lazy: async () => ({ Component: (await import('../pages/Portfolio')).Portfolio }) }],
                     },
                     // 3.1 Hub de trilhas (tarefa 6.4, redesenhado na O.1) e 3.2 Lição
                     // — `/trilha/:id` é rota irmã, não filha de `/trilha`, já que a
@@ -150,110 +86,221 @@ export const router = createBrowserRouter([
                     // vertical por trilha, O.3) tem segmento estático (`mapa`) próprio
                     // pra nunca colidir com `/trilha/:id` (UUID) — `trackNumber`
                     // inválido/fora do currículo redireciona pro Hub.
-                    { path: '/trilha', element: <TrilhasHub /> },
+                    { path: '/trilha', lazy: async () => ({ Component: (await import('../pages/TrilhasHub')).TrilhasHub }) },
                     // Consulta do glossário das lições (RC.3.5): sempre aberta, não é produto travado.
-                    { path: '/glossario', element: <Glossario /> },
-                    { path: '/trilha/mapa/:trackNumber', element: <TrackMap /> },
-                    { path: '/trilha/:id', element: <Lesson /> },
+                    { path: '/glossario', lazy: async () => ({ Component: (await import('../pages/Glossario')).Glossario }) },
+                    { path: '/trilha/mapa/:trackNumber', lazy: async () => ({ Component: (await import('../pages/TrackMap')).TrackMap }) },
+                    { path: '/trilha/:id', lazy: async () => ({ Component: (await import('../pages/Lesson')).Lesson }) },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
                     // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). 4.7 não é
                     // rota própria: é `OrderConfirmationDialog`, overlay renderizado
                     // por `AssetDetail`/`FixedIncomeDetail` sobre a própria tela de
                     // origem (identidade-visual-padroes.md §7 — bottom sheet/modal).
                     // Plano PRO (MO.3.1): sempre aberta, é a vitrine da assinatura, não produto travado.
-                    { path: '/planos', element: <Planos /> },
-                    { path: '/mercado', element: <Market /> },
-                    { path: '/mercado/renda-fixa', element: <FixedIncomeList /> },
-                    { path: '/mercado/renda-fixa/:id', element: <FixedIncomeDetail /> },
-                    { path: '/mercado/renda-variavel', element: <EquityList /> },
-                    { path: '/mercado/ativos/:id', element: <AssetDetail /> },
-                    { path: '/mercado/empresas/:id', element: <CompanyProfile /> },
+                    { path: '/planos', lazy: async () => ({ Component: (await import('../pages/Planos')).Planos }) },
+                    { path: '/mercado', lazy: async () => ({ Component: (await import('../pages/Market')).Market }) },
+                    {
+                        path: '/mercado/renda-fixa',
+                        lazy: async () => ({ Component: (await import('../pages/FixedIncomeList')).FixedIncomeList }),
+                    },
+                    {
+                        path: '/mercado/renda-fixa/:id',
+                        lazy: async () => ({ Component: (await import('../pages/FixedIncomeDetail')).FixedIncomeDetail }),
+                    },
+                    {
+                        path: '/mercado/renda-variavel',
+                        lazy: async () => ({ Component: (await import('../pages/EquityList')).EquityList }),
+                    },
+                    { path: '/mercado/ativos/:id', lazy: async () => ({ Component: (await import('../pages/AssetDetail')).AssetDetail }) },
+                    {
+                        path: '/mercado/empresas/:id',
+                        lazy: async () => ({ Component: (await import('../pages/CompanyProfile')).CompanyProfile }),
+                    },
                     // 4.9 Indicadores Econômicos (tarefa M.4) — irmã de
                     // `/mercado/*`, não desbloqueada pela trilha (mesmo
                     // tratamento do hub 4.1, dado informativo, não produto).
-                    { path: '/mercado/indicadores', element: <IndicadoresEconomicos /> },
+                    {
+                        path: '/mercado/indicadores',
+                        lazy: async () => ({ Component: (await import('../pages/IndicadoresEconomicos')).IndicadoresEconomicos }),
+                    },
                     // 4.10 Minhas Ordens (tarefa O.4) — irmã de `/mercado/*`,
                     // mesmo tratamento de 4.9: lista as próprias ordens do
                     // usuário, não é produto travado pela trilha.
-                    { path: '/mercado/ordens', element: <MinhasOrdens /> },
+                    { path: '/mercado/ordens', lazy: async () => ({ Component: (await import('../pages/MinhasOrdens')).MinhasOrdens }) },
                     {
                         element: <RequiresUnlock unlockKey="calculator" />,
-                        children: [{ path: '/calculadora', element: <Calculator /> }],
+                        children: [
+                            { path: '/calculadora', lazy: async () => ({ Component: (await import('../pages/Calculator')).Calculator }) },
+                        ],
                     },
-                    { path: '/classificacao', element: <Classificacao /> },
+                    { path: '/classificacao', lazy: async () => ({ Component: (await import('../pages/Classificacao')).Classificacao }) },
                     // Indicação entre amigos (MO.7.2): qualquer pessoa convida por link.
-                    { path: '/convidar', element: <Convidar /> },
+                    { path: '/convidar', lazy: async () => ({ Component: (await import('../pages/Convidar')).Convidar }) },
                     // Ligas privadas do PRO (MO.5.2c): participar é de graça, criar é PRO.
-                    { path: '/ligas', element: <Ligas /> },
-                    { path: '/ligas/:id', element: <LigaDetalhe /> },
+                    { path: '/ligas', lazy: async () => ({ Component: (await import('../pages/Ligas')).Ligas }) },
+                    { path: '/ligas/:id', lazy: async () => ({ Component: (await import('../pages/LigaDetalhe')).LigaDetalhe }) },
                     // Duelos entre amigos (MO.5.3): aceitar é de graça, desafiar é PRO.
-                    { path: '/duelos', element: <Duelos /> },
+                    { path: '/duelos', lazy: async () => ({ Component: (await import('../pages/Duelos')).Duelos }) },
                     // Assembleia de Acionistas (MO.6.6): leitura pública, voto nas regras do servidor.
-                    { path: '/assembleias', element: <Assembleias /> },
-                    { path: '/assembleias/:id', element: <AssembleiaDetalhe /> },
+                    { path: '/assembleias', lazy: async () => ({ Component: (await import('../pages/Assembleias')).Assembleias }) },
+                    {
+                        path: '/assembleias/:id',
+                        lazy: async () => ({ Component: (await import('../pages/AssembleiaDetalhe')).AssembleiaDetalhe }),
+                    },
                     // Retrospectiva mensal (MO.5.4): versão simples para todos, completa no PRO.
-                    { path: '/retrospectiva', element: <Retrospectiva /> },
-                    { path: '/duelos/:id', element: <DuelDetalhe /> },
+                    { path: '/retrospectiva', lazy: async () => ({ Component: (await import('../pages/Retrospectiva')).Retrospectiva }) },
+                    { path: '/duelos/:id', lazy: async () => ({ Component: (await import('../pages/DuelDetalhe')).DuelDetalhe }) },
                     // Notícias só desbloqueia de verdade na lição que libera
                     // `news_feed` (Fase Q, reversão da decisão original de
                     // 7.0.1 de tratar o feed como "sempre acessível, só
                     // aviso") — mesmo gate real de Portfólio/Calculadora.
                     {
                         element: <RequiresUnlock unlockKey="news_feed" />,
-                        children: [{ path: '/noticias', element: <News /> }],
+                        children: [{ path: '/noticias', lazy: async () => ({ Component: (await import('../pages/News')).News }) }],
                     },
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
                     // — conteúdo real (4.8 Extrato, tarefa 6.5).
-                    { path: '/extrato', element: <Statement /> },
+                    { path: '/extrato', lazy: async () => ({ Component: (await import('../pages/Statement')).Statement }) },
                     // Meus ativos (MO.8.3): posições com rendimento desde a compra; fora da barra principal.
-                    { path: '/ativos', element: <MyAssets /> },
-                    { path: '/perfil', element: <MeuPerfil /> },
+                    { path: '/ativos', lazy: async () => ({ Component: (await import('../pages/MyAssets')).MyAssets }) },
+                    { path: '/perfil', lazy: async () => ({ Component: (await import('../pages/MeuPerfil')).MeuPerfil }) },
                     // Tarefa 6.9 — 8.1 (hub) + 8.2 (buscar) + 8.3
                     // (solicitações). `/perfil/:id` é rota irmã de `/perfil`
                     // (self, 9.1 "Meu Perfil", tarefa 6.10): 8.4 "Perfil
                     // Público de Outro Usuário" é acessada tanto daqui quanto
                     // da Classificação (7.1, `RankingBoard`).
-                    { path: '/amigos', element: <Amigos /> },
-                    { path: '/amigos/buscar', element: <BuscarAmigos /> },
-                    { path: '/amigos/solicitacoes', element: <SolicitacoesAmizade /> },
-                    { path: '/perfil/:id', element: <PerfilPublico /> },
-                    { path: '/conquistas', element: <Conquistas /> },
+                    { path: '/amigos', lazy: async () => ({ Component: (await import('../pages/Amigos')).Amigos }) },
+                    { path: '/amigos/buscar', lazy: async () => ({ Component: (await import('../pages/BuscarAmigos')).BuscarAmigos }) },
+                    {
+                        path: '/amigos/solicitacoes',
+                        lazy: async () => ({ Component: (await import('../pages/SolicitacoesAmizade')).SolicitacoesAmizade }),
+                    },
+                    { path: '/perfil/:id', lazy: async () => ({ Component: (await import('../pages/PerfilPublico')).PerfilPublico }) },
+                    { path: '/conquistas', lazy: async () => ({ Component: (await import('../pages/Conquistas')).Conquistas }) },
                     // 9.2 Configurações de Conta (tarefa 6.10). `/configuracoes/privacidade`
                     // é rota irmã (9.3 Privacidade e LGPD, acessada a partir de 9.2,
                     // inventário) — mesmo padrão de nesting de `/amigos/*`.
-                    { path: '/configuracoes', element: <Configuracoes /> },
-                    { path: '/configuracoes/privacidade', element: <PrivacidadeLgpd /> },
+                    { path: '/configuracoes', lazy: async () => ({ Component: (await import('../pages/Configuracoes')).Configuracoes }) },
+                    {
+                        path: '/configuracoes/privacidade',
+                        lazy: async () => ({ Component: (await import('../pages/PrivacidadeLgpd')).PrivacidadeLgpd }),
+                    },
                     {
                         element: <ProtectedRoute requireRole="admin" />,
                         children: [
                             {
                                 element: <AdminShell />,
                                 children: [
-                                    { path: '/admin', element: <AdminVisaoGeral /> },
-                                    { path: '/admin/eventos', element: <AdminEventosMacro /> },
-                                    { path: '/admin/eventos/:id', element: <AdminEventoMacroDetalhe /> },
-                                    { path: '/admin/tempo', element: <AdminTempo /> },
-                                    { path: '/admin/tempo/parametros', element: <AdminParametros /> },
-                                    { path: '/admin/mercado', element: <AdminMercado /> },
-                                    { path: '/admin/mercado/ativos/:id', element: <AdminMercadoAtivo /> },
-                                    { path: '/admin/mercado/catalogo', element: <AdminCatalogo /> },
-                                    { path: '/admin/mercado/ordens', element: <AdminOrdens /> },
-                                    { path: '/admin/mercado/pausas', element: <AdminPausas /> },
-                                    { path: '/admin/bots', element: <AdminBots /> },
-                                    { path: '/admin/conteudo', element: <AdminConteudo /> },
-                                    { path: '/admin/conteudo/nova', element: <AdminConteudoNova /> },
-                                    { path: '/admin/conteudo/:id', element: <AdminConteudoLicao /> },
-                                    { path: '/admin/gamificacao', element: <AdminGamificacao /> },
-                                    { path: '/admin/assinaturas', element: <AdminAssinaturas /> },
-                                    { path: '/admin/assembleias', element: <AdminAssembleias /> },
-                                    { path: '/admin/assembleias/parametros', element: <AdminAssembleiaParametros /> },
-                                    { path: '/admin/assembleias/pautas', element: <AdminAssembleiaPautas /> },
-                                    { path: '/admin/assembleias/:id', element: <AdminAssembleiaDetalhe /> },
-                                    { path: '/admin/sistema', element: <AdminSistema /> },
-                                    { path: '/admin/usuarios', element: <AdminUsuarios /> },
-                                    { path: '/admin/usuarios/:id', element: <AdminUsuarioDetalhe /> },
-                                    { path: '/admin/auditoria', element: <AdminAuditoria /> },
-                                    { path: '/admin/eventos/novo', element: <CriarEventoMacro /> },
+                                    {
+                                        path: '/admin',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminVisaoGeral')).AdminVisaoGeral }),
+                                    },
+                                    {
+                                        path: '/admin/eventos',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminEventosMacro')).AdminEventosMacro }),
+                                    },
+                                    {
+                                        path: '/admin/eventos/:id',
+                                        lazy: async () => ({
+                                            Component: (await import('../pages/AdminEventoMacroDetalhe')).AdminEventoMacroDetalhe,
+                                        }),
+                                    },
+                                    {
+                                        path: '/admin/tempo',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminTempo')).AdminTempo }),
+                                    },
+                                    {
+                                        path: '/admin/tempo/parametros',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminParametros')).AdminParametros }),
+                                    },
+                                    {
+                                        path: '/admin/mercado',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminMercado')).AdminMercado }),
+                                    },
+                                    {
+                                        path: '/admin/mercado/ativos/:id',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminMercadoAtivo')).AdminMercadoAtivo }),
+                                    },
+                                    {
+                                        path: '/admin/mercado/catalogo',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminCatalogo')).AdminCatalogo }),
+                                    },
+                                    {
+                                        path: '/admin/mercado/ordens',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminOrdens')).AdminOrdens }),
+                                    },
+                                    {
+                                        path: '/admin/mercado/pausas',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminPausas')).AdminPausas }),
+                                    },
+                                    {
+                                        path: '/admin/bots',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminBots')).AdminBots }),
+                                    },
+                                    {
+                                        path: '/admin/conteudo',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminConteudo')).AdminConteudo }),
+                                    },
+                                    {
+                                        path: '/admin/conteudo/nova',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminConteudoNova')).AdminConteudoNova }),
+                                    },
+                                    {
+                                        path: '/admin/conteudo/:id',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminConteudoLicao')).AdminConteudoLicao }),
+                                    },
+                                    {
+                                        path: '/admin/gamificacao',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminGamificacao')).AdminGamificacao }),
+                                    },
+                                    {
+                                        path: '/admin/assinaturas',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminAssinaturas')).AdminAssinaturas }),
+                                    },
+                                    {
+                                        path: '/admin/assembleias',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminAssembleias')).AdminAssembleias }),
+                                    },
+                                    {
+                                        path: '/admin/assembleias/parametros',
+                                        lazy: async () => ({
+                                            Component: (await import('../pages/AdminAssembleiaParametros')).AdminAssembleiaParametros,
+                                        }),
+                                    },
+                                    {
+                                        path: '/admin/assembleias/pautas',
+                                        lazy: async () => ({
+                                            Component: (await import('../pages/AdminAssembleiaPautas')).AdminAssembleiaPautas,
+                                        }),
+                                    },
+                                    {
+                                        path: '/admin/assembleias/:id',
+                                        lazy: async () => ({
+                                            Component: (await import('../pages/AdminAssembleiaDetalhe')).AdminAssembleiaDetalhe,
+                                        }),
+                                    },
+                                    {
+                                        path: '/admin/sistema',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminSistema')).AdminSistema }),
+                                    },
+                                    {
+                                        path: '/admin/usuarios',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminUsuarios')).AdminUsuarios }),
+                                    },
+                                    {
+                                        path: '/admin/usuarios/:id',
+                                        lazy: async () => ({
+                                            Component: (await import('../pages/AdminUsuarioDetalhe')).AdminUsuarioDetalhe,
+                                        }),
+                                    },
+                                    {
+                                        path: '/admin/auditoria',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminAuditoria')).AdminAuditoria }),
+                                    },
+                                    {
+                                        path: '/admin/eventos/novo',
+                                        lazy: async () => ({ Component: (await import('../pages/CriarEventoMacro')).CriarEventoMacro }),
+                                    },
                                 ],
                             },
                         ],

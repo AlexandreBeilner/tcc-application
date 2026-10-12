@@ -1,4 +1,5 @@
 .logo {
+    position: relative;
     display: inline-flex;
     line-height: 0;
 }
@@ -18,4 +19,43 @@
 
 :global(:root[data-theme='light']) .onDark {
     display: none;
+}
+
+.mark {
+    display: none;
+}
+
+.badge {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    display: inline-flex;
+    line-height: 1;
+    transform: translate(35%, 35%);
+}
+
+/* Cabeçalho apertado: abaixo de 768px a logo vira só o ícone. Os seletores de tema vêm depois
+   para vencer o `display: none` base dos modificadores `.onLight`. */
+@media (max-width: 767px) {
+    .compact .full,
+    .compact .full.onLight,
+    .compact .full.onDark {
+        display: none;
+    }
+
+    .compact .mark.onDark {
+        display: block;
+    }
+
+    .compact .mark.onLight {
+        display: none;
+    }
+
+    :global(:root[data-theme='light']) .compact .mark.onLight {
+        display: block;
+    }
+
+    :global(:root[data-theme='light']) .compact .mark.onDark {
+        display: none;
+    }
 }

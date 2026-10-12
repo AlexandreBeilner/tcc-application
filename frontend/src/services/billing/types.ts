@@ -17,7 +17,7 @@ export interface BillingStatus {
 // Funil de conversão (MO.7.1, `.docs/backend/billing.md`). O app só reporta estes três passos;
 // "assinou" e "cancelou" o servidor grava sozinho.
 export type FunnelEvent = 'invite_viewed' | 'plans_opened' | 'purchase_started'
-export type FunnelSource = 'league' | 'duel' | 'cosmetics' | 'retrospective' | 'assembly' | 'direct'
+export type FunnelSource = 'league' | 'duel' | 'cosmetics' | 'retrospective' | 'assembly' | 'portfolio' | 'menu' | 'header' | 'direct'
 
 export interface FunnelEventInput {
     event: FunnelEvent
