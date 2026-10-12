@@ -63,7 +63,37 @@ describe('Planos (MO.3.1)', () => {
         expect(screen.getByText('R$ 199,97')).toBeInTheDocument()
         // 1 - 199,97 / (19,97 * 12) = 16,5% -> 17%
         expect(screen.getByText(/17% a menos/)).toBeInTheDocument()
-        expect(screen.getByText('O que continua grátis')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Gratuito e PRO, lado a lado' })).toBeInTheDocument()
+    })
+
+    it('com os preços reais mostra a economia do anual em reais e a garantia (MO.9.9)', async () => {
+        const monthly = { ...MONTHLY, formattedPrice: 'R$ 9,90', amountMicros: 9_900_000 }
+        const annual = { ...ANNUAL, formattedPrice: 'R$ 89,90', amountMicros: 89_900_000 }
+        vi.mocked(useWebPurchases).mockReturnValue({ loadPlans: vi.fn().mockResolvedValue([monthly, annual]), purchase: vi.fn() })
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage()
+
+        expect(await screen.findByText('R$ 89,90')).toBeInTheDocument()
+        expect(screen.getByText(/R\$\s7,49 por mês/)).toBeInTheDocument()
+        expect(screen.getByText(/economiza R\$\s28,90 por ano \(24% a menos/)).toBeInTheDocument()
+        expect(screen.getByText(/Garantia de 7 dias: devolvemos o valor integral/)).toBeInTheDocument()
+        expect(screen.getByText(/Cancele quando quiser, em Configurações/)).toBeInTheDocument()
+    })
+
+    it('explica o que se ganha: benefícios, quadro Gratuito x PRO e perguntas (MO.9.9)', async () => {
+        vi.mocked(getBillingStatus).mockResolvedValue(FREE)
+        renderPage()
+
+        expect(await screen.findByRole('heading', { name: 'O que o PRO inclui' })).toBeInTheDocument()
+        expect(screen.getAllByText('Exemplo')).toHaveLength(5)
+        expect(screen.getByRole('columnheader', { name: 'Gratuito' })).toBeInTheDocument()
+        expect(screen.getByRole('columnheader', { name: 'PRO' })).toBeInTheDocument()
+        expect(screen.getByRole('rowheader', { name: 'Assembleias' })).toBeInTheDocument()
+        expect(screen.getByText('1 voto por mês, a partir do nível 3 e com e-mail verificado')).toBeInTheDocument()
+        expect(screen.getByText(/Se você cancelar, nada do que você conquistou é apagado/)).toBeInTheDocument()
+        expect(screen.getByText('Renova sozinho?')).toBeInTheDocument()
+        expect(screen.getByText('O que acontece com meu progresso se eu sair?')).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: 'Política de Reembolso' })).toHaveAttribute('href', '/reembolso')
     })
 
     it('não mostra preço quando a cobrança está desligada', async () => {

@@ -25,6 +25,14 @@ export function annualDiscountPercent(monthly: WebPlan, annual: WebPlan): number
     return Math.round((1 - annual.amountMicros / full) * 100)
 }
 
+// Quanto o anual poupa em reais sobre 12 mensalidades, no formato da moeda do plano. `null` se o
+// anual não é mais barato.
+export function annualSavings(monthly: WebPlan, annual: WebPlan, locale = 'pt-BR'): string | null {
+    const saved = monthly.amountMicros * 12 - annual.amountMicros
+    if (saved <= 0) return null
+    return new Intl.NumberFormat(locale, { style: 'currency', currency: annual.currency }).format(saved / 1_000_000)
+}
+
 // Preço do anual dividido por 12, no formato da moeda do plano.
 export function annualPerMonth(annual: WebPlan, locale = 'pt-BR'): string {
     return new Intl.NumberFormat(locale, { style: 'currency', currency: annual.currency }).format(annual.amountMicros / 12 / 1_000_000)

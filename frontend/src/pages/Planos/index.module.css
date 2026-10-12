@@ -90,29 +90,6 @@
     color: var(--color-text-primary);
 }
 
-.list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    color: var(--color-text-primary);
-    font-size: var(--font-size-base);
-}
-
-.list li {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-}
-
-.list svg {
-    flex-shrink: 0;
-    margin-top: 3px;
-    color: var(--color-brand-300);
-}
-
 .plans {
     display: grid;
     grid-template-columns: 1fr;
@@ -186,4 +163,27 @@
     align-items: flex-start;
     gap: var(--space-2);
     margin-top: var(--space-4);
+}
+
+.assurances {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.assurances li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.assurances svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--color-brand-300);
 }

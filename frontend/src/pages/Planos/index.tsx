@@ -1,7 +1,10 @@
-import { ArrowLeft, Check } from 'lucide-react'
+import { ArrowLeft, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from '../../components/atoms/Button'
+import { ProFaq } from '../../components/molecules/ProFaq'
+import { ProBenefitsShowcase } from '../../components/organisms/ProBenefitsShowcase'
+import { ProComparisonTable } from '../../components/organisms/ProComparisonTable'
 import { describePlan } from '../../features/billing/describePlan'
 import { isNativeApp, nativePlatform } from '../../features/billing/isNativeApp'
 import { useReportFunnel } from '../../features/billing/useReportFunnel'
@@ -9,25 +12,11 @@ import { usePurchaseFlow } from '../../features/billing/usePurchaseFlow'
 import { useBillingStatusQuery } from '../../features/billing/useBillingStatus'
 import { useWebPlansQuery } from '../../features/billing/useWebPlans'
 import { useInstallMode } from '../../features/pwa/install'
-import { annualDiscountPercent, annualPerMonth } from '../../features/billing/webPurchases'
+import { annualDiscountPercent, annualPerMonth, annualSavings } from '../../features/billing/webPurchases'
 import type { WebPlan } from '../../features/billing/webPurchases'
 import type { BillingStatus, FunnelSource } from '../../services/billing'
 import styles from './index.module.css'
 import { SUPPORT_EMAIL } from '../../utils/supportContact'
-
-const PRO_BENEFITS = [
-    'Ligas privadas e duelos com seus amigos',
-    'Moldura, título e selo PRO no seu perfil',
-    'Retrospectiva do mês para compartilhar',
-    'Voto nas Assembleias de Acionistas das empresas que você tem',
-]
-
-const ALWAYS_FREE = [
-    'Todas as lições e o mapa da trilha',
-    'Simulação de Renda Fixa e Renda Variável, com compra e venda sem limite',
-    'XP, nível, sequência, missões e conquistas',
-    'Ranking, amigos e feed',
-]
 
 const FUNNEL_SOURCES: FunnelSource[] = ['league', 'duel', 'cosmetics', 'retrospective', 'assembly', 'portfolio', 'menu', 'header']
 
@@ -94,6 +83,7 @@ function PlanOptions({ plans, onChoose, busy }: { plans: WebPlan[]; onChoose: Pl
     const monthly = plans.find((plan) => plan.id === 'monthly')
     const annual = plans.find((plan) => plan.id === 'annual')
     const discount = monthly && annual ? annualDiscountPercent(monthly, annual) : null
+    const savings = monthly && annual ? annualSavings(monthly, annual) : null
 
     return (
         <div className={styles.plans}>
@@ -103,7 +93,9 @@ function PlanOptions({ plans, onChoose, busy }: { plans: WebPlan[]; onChoose: Pl
                     plan={annual}
                     onChoose={onChoose}
                     busy={busy}
-                    caption={`Equivale a ${annualPerMonth(annual)} por mês${discount ? `, ${discount}% a menos que pagar mês a mês` : ''}`}
+                    caption={`Equivale a ${annualPerMonth(annual)} por mês${
+                        savings && discount ? `. Você economiza ${savings} por ano (${discount}% a menos que pagar mês a mês)` : ''
+                    }`}
                 />
             )}
         </div>
@@ -144,7 +136,7 @@ export function Planos() {
             </Link>
             <h1 className={styles.title}>Plano PRO</h1>
             <p className={styles.lead}>
-                O PRO deixa a plataforma mais divertida de jogar com os amigos. O que você já usa continua grátis, para sempre.
+                Ligas e duelos com os amigos, identidade no perfil, retrospectiva completa e voz nas assembleias, tudo em um plano só.
             </p>
 
             {statusQuery.isPending && <p className={styles.note}>Carregando…</p>}
@@ -154,29 +146,9 @@ export function Planos() {
 
             <div className={styles.layout}>
                 <div className={styles.main}>
-                    <section className={styles.card} aria-label="O que o PRO inclui">
-                        <h2 className={styles.sectionTitle}>O que o PRO inclui</h2>
-                        <ul className={styles.list}>
-                            {PRO_BENEFITS.map((item) => (
-                                <li key={item}>
-                                    <Check size={16} aria-hidden="true" /> {item}
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
-                    <section className={styles.card} aria-label="O que continua grátis">
-                        <h2 className={styles.sectionTitle}>O que continua grátis</h2>
-                        <ul className={styles.list}>
-                            {ALWAYS_FREE.map((item) => (
-                                <li key={item}>
-                                    <Check size={16} aria-hidden="true" /> {item}
-                                </li>
-                            ))}
-                        </ul>
-                        <p className={styles.note}>
-                            Se você cancelar, nada do que você conquistou é apagado. Só as vantagens PRO ficam em pausa.
-                        </p>
-                    </section>
+                    <ProBenefitsShowcase />
+                    <ProComparisonTable />
+                    <ProFaq />
                 </div>
 
                 <aside className={styles.side}>
@@ -194,6 +166,14 @@ export function Planos() {
                             {plansQuery.data && plansQuery.data.length > 0 && (
                                 <PlanOptions plans={plansQuery.data} onChoose={choosePlan} busy={busy} />
                             )}
+                            <ul className={styles.assurances}>
+                                <li>
+                                    <ShieldCheck size={16} aria-hidden="true" /> Garantia de 7 dias: devolvemos o valor integral
+                                </li>
+                                <li>
+                                    <RotateCcw size={16} aria-hidden="true" /> Cancele quando quiser, em Configurações
+                                </li>
+                            </ul>
                             <p className={styles.note}>
                                 A assinatura renova sozinha a cada período e você cancela quando quiser. Ao assinar, você concorda com os{' '}
                                 <Link to="/termos">Termos de Uso e da Assinatura PRO</Link>. Pode desistir em até 7 dias e receber o valor
