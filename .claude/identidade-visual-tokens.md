@@ -22,6 +22,7 @@ Azul cobalto elétrico — mais saturado que o azul de banco tradicional (Banco 
 | Token | Dark | Light | Uso |
 |---|---|---|---|
 | `--color-brand-500` | `#2F6FED` | `#2F6FED` | Ação primária (botões, links, foco) |
+| `--color-link` | `#93B4FF` | `#2A63D4` | **Texto** de link e ação (MO.9.10): AA sobre as superfícies dos dois temas. Fundo e borda de marca seguem em `--color-brand-500`; texto nunca usa brand-500 |
 | `--color-brand-600` | `#1D4FC4` | `#1D4FC4` | Hover/active de ação primária |
 | `--color-brand-300` | `#93B4FF` | `#1B3F94` | Texto/ícone sobre fundo de marca, destaque leve |
 | `--color-brand-100` | `#0E1E42` | `#E8EFFE` | Fundo suave de elemento relacionado à marca (badge, chip) |
@@ -38,7 +39,7 @@ Azul cobalto elétrico — mais saturado que o azul de banco tradicional (Banco 
 | `--grid-line` | `rgba(255,255,255,0.05)` | `rgba(0,0,0,0.06)` | Linhas da grade quadriculada do fundo do Mapa da Trilha (CSS `background-image`, 28px) |
 | `--color-text-primary` | `#F5F6F8` | `#14161B` | Texto principal |
 | `--color-text-secondary` | `#9BA1AE` | `#5B6270` | Texto de apoio, labels |
-| `--color-text-muted` | `#6B7280` | `#8A8F9A` | Texto desabilitado, metadados de baixa prioridade |
+| `--color-text-muted` | `#868C98` | `#686E7A` | Texto desabilitado, metadados de baixa prioridade |
 
 Sombra é evitada no dark mode (não lê bem sobre fundo escuro) — elevação é comunicada por diferença de `--color-bg-surface*` + borda de 1px. No light mode, elevação usa sombra suave (`box-shadow: 0 2px 8px rgba(20, 22, 27, 0.08)`).
 
@@ -164,7 +165,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --grid-line: rgba(255, 255, 255, 0.05);
   --color-text-primary: #F5F6F8;
   --color-text-secondary: #9BA1AE;
-  --color-text-muted: #6B7280;
+  --color-text-muted: #868C98;
 
   --color-brand-500: #2F6FED;
   --color-brand-600: #1D4FC4;
@@ -198,7 +199,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --grid-line: rgba(0, 0, 0, 0.06);
   --color-text-primary: #14161B;
   --color-text-secondary: #5B6270;
-  --color-text-muted: #8A8F9A;
+  --color-text-muted: #686E7A;
 
   --color-brand-500: #2F6FED;
   --color-brand-600: #1D4FC4;

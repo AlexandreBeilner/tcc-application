@@ -53,7 +53,7 @@
 
 .preset[aria-pressed='true'] {
     border-color: var(--color-brand-500);
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-weight: 600;
 }
 
@@ -71,7 +71,7 @@
 .result p {
     margin: 0;
     color: var(--color-text-secondary);
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
 }
 
 .headline {
@@ -260,14 +260,14 @@
     border-radius: var(--radius-full);
     background: transparent;
     color: var(--color-text-secondary);
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
     font-variant-numeric: tabular-nums;
     cursor: pointer;
 }
 
 .timelineMark[aria-pressed='true'] {
     border-color: var(--color-brand-500);
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-weight: 600;
 }
 
@@ -370,13 +370,13 @@
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-secondary);
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
     cursor: pointer;
 }
 
 .rulerMark[aria-pressed='true'] {
     border-color: var(--color-brand-500);
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-weight: 600;
 }
 

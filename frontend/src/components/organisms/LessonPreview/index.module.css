@@ -90,7 +90,7 @@
 
 .option {
     font-family: inherit;
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
     text-align: left;
     color: var(--color-text-primary);
     background: var(--color-bg-surface-elevated);

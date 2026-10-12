@@ -69,7 +69,7 @@
 
 .lift:hover:not(:disabled) {
     border-color: var(--color-brand-500);
-    color: var(--color-brand-500);
+    color: var(--color-link);
 }
 
 .lift:disabled {

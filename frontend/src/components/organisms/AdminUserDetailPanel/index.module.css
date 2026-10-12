@@ -113,7 +113,7 @@
 }
 
 .link {
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-weight: 600;
     text-decoration: none;
 }

@@ -33,7 +33,7 @@
 }
 
 .link {
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
     text-decoration: none;
@@ -218,7 +218,7 @@
 
 .small:hover:not(:disabled) {
     border-color: var(--color-brand-500);
-    color: var(--color-brand-500);
+    color: var(--color-link);
 }
 
 .small:disabled {

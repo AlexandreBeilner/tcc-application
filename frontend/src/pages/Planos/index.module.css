@@ -18,6 +18,7 @@
     align-items: center;
     gap: var(--space-1);
     align-self: flex-start;
+    min-height: 44px;
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     font-weight: 600;
@@ -37,6 +38,7 @@
 
 /* Link dentro da frase do aviso legal: texto corrido, sublinhado. */
 .note a {
+    color: var(--color-link);
     text-decoration: underline;
 }
 
@@ -66,6 +68,31 @@
     flex-direction: column;
     gap: var(--space-6);
     min-width: 0;
+}
+
+/* MO.9.10: no mobile e no tablet o preço vem logo depois dos benefícios (antes do quadro e das
+   perguntas), em vez de no fim da página. `display: contents` põe os blocos do `.main` na mesma
+   fila do painel de planos, e `order` define a sequência. No desktop o painel fica ao lado. */
+@media (max-width: 1023px) {
+    .main {
+        display: contents;
+    }
+
+    .showcase {
+        order: 1;
+    }
+
+    .side {
+        order: 2;
+    }
+
+    .compare {
+        order: 3;
+    }
+
+    .faq {
+        order: 4;
+    }
 }
 
 .card,
@@ -133,7 +160,10 @@
 }
 
 .link {
-    color: var(--color-brand-500);
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
 }

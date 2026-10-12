@@ -29,13 +29,16 @@
 }
 
 .action {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     align-self: flex-start;
     padding: 0;
     border: 0;
     background: none;
     cursor: pointer;
     text-align: left;
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
 }

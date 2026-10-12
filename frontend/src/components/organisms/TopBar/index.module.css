@@ -12,6 +12,10 @@
 
 .logo {
     display: inline-flex;
+    align-items: center;
+    /* MO.9.10: alvo de toque de 44 px mesmo com a logo pequena (ícone no mobile). */
+    min-width: 44px;
+    min-height: 44px;
     text-decoration: none;
 }
 

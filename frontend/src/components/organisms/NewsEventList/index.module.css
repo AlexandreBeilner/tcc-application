@@ -141,5 +141,5 @@ button.targetChip {
 
 button.targetChip:hover {
     border-color: var(--color-border-strong);
-    color: var(--color-brand-500);
+    color: var(--color-link);
 }

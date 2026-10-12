@@ -76,7 +76,7 @@
 /* Atalho para a retrospectiva mensal (MO.5.4). */
 .retroLink {
     align-self: flex-start;
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
 }

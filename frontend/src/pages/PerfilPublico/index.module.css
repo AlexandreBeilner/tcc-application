@@ -23,6 +23,7 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     font-weight: 600;
+    min-height: 44px;
 }
 
 /* Mobile/tablet: coluna única. Desktop (identidade-visual-padroes.md §7):

@@ -42,6 +42,7 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     font-weight: 600;
+    min-height: 44px;
 }
 
 .title {
@@ -139,7 +140,7 @@
 }
 
 .inlineLink {
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
     text-decoration: none;

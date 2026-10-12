@@ -28,6 +28,7 @@
     border: none;
     padding: 0;
     cursor: pointer;
+    min-height: 44px;
 }
 
 /* Barra de 4 segmentos substitui "passo 2 de 4" por texto (mockup) — o
@@ -108,7 +109,7 @@
 
 .optionButton {
     font-family: inherit;
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
     text-align: left;
     color: var(--color-text-primary);
     background: var(--color-bg-surface-elevated);

@@ -86,6 +86,6 @@
 
 .glossaryLink {
     font-size: var(--font-size-sm);
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-weight: 600;
 }

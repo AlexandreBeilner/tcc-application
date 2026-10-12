@@ -10,7 +10,7 @@
 
 .title {
     margin: 0;
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
     color: var(--color-text-primary);
 }
 
@@ -37,7 +37,7 @@
 }
 
 .link {
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-weight: 600;
 }
 

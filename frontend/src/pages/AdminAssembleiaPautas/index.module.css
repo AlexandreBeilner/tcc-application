@@ -33,7 +33,7 @@
 }
 
 .link {
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
     text-decoration: none;
@@ -225,7 +225,7 @@
 
 .small:hover:not(:disabled) {
     border-color: var(--color-brand-500);
-    color: var(--color-brand-500);
+    color: var(--color-link);
 }
 
 .small:disabled {
@@ -275,8 +275,15 @@
 
 .inline {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
+}
+
+/* MO.9.10: em três colunas fixas o campo "Mexe em" cortava o texto no celular; só de tablet em diante. */
+@media (min-width: 768px) {
+    .inline {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
 }
 
 .selected {

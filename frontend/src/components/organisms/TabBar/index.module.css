@@ -30,7 +30,8 @@
 }
 
 .active {
-    color: var(--color-brand-500);
+    /* MO.9.10: texto em brand-300 (AA nos dois temas); a linha de baixo segue em brand-500. */
+    color: var(--color-brand-300);
     border-bottom-color: var(--color-brand-500);
 }
 

@@ -3,6 +3,7 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-1);
+    min-height: 44px;
     padding: var(--space-3);
     border: none;
     border-radius: var(--radius-md);

@@ -146,9 +146,15 @@ export function Planos() {
 
             <div className={styles.layout}>
                 <div className={styles.main}>
-                    <ProBenefitsShowcase />
-                    <ProComparisonTable />
-                    <ProFaq />
+                    <div className={styles.showcase}>
+                        <ProBenefitsShowcase />
+                    </div>
+                    <div className={styles.compare}>
+                        <ProComparisonTable />
+                    </div>
+                    <div className={styles.faq}>
+                        <ProFaq />
+                    </div>
                 </div>
 
                 <aside className={styles.side}>

@@ -6,7 +6,7 @@
 
 .header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
 }
@@ -24,9 +24,19 @@
 }
 
 .link {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: 44px;
     color: var(--color-brand-300);
     font-size: var(--font-size-sm);
     font-weight: 600;
+    white-space: nowrap;
+}
+
+.link:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
 }
 
 .lead,

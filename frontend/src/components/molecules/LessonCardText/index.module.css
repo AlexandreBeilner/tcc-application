@@ -41,7 +41,7 @@
     gap: var(--space-2);
     align-self: flex-start;
     font-family: inherit;
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-base);
     font-weight: 600;
     color: var(--color-brand-300);
     background: none;

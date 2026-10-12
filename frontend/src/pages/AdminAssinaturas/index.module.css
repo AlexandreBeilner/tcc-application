@@ -38,7 +38,7 @@
 
 .windowActive {
     border-color: var(--color-brand-500);
-    color: var(--color-brand-500);
+    color: var(--color-link);
 }
 
 .grid {
