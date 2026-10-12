@@ -8,7 +8,7 @@
 .doc {
     display: flex;
     flex-direction: column;
-    gap: var(--space-5);
+    gap: var(--space-4);
     width: 100%;
     max-width: 760px;
     margin: 0 auto;
@@ -22,15 +22,18 @@
 }
 
 .doc ul {
-    padding-left: var(--space-5);
+    padding-left: var(--space-4);
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
 }
 
-.doc a {
+.doc a:not(.back) {
     color: var(--color-brand-300);
+    text-decoration: underline;
 }
+
+/* Voltar não é texto corrido: fica sem sublinhado, como os demais links de navegação. */
 
 .doc strong {
     color: var(--color-text-primary);
@@ -43,6 +46,7 @@
     align-self: flex-start;
     color: var(--color-text-secondary);
     text-decoration: none;
+    min-height: 44px;
 }
 
 .header {

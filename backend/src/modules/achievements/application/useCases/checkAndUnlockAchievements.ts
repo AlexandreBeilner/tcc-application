@@ -1,4 +1,6 @@
 import { isSatisfied, type Achievement } from '../../domain/achievement'
+import { notifySafely } from '../notifySafely'
+import type { AchievementMailer } from '../ports/achievementMailer'
 import type { AchievementRepository } from '../ports/achievementRepository'
 import type { ProgressSnapshotReader } from '../ports/progressSnapshotReader'
 
@@ -15,6 +17,7 @@ export class CheckAndUnlockAchievementsUseCase {
   constructor(
     private readonly achievementRepository: AchievementRepository,
     private readonly progressSnapshotReader: ProgressSnapshotReader,
+    private readonly mailer: AchievementMailer,
   ) {}
 
   async execute(input: CheckAndUnlockAchievementsInput): Promise<Achievement[]> {
@@ -35,6 +38,14 @@ export class CheckAndUnlockAchievementsUseCase {
         await this.achievementRepository.unlock(input.userId, achievement.id)
         newlyUnlocked.push(achievement)
       }
+    }
+
+    // E-mail de conquista rara (EM.7.2): só a que o catálogo marca como rara (ponto 044), depois
+    // de gravar e nunca em volta do desbloqueio.
+    for (const achievement of newlyUnlocked.filter((a) => a.isRare)) {
+      await notifySafely('o aviso de conquista rara', () =>
+        this.mailer.sendRareUnlocked({ userId: input.userId, achievement }),
+      )
     }
 
     return newlyUnlocked

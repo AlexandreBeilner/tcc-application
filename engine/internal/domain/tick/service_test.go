@@ -865,3 +865,50 @@ func (f *failOnNthSave) SaveTick(ctx context.Context, r Result) error {
 	}
 	return f.fakeRepository.SaveTick(ctx, r)
 }
+
+type fakeGovernanceStep struct {
+	days []int
+	n    int
+	err  error
+}
+
+func (f *fakeGovernanceStep) ApplyDue(_ context.Context, newDay int) (int, error) {
+	f.days = append(f.days, newDay)
+	return f.n, f.err
+}
+
+// MO.6.2: o efeito de assembleia é aplicado no dia que o tick está criando, antes de o tick
+// ler as empresas.
+func TestService_Run_AplicaEfeitoDeAssembleiaNoDiaNovo(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	gov := &fakeGovernanceStep{n: 1}
+	svc := newTestService(repo).WithGovernance(gov)
+
+	if _, err := svc.Run(context.Background()); err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+	if len(gov.days) != 1 || gov.days[0] != 21 {
+		t.Errorf("ApplyDue chamado com %v, esperado [21]", gov.days)
+	}
+}
+
+// Falha na governança não pode derrubar o tick do mercado: o passo é recuperado no seguinte.
+func TestService_Run_FalhaDaGovernancaNaoDerrubaOTick(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	svc := newTestService(repo).WithGovernance(&fakeGovernanceStep{err: errors.New("banco fora")})
+
+	result, err := svc.Run(context.Background())
+	if err != nil {
+		t.Fatalf("o tick não pode falhar por causa da governança: %v", err)
+	}
+	if result.State.Day != 21 {
+		t.Errorf("State.Day = %d, esperado 21", result.State.Day)
+	}
+}
+
+func TestService_Run_SemGovernancaNadaMuda(t *testing.T) {
+	repo := &fakeRepository{state: State{Day: 20, SelicRate: 12}, stateFound: true}
+	if _, err := newTestService(repo).Run(context.Background()); err != nil {
+		t.Fatalf("Run() erro inesperado: %v", err)
+	}
+}

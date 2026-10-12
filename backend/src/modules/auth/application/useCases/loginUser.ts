@@ -1,5 +1,9 @@
-import { AccountSuspendedError, InvalidCredentialsError } from '../../domain/errors'
-import type { User } from '../../domain/user'
+import {
+  AccountSuspendedError,
+  EmailNotVerifiedError,
+  InvalidCredentialsError,
+} from '../../domain/errors'
+import { isEmailVerified, type User } from '../../domain/user'
 import type { AdminSessionAuditor } from '../ports/adminSessionAuditor'
 import type { PasswordHasher } from '../ports/passwordHasher'
 import type { TokenIssuer } from '../ports/tokenIssuer'
@@ -44,6 +48,12 @@ export class LoginUserUseCase {
     // e está suspensa.
     if (user.status === 'suspended') {
       throw new AccountSuspendedError('account_suspended')
+    }
+
+    // Também só depois da senha (D2): quem erra a senha não descobre o estado da conta. A conta
+    // por e-mail e senha só entra com o e-mail confirmado.
+    if (!isEmailVerified(user)) {
+      throw new EmailNotVerifiedError('email_not_verified')
     }
 
     if (user.role === 'admin') {

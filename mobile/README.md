@@ -1,6 +1,6 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-# Casca do Investimenta
+# Casca do Selucra
 
 App RN puro (sem Expo) que embrulha o `frontend/` já existente num `WebView` —
 contexto completo em `.claude/arquitetura-app-mobile-react-native-webview.md`
@@ -18,6 +18,15 @@ e `.claude/backlog-app-mobile.md`.
   Metro precisa ser iniciado manualmente em background antes
   (`npx react-native start`), senão o app trava em "Unable to load script."
   assim que abre.
+- **Compras (MO.4.x)**: tudo passa por `purchases/` (interface `PurchasesService`).
+  `PURCHASES_MODE=fake` (`.env.debug`) "compra" chamando `POST /billing/dev/purchase`
+  no backend, que só existe subindo o compose com `BILLING_PROVIDER=dev`
+  (`BILLING_PROVIDER=dev docker compose up -d backend`); o preço aparece com
+  "(teste)". `PURCHASES_MODE=revenuecat` usa as chaves públicas
+  `REVENUECAT_ANDROID_API_KEY`/`REVENUECAT_IOS_API_KEY` (em branco até existir conta; chave
+  de Test Store só em debug, nunca em release). Release nunca usa o modo `fake`.
+  Reverter dado de teste: `DELETE /billing/dev/subscription` ou apagar a linha em
+  `subscriptions` com `product_id like 'dev.fake.%'`.
 - Rodar contra o backend local: `docker compose up` na raiz do monorepo
   (`FRONTEND_URL=http://10.0.2.2:5173` pro CORS bater com a origem que o
   WebView apresenta) + `vite --host 0.0.0.0` em `frontend/`.

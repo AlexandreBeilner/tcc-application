@@ -8,6 +8,7 @@ import { useNextSalaryPayment } from '../../features/market/useNextSalaryPayment
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
 import { TrackCard } from '../../components/organisms/TrackCard'
+import { InstallInvite } from '../../components/molecules/InstallInvite'
 import { SalaryIndicator } from '../../components/molecules/SalaryIndicator'
 import styles from './index.module.css'
 
@@ -78,6 +79,8 @@ export function TrilhasHub() {
                         </>
                     )}
                     {lessons.length > 0 && <ResumeLessonCard lessons={lessons} />}
+                    {/* LW.2.4: convite para instalar o app, só depois da primeira lição concluída. */}
+                    {completedCount > 0 && <InstallInvite placement="lesson" />}
                 </aside>
             </div>
         </main>

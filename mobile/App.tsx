@@ -17,6 +17,7 @@ import {
   Alert,
   BackHandler,
   Linking,
+  Platform,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -28,6 +29,7 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import type { PurchasesService } from './purchases';
 import Share from 'react-native-share';
 import { WebView, WebViewHandle, WebViewMessageEvent } from 'react-native-webview';
 import {
@@ -40,6 +42,14 @@ import {
   parseFileDownloadMessage,
 } from './downloadBridge';
 import {
+  buildNativeInfoScript,
+  buildPurchasesResponseScript,
+  handlePurchasesRequest,
+  parsePurchasesRequest,
+  userIdFromToken,
+} from './purchasesBridge';
+import { createPurchasesService } from './purchases';
+import {
   buildGoogleSignInInterceptorScript,
   parseGoogleSignInRequestedMessage,
 } from './googleSignInBridge';
@@ -48,7 +58,7 @@ import {
 // isso o react-native-keychain usa um serviço default compartilhado entre
 // apps que reusarem a lib no mesmo dispositivo (irrelevante em produção, mas
 // evita colisão durante desenvolvimento local).
-export const AUTH_KEYCHAIN_SERVICE = 'br.com.investimenta.auth';
+export const AUTH_KEYCHAIN_SERVICE = 'br.com.selucra.auth';
 
 const APP_WEB_URL = Config.APP_WEB_URL as string;
 
@@ -100,7 +110,7 @@ export const ORIGIN_WHITELIST = [`${APP_WEB_URL}*`];
 //
 // Comparação de origem exata (scheme+host+port) via URL.origin, não
 // "startsWith" — um "startsWith" seria enganável por um host tipo
-// "https://app.investimenta.com.br.evil.com", que também começa com a
+// "https://app.selucra.com.br.evil.com", que também começa com a
 // string da origem legítima como prefixo literal.
 export function isWithinAppOrigin(url: string): boolean {
   try {
@@ -110,11 +120,14 @@ export function isWithinAppOrigin(url: string): boolean {
   }
 }
 
+const APP_PLATFORM: 'android' | 'ios' =
+  Platform.OS === 'ios' ? 'ios' : 'android';
+
 // Concatenado uma vez só (não depende de nenhum state do componente) — os
 // três scripts (ponte de sessão, tarefa 2.1; ponte de download, tarefa 2.3;
 // gatilho de login Google, tarefa 3.3) rodam no mesmo carregamento de
 // página, cada um com seu próprio guard de idempotência
-// (`window.__investimenta*Installed`).
+// (`window.__selucra*Installed`).
 const INJECTED_JAVASCRIPT =
   buildAuthWatcherScript() +
   buildDownloadInterceptorScript() +
@@ -155,6 +168,34 @@ function AppContent() {
   // armazenamento) não seria restaurada a tempo do primeiro carregamento.
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [isSessionReady, setIsSessionReady] = useState(false);
+
+  // Camada de compras (MO.4.1). O token mais recente fica numa ref porque a implementação falsa o
+  // lê na hora da chamada, sem recriar o serviço a cada mudança de sessão.
+  const authTokenRef = useRef<string | null>(null);
+  authTokenRef.current = authToken;
+  const purchasesRef = useRef<PurchasesService | null>(null);
+  if (purchasesRef.current === null) {
+    purchasesRef.current = createPurchasesService({
+      mode: Config.PURCHASES_MODE,
+      platform: APP_PLATFORM,
+      isDev: __DEV__,
+      apiBaseUrl: API_BASE_URL,
+      androidApiKey: Config.REVENUECAT_ANDROID_API_KEY,
+      iosApiKey: Config.REVENUECAT_IOS_API_KEY,
+      getToken: () => authTokenRef.current,
+    });
+  }
+
+  // logIn(users.id) quando a sessão é estabelecida, logOut ao sair. Só depois de a leitura do
+  // Keychain terminar (senão o primeiro `null` pareceria um logout).
+  useEffect(() => {
+    if (!isSessionReady) {
+      return;
+    }
+    const purchases = purchasesRef.current as PurchasesService;
+    const userId = userIdFromToken(authToken);
+    (userId ? purchases.logIn(userId) : purchases.logOut()).catch(() => {});
+  }, [authToken, isSessionReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,7 +257,7 @@ function AppContent() {
       }
       const body = (await apiResponse.json()) as {token: string};
 
-      await Keychain.setGenericPassword('investimenta', body.token, {
+      await Keychain.setGenericPassword('selucra', body.token, {
         service: AUTH_KEYCHAIN_SERVICE,
       });
       setAuthToken(body.token);
@@ -237,7 +278,7 @@ function AppContent() {
     const authMessage = parseAuthTokenChangedMessage(event.nativeEvent.data);
     if (authMessage) {
       if (authMessage.token) {
-        Keychain.setGenericPassword('investimenta', authMessage.token, {
+        Keychain.setGenericPassword('selucra', authMessage.token, {
           service: AUTH_KEYCHAIN_SERVICE,
         }).catch(() => {});
       } else {
@@ -251,6 +292,20 @@ function AppContent() {
       }
 
       setAuthToken(authMessage.token);
+      return;
+    }
+
+    const purchasesRequest = parsePurchasesRequest(event.nativeEvent.data);
+    if (purchasesRequest) {
+      handlePurchasesRequest(
+        purchasesRef.current as PurchasesService,
+        purchasesRequest,
+        { openUrl: url => Linking.openURL(url) },
+      ).then(response => {
+        webviewRef.current?.injectJavaScript(
+          buildPurchasesResponseScript(response),
+        );
+      });
       return;
     }
 
@@ -339,7 +394,7 @@ function AppContent() {
       <View style={styles.errorContainer}>
         <Text style={styles.errorTitle}>Sem conexão</Text>
         <Text style={styles.errorMessage}>
-          Não foi possível carregar o Investimenta. Verifique sua conexão e
+          Não foi possível carregar o Selucra. Verifique sua conexão e
           tente novamente.
         </Text>
         <Pressable
@@ -374,9 +429,10 @@ function AppContent() {
           originWhitelist={ORIGIN_WHITELIST}
           allowsBackForwardNavigationGestures
           injectedJavaScript={INJECTED_JAVASCRIPT}
-          injectedJavaScriptBeforeContentLoaded={buildAuthTokenReinjectionScript(
-            authToken,
-          )}
+          injectedJavaScriptBeforeContentLoaded={
+            buildNativeInfoScript(APP_PLATFORM) +
+            buildAuthTokenReinjectionScript(authToken)
+          }
           onMessage={handleMessage}
           onNavigationStateChange={navState => {
             canGoBackRef.current = navState.canGoBack;

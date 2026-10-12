@@ -1,5 +1,6 @@
 // Espelha `.docs/backend/profile.md` (`GET /users/:id/profile`, mesma
 // forma de `GET /me/profile` — tarefa 6.10, não implementado ainda).
+import type { PublicCosmetics } from '../cosmetics'
 import type { RankingWindow } from '../ranking'
 
 export type { RankingWindow } from '../ranking'
@@ -29,6 +30,7 @@ export interface PublicProfile {
     // trilha (ex: `[0, 1]`), nunca patrimônio (RNF09 continua estrutural).
     // Consumido pelo organism `TrackTrophyCase` (F.3).
     completedTracks: number[]
+    cosmetics: PublicCosmetics
 }
 
 export interface GetUserProfileParams {

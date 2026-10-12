@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom'
+import { CompanyAssemblies } from '../../components/organisms/CompanyAssemblies'
 import { CompanyAssetList } from '../../components/organisms/CompanyAssetList'
 import { CompanyFundamentalsChart } from '../../components/organisms/CompanyFundamentalsChart'
 import { useCompanyQuery } from '../../features/market/useCompanyQuery'
@@ -55,6 +56,10 @@ export function CompanyProfile() {
                     <span className={styles.sectionTitle}>Ativos emitidos</span>
                     <CompanyAssetList assets={company.assets} onSelect={(asset) => navigate(`/mercado/ativos/${asset.id}`)} />
                 </section>
+
+                <div className={styles.assemblies}>
+                    <CompanyAssemblies companyId={company.id} />
+                </div>
             </div>
         </main>
     )

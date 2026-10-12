@@ -1,5 +1,9 @@
 import { z } from 'zod'
+import { ASSEMBLY_SETTING_KEYS } from '../../../assemblies/domain/settings'
 import { ADMIN_AUDIT_ACTIONS } from '../../domain/auditEntry'
+
+// Mesmo formato 8-4-4-4-12 de `requireUuidParam` (ids de empresa do motor não têm versão RFC).
+const ENGINE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const macroEventTargetSchema = z
   .object({
@@ -233,7 +237,28 @@ export const botsSummaryQuerySchema = z.object({
 })
 
 // PUT /admin/settings/:key (N.7). A faixa de cada chave é do motor (422); aqui só o formato.
-export const engineSettingKeySchema = z.enum(['ticks_per_day', 'max_catch_up'])
+export const engineSettingKeySchema = z.enum([
+  'ticks_per_day',
+  'max_catch_up',
+  'governance_growth_step_centipp',
+  'governance_quality_step_centi',
+  'governance_ramp_ticks',
+  'governance_cooldown_days',
+  'governance_payout_step_centipp',
+  'governance_payout_min_pct',
+  'governance_payout_max_pct',
+  'governance_payout_cooldown_days',
+  'governance_premium_step_centipp',
+  'governance_premium_min_pct',
+  'governance_premium_max_pct',
+  'governance_hold_declarations',
+  'governance_declaration_safety_days',
+])
+
+// GET /admin/settings?group=: cada tela pede o seu grupo (padrão: o ritmo do Temporizador).
+export const engineSettingsQuerySchema = z.object({
+  group: z.enum(['pace', 'governance']).optional(),
+})
 
 export const updateEngineSettingBodySchema = z.object({
   value: z.number().int(),
@@ -280,6 +305,13 @@ export const creditUserBodySchema = z.object({
   reason: z.string().trim().max(500).optional(),
 })
 
+// Concessão de PRO promocional (MO.2.5): 1 a 90 dias (o teto também vale no caso de uso) e motivo
+// obrigatório, que vai para a auditoria.
+export const grantProBodySchema = z.object({
+  days: z.number().int().min(1).max(90),
+  reason: z.string().trim().min(5).max(500),
+})
+
 export const adjustXpBodySchema = z.object({
   delta: z
     .number()
@@ -323,6 +355,7 @@ export const updateAchievementBodySchema = z
     criteria_type: achievementCriteriaSchema.optional(),
     criteria_value: z.number().positive().optional(),
     is_active: z.boolean().optional(),
+    is_rare: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'informe ao menos um campo' })
 
@@ -446,6 +479,8 @@ export const createAnnouncementBodySchema = z.object({
   body: z.string(),
   severity: z.enum(['info', 'warning', 'critical']),
   dismissible: z.boolean().default(true),
+  // Também por e-mail (EM.5.2): só `severity: critical` e só a quem tem e-mail verificado.
+  notify_by_email: z.boolean().default(false),
   starts_at: isoDate.optional(),
   ends_at: isoDate.nullable().optional(),
 })
@@ -469,6 +504,7 @@ export const startMaintenanceBodySchema = z.object({
   starts_at: isoDate.optional(),
   ends_at: isoDate.nullable().optional(),
   pause_trading: z.boolean().default(false),
+  notify_by_email: z.boolean().default(false),
 })
 
 // GET /admin/exports/:dataset (N.21): período inclusivo (ISO 8601 com fuso) e teto de linhas.
@@ -485,3 +521,55 @@ export const exportQuerySchema = z
     message: 'from não pode ser depois de to',
     path: ['from'],
   })
+
+// Painel das assembleias (MO.6.8). A borda só confere o formato; faixa, tamanhos e efeito são
+// regra do módulo `assemblies` (422).
+export const assemblyListQuerySchema = z.object({
+  status: z.enum(['scheduled', 'open', 'closed']).optional(),
+})
+
+export const assemblySettingKeySchema = z.enum(ASSEMBLY_SETTING_KEYS)
+
+export const updateAssemblySettingBodySchema = z.object({
+  value: z.number().int(),
+})
+
+// POST /admin/assemblies/pauses: global, ou de uma empresa (`company_id`). Motivo obrigatório, fica
+// na auditoria.
+export const pauseAssembliesBodySchema = z
+  .object({
+    scope: z.enum(['global', 'company']),
+    company_id: z.string().regex(ENGINE_UUID).optional(),
+    reason: z.string().trim().min(1).max(300),
+  })
+  .refine(
+    (b) => (b.scope === 'company' ? b.company_id !== undefined : b.company_id === undefined),
+    {
+      message: 'a pausa de uma empresa exige company_id e a global não leva company_id',
+      path: ['company_id'],
+    },
+  )
+
+const agendaOptionSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  gain: z.string(),
+  loss: z.string(),
+  // Formato novo (`{ effects: [...] }`, de 1 a 2 efeitos) ou o antigo (um efeito só); o módulo
+  // `assemblies` valida alavanca, sentido, intensidade e valor da política.
+  effect: z.record(z.string(), z.unknown()),
+})
+
+export const agendaTemplateContentSchema = z.object({
+  purpose: z.enum(['general', 'profit']).optional(),
+  sector: z.string().nullable(),
+  title: z.string(),
+  description: z.string(),
+  options: z.array(agendaOptionSchema).max(10),
+})
+
+export const createAgendaTemplateBodySchema = agendaTemplateContentSchema.extend({
+  key: z.string(),
+})
+
+export const setAgendaTemplateActiveBodySchema = z.object({ active: z.boolean() })

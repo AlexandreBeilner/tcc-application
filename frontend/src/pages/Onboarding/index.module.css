@@ -107,10 +107,21 @@
 .compareBox {
     display: flex;
     flex-direction: column;
+    min-width: 0;
     padding: var(--space-3) var(--space-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-bg-surface);
+}
+
+/* Slide do salário: dois valores lado a lado, sem seta no meio (a grade de três colunas é do slide
+   do tempo e jogaria o segundo valor na coluna estreita). */
+.compareTwo {
+    grid-template-columns: 1fr 1fr;
+}
+
+.compareTwo .compareBox b {
+    font-size: var(--font-size-xl);
 }
 
 .compareBox b {
@@ -150,4 +161,13 @@
     margin: 0;
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
+}
+
+/* Passo de e-mail (EM.6.1): as opções ocupam a largura do slide, uma por linha em todos os
+   breakpoints (o slide tem largura máxima de 420px, então lado a lado não cabe). */
+.optIn {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
 }

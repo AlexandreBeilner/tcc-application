@@ -211,4 +211,87 @@ describe('GetMyAccountUseCase', () => {
 
     expect(result.positions[0].markPrice).toBe(99)
   })
+  describe('valor atual da renda fixa (MO.8.1)', () => {
+    const account = {
+      user_id: 'u',
+      current_balance: 1,
+      total_invested: 1,
+      total_dividends_received: 0,
+    }
+    const base = { type: 'cdb', quantity: 1, average_price: 1000, average_rate: 1.1 }
+
+    it('pede a avaliação ao motor e repassa currentValue/netValue das posições reais', async () => {
+      const accountReader = createFakeAccountReader({
+        account,
+        fixedIncomePositions: [
+          {
+            ...base,
+            asset_id: 'a1',
+            ticker: 'CDB1',
+            name: 'CDB 1',
+            is_sandbox: false,
+            current_value: 1100.5,
+            net_value: 1085,
+          },
+        ],
+      })
+      const result = await new GetMyAccountUseCase(
+        accountReader,
+        createFakeCatalogReader({}),
+      ).execute({ userId: 'u' })
+
+      expect(accountReader.listFixedIncomePositionsOptions).toEqual([{ valuation: true }])
+      expect(result.fixedIncomePositions[0]).toMatchObject({ currentValue: 1100.5, netValue: 1085 })
+    })
+
+    it('avaliação que falhou no motor (campos ausentes) deixa os campos fora, sem derrubar a rota', async () => {
+      const accountReader = createFakeAccountReader({
+        account,
+        fixedIncomePositions: [
+          {
+            ...base,
+            asset_id: 'a1',
+            ticker: 'CDB1',
+            name: 'CDB 1',
+            is_sandbox: false,
+            current_value: 1100,
+            net_value: 1090,
+          },
+          { ...base, asset_id: 'a2', ticker: 'CDB2', name: 'CDB 2', is_sandbox: false },
+        ],
+      })
+      const result = await new GetMyAccountUseCase(
+        accountReader,
+        createFakeCatalogReader({}),
+      ).execute({ userId: 'u' })
+
+      expect(result.fixedIncomePositions[0].currentValue).toBe(1100)
+      expect(result.fixedIncomePositions[1].currentValue).toBeUndefined()
+      expect(result.fixedIncomePositions[1].netValue).toBeUndefined()
+    })
+
+    it('sandbox nunca leva valor atual, mesmo que o motor mande', async () => {
+      const accountReader = createFakeAccountReader({
+        account,
+        fixedIncomePositions: [
+          {
+            ...base,
+            asset_id: 'a3',
+            ticker: 'SBX',
+            name: 'Sandbox',
+            is_sandbox: true,
+            current_value: 5,
+            net_value: 5,
+          },
+        ],
+      })
+      const result = await new GetMyAccountUseCase(
+        accountReader,
+        createFakeCatalogReader({}),
+      ).execute({ userId: 'u' })
+
+      expect(result.fixedIncomePositions[0].currentValue).toBeUndefined()
+      expect(result.fixedIncomePositions[0].netValue).toBeUndefined()
+    })
+  })
 })

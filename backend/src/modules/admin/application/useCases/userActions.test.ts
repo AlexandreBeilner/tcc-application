@@ -1,5 +1,8 @@
+import { createFakeAccountMailer } from '../../../auth/test/fakes/fakeAccountMailer'
+import { createFakeEmailDataEraser } from '../../../auth/test/fakes/fakeEmailDataEraser'
 import { describe, expect, it } from 'vitest'
 import { AnonymizeAccountUseCase } from '../../../auth/application/useCases/anonymizeAccount'
+import { createFakeAuthMailer } from '../../../auth/test/fakes/fakeAuthMailer'
 import { createFakeAvatarStorage } from '../../../auth/test/fakes/fakeAvatarStorage'
 import { createFakeUserRepository } from '../../../auth/test/fakes/fakeUserRepository'
 import {
@@ -18,6 +21,9 @@ import { SuspendUserUseCase } from './suspendUser'
 async function build() {
   const userRepository = createFakeUserRepository()
   const auditLog = createFakeAuditLogRepository()
+  const mailer = createFakeAuthMailer()
+  const accountMailer = createFakeAccountMailer()
+  let seq = 0
   const record = new RecordAdminActionUseCase(auditLog)
   const admin = await userRepository.createUser({
     name: 'Admin',
@@ -36,14 +42,37 @@ async function build() {
   return {
     userRepository,
     auditLog,
+    mailer,
+    accountMailer,
     admin,
     user,
-    suspend: new SuspendUserUseCase(userRepository, record, () => now),
-    reactivate: new ReactivateUserUseCase(userRepository, record),
-    forceLogout: new ForceLogoutUserUseCase(userRepository, record),
+    suspend: new SuspendUserUseCase(
+      userRepository,
+      record,
+      accountMailer,
+      () => now,
+      () => `evento-${++seq}`,
+    ),
+    reactivate: new ReactivateUserUseCase(
+      userRepository,
+      record,
+      accountMailer,
+      () => `evento-${++seq}`,
+    ),
+    forceLogout: new ForceLogoutUserUseCase(
+      userRepository,
+      record,
+      mailer,
+      () => `evento-${++seq}`,
+    ),
     remove: new DeleteUserAccountUseCase(
       userRepository,
-      new AnonymizeAccountUseCase(userRepository, createFakeAvatarStorage()),
+      new AnonymizeAccountUseCase(
+        userRepository,
+        createFakeAvatarStorage(),
+        accountMailer,
+        createFakeEmailDataEraser(),
+      ),
       record,
     ),
     now,
@@ -73,8 +102,33 @@ describe('SuspendUserUseCase', () => {
     })
   })
 
+  it('avisa o usuário com o motivo registrado (E6), e só depois de suspender', async () => {
+    const { suspend, accountMailer, user, admin } = await build()
+
+    await suspend.execute(admin.id, user.id, 'spam no feed')
+
+    expect(accountMailer.suspensions).toEqual([
+      {
+        userId: user.id,
+        to: 'fulano@example.com',
+        name: 'Fulano',
+        reason: 'spam no feed',
+        eventId: 'evento-1',
+      },
+    ])
+  })
+
+  it('falha ao enfileirar o aviso não desfaz a suspensão', async () => {
+    const { suspend, accountMailer, userRepository, user, admin } = await build()
+    accountMailer.failWith(new Error('outbox fora do ar'))
+
+    await suspend.execute(admin.id, user.id, 'spam no feed')
+
+    expect((await userRepository.findById(user.id))?.status).toBe('suspended')
+  })
+
   it('recusa suspender administrador, conta já suspensa e usuário inexistente', async () => {
-    const { suspend, admin, user, auditLog } = await build()
+    const { suspend, admin, user, auditLog, accountMailer } = await build()
 
     await expect(suspend.execute(admin.id, admin.id, 'teste')).rejects.toBeInstanceOf(
       AdminAccountProtectedError,
@@ -87,6 +141,8 @@ describe('SuspendUserUseCase', () => {
       AdminUserNotFoundError,
     )
     expect(auditLog.entries.filter((e) => e.result === 'failed')).toHaveLength(3)
+    // Só a suspensão que valeu avisa: as três recusas e a segunda tentativa não geram e-mail.
+    expect(accountMailer.suspensions).toHaveLength(1)
   })
 })
 
@@ -103,11 +159,23 @@ describe('ReactivateUserUseCase', () => {
     expect(auditLog.entries.at(-1)).toMatchObject({ action: 'user.reactivate', result: 'success' })
   })
 
+  it('avisa o usuário que a conta voltou (E6)', async () => {
+    const { suspend, reactivate, accountMailer, user, admin } = await build()
+    await suspend.execute(admin.id, user.id, 'spam no feed')
+
+    await reactivate.execute(admin.id, user.id)
+
+    expect(accountMailer.reactivations).toEqual([
+      { userId: user.id, to: 'fulano@example.com', name: 'Fulano', eventId: 'evento-2' },
+    ])
+  })
+
   it('recusa reativar conta que não está suspensa', async () => {
-    const { reactivate, user, admin } = await build()
+    const { reactivate, accountMailer, user, admin } = await build()
     await expect(reactivate.execute(admin.id, user.id)).rejects.toBeInstanceOf(
       UserStatusConflictError,
     )
+    expect(accountMailer.reactivations).toEqual([])
   })
 })
 
@@ -123,6 +191,38 @@ describe('ForceLogoutUserUseCase', () => {
       'user.force_logout',
       'user.force_logout',
     ])
+  })
+
+  it('avisa o usuário por e-mail, um aviso por ação (E4)', async () => {
+    const { forceLogout, mailer, user, admin } = await build()
+
+    await forceLogout.execute(admin.id, user.id)
+    await forceLogout.execute(admin.id, user.id)
+
+    expect(mailer.sessionsEnded).toEqual([
+      { userId: user.id, to: 'fulano@example.com', name: 'Fulano', eventId: 'evento-1' },
+      { userId: user.id, to: 'fulano@example.com', name: 'Fulano', eventId: 'evento-2' },
+    ])
+  })
+
+  it('falha ao enfileirar o aviso não desfaz o logout nem a auditoria', async () => {
+    const { forceLogout, mailer, userRepository, user, admin, auditLog } = await build()
+    mailer.sendSessionsEnded = async () => {
+      throw new Error('outbox fora do ar')
+    }
+
+    await forceLogout.execute(admin.id, user.id)
+
+    expect((await userRepository.findById(user.id))?.tokenVersion).toBe(1)
+    expect(auditLog.entries.map((e) => e.action)).toEqual(['user.force_logout'])
+  })
+
+  it('usuário inexistente não gera aviso', async () => {
+    const { forceLogout, mailer, admin } = await build()
+    await expect(forceLogout.execute(admin.id, 'nao-existe')).rejects.toBeInstanceOf(
+      AdminUserNotFoundError,
+    )
+    expect(mailer.sessionsEnded).toEqual([])
   })
 
   it('falha com usuário inexistente', async () => {

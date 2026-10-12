@@ -67,6 +67,7 @@ type options struct {
 	assetProvision  assetProvisioner
 	integrity       integrityChecker
 	exporter        adminExporter
+	governance      governanceManager
 }
 
 // WithSchedulerAdmin liga as rotas do painel de Tempo (N.6); sem ela respondem 503.

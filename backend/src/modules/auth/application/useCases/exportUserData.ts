@@ -1,6 +1,13 @@
+import { randomUUID } from 'node:crypto'
 import { UserNotFoundError } from '../../domain/errors'
+import { notifySafely } from '../notifySafely'
+import type { AccountMailer } from '../ports/accountMailer'
 import type { UserRole } from '../../domain/user'
 import type { AchievementsExporter, ExportedAchievement } from '../ports/achievementsExporter'
+import type {
+  EmailPreferencesExporter,
+  ExportedEmailPreferences,
+} from '../ports/emailPreferencesExporter'
 import type { ExportedFriendship, FriendshipsExporter } from '../ports/friendshipsExporter'
 import type {
   ExportedLessonProgress,
@@ -32,6 +39,7 @@ export interface ExportedUserData {
   achievements: ExportedAchievement[]
   friendships: ExportedFriendship[]
   missionProgress: ExportedMissionProgress[]
+  emailPreferences: ExportedEmailPreferences
 }
 
 // Portabilidade (RNF04) — agrega em JSON os dados do próprio usuário nas
@@ -50,6 +58,9 @@ export class ExportUserDataUseCase {
     private readonly achievementsExporter: AchievementsExporter,
     private readonly friendshipsExporter: FriendshipsExporter,
     private readonly missionProgressExporter: MissionProgressExporter,
+    private readonly emailPreferencesExporter: EmailPreferencesExporter,
+    private readonly accountMailer: AccountMailer,
+    private readonly newEventId: () => string = randomUUID,
   ) {}
 
   async execute(input: ExportUserDataInput): Promise<ExportedUserData> {
@@ -58,15 +69,33 @@ export class ExportUserDataUseCase {
       throw new UserNotFoundError('usuário não encontrado')
     }
 
-    const [identities, progression, lessonProgress, achievements, friendships, missionProgress] =
-      await Promise.all([
-        this.userRepository.listIdentitiesForUser(input.userId),
-        this.progressionExporter.exportForUser(input.userId),
-        this.lessonProgressExporter.exportForUser(input.userId),
-        this.achievementsExporter.exportForUser(input.userId),
-        this.friendshipsExporter.exportForUser(input.userId),
-        this.missionProgressExporter.exportForUser(input.userId),
-      ])
+    const [
+      identities,
+      progression,
+      lessonProgress,
+      achievements,
+      friendships,
+      missionProgress,
+      emailPreferences,
+    ] = await Promise.all([
+      this.userRepository.listIdentitiesForUser(input.userId),
+      this.progressionExporter.exportForUser(input.userId),
+      this.lessonProgressExporter.exportForUser(input.userId),
+      this.achievementsExporter.exportForUser(input.userId),
+      this.friendshipsExporter.exportForUser(input.userId),
+      this.missionProgressExporter.exportForUser(input.userId),
+      this.emailPreferencesExporter.exportForUser(input.userId),
+    ])
+
+    // Aviso de segurança (E7): cada exportação gera um, para quem não a pediu perceber.
+    await notifySafely('o aviso de exportação', () =>
+      this.accountMailer.sendDataExported({
+        userId: user.id,
+        to: user.email,
+        name: user.name,
+        eventId: this.newEventId(),
+      }),
+    )
 
     return {
       user: {
@@ -83,6 +112,7 @@ export class ExportUserDataUseCase {
       achievements,
       friendships,
       missionProgress,
+      emailPreferences,
     }
   }
 }

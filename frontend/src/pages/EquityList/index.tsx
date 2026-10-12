@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { AssetTable } from '../../components/organisms/AssetTable'
+import { Delta } from '../../components/atoms/Delta'
+import { AssetTable, AssetTableSkeleton } from '../../components/organisms/AssetTable'
 import type { AssetTableColumn } from '../../components/organisms/AssetTable'
 import { Pagination } from '../../components/molecules/Pagination'
 import { ASSETS_PAGE_SIZE, EQUITY_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
+import { useAssetPriceSeriesQuery } from '../../features/market/useAssetPriceSeriesQuery'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import type { UseLockedAssetGateResult } from '../../features/market/useLockedAssetGate'
-import { formatSignedPercent } from '../../features/market/format'
 import { formatCurrency } from '../../features/portfolio/format'
 import { useClientPagination } from '../../hooks/useClientPagination'
 import type { AssetSummary } from '../../services/market'
@@ -16,8 +17,8 @@ function priceColumn(asset: AssetSummary): string {
     return asset.current_price !== undefined ? formatCurrency(asset.current_price) : 'aguardando cotação'
 }
 
-function changeColumn(asset: AssetSummary): string {
-    return asset.daily_change_pct !== undefined ? formatSignedPercent(asset.daily_change_pct) : '—'
+function changeColumn(asset: AssetSummary) {
+    return <Delta percent={asset.daily_change_pct} />
 }
 
 // Colunas de Ações incluem risco (inventário 4.4); ETF/FII ficam com o
@@ -40,25 +41,15 @@ function buildColumnsByTab(gate: UseLockedAssetGateResult): Record<string, Asset
         )
     }
 
+    const ticker: AssetTableColumn = { key: 'ticker', header: 'Ticker', render: tickerColumn, slot: 'title' }
+    const name: AssetTableColumn = { key: 'name', header: 'Nome', render: (asset) => asset.name, slot: 'subtitle' }
+    const price: AssetTableColumn = { key: 'price', header: 'Último preço', render: priceColumn, slot: 'price', align: 'end' }
+    const change: AssetTableColumn = { key: 'change', header: 'Variação do dia', render: changeColumn, slot: 'change', align: 'end' }
+
     return {
-        acoes: [
-            { key: 'ticker', header: 'Ticker', render: tickerColumn },
-            { key: 'risk', header: 'Risco', render: (asset) => asset.risk_class ?? '—' },
-            { key: 'price', header: 'Último preço', render: priceColumn },
-            { key: 'change', header: 'Variação do dia', render: changeColumn },
-        ],
-        etfs: [
-            { key: 'ticker', header: 'Ticker', render: tickerColumn },
-            { key: 'name', header: 'Nome', render: (asset) => asset.name },
-            { key: 'price', header: 'Último preço', render: priceColumn },
-            { key: 'change', header: 'Variação do dia', render: changeColumn },
-        ],
-        fiis: [
-            { key: 'ticker', header: 'Ticker', render: tickerColumn },
-            { key: 'name', header: 'Nome', render: (asset) => asset.name },
-            { key: 'price', header: 'Último preço', render: priceColumn },
-            { key: 'change', header: 'Variação do dia', render: changeColumn },
-        ],
+        acoes: [ticker, name, { key: 'risk', header: 'Risco', render: (asset) => asset.risk_class ?? '—', slot: 'tag' }, price, change],
+        etfs: [ticker, name, price, change],
+        fiis: [ticker, name, price, change],
     }
 }
 
@@ -66,6 +57,7 @@ export function EquityList() {
     const [activeTabKey, setActiveTabKey] = useState(EQUITY_TABS[0].key)
     const assetsQuery = useAssetsQuery()
     const gate = useLockedAssetGate()
+    const priceSeriesQuery = useAssetPriceSeriesQuery()
     const columnsByTab = buildColumnsByTab(gate)
 
     const activeTab = EQUITY_TABS.find((tab) => tab.key === activeTabKey) ?? EQUITY_TABS[0]
@@ -104,7 +96,7 @@ export function EquityList() {
                 </p>
             )}
 
-            {!assetsQuery.data && !assetsQuery.isError && <p className={styles.loading}>Carregando ativos…</p>}
+            {!assetsQuery.data && !assetsQuery.isError && <AssetTableSkeleton />}
 
             {assetsQuery.data && (
                 <>
@@ -112,6 +104,7 @@ export function EquityList() {
                         assets={pageAssets}
                         columns={columnsByTab[activeTab.key]}
                         onSelect={handleSelect}
+                        sparklines={priceSeriesQuery.data?.series ?? {}}
                         emptyMessage="Nenhum ativo disponível nesta categoria ainda."
                     />
                     <Pagination page={currentPage} totalPages={totalPages} onPageChange={setPage} ariaLabel="Paginação de Renda Variável" />

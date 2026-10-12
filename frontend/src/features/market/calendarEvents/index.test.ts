@@ -23,6 +23,15 @@ describe('describeCalendarEvent', () => {
         expect(view.subtitle).toContain('Anterior')
     })
 
+    it.each([
+        ['assembly_open', 'Abre a votação'],
+        ['assembly_close', 'Fecha a votação'],
+        ['assembly_effect', 'O efeito da decisão começa'],
+    ] as const)('marco de assembleia %s usa o título do servidor e nunca é do usuário', (kind, subtitle) => {
+        const view = describeCalendarEvent(event({ kind, title: 'Acme: Destinação do lucro' }))
+        expect(view).toMatchObject({ title: 'Acme: Destinação do lucro', subtitle, label: 'Assembleia', mine: false })
+    })
+
     it('Copom futuro não revela resultado', () => {
         const view = describeCalendarEvent(event({ kind: 'copom', future: true }))
         expect(view).toMatchObject({ title: 'Reunião do Copom', subtitle: 'Decisão da Selic' })

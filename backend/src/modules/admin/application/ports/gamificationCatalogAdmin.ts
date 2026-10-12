@@ -6,6 +6,8 @@ export type AchievementCriteriaKey =
   | 'micro_decisions_streak'
   | 'track_completed_no_errors'
   | 'lesson_reviewed'
+  | 'assemblies_participated'
+  | 'referrals_qualified'
 
 export interface CriterionOption {
   type: AchievementCriteriaKey
@@ -21,6 +23,7 @@ export interface CatalogAchievement {
   criteriaType: AchievementCriteriaKey
   criteriaValue: number
   isActive: boolean
+  isRare: boolean
   // Quantos usuários já ganharam.
   unlockedCount: number
 }
@@ -44,6 +47,7 @@ export interface AchievementChanges {
   criteriaType?: AchievementCriteriaKey
   criteriaValue?: number
   isActive?: boolean
+  isRare?: boolean
 }
 
 export type MissionVerificationKind = 'lesson_completion' | 'server_check' | 'client_reported'

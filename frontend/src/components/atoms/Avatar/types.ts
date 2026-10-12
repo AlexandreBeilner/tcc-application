@@ -8,4 +8,6 @@ export interface AvatarProps {
     // iniciais; `null`/`undefined` (usuário nunca fez upload) cai no
     // fallback de sempre.
     avatarUrl?: string | null
+    // Moldura do PRO (MO.5.1): chave do catálogo; ausente ou desconhecida = sem moldura.
+    frame?: string | null
 }

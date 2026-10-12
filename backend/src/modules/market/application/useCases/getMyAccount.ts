@@ -25,6 +25,10 @@ export interface MyAccountPosition extends BaseMyAccountPosition {
 
 export interface MyAccountFixedIncomePosition extends BaseMyAccountPosition {
   averageRate: number
+  // Valor BRUTO de hoje e líquido de IR (MO.8.1), 1:1 com o que o motor avalia pelo mesmo caminho
+  // do resgate. Ausentes no sandbox e quando a avaliação dessa posição falhou: quem lê cai no custo.
+  currentValue?: number
+  netValue?: number
 }
 
 export interface MyAccountResult {
@@ -68,7 +72,7 @@ export class GetMyAccountUseCase {
     const [account, positions, fixedIncomePositions] = await Promise.all([
       this.accountReader.getAccount(input.userId),
       this.accountReader.listPositions(input.userId),
-      this.accountReader.listFixedIncomePositions(input.userId),
+      this.accountReader.listFixedIncomePositions(input.userId, { valuation: true }),
     ])
 
     const markPriceByAssetId = await this.loadMarkPrices(input.userId, positions)
@@ -97,6 +101,8 @@ export class GetMyAccountUseCase {
         quantity: position.quantity,
         averagePrice: position.average_price,
         averageRate: position.average_rate,
+        currentValue: position.is_sandbox ? undefined : position.current_value,
+        netValue: position.is_sandbox ? undefined : position.net_value,
       })),
     }
   }

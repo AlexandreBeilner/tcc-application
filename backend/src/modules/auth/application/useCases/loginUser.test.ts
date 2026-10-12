@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { AccountSuspendedError, InvalidCredentialsError } from '../../domain/errors'
+import {
+  AccountSuspendedError,
+  EmailNotVerifiedError,
+  InvalidCredentialsError,
+} from '../../domain/errors'
 import { createFakePasswordHasher } from '../../test/fakes/fakePasswordHasher'
 import { createFakeTokenIssuer } from '../../test/fakes/fakeTokenIssuer'
 import { createFakeAccountProvisioner } from '../../test/fakes/fakeAccountProvisioner'
@@ -15,22 +19,27 @@ function build() {
   const registerUser = new RegisterUserUseCase(
     userRepository,
     passwordHasher,
-    tokenIssuer,
     createFakeAccountProvisioner(),
+    { sendToUser: async () => {} },
   )
   const loginUser = new LoginUserUseCase(userRepository, passwordHasher, tokenIssuer)
-  return { registerUser, loginUser, userRepository, tokenIssuer }
+  // Cadastro novo nasce não verificado (D2); os testes que só querem logar confirmam o e-mail.
+  async function verify(userId: string) {
+    await userRepository.updateUser(userId, { emailVerifiedAt: new Date() })
+  }
+  return { registerUser, loginUser, userRepository, tokenIssuer, verify }
 }
 
 describe('LoginUserUseCase', () => {
   it('emite token com credenciais corretas', async () => {
-    const { registerUser, loginUser } = build()
-    await registerUser.execute({
+    const { registerUser, loginUser, verify } = build()
+    const { user } = await registerUser.execute({
       name: 'Alexandre',
       email: 'login@example.com',
       username: 'loginuser',
       password: 'senha-forte-123',
     })
+    await verify(user.id)
 
     const result = await loginUser.execute({
       email: 'login@example.com',
@@ -52,6 +61,43 @@ describe('LoginUserUseCase', () => {
     await expect(
       loginUser.execute({ email: 'wrongpass@example.com', password: 'outra-senha' }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError)
+  })
+
+  describe('e-mail não verificado (D2)', () => {
+    it('recusa conta não verificada só depois de a senha conferir', async () => {
+      const { registerUser, loginUser } = build()
+      await registerUser.execute({
+        name: 'Alexandre',
+        email: 'pendente@example.com',
+        username: 'pendente',
+        password: 'senha-forte-123',
+      })
+
+      await expect(
+        loginUser.execute({ email: 'pendente@example.com', password: 'senha-forte-123' }),
+      ).rejects.toBeInstanceOf(EmailNotVerifiedError)
+      // Senha errada: mesmo erro genérico, sem revelar que a conta existe e está pendente.
+      await expect(
+        loginUser.execute({ email: 'pendente@example.com', password: 'errada' }),
+      ).rejects.toBeInstanceOf(InvalidCredentialsError)
+    })
+
+    it('libera o login depois que o e-mail é verificado', async () => {
+      const { registerUser, loginUser, verify } = build()
+      const { user } = await registerUser.execute({
+        name: 'Alexandre',
+        email: 'ok@example.com',
+        username: 'okuser',
+        password: 'senha-forte-123',
+      })
+      await verify(user.id)
+
+      const result = await loginUser.execute({
+        email: 'ok@example.com',
+        password: 'senha-forte-123',
+      })
+      expect(result.user.id).toBe(user.id)
+    })
   })
 
   it('rejeita e-mail inexistente', async () => {
@@ -97,12 +143,14 @@ describe('LoginUserUseCase', () => {
         username: 'admin',
         passwordHash: await passwordHasher.hash('senha-forte-123'),
         role: 'admin',
+        emailVerified: true,
       })
       const user = await userRepository.createUser({
         name: 'Comum',
         email: 'comum@example.com',
         username: 'comum',
         passwordHash: await passwordHasher.hash('senha-forte-123'),
+        emailVerified: true,
       })
       return { loginUser, sessionAuditor, admin, user }
     }
@@ -135,7 +183,7 @@ describe('LoginUserUseCase', () => {
         username: 'susp',
         password: 'senha-forte-123',
       })
-      await userRepository.updateUser(user.id, { status: 'suspended' })
+      await userRepository.updateUser(user.id, { status: 'suspended', emailVerifiedAt: new Date() })
 
       await expect(
         loginUser.execute({ email: 'susp@example.com', password: 'senha-forte-123' }),
@@ -153,6 +201,7 @@ describe('LoginUserUseCase', () => {
         username: 'ver',
         password: 'senha-forte-123',
       })
+      await userRepository.updateUser(user.id, { emailVerifiedAt: new Date() })
       await userRepository.revokeSessions(user.id)
 
       const { token } = await loginUser.execute({

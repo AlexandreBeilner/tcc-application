@@ -40,7 +40,7 @@ describe('inProcessGamificationCatalogAdmin', () => {
     const { achievements, criteria } = await catalogAdmin.listAchievements()
 
     expect(achievements).toEqual([{ ...streak7, unlockedCount: 1 }])
-    expect(criteria).toHaveLength(7)
+    expect(criteria).toHaveLength(9)
     expect(criteria.find((c) => c.type === 'net_worth')).toEqual({
       type: 'net_worth',
       label: 'Patrimônio (R$)',

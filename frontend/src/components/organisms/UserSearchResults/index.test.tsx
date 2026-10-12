@@ -40,7 +40,13 @@ function renderResults(
     )
 }
 
-const user: SearchedUser = { id: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null }
+const user: SearchedUser = {
+    id: 'u2',
+    username: 'bia',
+    name: 'Bia Souza',
+    avatarUrl: null,
+    cosmetics: { isPro: false, frame: null, title: null },
+}
 
 describe('UserSearchResults (tela 8.2)', () => {
     beforeEach(() => {
@@ -76,7 +82,15 @@ describe('UserSearchResults (tela 8.2)', () => {
     it('já amigos mostra "Amigos", sem botão de ação', () => {
         renderResults([user], {
             friends: [
-                { friendshipId: 'f0', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, friendsSince: '2026-01-01' },
+                {
+                    friendshipId: 'f0',
+                    userId: 'u2',
+                    username: 'bia',
+                    name: 'Bia Souza',
+                    avatarUrl: null,
+                    cosmetics: { isPro: false, frame: null, title: null },
+                    friendsSince: '2026-01-01',
+                },
             ],
         })
 
@@ -87,7 +101,15 @@ describe('UserSearchResults (tela 8.2)', () => {
     it('solicitação já enviada mostra "Pendente"', () => {
         renderResults([user], {
             sentRequests: [
-                { friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, createdAt: '2026-01-01' },
+                {
+                    friendshipId: 'f1',
+                    userId: 'u2',
+                    username: 'bia',
+                    name: 'Bia Souza',
+                    avatarUrl: null,
+                    cosmetics: { isPro: false, frame: null, title: null },
+                    createdAt: '2026-01-01',
+                },
             ],
         })
 
@@ -108,7 +130,15 @@ describe('UserSearchResults (tela 8.2)', () => {
 
         renderResults([user], {
             receivedRequests: [
-                { friendshipId: 'f1', userId: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, createdAt: '2026-01-01' },
+                {
+                    friendshipId: 'f1',
+                    userId: 'u2',
+                    username: 'bia',
+                    name: 'Bia Souza',
+                    avatarUrl: null,
+                    cosmetics: { isPro: false, frame: null, title: null },
+                    createdAt: '2026-01-01',
+                },
             ],
         })
 
@@ -118,7 +148,7 @@ describe('UserSearchResults (tela 8.2)', () => {
     })
 
     it('o próprio usuário na lista (regressão da exclusão feita pelo backend) mostra "Você", sem botão de ação', () => {
-        renderResults([{ id: 'u1', username: 'ana', name: 'Ana', avatarUrl: null }])
+        renderResults([{ id: 'u1', username: 'ana', name: 'Ana', avatarUrl: null, cosmetics: { isPro: false, frame: null, title: null } }])
 
         expect(screen.getByText('Você')).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()

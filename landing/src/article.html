@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{{PAGE_TITLE}} | Selucra</title>
+        <meta name="description" content="{{PAGE_DESC}}" />
+        <link rel="canonical" href="{{PAGE_URL}}" />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <meta name="theme-color" content="#0e0f13" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta property="og:type" content="{{OG_TYPE}}" />
+        <meta property="og:site_name" content="Selucra" />
+        <meta property="og:locale" content="pt_BR" />
+        <meta property="og:url" content="{{PAGE_URL}}" />
+        <meta property="og:title" content="{{PAGE_TITLE}}" />
+        <meta property="og:description" content="{{PAGE_DESC}}" />
+        <meta property="og:image" content="{{SITE_URL}}/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="{{PAGE_TITLE}}" />
+        <meta name="twitter:description" content="{{PAGE_DESC}}" />
+        <meta name="twitter:image" content="{{SITE_URL}}/og-image.png" />
+        {{PRELOAD_FONTS}} {{CSS}}
+        <script type="application/ld+json">
+            {{JSONLD}}
+        </script>
+    </head>
+    <body>
+        <a class="skip" href="#conteudo">Ir para o conteúdo</a>
+        {{HEADER}}
+        <main id="conteudo">{{BODY}}</main>
+        {{FOOTER}} {{ANALYTICS}}
+    </body>
+</html>

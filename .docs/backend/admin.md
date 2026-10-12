@@ -59,8 +59,8 @@ Valem para todas as rotas `/admin/*`:
 - **Sem cache:** toda resposta leva `Cache-Control: no-store`.
 - **Limite de taxa:** 600 requisições por minuto por IP (`429` com `Retry-After`). O painel faz polling, então o teto é folgado; serve pra frear laço descontrolado. Janela fixa em memória (uma instância do backend); com réplicas, migrar o contador pro Redis.
 - **Token curto:** token de admin expira em 2 horas (ver `auth.md`).
-- **Reautenticação em ação destrutiva:** `POST /admin/tick`, `POST /admin/tick/advance`, `POST /admin/scheduler/pause`, `POST /admin/halts` (pausa de negociação) e `POST /admin/orders/cancel-batch` devolvem `401 { error: "reauth_required" }` se a senha não foi conferida nos últimos 5 minutos (login conta). A checagem vem **depois** do `403` de papel (usuário comum nunca vê `reauth_required`) e **antes** de qualquer efeito ou auditoria. Retomar o temporizador e levantar pausa não são destrutivos e não pedem. Fluxo: `POST /auth/reauth` → token novo → repetir a ação.
-- **Auditoria de sessão:** `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed` entram em `admin_audit_log` (`target_type = session`).
+- **Reautenticação em ação destrutiva:** `POST /admin/tick`, `POST /admin/tick/advance`, `POST /admin/scheduler/pause`, `POST /admin/halts` (pausa de negociação), `POST /admin/assemblies/pauses` (pausa das assembleias) e `POST /admin/orders/cancel-batch` devolvem `401 { error: "reauth_required" }` se a senha não foi conferida nos últimos 5 minutos (login conta). A checagem vem **depois** do `403` de papel (usuário comum nunca vê `reauth_required`) e **antes** de qualquer efeito ou auditoria. Retomar o temporizador e levantar pausa não são destrutivos e não pedem. Fluxo: `POST /auth/reauth` → token novo → repetir a ação.
+- **Auditoria de sessão:** `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed` entram em `admin_audit_log` (`target_type = session`). `admin.password_reset_denied` (sempre `failed`) registra o pedido de redefinição de senha por e-mail para uma conta admin, que é negado e não envia nada (D7, `POST /auth/forgot-password`).
 - **2FA** fica de fora (Fase 2).
 
 #### Criar e revogar administrador (runbook)
@@ -72,7 +72,7 @@ Valem para todas as rotas `/admin/*`:
 *(Tarefa N.4. Sem backfill: ações administrativas anteriores à tarefa não existem no log.)*
 
 - **Autenticação:** Bearer token + `role: 'admin'`.
-- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
+- **Payload:** query string, todos opcionais, validados por `listAuditLogQuerySchema` (`interfaces/http/schemas.ts`): `admin_id` (uuid), `action` (lista fechada em `domain/auditEntry.ts`: `macro_event.trigger`, `tick.trigger`, `tick.advance`, `scheduler.pause`, `scheduler.resume`, `order.cancel`, `order.cancel_batch`, e as demais da lista fechada, incluindo `admin.login`, `admin.login_failed`, `admin.reauth`, `admin.reauth_failed`, `admin.password_reset_denied`, `user.suspend`, `user.reactivate`, `user.force_logout`, `user.delete`, `announcement.create`, `announcement.update`, `announcement.end`, `maintenance.start`, e as do painel das assembleias `assembly.pause`, `assembly.resume`, `assembly.setting_update`, `assembly.setting_reset`, `assembly.template_create`, `assembly.template_update`, `assembly.template_activate`, `assembly.template_deactivate`, e a concessão de PRO `billing.grant_promotional`), `result` (`success` | `failed`), `from`/`to` (ISO 8601 com fuso, `from` ≤ `to`), `limit` (inteiro 1–100, padrão 20) e `offset` (inteiro ≥ 0, padrão 0).
 - **Sucesso:** `200` → `{ entries: [...], total_entries }`, mais recentes primeiro. Cada item: `{ id, admin_id, admin_username, action, target_type, target_id | null, payload, result, error_message | null, occurred_at }`. `total_entries` é o total do filtro, sem paginação.
 - **Erros:**
   - `401` — token ausente ou inválido.
@@ -98,17 +98,17 @@ Seis rotas. Todas exigem Bearer token + `role: 'admin'` (`401` sem token, `403` 
 #### `POST /admin/users/:id/suspend`
 
 - **Payload:** `{ reason }`, 3 a 500 caracteres (obrigatório; vai pro log e pra tela).
-- **Sucesso:** `204`. Grava `status = suspended`, `suspended_reason`, `suspended_at` e **revoga as sessões** (um token antigo não volta a valer na reativação). A conta sai do ranking e da busca de amigos, perde o login (`403 account_suspended`) e todo token existente passa a receber `403 account_suspended`; o progresso não é tocado. **Não cancela ordens em repouso** (use `POST /admin/orders/cancel-batch`, N.10). Auditoria: `user.suspend` com `payload.reason`.
+- **Sucesso:** `204`. Grava `status = suspended`, `suspended_reason`, `suspended_at` e **revoga as sessões** (um token antigo não volta a valer na reativação). A conta sai do ranking e da busca de amigos, perde o login (`403 account_suspended`) e todo token existente passa a receber `403 account_suspended`; o progresso não é tocado. **Não cancela ordens em repouso** (use `POST /admin/orders/cancel-batch`, N.10). Auditoria: `user.suspend` com `payload.reason`. *(EM.5.1.)* Enfileira o aviso `account_suspended` (E6, segurança) com o motivo registrado e a orientação de contestar respondendo ao e-mail (depende de `EMAIL_REPLY_TO`); é o único e-mail que a conta suspensa recebe. Falha ao enfileirar só é logada.
 - **Erros:** `400` sem motivo; `401 reauth_required`; `404`; `409` conta já suspensa; `422 { code: "admin_account_protected" }` alvo é `admin` (evita se trancar fora).
 
 #### `POST /admin/users/:id/reactivate`
 
-- **Sucesso:** `204`. Volta a `active`, limpa motivo e instante, **sem perda** de progresso, conquistas, amizades ou posições. As sessões antigas continuam encerradas: a pessoa loga de novo. Auditoria: `user.reactivate`.
+- **Sucesso:** `204`. Volta a `active`, limpa motivo e instante, **sem perda** de progresso, conquistas, amizades ou posições. As sessões antigas continuam encerradas: a pessoa loga de novo. Auditoria: `user.reactivate`. *(EM.5.1.)* Enfileira o aviso `account_reactivated` (E6).
 - **Erros:** `404`; `409` conta que não está suspensa.
 
 #### `POST /admin/users/:id/force-logout`
 
-- **Sucesso:** `204`. Incrementa `users.token_version` (atômico); o `authMiddleware` compara a versão do token com a do banco e devolve `401 sessão encerrada` pra qualquer token emitido antes. A pessoa pode logar de novo. Auditoria: `user.force_logout`.
+- **Sucesso:** `204`. Incrementa `users.token_version` (atômico); o `authMiddleware` compara a versão do token com a do banco e devolve `401 sessão encerrada` pra qualquer token emitido antes. A pessoa pode logar de novo. Auditoria: `user.force_logout`. *(EM.4.1.)* Também enfileira o aviso `sessions_ended` (E4) para o e-mail do usuário, um por ação, sem token, sem revelar quem agiu nem o motivo; falha ao enfileirar é só logada e não desfaz o logout nem a auditoria.
 - **Erros:** `401 reauth_required`; `404`.
 
 #### `DELETE /admin/users/:id`
@@ -124,7 +124,7 @@ Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'ad
 #### `POST /admin/users/:id/credit`
 
 - **Payload:** `{ amount, reason? }`. `amount` é um número positivo e finito (`NaN` e infinito nem existem em JSON); `reason` até 500 caracteres.
-- **Sucesso:** `200` → `{ user_id, credited }`, onde `credited` é o valor de fato creditado (o motor arredonda pra centavos). **Sem teto de negócio** (decisão do autor, achado 029 item 5); o único limite é físico (R$ 1 trilhão por crédito, e saldo final dentro de `numeric(15,2)`). O motor grava o evento imutável `admin_credit` antes de somar em `current_balance` (`POST /admin/accounts/{user_id}/credit`, `.docs/engine/account.md`). É caixa livre: não toca `total_invested` e companhia, então **não altera a rentabilidade do ranking**. No extrato aparece com `event_type = "admin_credit"`, nunca como salário. Auditoria: `user.credit` com `amount`, `reason` (se houver) e `credited`.
+- **Sucesso:** `200` → `{ user_id, credited }`, onde `credited` é o valor de fato creditado (o motor arredonda pra centavos). **Sem teto de negócio** (decisão do autor, achado 029 item 5); o único limite é físico (R$ 1 trilhão por crédito, e saldo final dentro de `numeric(15,2)`). O motor grava o evento imutável `admin_credit` antes de somar em `current_balance` (`POST /admin/accounts/{user_id}/credit`, `.docs/engine/account.md`). É caixa livre: não toca `total_invested` e companhia, então **não altera a rentabilidade do ranking**. No extrato aparece com `event_type = "admin_credit"`, nunca como salário. Auditoria: `user.credit` com `amount`, `reason` (se houver) e `credited`. *(EM.5.1.)* Depois de creditar, enfileira o aviso `account_adjusted` (E10) com o valor creditado; o `reason` é nota interna e **não** vai no e-mail. As correções de XP, streak, conquista e lição (`/xp`, `/streak`, `/grant`, `/complete`, `/reopen`) avisam do mesmo jeito, só com uma frase do que mudou. Falha ao enfileirar só é logada.
 - **Erros:** `400` valor inválido na borda (zero, negativo, texto, ausente); `401 reauth_required`; `404` usuário inexistente (ou sem conta no motor); `422 { code: "credit_rejected" }` o motor recusou o valor; `422 { code: "balance_overflow" }` o crédito estouraria o saldo.
 
 #### `POST /admin/users/:id/xp`
@@ -145,6 +145,17 @@ Ferramentas de suporte sobre um usuário. Todas exigem Bearer token + `role: 'ad
 - **Sucesso:** `204`. Concede a conquista **sem checar o critério**. Não existe `/revoke` (removida na N.26): se o usuário ainda satisfaz o critério, a próxima checagem automática (XP, streak, lição) a concederia de novo, então a ação prometia algo que não acontecia; a rota agora responde `404`. Auditoria: `user.grant_achievement` com `achievement_id`, `achievement_name` e `reason` (as linhas `user.revoke_achievement` já gravadas continuam legíveis no histórico).
 - **Erros:** `400` sem motivo ou id que não é UUID; `401 reauth_required`; `404` usuário ou conquista inexistente; `409` o usuário já tem a conquista.
 
+#### `GET /admin/users/:id/pro`
+
+- **Sucesso:** `200` → `{ is_pro, state, plan, store, expires_at }`, o mesmo plano que a pessoa vê em `GET /billing/status`, lido pelo `GetSubscriptionStatusUseCase` do módulo `billing` (única fonte da verdade; nunca claim de JWT). `plan` e `store` são `null` sem plano; `store` é `promotional` quando o acesso vem de concessão.
+- **Erros:** `401`, `403`, `404` usuário inexistente.
+
+#### `POST /admin/users/:id/pro-grants`
+
+- **Payload:** `{ days, reason }`. `days` é um inteiro de 1 a 90 (teto por concessão, decisão do autor em 2026-10-11); `reason` é obrigatório, de 5 a 500 caracteres. Exige papel admin e **senha conferida há pouco** (`401 reauth_required`).
+- **Sucesso:** `200` → `{ user_id, ends_at, previous_access_end }`. A concessão **empilha**: conta a partir do fim do acesso atual (assinatura paga ou concessão anterior), nunca por cima dele, então não encurta nada; quem não é PRO, ou já venceu, conta a partir de agora. Passa pelo `GrantPromotionalProUseCase` do módulo `billing` (RevenueCat, ou a projeção local com `BILLING_PROVIDER=dev`), então a concessão aparece em `GET /billing/status` da pessoa. Auditoria: `billing.grant_promotional` com `days`, `reason`, `ends_at` e `previous_access_end`. Não envia e-mail à pessoa. Não há revogação pelo painel nesta fase.
+- **Erros:** `400` payload inválido; `401 reauth_required`; `404` usuário inexistente; `409` a pessoa já tem PRO sem vencimento (nada a empilhar); `422 { code: "pro_grant_rejected" }` período fora de 1 a 90; `502 { code: "billing_provider_error" }` falha do RevenueCat (nada foi concedido, dá para repetir); `503 { code: "billing_disabled" }` cobrança desligada no ambiente.
+
 #### `POST /admin/users/:id/lessons/:lessonId/complete` e `/reopen`
 
 - **Payload:** `{ reason }`.
@@ -162,7 +173,7 @@ Seis rotas, todas só para `role: 'admin'` (`401` sem token, `403` para usuário
 
 #### `GET /admin/gamification/achievements`
 
-- **Sucesso:** `200` → `{ achievements: [{ id, name, description, criteria_type, criteria_value, is_active, unlocked_count }], criteria: [{ type, label, value_kind }] }`. `unlocked_count` é quantos usuários já ganharam. `criteria` é a **lista fechada** de regras que o código sabe avaliar (`net_worth`, `streak_days`, `lessons_completed`, `trades_executed`, `micro_decisions_streak`, `track_completed_no_errors`, `lesson_reviewed`), com `value_kind` `integer` ou `currency`: o painel escolhe uma, nunca digita expressão.
+- **Sucesso:** `200` → `{ achievements: [{ id, name, description, criteria_type, criteria_value, is_active, is_rare, unlocked_count }], criteria: [{ type, label, value_kind }] }`. `unlocked_count` é quantos usuários já ganharam. `criteria` é a **lista fechada** de regras que o código sabe avaliar (`net_worth`, `streak_days`, `lessons_completed`, `trades_executed`, `micro_decisions_streak`, `track_completed_no_errors`, `lesson_reviewed`), com `value_kind` `integer` ou `currency`: o painel escolhe uma, nunca digita expressão.
 
 #### `POST /admin/gamification/achievements`
 
@@ -172,7 +183,7 @@ Seis rotas, todas só para `role: 'admin'` (`401` sem token, `403` para usuário
 
 #### `PATCH /admin/gamification/achievements/:id`
 
-- **Payload:** qualquer subconjunto, ao menos um campo: `name`, `description` (`null` limpa), `criteria_type`, `criteria_value`, `is_active`.
+- **Payload:** qualquer subconjunto, ao menos um campo: `name`, `description` (`null` limpa), `criteria_type`, `criteria_value`, `is_active`, `is_rare` (marca a conquista como rara no catálogo; é o que dispara o e-mail de conquista rara, ponto 044; nasce `false` na criação e se marca por aqui).
 - **Sucesso:** `200` → a conquista atualizada. O estado final é validado (trocar só o tipo de critério de uma meta em reais por um de contagem é recusado se a meta não for inteira). **Desativar nunca remove o que o usuário já ganhou**: a conquista deixa de ser concedida e some pra quem ainda não a tem; mudar meta ou regra só vale pras próximas concessões, ninguém é revogado. Auditoria: `achievement.update` só com os campos pedidos.
 - **Erros:** `400`; `404`; `409`; `422`.
 
@@ -278,9 +289,10 @@ Duas rotas de leitura da tela de entrada do painel. Exigem Bearer token + `role:
 
 #### `GET /admin/system/health`
 
-- **Sucesso:** `200` → `{ checked_at, components: [{ key, status, latency_ms | null, detail | null }] }`, sempre nesta ordem: `backend`, `engine`, `gamification_db`, `market_db`, `redis`. `status` é `ok`, `degradado` (respondeu, mas em mais de 1000 ms) ou `fora` (falhou ou não respondeu em 3 s; `latency_ms` vira `null` e `detail` traz o motivo).
+- **Sucesso:** `200` → `{ checked_at, components: [{ key, status, latency_ms | null, detail | null }] }`, sempre nesta ordem: `backend`, `engine`, `gamification_db`, `market_db`, `redis`, `email_outbox`. `status` é `ok`, `degradado` (respondeu, mas em mais de 1000 ms) ou `fora` (falhou ou não respondeu em 3 s; `latency_ms` vira `null` e `detail` traz o motivo).
 - **Erros:** nenhum próprio. Um componente fora **não** derruba a resposta, só aparece como `fora`.
 - **Regra:** `GetSystemHealthUseCase` sonda os componentes em paralelo por `HealthProbe` (porta): `engine` = `GET /health` do motor; `gamification_db` = `select 1` no pool do backend; `redis` = `PING`; `market_db` = a leitura da visão geral do motor (só o motor fala com esse banco, então se ela responde o banco está de pé). O `backend` é `ok` por definição.
+  - **`email_outbox` (EM.8.1)** não é uma sonda de resposta, é uma leitura de contadores da fila de e-mail (`EmailOutboxHealthReader`, porta; adapter Drizzle sobre `email_outbox`). `detail` sempre traz o resumo (`"N pendente(s), M falha(s) em 24 h"`); `latency_ms` é o tempo da leitura. **Pendente** = linha `pending` já vencida (`next_attempt_at <= agora`); um reenvio agendado pra daqui a horas não conta. `degradado` (alerta, não queda) quando a pendente vencida mais antiga espera **há mais de 10 min** (fila parada: worker fora ou provedor recusando) ou quando há **5 ou mais** falhas definitivas (`failed`) nas últimas 24 h ("falhas acumulando"; o `detail` diz qual). Leitura que falha vira `fora`, como qualquer componente.
 
 #### `GET /admin/overview`
 
@@ -357,24 +369,106 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 
 ### Parâmetros de simulação (tarefa N.7)
 
-Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve as faixas e o efeito): só `ticks_per_day` e `max_catch_up` são editáveis.
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy do motor (ver `.docs/engine/admin.md`, que descreve as faixas e o efeito). Dois grupos de chaves editáveis, cada um lido pela sua tela: o **ritmo** (`ticks_per_day`, `max_catch_up`, tela de Tempo) e a **governança das assembleias** (`governance_growth_step_centipp`, `governance_quality_step_centi`, `governance_ramp_ticks`, `governance_cooldown_days`, tela de Assembleias, MO.6.8; faixa de efeito, rampa e cooldown da MO.6.2, mais, da Fase F2, `governance_payout_step_centipp`, `governance_payout_min_pct`, `governance_payout_max_pct`, `governance_payout_cooldown_days`, `governance_premium_step_centipp`, `governance_premium_min_pct`, `governance_premium_max_pct`, `governance_hold_declarations` e `governance_declaration_safety_days`; ver `.docs/engine/governance.md`). O motor guarda tudo junto; o backend só devolve o grupo pedido.
 
 #### `GET /admin/settings`
 
-- **Sucesso:** `200` → `{ editable: [{ key, value, default, min, max, overridden, updated_by, updated_at, version }], read_only: [{ key, value, reason }] }`.
+- **Payload (query), opcional:** `group` (`pace` padrão, ou `governance`), validado por `engineSettingsQuerySchema`.
+- **Sucesso:** `200` → `{ editable: [{ key, value, default, min, max, overridden, updated_by, updated_at, version }], read_only: [{ key, value, reason }] }`, com `editable` só do grupo pedido.
+- **Erros:** `400` — `group` desconhecido (o motor não é chamado).
 
 #### `PUT /admin/settings/:key`
 
 - **Payload (JSON):** `value` (inteiro), validado por `updateEngineSettingBodySchema`. O `admin_id` vem do token.
-- **Sucesso:** `200` → o mesmo corpo do `GET`, com o valor novo.
+- **Sucesso:** `200` → o mesmo corpo do `GET` (do grupo da chave), com o valor novo.
 - **Erros:** `400` — `value` não é inteiro (o motor não é chamado); `404` — `key` não é editável (o motor não é chamado); `422` — fora da faixa, com a mensagem do motor.
 - **Auditoria:** `settings.update`, `target_type = engine_setting`, `target_id` = a chave, `payload = { key, value }`; a recusa do motor grava `result = failed` com o motivo. O valor anterior não vai no payload: está na linha anterior da mesma chave.
 
 #### `DELETE /admin/settings/:key`
 
-- **Sucesso:** `200` → o mesmo corpo do `GET`, com a chave no padrão do ambiente.
+- **Sucesso:** `200` → o mesmo corpo do `GET` (do grupo da chave), com a chave no padrão do ambiente.
 - **Erros:** `404` — `key` não é editável.
 - **Auditoria:** `settings.reset`, `target_id` = a chave, `payload = { key }`.
+
+### Assembleias (tarefa MO.6.8)
+
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum) e **funcionam também com o recurso desligado** (`ASSEMBLIES_ENABLED=off`, desligamento de emergência, só tira o ciclo e as rotas de usuário do ar): a calibração (MO.6.9) não depende dele. A regra vive no módulo `assemblies`; aqui a borda, a auditoria e a tradução dos erros (`404`, `409`, `422`). Corpos e respostas em `snake_case`, como o restante do painel. **Privacidade:** o admin vê o voto por pessoa e o peso em ações (exceção deliberada, como o patrimônio absoluto, ver `CLAUDE.md`); **a leitura não é auditada, toda escrita é**.
+
+#### `GET /admin/assemblies`
+
+- **Payload (query), opcional:** `status` (`scheduled`, `open` ou `closed`), validado por `assemblyListQuerySchema`; sem ele devolve os três (as 100 mais recentes).
+- **Sucesso:** `200` → `{ assemblies: [{ id, kind, subject_ref, subject_label, title, status, opens_at, closes_at, effect_applies_at, effect_applied_at, outcome, outcome_reason, voter_count, winning_option_id, min_voters, effect_pending, paused, declaration_id, dividend_on_hold }] }`. `min_voters` é o quórum congelado na abertura (`null` em assembleia anterior ao parâmetro). `effect_pending`: aprovada, efeito já devido e ainda não entregue ao motor. `paused`: há pausa vigente cobrindo a assembleia. `declaration_id` (MO.6.13) é a declaração de dividendo retida que a assembleia libera (`null` nas assembleias comuns) e `dividend_on_hold` diz se o dividendo ainda está retido por ela.
+- **Erros:** `400` — `status` inválido.
+
+#### `GET /admin/assemblies/:id`
+
+- **Sucesso:** `200` → `{ assembly, options: [{ id, key, label, gain, loss, effect: { metric ('growth' | 'quality'), direction, intensity } | null, position, voters, weight }], min_voters, counted_voters, holders, votes: [{ user_id, username, name, option_id, weight, eligible, created_at, updated_at }] }`. `weight` são as ações na data de corte (nulo e `eligible = false` quando a pessoa não era acionista: o voto é descartado na apuração); `holders` são as pessoas com posição na data de corte; `min_voters` é o quórum que vale para esta assembleia (o da abertura, ou o de agora se anterior ao parâmetro). Assembleia ainda `scheduled` não tem snapshot nem voto.
+- **Erros:** `400` — `id` não é UUID; `404` — inexistente.
+
+#### `GET /admin/assemblies/pauses`
+
+- **Sucesso:** `200` → `{ active: [...], recent: [...] }`; item `{ id, scope ('global' | 'company'), company_id | null, reason, created_by, created_at, lifted_at | null, lifted_by | null }`. `recent` são as últimas encerradas (até 20).
+
+#### `POST /admin/assemblies/pauses`
+
+- **Payload (JSON):** `scope` (`global` | `company`), `company_id` (id da empresa; obrigatório com `company`, proibido com `global`), `reason` (1 a 300 caracteres, aparado), validados por `pauseAssembliesBodySchema`. Exige senha conferida há pouco (`requireRecentAuth`, como a pausa de negociação). O `admin_id` vem do token.
+- **Regra:** a pausa **impede abrir assembleia nova e aplicar efeito no motor**. Fechar e apurar seguem (o prazo de voto é uma promessa a quem vota) e votar continua liberado. Nada se perde: a assembleia que ficaria agendada e o efeito pendente esperam; na rodada seguinte à retomada o ciclo abre e aplica (de hora em hora, ou ao reiniciar). **Limite:** um balanço que passar da janela de recuperação (`catch_up_days`) durante a pausa não abre assembleia depois. Uma pausa global vale para qualquer kind; a de empresa, só para ela. Uma vigente por escopo.
+- **Sucesso:** `201` → a pausa criada.
+- **Erros:** `400` — corpo inválido; `409` — já existe pausa vigente no escopo; `422` — motivo vazio ou fora do tamanho.
+- **Auditoria:** `assembly.pause`, `target_type = assembly_pause`, `target_id` = id da pausa, `payload = { scope, subject_ref | null, reason }`; a recusa grava `result = failed`.
+
+#### `POST /admin/assemblies/pauses/:id/lift`
+
+- **Payload:** nenhum (`id` UUID no caminho).
+- **Sucesso:** `200` → a pausa encerrada.
+- **Erros:** `400` — `id` não é UUID; `404` — inexistente; `409` — já encerrada.
+- **Auditoria:** `assembly.resume`, `target_id` = id da pausa.
+
+#### `GET /admin/assemblies/settings`
+
+- **Sucesso:** `200` → `{ settings: [{ key, value, default, min, max, overridden, updated_by, updated_at }] }`, os 11 parâmetros do backend: `min_voters` (1-1000), `duration_days` (1-60, dias reais), `open_delay_days` (1-30, dias simulados), `catch_up_days` (1-30, dias simulados), `effect_delay_days` (1-30, dias reais), `monthly_free_credits` (1-10), `free_credit_min_level` (1-100), `participation_xp` (1-500), `proposal_monthly_cap` (1-20), `proposal_min_support` (1-50), `proposal_ttl_days` (1-180, dias reais). `default` é o valor inicial do servidor (variável de ambiente `ASSEMBLY_*` ou padrão do código); sem linha gravada vale ele. A faixa de efeito, a rampa e o cooldown são do motor (`GET /admin/settings?group=governance`).
+
+#### `PUT /admin/assemblies/settings/:key`
+
+- **Payload (JSON):** `value` (inteiro), validado por `updateAssemblySettingBodySchema`; `key` por `assemblySettingKeySchema`. O `admin_id` vem do token.
+- **Regra:** vale **só para as próximas assembleias** e passa a valer na hora no processo (e a cada rodada do ciclo, que relê a tabela). O quórum (`min_voters`) é gravado na assembleia ao abrir, então mudar depois não altera uma já aberta; duração e atrasos já foram aplicados às datas dela. Crédito mensal, nível mínimo, XP e os limites de proposta valem a partir da próxima consulta.
+- **Sucesso:** `200` → `{ settings }` (a lista nova).
+- **Erros:** `400` — `value` não é inteiro; `404` — chave desconhecida; `422` — fora da faixa (a mensagem traz a faixa).
+- **Auditoria:** `assembly.setting_update`, `target_type = assembly_setting`, `target_id` = a chave, `payload = { key, value }`; a recusa grava `result = failed`.
+
+#### `DELETE /admin/assemblies/settings/:key`
+
+- **Sucesso:** `200` → `{ settings }`, com a chave de volta ao valor inicial.
+- **Erros:** `404` — chave desconhecida.
+- **Auditoria:** `assembly.setting_reset`, `target_id` = a chave, `payload = { key }`.
+
+#### `GET /admin/assemblies/agenda-templates`
+
+- **Sucesso:** `200` → `{ templates: [{ key, purpose, sector | null, title, description, options: [{ key, label, gain, loss, effect }], active, created_at, usage: { assemblies, active_proposals } }] }`. `purpose` é `general` ou `profit` (assembleia de destinação do lucro, MO.6.13). `effect` é `{ effects: [...] }` (de 1 a 2 efeitos, ver `assemblies.md`) ou, em pautas antigas, o objeto de um efeito só., todas as pautas (ativas ou não) por chave. `usage` mostra onde a pauta já foi usada.
+
+#### `POST /admin/assemblies/agenda-templates`
+
+- **Payload (JSON):** `key`, `sector` (um dos 6 setores do motor: Mineração, Agronegócio, Bancário/Financeiro, Varejo, Energia, Tecnologia; vazio ou `null` vale para qualquer setor; outro texto é recusado com `400`, ponto 051), `purpose` (opcional, `general` ou `profit`; padrão `general`), `title`, `description`, `options` (de 2 a 4), cada uma com `key`, `label`, `gain`, `loss` e `effect`: `{ effects: [...] }` com de 1 a 2 efeitos `{ metric, direction, intensity }` ou, na política de dividendo, `{ metric: "dividend_policy", value }` (o formato antigo, um objeto de um efeito só, também vale); formato validado por `createAgendaTemplateBodySchema`.
+- **Regra (módulo `assemblies`, `validateTemplateInput`):** chave da pauta de 3 a 60 caracteres (minúsculas, números e `_`, começando por letra) e **definitiva**; chave de opção de 2 a 40, única na pauta; título 3-120, descrição 10-500, setor 2-40, rótulo 3-100, ganho e perda 3-200; **sem travessão** em nenhum texto (aparece no app); **de 1 a 2 efeitos por opção, em alavancas diferentes** entre `base_growth_pct`, `quality_multiplier`, `payout_ratio_pct`, `pn_dividend_premium_pct` (todas com `direction` 1 ou -1 e `intensity` em (0, 1], fração da faixa do motor; o motor valida de novo ao aplicar) e `dividend_policy` (com `value` `quarterly`, `semiannual` ou `annual`, sem sentido nem intensidade). O `effect` é sempre guardado no formato novo, com só os campos conhecidos de cada efeito.
+- **Sucesso:** `201` → a pauta criada, ativa.
+- **Erros:** `400` — formato; `409` — já existe pauta com a chave; `422` — regra acima.
+- **Auditoria:** `assembly.template_create`, `target_type = agenda_template`, `target_id` = a chave, `payload = { sector, title, options (as chaves) }`.
+
+#### `PUT /admin/assemblies/agenda-templates/:key`
+
+- **Payload (JSON):** o mesmo conteúdo do `POST`, sem `key` (validado por `agendaTemplateContentSchema`). Nunca troca a chave nem o estado ativo.
+- **Regra:** vale para o **sorteio das próximas assembleias** e para as **propostas na fila** (que referenciam a pauta pela chave). As assembleias já abertas guardam a própria cópia das opções (`assembly_options`) e **não mudam**.
+- **Sucesso:** `200` → a pauta atualizada.
+- **Erros:** `400` — formato; `404` — pauta inexistente; `422` — regra.
+- **Auditoria:** `assembly.template_update`, mesmo `payload` do `POST`.
+
+#### `POST /admin/assemblies/agenda-templates/:key/active`
+
+- **Payload (JSON):** `active` (booleano).
+- **Regra:** desativar tira a pauta do sorteio e das propostas novas; **pauta nunca se apaga** (propostas e assembleias a referenciam).
+- **Sucesso:** `200` → a pauta atualizada.
+- **Erros:** `400` — `active` não é booleano; `404` — inexistente.
+- **Auditoria:** `assembly.template_activate` ou `assembly.template_deactivate`, `target_id` = a chave.
 
 ### Catálogo de ativos (tarefa N.12)
 
@@ -474,19 +568,19 @@ Todas exigem `role = admin`. Proxy do motor (ver `.docs/engine/admin.md#cadastro
 
 ### Comunicados e modo de manutenção (tarefa N.20)
 
-Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Criar, editar e encerrar comunicado é auditado e **não** pede senha recente (não apaga dado de ninguém). A leitura que o app do usuário faz está em `GET /announcements` (`.docs/backend/announcements.md`). Tabela `announcements` (migration `0023`, sem backfill).
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Criar, editar e encerrar comunicado é auditado e **não** pede senha recente (não apaga dado de ninguém). A leitura que o app do usuário faz está em `GET /announcements` (`.docs/backend/announcements.md`). Tabela `announcements` (migration `0023`, sem backfill; `notify_by_email` na `0034`, padrão `false`).
 
 Regras comuns: `title` 1 a 80 e `body` 1 a 280 caracteres (aparados); **texto puro**, `<` e `>` são recusados (o app exibe como texto, nunca como HTML); `severity` ∈ `info` | `warning` | `critical`; janela `[starts_at, ends_at)` (no instante do fim já saiu do ar), `ends_at` ausente ou `null` = até alguém encerrar, `starts_at` ausente = agora. `status` é derivado na leitura: `scheduled` | `active` | `ended`.
 
 #### `GET /admin/announcements`
 
-- **Sucesso:** `200` → `{ announcements: [{ id, title, body, severity, kind ('notice' | 'maintenance'), dismissible, starts_at, ends_at | null, linked_halt_id | null, status, created_at }] }`, mais recente primeiro, até 100.
+- **Sucesso:** `200` → `{ announcements: [{ id, title, body, severity, kind ('notice' | 'maintenance'), dismissible, notify_by_email, starts_at, ends_at | null, linked_halt_id | null, status, created_at }] }`, mais recente primeiro, até 100.
 
 #### `POST /admin/announcements`
 
-- **Payload (JSON):** `title`, `body`, `severity`, `dismissible` (padrão `true`), `starts_at`, `ends_at` (ISO 8601 com fuso), validados por `createAnnouncementBodySchema`. O criador vem do token.
-- **Sucesso:** `201` → o comunicado.
-- **Erros:** `400` — formato (severidade fora da lista, data malformada); `422` — regra de domínio (tamanho, `<`/`>`, fim não posterior ao início).
+- **Payload (JSON):** `title`, `body`, `severity`, `dismissible` (padrão `true`), `notify_by_email` (padrão `false`), `starts_at`, `ends_at` (ISO 8601 com fuso), validados por `createAnnouncementBodySchema`. O criador vem do token.
+- **Sucesso:** `201` → o comunicado. *(EM.5.2, E9.)* Com `notify_by_email: true` o comunicado também vai por e-mail (template `announcement`, categoria `transactional`, então não é opcional) a todas as contas **ativas, com e-mail verificado e não anonimizadas**; suspenso não recebe. O lote **sai uma vez, na criação**, mesmo para comunicado agendado (a manutenção programada avisa com antecedência e o e-mail traz a janela em horário de Brasília). A resposta não espera o lote: o enfileiramento roda em segundo plano, paginado por 200 usuários, um e-mail do outbox por (comunicado, usuário) (`announcement:<id>:<userId>`, idempotente). Cada e-mail ganha um horário de envio espaçado em `1000 / EMAIL_SEND_RPS` ms, então o lote vira uma fila comprida que não passa do limite do provedor, e um e-mail de segurança enfileirado no meio (reset de senha) sai antes do restante do lote em vez de esperar o fim. Falha ao iniciar o lote só é logada: o comunicado já está no ar. Editar (`PATCH`) nunca reenvia.
+- **Erros:** `400` — formato (severidade fora da lista, data malformada); `422` — regra de domínio (tamanho, `<`/`>`, fim não posterior ao início, ou `notify_by_email` em comunicado que não é `critical`).
 - **Auditoria:** `announcement.create`, `target_type = announcement`, `target_id` = id, `payload` = o que foi pedido; recusa grava `result = failed`.
 
 #### `PATCH /admin/announcements/:id`
@@ -503,10 +597,10 @@ Regras comuns: `title` 1 a 80 e `body` 1 a 280 caracteres (aparados); **texto pu
 
 #### `POST /admin/maintenance`
 
-- **Payload (JSON):** `title`, `body`, `ends_at` (opcional), `starts_at` (opcional) e `pause_trading` (padrão `false`), validados por `startMaintenanceBodySchema`.
+- **Payload (JSON):** `title`, `body`, `ends_at` (opcional), `starts_at` (opcional), `pause_trading` (padrão `false`) e `notify_by_email` (padrão `false`, mesmo lote do comunicado crítico; a manutenção já nasce crítica), validados por `startMaintenanceBodySchema`.
 - **Sucesso:** `201` → o aviso, sempre `kind = maintenance`, `severity = critical`, `dismissible = false`. Com `pause_trading`, abre antes a **pausa global de negociação** (N.9, mesma regra: ordem nova de usuário e de bot recusada, tick segue) e grava o id dela em `linked_halt_id`; encerrar a manutenção (`/end`) a levanta. Se o aviso falhar depois de a pausa abrir, a pausa é levantada de volta.
 - **Erros:** `400` formato; `401 reauth_required` **só quando `pause_trading` é `true`** (mesma ação destrutiva da pausa); `409` já existe manutenção em aberto (ou já existe pausa global vigente); `422` regra de domínio, ou `pause_trading` junto com `starts_at` (a pausa vale já, então a manutenção também começa agora).
-- **Auditoria:** `maintenance.start`, `payload = { title, body, starts_at, ends_at, pause_trading }`; com pausa, a linha `trading.halt` também é gravada.
+- **Auditoria:** `maintenance.start`, `payload = { title, body, starts_at, ends_at, pause_trading }` (mais `notify_by_email: true` quando pedido); com pausa, a linha `trading.halt` também é gravada.
 
 ### Integridade financeira e exportação CSV (tarefa N.21)
 

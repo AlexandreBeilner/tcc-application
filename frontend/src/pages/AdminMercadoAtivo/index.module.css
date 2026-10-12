@@ -8,10 +8,13 @@
 
 .back {
     align-self: flex-start;
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
     text-decoration: none;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .back:hover {

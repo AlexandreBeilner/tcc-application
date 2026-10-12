@@ -1,0 +1,7 @@
+[Unit]
+Description=Alerta de disco, memória e reinício pendente da Selucra
+
+[Service]
+Type=oneshot
+SyslogIdentifier=selucra-host-health
+ExecStart=/opt/selucra/host-health.sh

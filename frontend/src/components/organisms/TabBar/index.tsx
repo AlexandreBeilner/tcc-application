@@ -1,13 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { PieChart, Map, CandlestickChart, Calculator, Trophy, Lock } from 'lucide-react'
+import { PieChart, Map, CandlestickChart, Landmark, Trophy, Lock } from 'lucide-react'
 import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import styles from './index.module.css'
 
-// Os 5 itens de navegação primária (inventário 0.1) — ordem fixa, mesma da
-// spec. `end` só em "/" pra não ficar marcado ativo em toda sub-rota. Ícone
+// Os 5 itens de navegação primária (inventário 0.1) — ordem fixa. `end` só em "/" pra não ficar marcado ativo em toda sub-rota. Ícone
 // por aba (identidade-visual-padroes.md §9) — "Mercado" usa um candlestick
 // de propósito, reforça a linguagem de home broker até na navegação.
-// `unlockKey` (tarefa 7.0.1): Portfólio/Calculadora só viram link de
+// `unlockKey` (tarefa 7.0.1): o Portfólio só vira link de
 // verdade depois de 0.1/0.2 concluídas — antes disso a aba fica travada
 // (ícone de cadeado, cor apagada), mesmo gate real de `RequiresUnlock` que
 // protege as rotas (aqui é só o reflexo visual, não a garantia). Clicar
@@ -30,7 +29,9 @@ const TABS = [
     { to: '/', label: 'Portfólio', end: true, Icon: PieChart, unlockKey: 'portfolio' },
     { to: '/trilha', label: 'Trilha', Icon: Map, unlockKey: undefined },
     { to: '/mercado', label: 'Mercado', Icon: CandlestickChart, unlockKey: undefined },
-    { to: '/calculadora', label: 'Calculadora', Icon: Calculator, unlockKey: 'calculator' },
+    // Assembleias sempre presentes (MO.9.6, a Assembleia nasce com a aplicação); a Calculadora
+    // passou para o menu do avatar.
+    { to: '/assembleias', label: 'Assembleias', Icon: Landmark, unlockKey: undefined },
     { to: '/classificacao', label: 'Classificação', Icon: Trophy, unlockKey: undefined },
 ]
 

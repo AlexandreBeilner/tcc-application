@@ -1,0 +1,52 @@
+name: Frontend CI
+
+# Frontend (React/TypeScript, PWA) — lint, formato, tsc, testes e build de
+# produção. O deploy não passa por aqui: o Cloudflare Pages publica pela
+# integração Git (app.selucra.com.br) e o backend é implantado à mão com
+# infra/deploy/deploy.sh (decisão do autor, 2026-10-12).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+
+jobs:
+  test:
+    name: lint, format, tsc, testes e build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: oxlint
+        run: npm run lint
+
+      - name: prettier --check
+        run: npm run format:check
+
+      - name: testes (vitest)
+        run: npm test
+
+      # `npm run build` já roda `tsc -b` antes do `vite build`. A URL da API é
+      # embutida no build, então usa o valor real de produção só para provar
+      # que o build de produção fecha.
+      - name: build (tsc + vite)
+        run: npm run build
+        env:
+          VITE_GATEWAY_URL: https://api.selucra.com.br

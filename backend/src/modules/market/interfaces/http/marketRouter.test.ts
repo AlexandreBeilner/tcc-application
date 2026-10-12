@@ -18,6 +18,7 @@ import { PurchaseFixedIncomeUseCase } from '../../application/useCases/purchaseF
 import { RedeemFixedIncomeUseCase } from '../../application/useCases/redeemFixedIncome'
 import { SimulateFixedIncomeUseCase } from '../../application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from '../../application/useCases/getFixedIncomeTaxRate'
+import { GetAssetPriceSeriesUseCase } from '../../application/useCases/getAssetPriceSeries'
 import { GetIndicatorHistoryUseCase } from '../../application/useCases/getIndicatorHistory'
 import { GetMarketCalendarUseCase } from '../../application/useCases/getMarketCalendar'
 import { GetMarketClockUseCase } from '../../application/useCases/getMarketClock'
@@ -120,6 +121,13 @@ function buildApp(
       { simulated_day: 1, selic_rate: 10, ipca_monthly_rate: 0.0037, ipca_accumulated_12m: 0.045 },
     ],
   })
+  const priceSeriesCalls: number[] = []
+  const priceSeriesReader = {
+    async getRecentPrices(days: number) {
+      priceSeriesCalls.push(days)
+      return { 'asset-1': [10, 11, 12] }
+    },
+  }
   const marketCalendarReader = createFakeMarketCalendarReader({})
   // Desbloqueado por padrão (`asset:acao`, o único tipo usado pelo
   // catalogReader fake acima) — os testes que não são sobre o gate da
@@ -153,6 +161,7 @@ function buildApp(
       simulateFixedIncome: new SimulateFixedIncomeUseCase(fixedIncomeExecutor),
       getFixedIncomeTaxRate: new GetFixedIncomeTaxRateUseCase(fixedIncomeExecutor),
       getIndicatorHistory: new GetIndicatorHistoryUseCase(indicatorHistoryReader),
+      getAssetPriceSeries: new GetAssetPriceSeriesUseCase(priceSeriesReader),
       getMarketClock: new GetMarketClockUseCase(marketCalendarReader),
       getMarketCalendar: new GetMarketCalendarUseCase(marketCalendarReader),
       getTradingHalts: new GetTradingHaltsUseCase(marketCalendarReader),
@@ -169,9 +178,43 @@ function buildApp(
     fixedIncomeExecutor,
     productUnlockReader,
     indicatorHistoryReader,
+    priceSeriesCalls,
     marketCalendarReader,
   }
 }
+
+describe('GET /market/assets/quotes', () => {
+  it('retorna 401 sem token', async () => {
+    const { app } = buildApp()
+    expect((await request(app).get('/market/assets/quotes')).status).toBe(401)
+  })
+
+  it('devolve as séries em lote e não confunde "quotes" com um id de ativo', async () => {
+    const { app, tokenIssuer, priceSeriesCalls } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    const res = await request(app)
+      .get('/market/assets/quotes?days=14')
+      .set('Authorization', `Bearer ${token}`)
+    await request(app).get('/market/assets/quotes').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.series).toEqual({ 'asset-1': [10, 11, 12] })
+    expect(priceSeriesCalls).toEqual([14, 30])
+  })
+
+  it('retorna 400 pra days fora de 1 a 90', async () => {
+    const { app, tokenIssuer } = buildApp()
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+
+    for (const days of ['0', '91', 'abc']) {
+      const res = await request(app)
+        .get(`/market/assets/quotes?days=${days}`)
+        .set('Authorization', `Bearer ${token}`)
+      expect(res.status).toBe(400)
+    }
+  })
+})
 
 describe('GET /market/assets', () => {
   it('retorna 401 sem token', async () => {

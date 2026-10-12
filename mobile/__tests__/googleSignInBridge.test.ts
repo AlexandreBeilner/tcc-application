@@ -41,7 +41,7 @@ describe('buildGoogleSignInInterceptorScript', () => {
   test('intercepta clique no link "Entrar com Google" (href relativo) e avisa o nativo', () => {
     const postMessage = jest.fn();
     const fakeWindow = {
-      __investimentaGoogleSignInInterceptorInstalled: false,
+      __selucraGoogleSignInInterceptorInstalled: false,
       ReactNativeWebView: {postMessage},
       location: {href: 'http://10.0.2.2:5173/login'},
     };
@@ -68,7 +68,7 @@ describe('buildGoogleSignInInterceptorScript', () => {
   test('intercepta o mesmo link mesmo com href absoluto (VITE_GATEWAY_URL configurado)', () => {
     const postMessage = jest.fn();
     const fakeWindow = {
-      __investimentaGoogleSignInInterceptorInstalled: false,
+      __selucraGoogleSignInInterceptorInstalled: false,
       ReactNativeWebView: {postMessage},
       location: {href: 'http://10.0.2.2:5173/login'},
     };
@@ -89,7 +89,7 @@ describe('buildGoogleSignInInterceptorScript', () => {
   test('ignora clique fora de um <a href>', () => {
     const postMessage = jest.fn();
     const fakeWindow = {
-      __investimentaGoogleSignInInterceptorInstalled: false,
+      __selucraGoogleSignInInterceptorInstalled: false,
       ReactNativeWebView: {postMessage},
       location: {href: 'http://10.0.2.2:5173/login'},
     };
@@ -109,7 +109,7 @@ describe('buildGoogleSignInInterceptorScript', () => {
   test('ignora link cujo caminho não é /auth/google (ex: outra navegação qualquer)', () => {
     const postMessage = jest.fn();
     const fakeWindow = {
-      __investimentaGoogleSignInInterceptorInstalled: false,
+      __selucraGoogleSignInInterceptorInstalled: false,
       ReactNativeWebView: {postMessage},
       location: {href: 'http://10.0.2.2:5173/login'},
     };
@@ -130,7 +130,7 @@ describe('buildGoogleSignInInterceptorScript', () => {
   test('ignora href malformado sem lançar', () => {
     const postMessage = jest.fn();
     const fakeWindow = {
-      __investimentaGoogleSignInInterceptorInstalled: false,
+      __selucraGoogleSignInInterceptorInstalled: false,
       ReactNativeWebView: {postMessage},
       location: {href: 'http://10.0.2.2:5173/login'},
     };

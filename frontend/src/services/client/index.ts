@@ -35,6 +35,27 @@ export function isAccountSuspendedError(err: unknown): boolean {
     return err instanceof ApiError && err.status === 403 && err.message === ACCOUNT_SUSPENDED
 }
 
+// Código do `403` do login de conta criada por e-mail e senha que ainda não confirmou o e-mail
+// (EM.3.1). Só aparece depois de a senha conferir.
+export const EMAIL_NOT_VERIFIED = 'email_not_verified'
+
+export function isEmailNotVerifiedError(err: unknown): boolean {
+    return err instanceof ApiError && err.status === 403 && err.message === EMAIL_NOT_VERIFIED
+}
+
+// `410 { error: "token_used" }` de um link de e-mail (verificação, reset) que já foi consumido ou
+// substituído por um pedido mais novo; o outro `410` é `token_expired`.
+export function isTokenUsedError(err: unknown): boolean {
+    return err instanceof ApiError && err.status === 410 && err.message === 'token_used'
+}
+
+// `403 { error: 'requer plano PRO' }`: a funcionalidade existe, mas exige assinatura ativa.
+export const PRO_REQUIRED = 'requer plano PRO'
+
+export function isProRequiredError(err: unknown): boolean {
+    return err instanceof ApiError && err.status === 403 && err.message === PRO_REQUIRED
+}
+
 export class ApiError extends Error {
     readonly status: number
     readonly details?: unknown

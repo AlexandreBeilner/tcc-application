@@ -17,6 +17,7 @@ function achievementPayload(changes: AchievementChanges): Record<string, unknown
   if (changes.criteriaType !== undefined) payload.criteria_type = changes.criteriaType
   if (changes.criteriaValue !== undefined) payload.criteria_value = changes.criteriaValue
   if (changes.isActive !== undefined) payload.is_active = changes.isActive
+  if (changes.isRare !== undefined) payload.is_rare = changes.isRare
   return payload
 }
 

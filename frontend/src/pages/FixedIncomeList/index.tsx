@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AssetTable } from '../../components/organisms/AssetTable'
+import { AssetTable, AssetTableSkeleton } from '../../components/organisms/AssetTable'
 import type { AssetTableColumn } from '../../components/organisms/AssetTable'
 import { Pagination } from '../../components/molecules/Pagination'
 import { ASSETS_PAGE_SIZE, FIXED_INCOME_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
@@ -29,6 +29,7 @@ function buildColumns(gate: UseLockedAssetGateResult): AssetTableColumn[] {
         {
             key: 'ticker',
             header: 'Produto',
+            slot: 'title',
             render: (asset) => (
                 <span className={styles.tickerCell}>
                     {gate.lockedBadge(asset)}
@@ -36,8 +37,8 @@ function buildColumns(gate: UseLockedAssetGateResult): AssetTableColumn[] {
                 </span>
             ),
         },
-        { key: 'name', header: 'Nome', render: (asset) => asset.name },
-        { key: 'risk', header: 'Risco', render: (asset) => asset.risk_class ?? '—' },
+        { key: 'name', header: 'Nome', render: (asset) => asset.name, slot: 'subtitle' },
+        { key: 'risk', header: 'Risco', render: (asset) => asset.risk_class ?? null, slot: 'tag' },
     ]
 }
 
@@ -83,7 +84,7 @@ export function FixedIncomeList() {
                 </p>
             )}
 
-            {!assetsQuery.data && !assetsQuery.isError && <p className={styles.loading}>Carregando produtos…</p>}
+            {!assetsQuery.data && !assetsQuery.isError && <AssetTableSkeleton label="Carregando produtos…" />}
 
             {assetsQuery.data && (
                 <>

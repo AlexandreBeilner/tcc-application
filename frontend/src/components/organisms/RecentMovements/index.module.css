@@ -1,0 +1,105 @@
+.box {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 56px;
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+}
+
+.text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.label {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.meta {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.amount {
+    flex: none;
+    font-size: var(--font-size-sm);
+}
+
+.message {
+    margin: 0;
+    padding: var(--space-4);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    color: var(--color-brand-300);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.link:focus-visible {
+    outline: 2px solid var(--color-border-strong);
+    outline-offset: -2px;
+}
+
+@keyframes movementsSkeleton {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.skeleton {
+    height: 200px;
+    background: var(--color-bg-surface-elevated);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    animation: movementsSkeleton 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton {
+        animation: none;
+    }
+}

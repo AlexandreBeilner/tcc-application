@@ -64,7 +64,17 @@ const (
 	// infla a rentabilidade (T.1). Tipo próprio pra o extrato rotular e pra nunca ser
 	// confundido com EventSalaryPayment nem com EventInitialDeposit (RNF06).
 	EventAdminCredit MarketEventType = "admin_credit"
+	// EventAssemblyDecision (MO.6.2, migration 000051) é a decisão de uma Assembleia de
+	// Acionistas aprovada, gravada antes de qualquer efeito nos fundamentos da empresa. Não
+	// move caixa nem posição: pertence à conta técnica de governança (GovernanceAccountID),
+	// ReferenceID é o id da assembleia e Quantity a mudança total decidida, em centésimos,
+	// com sinal (0 quando a decisão foi registrada sem efeito, por cooldown ou faixa).
+	EventAssemblyDecision MarketEventType = "assembly_decision"
 )
+
+// GovernanceAccountID é a conta técnica (is_bot, inativa, sem linha em `users`) dona dos
+// eventos de decisão de assembleia (migration 000051).
+const GovernanceAccountID = "00000000-0000-4000-8000-00000000a550"
 
 // MarketEvent é um registro imutável de uma operação financeira — a fonte
 // da verdade de Event Sourcing (RNF01, spec 3.4, CLAUDE.md). AssetID,
@@ -82,6 +92,9 @@ type MarketEvent struct {
 	// atrasados, tarefa T.5, todos gravados no mesmo simulated_day). Todo
 	// outro tipo de evento deixa nil.
 	ReferenceMonth *string
+	// ReferenceID (MO.6.2) é o id da entidade externa a que o evento se refere — hoje só a
+	// assembleia, em EventAssemblyDecision. Todo outro tipo deixa nil.
+	ReferenceID *string
 }
 
 // MarketEventRecord é um MarketEvent já persistido — ID e Timestamp só

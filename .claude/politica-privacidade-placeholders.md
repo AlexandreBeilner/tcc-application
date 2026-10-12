@@ -24,7 +24,7 @@ Sem resultado = pronta pra publicar.
 | `controllerName` | Seu nome completo (pessoa física) ou razão social | Controlador, LGPD art. 5º, VI |
 | `contactEmail` | E-mail real, monitorado, pra titulares | Canal do encarregado, art. 41; as lojas pedem contato |
 | `dpoName` | Seu nome (pode ser o mesmo do controlador) | Encarregado, art. 41 |
-| `hostingProvider` | Onde o backend e o Postgres rodam em produção (ex: AWS, Hetzner) | Operador, art. 5º, VII |
+| `hostingProvider` | ✅ **Vultr** (decisão do autor, 2026-10-12; datacenter em São Paulo) | Operador, art. 5º, VII |
 | `hostingCountry` | País do datacenter | Se for fora do Brasil, há transferência internacional (art. 33) |
 | `minimumAge` | Idade mínima que você quer adotar (ex: 13 ou 18) | Menores de 18 exigem responsável legal, art. 14 |
 | `lastUpdated` | Data por extenso (ex: "10 de outubro de 2026") | Atualizar a cada mudança de conteúdo |
@@ -39,10 +39,11 @@ O texto foi escrito a partir do código. Confira se continuam verdadeiras antes 
   Se adicionar algum, atualize a seção 6 e a tabela da seção 3.
 - **Registros técnicos com IP** (tabela da seção 3). O IP é usado pelo rate limit e aparece no log do gateway nginx. Se
   você descartar logs antes do prazo do Marco Civil (6 meses, art. 15), ajuste a seção 7.
-- **Keystore/Keychain no app** (seção 6). Vale quando a tarefa 2.1 do app mobile (ponte de sessão segura) estiver na `main`.
+- **Keystore/Keychain no app:** não se aplica (app nativo adiado, lançamento só na web).
 - **Anonimização ao excluir conta** (seção 7). Descreve `DELETE /me` (`.docs/backend/auth.md`).
-- **Sem Termos de Uso.** A tela de Login citava "Termos de Uso" que não existem; troquei por um link só pra Política.
-  Se criar os Termos, volte a citá-los no Login.
+- **Termos de Uso:** já existem (`/termos`, `/reembolso`, lançamento web de 2026-10-11); o Login cita os dois.
+- **Cópias de segurança:** a seção 5 cita, sem dar nome, o armazenamento de nuvem das cópias criptografadas (2026-10-12). Quando
+  você escolher Backblaze B2 ou Cloudflare R2, troque a frase pelo nome do provedor e confira a região.
 - **Revisão jurídica.** O texto é um modelo de mercado, não parecer. Se o app for publicado de verdade, vale uma
   leitura de advogado.
 

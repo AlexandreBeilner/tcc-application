@@ -38,3 +38,28 @@ describe('CORS (tarefa 6.0.1)', () => {
     expect(res.headers['access-control-allow-origin']).toBe('https://app.example.com')
   })
 })
+
+describe('Assembleia de Acionistas (MO.6.4): rotas atrás de ASSEMBLIES_ENABLED', () => {
+  const original = process.env.ASSEMBLIES_ENABLED
+  const id = '11111111-1111-4111-8111-111111111111'
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.ASSEMBLIES_ENABLED
+    else process.env.ASSEMBLIES_ENABLED = original
+  })
+
+  it('desligada de emergência (off): as rotas não existem e o job não é exposto', async () => {
+    process.env.ASSEMBLIES_ENABLED = 'off'
+    const app = createApp()
+    expect((await request(app).get(`/assemblies/${id}/me`)).status).toBe(404)
+    expect(app.locals.runAssemblyLifecycle).toBeUndefined()
+  })
+
+  it('ligada por padrão (sem a variável): as rotas exigem login e o job do ciclo é exposto ao server.ts', async () => {
+    delete process.env.ASSEMBLIES_ENABLED
+    const app = createApp()
+    expect((await request(app).get(`/assemblies/${id}/me`)).status).toBe(401)
+    expect((await request(app).post(`/assemblies/${id}/vote`).send({})).status).toBe(401)
+    expect(app.locals.runAssemblyLifecycle).toBeDefined()
+  })
+})

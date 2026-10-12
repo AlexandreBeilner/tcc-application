@@ -18,6 +18,18 @@ import {
     liftTradingHalt,
     cancelMacroEvent,
     getEngineSettings,
+    createAgendaTemplate,
+    getAdminAssembly,
+    liftAssemblyPause,
+    listAdminAssemblies,
+    listAgendaTemplates,
+    listAssemblyPauses,
+    listAssemblySettings,
+    pauseAssemblies,
+    resetAssemblySetting,
+    setAgendaTemplateActive,
+    updateAgendaTemplate,
+    updateAssemblySetting,
     listAdminCatalog,
     updateCatalogAsset,
     previewCatalogAsset,
@@ -556,5 +568,86 @@ describe('services/admin', () => {
 
         await downloadAdminExport('token', 'users')
         expect(fetchMock.mock.calls[1][0]).toBe('/admin/exports/users')
+    })
+
+    it('getEngineSettings sem grupo pede o ritmo; com grupo monta a query', async () => {
+        const fetchMock = mockFetchOnce({ editable: [], read_only: [] })
+        await getEngineSettings('token', 'governance')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/settings?group=governance')
+    })
+
+    it('listAdminAssemblies sem filtro faz GET /admin/assemblies e devolve a lista', async () => {
+        const fetchMock = mockFetchOnce({ assemblies: [{ id: 'a1' }] })
+        expect(await listAdminAssemblies('token')).toEqual([{ id: 'a1' }])
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/assemblies')
+    })
+
+    it('listAdminAssemblies com situação monta a query', async () => {
+        const fetchMock = mockFetchOnce({ assemblies: [] })
+        await listAdminAssemblies('token', 'open')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/assemblies?status=open')
+    })
+
+    it('getAdminAssembly faz GET /admin/assemblies/:id', async () => {
+        const fetchMock = mockFetchOnce({ votes: [] })
+        await getAdminAssembly('token', 'a1')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/assemblies/a1')
+    })
+
+    it('pausa e retomada das assembleias', async () => {
+        const fetchMock = mockFetchOnce({ active: [], recent: [] })
+        await listAssemblyPauses('token')
+        expect(fetchMock.mock.calls[0][0]).toBe('/admin/assemblies/pauses')
+
+        const post = mockFetchOnce({ id: 'p1' }, 201)
+        await pauseAssemblies('token', { scope: 'company', company_id: 'c1', reason: 'revisão' })
+        const [url, init] = post.mock.calls[0]
+        expect(url).toBe('/admin/assemblies/pauses')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({ scope: 'company', company_id: 'c1', reason: 'revisão' })
+
+        const lift = mockFetchOnce({ id: 'p1' })
+        await liftAssemblyPause('token', 'p1')
+        expect(lift.mock.calls[0][0]).toBe('/admin/assemblies/pauses/p1/lift')
+        expect(lift.mock.calls[0][1].method).toBe('POST')
+    })
+
+    it('parâmetros das assembleias: lista, altera e restaura devolvendo a lista nova', async () => {
+        const list = mockFetchOnce({ settings: [{ key: 'min_voters' }] })
+        expect(await listAssemblySettings('token')).toEqual([{ key: 'min_voters' }])
+        expect(list.mock.calls[0][0]).toBe('/admin/assemblies/settings')
+
+        const put = mockFetchOnce({ settings: [] })
+        await updateAssemblySetting('token', 'min_voters', 5)
+        expect(put.mock.calls[0][0]).toBe('/admin/assemblies/settings/min_voters')
+        expect(put.mock.calls[0][1].method).toBe('PUT')
+        expect(JSON.parse(put.mock.calls[0][1].body)).toEqual({ value: 5 })
+
+        const del = mockFetchOnce({ settings: [] })
+        await resetAssemblySetting('token', 'min_voters')
+        expect(del.mock.calls[0][1].method).toBe('DELETE')
+    })
+
+    it('catálogo de pautas: lista, cria com a chave no corpo, edita e ativa', async () => {
+        const content = { sector: null, title: 'T', description: 'D', options: [] }
+        const list = mockFetchOnce({ templates: [{ key: 'k' }] })
+        expect(await listAgendaTemplates('token')).toEqual([{ key: 'k' }])
+        expect(list.mock.calls[0][0]).toBe('/admin/assemblies/agenda-templates')
+
+        const post = mockFetchOnce({ key: 'k' }, 201)
+        await createAgendaTemplate('token', 'k', content)
+        expect(post.mock.calls[0][0]).toBe('/admin/assemblies/agenda-templates')
+        expect(JSON.parse(post.mock.calls[0][1].body)).toEqual({ key: 'k', ...content })
+
+        const put = mockFetchOnce({ key: 'k' })
+        await updateAgendaTemplate('token', 'k', content)
+        expect(put.mock.calls[0][0]).toBe('/admin/assemblies/agenda-templates/k')
+        expect(put.mock.calls[0][1].method).toBe('PUT')
+        expect(JSON.parse(put.mock.calls[0][1].body)).toEqual(content)
+
+        const active = mockFetchOnce({ key: 'k' })
+        await setAgendaTemplateActive('token', 'k', false)
+        expect(active.mock.calls[0][0]).toBe('/admin/assemblies/agenda-templates/k/active')
+        expect(JSON.parse(active.mock.calls[0][1].body)).toEqual({ active: false })
     })
 })

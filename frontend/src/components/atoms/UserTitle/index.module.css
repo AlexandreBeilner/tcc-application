@@ -1,0 +1,7 @@
+.title {
+    display: inline-block;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-style: italic;
+    line-height: 1.3;
+}

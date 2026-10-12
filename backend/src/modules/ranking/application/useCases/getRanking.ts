@@ -1,3 +1,8 @@
+import {
+  NO_COSMETICS,
+  type CosmeticsReader,
+  type PublicCosmetics,
+} from '../../../../shared/publicCosmetics'
 import { paginate } from '../../../../shared/pagination'
 import type { RankingCriterion, RankingScope, ScoredEntry } from '../../domain/ranking'
 import { sortByRank } from '../../domain/ranking'
@@ -40,6 +45,8 @@ export interface RankingEntry {
   // `null` quando `criterion === 'level'` (rentabilidade não entra nesse
   // critério).
   profitabilityPct: number | null
+  // Selo PRO, moldura e título (MO.5.1). Só apresentação: nunca entra na ordenação.
+  cosmetics: PublicCosmetics
 }
 
 export interface GetRankingResult {
@@ -75,6 +82,7 @@ export class GetRankingUseCase {
     private readonly friendGraphReader: FriendGraphReader,
     private readonly snapshotStore?: RankingSnapshotStore,
     sampleStore?: RankingValuationSampleStore,
+    private readonly cosmeticsReader?: CosmeticsReader,
   ) {
     this.scorer = new RankingScorer(sandboxAssetReader, getNetWorth, levelReader, sampleStore)
   }
@@ -116,6 +124,9 @@ export class GetRankingUseCase {
       totalEntries,
       totalPages,
     } = paginate(ranked, input.page, RANKING_PAGE_SIZE)
+    const displays =
+      (await this.cosmeticsReader?.findDisplays(pageEntries.map((entry) => entry.userId))) ??
+      new Map<string, PublicCosmetics>()
     const entries: RankingEntry[] = pageEntries.map(
       ({ userId, username, level, xp, profitabilityPct }) => ({
         userId,
@@ -123,6 +134,7 @@ export class GetRankingUseCase {
         level,
         xp,
         profitabilityPct,
+        cosmetics: displays.get(userId) ?? NO_COSMETICS,
       }),
     )
 

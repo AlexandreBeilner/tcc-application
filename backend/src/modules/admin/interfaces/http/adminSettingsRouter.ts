@@ -6,7 +6,11 @@ import { EngineSettingNotFoundError, EngineSettingRejectedError } from '../../do
 import type { ListEngineSettingsUseCase } from '../../application/useCases/listEngineSettings'
 import type { ResetEngineSettingUseCase } from '../../application/useCases/resetEngineSetting'
 import type { UpdateEngineSettingUseCase } from '../../application/useCases/updateEngineSetting'
-import { engineSettingKeySchema, updateEngineSettingBodySchema } from './schemas'
+import {
+  engineSettingKeySchema,
+  engineSettingsQuerySchema,
+  updateEngineSettingBodySchema,
+} from './schemas'
 
 export interface AdminSettingsRouterDeps {
   listEngineSettings: ListEngineSettingsUseCase
@@ -15,15 +19,20 @@ export interface AdminSettingsRouterDeps {
   authMiddleware: AuthMiddleware
 }
 
-// Parâmetros de simulação (Fase N, tarefa N.7): lista, altera e restaura o padrão. Só os
-// parâmetros de ritmo são editáveis; chave fora da lista é 404. Alterar e restaurar passam
-// pela auditoria (N.4).
+// Parâmetros de simulação (Fase N, tarefa N.7): lista, altera e restaura o padrão. Ritmo do
+// Temporizador (`group=pace`, padrão) e governança das assembleias (`group=governance`, MO.6.8);
+// chave fora da lista é 404. Alterar e restaurar passam pela auditoria (N.4).
 export function createAdminSettingsRouter(deps: AdminSettingsRouterDeps): Router {
   const router = Router()
   const adminOnly = [deps.authMiddleware.authenticate, deps.authMiddleware.requireRole('admin')]
 
-  router.get('/admin/settings', ...adminOnly, async (_req, res) => {
-    res.status(200).json(await deps.listEngineSettings.execute())
+  router.get('/admin/settings', ...adminOnly, async (req, res) => {
+    const query = engineSettingsQuerySchema.safeParse(req.query)
+    if (!query.success) {
+      res.status(400).json({ error: 'group inválido', details: z.flattenError(query.error) })
+      return
+    }
+    res.status(200).json(await deps.listEngineSettings.execute(query.data.group))
   })
 
   router.put('/admin/settings/:key', ...adminOnly, async (req, res) => {

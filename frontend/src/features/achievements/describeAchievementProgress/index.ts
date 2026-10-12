@@ -8,6 +8,8 @@ const UNIT_LABEL: Record<Exclude<Achievement['criteriaType'], 'net_worth'>, (val
     micro_decisions_streak: (value) => `${value === 1 ? 'acerto seguido' : 'acertos seguidos'}`,
     track_completed_no_errors: (value) => `${value === 1 ? 'trilha sem erro' : 'trilhas sem erro'}`,
     lesson_reviewed: (value) => `${value === 1 ? 'lição revisada' : 'lições revisadas'}`,
+    assemblies_participated: (value) => `${value === 1 ? 'assembleia votada' : 'assembleias votadas'}`,
+    referrals_qualified: (value) => `${value === 1 ? 'amigo convidado' : 'amigos convidados'}`,
 }
 
 // Tela 7.2 — "clique numa conquista bloqueada mostra progresso atual em

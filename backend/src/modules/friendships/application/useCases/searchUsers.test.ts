@@ -27,4 +27,24 @@ describe('SearchUsersUseCase', () => {
 
     expect(result).toEqual([])
   })
+
+  it('resultado da busca traz o cosmético de quem é PRO e nada para os outros', async () => {
+    const useCase = new SearchUsersUseCase(createFakeUserDirectory([alice, alicia, bob]), {
+      findDisplays: async () =>
+        new Map([[alicia.id, { isPro: true, frame: 'frame_ambar', title: null }]]),
+    })
+
+    const result = await useCase.execute({ userId: bob.id, query: 'ali' })
+
+    expect(result.find((u) => u.id === alicia.id)?.cosmetics).toEqual({
+      isPro: true,
+      frame: 'frame_ambar',
+      title: null,
+    })
+    expect(result.find((u) => u.id === alice.id)?.cosmetics).toEqual({
+      isPro: false,
+      frame: null,
+      title: null,
+    })
+  })
 })

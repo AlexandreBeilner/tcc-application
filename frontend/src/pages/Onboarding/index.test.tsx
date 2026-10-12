@@ -2,11 +2,16 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { completeOnboarding } from '../../services/auth'
+import { updateEmailPreferences } from '../../services/emailPreferences'
 import { useAuth } from '../../features/auth/AuthContext'
 import { Onboarding } from '.'
 
 vi.mock('../../services/auth', () => ({
     completeOnboarding: vi.fn(),
+}))
+
+vi.mock('../../services/emailPreferences', () => ({
+    updateEmailPreferences: vi.fn(),
 }))
 
 vi.mock('../../features/auth/AuthContext', () => ({
@@ -85,44 +90,95 @@ describe('Onboarding (tela 1.2)', () => {
         expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
     })
 
-    it('avançar até o último slide troca o botão pra "Começar"', () => {
+    const NEXT = { name: 'Próximo' }
+    const advanceToEmailStep = () => {
+        for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole('button', NEXT))
+    }
+    const completedUser = {
+        id: '1',
+        name: 'Ana',
+        email: 'ana@example.com',
+        username: 'ana',
+        role: 'user' as const,
+        onboardingCompleted: true,
+        avatarUrl: null,
+    }
+
+    it('o quinto slide continua sendo o dos amigos e ainda mostra "Próximo"', () => {
         mockAuth(false)
 
         renderOnboarding()
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+        for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', NEXT))
 
         expect(screen.getByText('Compita com amigos, não só com estranhos')).toBeInTheDocument()
+        expect(screen.getByRole('button', NEXT)).toBeInTheDocument()
+    })
+
+    it('o último passo pergunta sobre e-mails, tudo desligado, e só aí troca o botão pra "Começar" (EM.6.1)', () => {
+        mockAuth(false)
+
+        renderOnboarding()
+        advanceToEmailStep()
+
+        expect(screen.getByText('Quer receber e-mails da plataforma?')).toBeInTheDocument()
+        expect(screen.getByRole('checkbox', { name: /Amigos/ })).not.toBeChecked()
+        expect(screen.getByRole('checkbox', { name: /Resumo e lembretes/ })).not.toBeChecked()
         expect(screen.getByRole('button', { name: 'Começar' })).toBeInTheDocument()
     })
 
-    it('"Começar" marca onboardingCompleted e navega pra /trilha (3.1, não 2.1)', async () => {
+    it('"Começar" sem marcar nada não grava preferência, marca onboardingCompleted e navega pra /trilha', async () => {
         const setUser = vi.fn()
         mockAuth(false, setUser)
-        vi.mocked(completeOnboarding).mockResolvedValue({
-            user: {
-                id: '1',
-                name: 'Ana',
-                email: 'ana@example.com',
-                username: 'ana',
-                role: 'user',
-                onboardingCompleted: true,
-                avatarUrl: null,
-            },
-        })
+        vi.mocked(completeOnboarding).mockResolvedValue({ user: completedUser })
 
         renderOnboarding()
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+        advanceToEmailStep()
         fireEvent.click(screen.getByRole('button', { name: 'Começar' }))
 
         await waitFor(() => expect(completeOnboarding).toHaveBeenCalledWith('token-valido'))
+        expect(updateEmailPreferences).not.toHaveBeenCalled()
         expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ onboardingCompleted: true }))
         await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+    })
+
+    it('"Começar" com categorias marcadas grava a escolha antes de concluir', async () => {
+        mockAuth(false)
+        vi.mocked(updateEmailPreferences).mockResolvedValue({ preferences: { social: false, engagement: true } })
+        vi.mocked(completeOnboarding).mockResolvedValue({ user: completedUser })
+
+        renderOnboarding()
+        advanceToEmailStep()
+        fireEvent.click(screen.getByRole('checkbox', { name: /Resumo e lembretes/ }))
+        fireEvent.click(screen.getByRole('button', { name: 'Começar' }))
+
+        await waitFor(() => expect(updateEmailPreferences).toHaveBeenCalledWith('token-valido', { social: false, engagement: true }))
+        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+    })
+
+    it('falhar ao gravar a escolha de e-mail não trava o onboarding (o padrão é desligado)', async () => {
+        mockAuth(false)
+        vi.mocked(updateEmailPreferences).mockRejectedValue(new Error('rede'))
+        vi.mocked(completeOnboarding).mockResolvedValue({ user: completedUser })
+
+        renderOnboarding()
+        advanceToEmailStep()
+        fireEvent.click(screen.getByRole('checkbox', { name: /Amigos/ }))
+        fireEvent.click(screen.getByRole('button', { name: 'Começar' }))
+
+        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+    })
+
+    it('"Pular" no passo de e-mail nunca liga nada, mesmo com caixa marcada', async () => {
+        mockAuth(false)
+        vi.mocked(completeOnboarding).mockResolvedValue({ user: completedUser })
+
+        renderOnboarding()
+        advanceToEmailStep()
+        fireEvent.click(screen.getByRole('checkbox', { name: /Amigos/ }))
+        fireEvent.click(screen.getByRole('button', { name: 'Pular' }))
+
+        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+        expect(updateEmailPreferences).not.toHaveBeenCalled()
     })
 
     it('"Pular" também marca onboardingCompleted e navega pra /trilha, de qualquer slide', async () => {

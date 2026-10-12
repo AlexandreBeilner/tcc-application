@@ -1,3 +1,4 @@
+import type { PublicCosmetics } from '../cosmetics'
 // Espelha `.docs/backend/friendships.md`.
 export type FriendshipStatus = 'pending' | 'accepted'
 
@@ -10,6 +11,7 @@ export interface SearchedUser {
     username: string
     name: string
     avatarUrl: string | null
+    cosmetics: PublicCosmetics
 }
 
 export interface SearchUsersResult {
@@ -35,6 +37,7 @@ export interface Friend {
     username: string
     name: string
     avatarUrl: string | null
+    cosmetics: PublicCosmetics
     friendsSince: string
 }
 
@@ -52,6 +55,7 @@ export interface FriendRequest {
     username: string
     name: string
     avatarUrl: string | null
+    cosmetics: PublicCosmetics
     createdAt: string
 }
 

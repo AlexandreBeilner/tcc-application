@@ -7,6 +7,8 @@ export type AchievementCriteriaType =
     | 'micro_decisions_streak'
     | 'track_completed_no_errors'
     | 'lesson_reviewed'
+    | 'assemblies_participated'
+    | 'referrals_qualified'
 
 export interface Achievement {
     id: string

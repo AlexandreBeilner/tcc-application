@@ -5,8 +5,10 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	_ "time/tzdata" // fuso da agenda (America/Sao_Paulo) sem depender do tzdata da imagem
 
@@ -15,6 +17,7 @@ import (
 	"tcc-investimentos/engine/internal/domain/botadmin"
 	"tcc-investimentos/engine/internal/domain/catalog"
 	"tcc-investimentos/engine/internal/domain/catalogadmin"
+	"tcc-investimentos/engine/internal/domain/corporategovernance"
 	"tcc-investimentos/engine/internal/domain/coverage"
 	"tcc-investimentos/engine/internal/domain/enginesetting"
 	"tcc-investimentos/engine/internal/domain/fixedincomeexecution"
@@ -67,6 +70,11 @@ func newQuoteCache() engineQuoteCache {
 }
 
 func main() {
+	// SIGTERM (docker stop) e SIGINT cancelam ctx: o servidor HTTP drena as requisições, o
+	// Temporizador (e com ele os bots, que rodam dentro do tick) para, e só então o pool fecha.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	addr := os.Getenv("ENGINE_ADDR")
 	if addr == "" {
 		addr = ":8080"
@@ -81,13 +89,19 @@ func main() {
 		// (tarefa M.2) respondem 503 (ver internal/infra/httpserver/account.go,
 		// assets.go, admin.go, fixedincome.go, macroevents.go, positions.go e
 		// indicators.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		if err := httpserver.Run(ctx, addr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
 	}
 
-	if err := db.Migrate(databaseURL); err != nil {
+	// LW.3.17: as migrações usam o papel dono do schema (DATABASE_MIGRATE_URL); o resto do processo usa
+	// DATABASE_URL, um papel só com DML, que não consegue desligar o gatilho append-only de market_events.
+	migrateURL := os.Getenv("DATABASE_MIGRATE_URL")
+	if migrateURL == "" {
+		migrateURL = databaseURL
+	}
+	if err := db.Migrate(migrateURL); err != nil {
 		log.Fatalf("erro ao aplicar migrations: %v", err)
 	}
 	log.Print("migrations do banco market aplicadas")
@@ -178,6 +192,12 @@ func main() {
 		MaxCatchUp:  envInt("TICK_MAX_CATCHUP", 3),
 	})
 	calendarAPI.Current = settingsService.Current
+	// Governança corporativa (MO.6.2): snapshot de posições, decisão da Assembleia de Acionistas
+	// como evento e efeito gradual nos fundamentos, aplicado no próprio tick. Os parâmetros
+	// (faixa, rampa, cooldown) vêm de enginesetting.
+	governanceRepository := db.NewGovernanceRepository(pool)
+	governanceService := corporategovernance.NewService(governanceRepository, settingsService).WithSchedules(governanceRepository)
+	tickService.WithGovernance(governanceService)
 	schedulerAdmin := &httpserver.SchedulerAdminAPI{
 		Control:     schedulerControl,
 		Runs:        tickRepository,
@@ -233,7 +253,7 @@ func main() {
 	assetProvisionService := assetprovision.NewService(assetProvisionRepository, assetProvisionRepository, coverageRepository, coverage.NewEnsurer(coverageRepository, coverageRepository))
 	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService), httpserver.WithIntegrity(integrity.NewService(db.NewIntegrityRepository(pool))), httpserver.WithAdminExport(db.NewAdminExportRepository(pool))); err != nil {
+	if err := httpserver.Run(ctx, addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService), httpserver.WithIntegrity(integrity.NewService(db.NewIntegrityRepository(pool))), httpserver.WithAdminExport(db.NewAdminExportRepository(pool)), httpserver.WithGovernance(governanceService)); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

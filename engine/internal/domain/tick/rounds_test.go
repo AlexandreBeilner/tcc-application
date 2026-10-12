@@ -1357,7 +1357,7 @@ func newReportCycleService(t *testing.T, seed int64) (svc *Service, assetID stri
 	// com o net_revenue que Bootstrap calibrou pra fairPrice == startPrice.
 	lastRevenue := financials.NetRevenue / (1 + fundamentals.DefaultBaseGrowth)
 
-	dividendEffectPct := dividend.EquityPriceEffectPct(financials.NetIncome, financials.NetEquity)
+	dividendEffectPct := dividend.EquityPriceEffectPct(financials.NetIncome, financials.NetEquity, dividend.DefaultEquityPayoutRatio)
 	noSurpriseClosing = startPrice * (1 + dividendEffectPct/100)
 
 	asset := AssetForPricing{

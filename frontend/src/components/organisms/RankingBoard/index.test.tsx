@@ -5,7 +5,15 @@ import type { RankingCriterion, RankingEntry, RankingScope } from '../../../serv
 import { RankingBoard } from '.'
 
 function entry(overrides: Partial<RankingEntry>): RankingEntry {
-    return { userId: '1', username: 'ana', level: 3, xp: 300, profitabilityPct: 5, ...overrides }
+    return {
+        userId: '1',
+        username: 'ana',
+        level: 3,
+        xp: 300,
+        profitabilityPct: 5,
+        cosmetics: { isPro: false, frame: null, title: null },
+        ...overrides,
+    }
 }
 
 function renderBoard(

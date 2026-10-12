@@ -1,0 +1,105 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+/* Seu voto: contorno sólido de marca, mais a etiqueta em texto. */
+.mine {
+    border: 2px solid var(--color-brand-500);
+}
+
+.header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.label {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.tag {
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+    font-size: var(--font-size-xs);
+}
+
+.sides {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+}
+
+.sideTitle {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+
+.sideText {
+    margin: 2px 0 0;
+    color: var(--color-text-primary);
+}
+
+.effects {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.effect {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.score {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: auto;
+}
+
+.bar {
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.fill {
+    height: 100%;
+    background: var(--color-brand-500);
+    transition: width 400ms ease;
+}
+
+.scoreText {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+@media (min-width: 768px) {
+    .sides {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fill {
+        transition: none;
+    }
+}

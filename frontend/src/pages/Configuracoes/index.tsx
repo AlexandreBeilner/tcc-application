@@ -4,6 +4,10 @@ import { ArrowLeft, Check, Moon, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/atoms/Avatar'
 import { Button } from '../../components/atoms/Button'
+import { InstallInvite } from '../../components/molecules/InstallInvite'
+import { EmailPreferencesSection } from '../../components/organisms/EmailPreferencesSection'
+import { CosmeticsPicker } from '../../components/organisms/CosmeticsPicker'
+import { PlanSection } from '../../components/organisms/PlanSection'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useIdentitiesQuery } from '../../features/auth/useIdentitiesQuery'
 import { useTheme } from '../../features/theme/ThemeContext'
@@ -305,6 +309,10 @@ export function Configuracoes() {
                         </form>
                     </section>
 
+                    <PlanSection />
+                    <CosmeticsPicker username={user.username} avatarUrl={user.avatarUrl} />
+                    <EmailPreferencesSection />
+
                     <section className={styles.section}>
                         <h2 className={styles.sectionTitle}>Aparência</h2>
                         <div className={styles.themeToggle} role="radiogroup" aria-label="Tema">
@@ -330,6 +338,8 @@ export function Configuracoes() {
                             </button>
                         </div>
                     </section>
+
+                    <InstallInvite placement="settings" />
 
                     <section className={styles.section}>
                         <h2 className={styles.sectionTitle}>Provedores conectados</h2>

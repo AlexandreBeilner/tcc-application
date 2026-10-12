@@ -4,6 +4,7 @@ import request from 'supertest'
 import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { FakeAnnouncementRepository } from '../../../announcements/test/fakes/fakeAnnouncementRepository'
+import { createFakeAnnouncementBroadcaster } from '../../test/fakes/fakeAnnouncementBroadcaster'
 import { createFakeAnnouncementAdmin } from '../../test/fakes/fakeAnnouncementAdmin'
 import {
   CreateAdminAnnouncementUseCase,
@@ -32,6 +33,7 @@ function buildApp() {
   const auditLog = createFakeAuditLogRepository()
   const record = new RecordAdminActionUseCase(auditLog)
   const announcementAdmin = createFakeAnnouncementAdmin(repository, clock)
+  const broadcaster = createFakeAnnouncementBroadcaster()
 
   const pauseTrading = new PauseTradingUseCase(tradingHaltAdmin, record)
   const liftTradingHalt = new LiftTradingHaltUseCase(tradingHaltAdmin, record)
@@ -40,7 +42,11 @@ function buildApp() {
   app.use(
     createAdminAnnouncementsRouter({
       listAnnouncements: new ListAdminAnnouncementsUseCase(announcementAdmin),
-      createAnnouncement: new CreateAdminAnnouncementUseCase(announcementAdmin, record),
+      createAnnouncement: new CreateAdminAnnouncementUseCase(
+        announcementAdmin,
+        record,
+        broadcaster,
+      ),
       updateAnnouncement: new UpdateAdminAnnouncementUseCase(announcementAdmin, record),
       endAnnouncement: new EndAdminAnnouncementUseCase(announcementAdmin, liftTradingHalt, record),
       startMaintenance: new StartMaintenanceUseCase(
@@ -48,6 +54,7 @@ function buildApp() {
         pauseTrading,
         liftTradingHalt,
         record,
+        broadcaster,
         clock,
       ),
       authMiddleware,
@@ -55,7 +62,7 @@ function buildApp() {
   )
   const adminToken = () => `Bearer ${tokenIssuer.issue({ sub: 'admin-1', role: 'admin' })}`
   const userToken = () => `Bearer ${tokenIssuer.issue({ sub: 'user-1', role: 'user' })}`
-  return { app, repository, tradingHaltAdmin, auditLog, adminToken, userToken }
+  return { app, repository, tradingHaltAdmin, auditLog, broadcaster, adminToken, userToken }
 }
 
 const notice = {
@@ -307,5 +314,95 @@ describe('modo de manutenção (N.20)', () => {
       .set('Authorization', adminToken())
       .send({ title: 'outro' })
     expect(res.status).toBe(409)
+  })
+})
+
+describe('aviso por e-mail (EM.5.2, E9)', () => {
+  const critical = { ...notice, severity: 'critical', notify_by_email: true }
+
+  it('comunicado crítico com notify_by_email inicia o lote e audita o pedido', async () => {
+    const { app, adminToken, broadcaster, auditLog } = buildApp()
+
+    const res = await request(app)
+      .post('/admin/announcements')
+      .set('Authorization', adminToken())
+      .send(critical)
+
+    expect(res.status).toBe(201)
+    expect(res.body.notify_by_email).toBe(true)
+    expect(broadcaster.started.map((a) => a.id)).toEqual([res.body.id])
+    expect(auditLog.entries[0].payload).toMatchObject({ notify_by_email: true })
+  })
+
+  it('sem o flag, nada é enviado por e-mail', async () => {
+    const { app, adminToken, broadcaster } = buildApp()
+
+    const res = await request(app)
+      .post('/admin/announcements')
+      .set('Authorization', adminToken())
+      .send({ ...notice, severity: 'critical' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.notify_by_email).toBe(false)
+    expect(broadcaster.started).toEqual([])
+  })
+
+  it('e-mail em comunicado que não é crítico é recusado (422) e nada é criado nem enviado', async () => {
+    const { app, adminToken, broadcaster, repository } = buildApp()
+
+    const res = await request(app)
+      .post('/admin/announcements')
+      .set('Authorization', adminToken())
+      .send({ ...notice, severity: 'warning', notify_by_email: true })
+
+    expect(res.status).toBe(422)
+    expect(repository.items).toHaveLength(0)
+    expect(broadcaster.started).toEqual([])
+  })
+
+  it('falha ao iniciar o lote não derruba a criação do comunicado', async () => {
+    const { app, adminToken, broadcaster, repository } = buildApp()
+    broadcaster.failWith = new Error('fila fora do ar')
+
+    const res = await request(app)
+      .post('/admin/announcements')
+      .set('Authorization', adminToken())
+      .send(critical)
+
+    expect(res.status).toBe(201)
+    expect(repository.items).toHaveLength(1)
+  })
+
+  it('manutenção com notify_by_email também inicia o lote', async () => {
+    const { app, adminToken, broadcaster } = buildApp()
+
+    const res = await request(app)
+      .post('/admin/maintenance')
+      .set('Authorization', adminToken())
+      .send({
+        title: 'Manutenção às 22h',
+        body: 'Voltamos logo.',
+        ends_at: '2026-10-06T14:00:00Z',
+        notify_by_email: true,
+      })
+
+    expect(res.status).toBe(201)
+    expect(res.body.notify_by_email).toBe(true)
+    expect(broadcaster.started.map((a) => a.id)).toEqual([res.body.id])
+  })
+
+  it('editar (PATCH) nunca dispara o lote de novo', async () => {
+    const { app, adminToken, broadcaster } = buildApp()
+    const created = await request(app)
+      .post('/admin/announcements')
+      .set('Authorization', adminToken())
+      .send(critical)
+
+    await request(app)
+      .patch(`/admin/announcements/${created.body.id}`)
+      .set('Authorization', adminToken())
+      .send({ title: 'Título novo' })
+
+    expect(broadcaster.started).toHaveLength(1)
   })
 })

@@ -35,7 +35,9 @@ não estiver de pé, o teste falha por erro de conexão, não passa "verde" por 
    `E2E_BASE_URL` é opcional (default `http://localhost:8000`) — só precisa mudar se o gateway
    estiver mapeado numa porta diferente.
 
-Usuários comuns são criados pela própria suíte via `POST /auth/register`, com e-mail/username
+Usuários comuns são criados pela própria suíte via `POST /auth/register` (a suíte confirma o e-mail
+diretamente no banco, em `E2E_DATABASE_URL`, padrão `postgres://tcc:tcc@localhost:5432/gamification`,
+e então faz o login real), com e-mail/username
 aleatórios a cada execução — ficam no banco de dev depois, mesmo padrão já aceito em toda validação
 manual anterior (nunca um cleanup automático). Rodar a suíte de novo não conflita com a execução
 anterior.

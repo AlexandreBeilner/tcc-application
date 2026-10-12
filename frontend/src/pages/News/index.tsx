@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { NewsAssemblies } from '../../components/organisms/NewsAssemblies'
 import { Pagination } from '../../components/molecules/Pagination'
 import { NewsEventList } from '../../components/organisms/NewsEventList'
 import { useAssetLabels } from '../../features/market/useAssetLabels'
@@ -54,6 +55,8 @@ export function News() {
             <p className={styles.subtitle}>
                 Eventos de mercado que afetam preço e/ou fundamentos dos ativos. Clique num evento pra ver o efeito completo.
             </p>
+
+            <NewsAssemblies />
 
             {newsQuery.isLoading && <p className={styles.loading}>Carregando feed…</p>}
 

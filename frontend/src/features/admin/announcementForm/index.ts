@@ -40,6 +40,8 @@ export interface AnnouncementFormValues {
     body: string
     severity: AnnouncementSeverity
     dismissible: boolean
+    // Só na criação e só para crítico: o e-mail sai uma vez, na publicação.
+    notifyByEmail: boolean
     startsAt: string
     endsAt: string
 }
@@ -49,6 +51,7 @@ export const EMPTY_ANNOUNCEMENT_FORM: AnnouncementFormValues = {
     body: '',
     severity: 'info',
     dismissible: true,
+    notifyByEmail: false,
     startsAt: '',
     endsAt: '',
 }
@@ -59,6 +62,7 @@ export function formFromAnnouncement(announcement: AdminAnnouncement): Announcem
         body: announcement.body,
         severity: announcement.severity,
         dismissible: announcement.dismissible,
+        notifyByEmail: announcement.notify_by_email,
         startsAt: isoToLocalInput(announcement.starts_at),
         endsAt: isoToLocalInput(announcement.ends_at),
     }
@@ -73,6 +77,7 @@ export function validateAnnouncementForm(values: AnnouncementFormValues): string
     if (body.length === 0) return 'Escreva o texto.'
     if (body.length > BODY_MAX_LENGTH) return `O texto passa de ${BODY_MAX_LENGTH} caracteres.`
     if (hasMarkup(title) || hasMarkup(body)) return 'O texto é simples: não use os sinais < e >.'
+    if (values.notifyByEmail && values.severity !== 'critical') return 'Só comunicado crítico pode ir também por e-mail.'
     const starts = localInputToIso(values.startsAt)
     const ends = localInputToIso(values.endsAt)
     if (starts && ends && new Date(ends).getTime() <= new Date(starts).getTime()) {

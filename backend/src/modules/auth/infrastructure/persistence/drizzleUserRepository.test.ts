@@ -37,6 +37,7 @@ describe.skipIf(!databaseUrl)('drizzleUserRepository, suspensão e sessão (banc
       suspendedReason: null,
       suspendedAt: null,
       tokenVersion: 0,
+      emailVerifiedAt: null,
     })
   })
 

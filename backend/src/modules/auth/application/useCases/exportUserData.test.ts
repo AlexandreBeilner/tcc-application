@@ -1,3 +1,5 @@
+import { createFakeEmailPreferencesExporter } from '../../test/fakes/fakeEmailPreferencesExporter'
+import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
 import { describe, expect, it } from 'vitest'
 import { UserNotFoundError } from '../../domain/errors'
 import { createFakeAchievementsExporter } from '../../test/fakes/fakeAchievementsExporter'
@@ -23,6 +25,7 @@ async function build() {
     passwordHash: 'hashed:senha',
   })
 
+  const accountMailer = createFakeAccountMailer()
   const useCase = new ExportUserDataUseCase(
     userRepository,
     createFakeProgressionExporter({
@@ -59,9 +62,12 @@ async function build() {
         { missionId: 'm1', missionDate: '2026-08-24', status: 'completed', completedAt: null },
       ],
     }),
+    createFakeEmailPreferencesExporter({ [alice.id]: { social: true, engagement: false } }),
+    accountMailer,
+    () => 'evento-1',
   )
 
-  return { useCase, alice, bob }
+  return { useCase, alice, bob, accountMailer }
 }
 
 describe('ExportUserDataUseCase', () => {
@@ -76,6 +82,7 @@ describe('ExportUserDataUseCase', () => {
     expect(result.achievements).toHaveLength(1)
     expect(result.friendships).toHaveLength(1)
     expect(result.missionProgress).toHaveLength(1)
+    expect(result.emailPreferences).toEqual({ social: true, engagement: false })
   })
 
   it('nunca inclui password_hash no bloco de usuário', async () => {
@@ -104,5 +111,24 @@ describe('ExportUserDataUseCase', () => {
     const { useCase } = await build()
 
     await expect(useCase.execute({ userId: 'nope' })).rejects.toBeInstanceOf(UserNotFoundError)
+  })
+
+  it('avisa por e-mail que os dados foram exportados (E7)', async () => {
+    const { useCase, alice, accountMailer } = await build()
+
+    await useCase.execute({ userId: alice.id })
+
+    expect(accountMailer.exports).toEqual([
+      { userId: alice.id, to: 'alice@example.com', name: 'Alice', eventId: 'evento-1' },
+    ])
+  })
+
+  it('falha ao enfileirar o aviso não impede a exportação', async () => {
+    const { useCase, alice, accountMailer } = await build()
+    accountMailer.failWith(new Error('outbox fora do ar'))
+
+    const data = await useCase.execute({ userId: alice.id })
+
+    expect(data.user.id).toBe(alice.id)
   })
 })

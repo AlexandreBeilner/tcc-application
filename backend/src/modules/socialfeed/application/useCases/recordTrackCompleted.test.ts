@@ -22,7 +22,7 @@ describe('RecordTrackCompletedUseCase', () => {
 
     const [event] = repository.events
     expect(Object.keys(event).sort()).toEqual(
-      ['id', 'occurredAt', 'trackNumber', 'type', 'userId'].sort(),
+      ['data', 'id', 'occurredAt', 'trackNumber', 'type', 'userId'].sort(),
     )
   })
 })

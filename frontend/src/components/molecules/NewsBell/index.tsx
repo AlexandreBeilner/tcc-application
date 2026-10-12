@@ -1,5 +1,6 @@
 import { Bell, Lock } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useUnreadAssemblies } from '../../../features/assemblies/useUnreadAssemblies'
 import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import { useUnreadNews } from '../../../features/shell/useUnreadNews'
 import styles from './index.module.css'
@@ -14,7 +15,10 @@ import styles from './index.module.css'
 // falta) — só troca o badge de novidade pelo cadeado, sem citar código de
 // lição no aria-label (Fase Q: nunca "Lição X.X" fora do Mapa da Trilha).
 export function NewsBell() {
-    const hasUnread = useUnreadNews()
+    // Notícias também avisa de assembleia aberta ainda não vista (MO.6.6): o sino leva ao mesmo lugar.
+    const hasUnreadNews = useUnreadNews()
+    const hasUnreadAssemblies = useUnreadAssemblies()
+    const hasUnread = hasUnreadNews || hasUnreadAssemblies
     const { unlockedKeys } = useUnlockedKeys()
     const locked = !unlockedKeys.has('news_feed')
 

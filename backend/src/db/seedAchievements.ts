@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createDb } from './client'
 import { achievementCriteriaType, achievements } from './schema'
+import { loadAssemblyConfig } from '../modules/assemblies/infrastructure/config/assemblyConfig'
 
 export interface AchievementSeed {
   // Chave estável (N.19): o painel pode renomear a conquista, então o seed não casa por nome.
@@ -9,6 +10,8 @@ export interface AchievementSeed {
   description: string
   criteriaType: (typeof achievementCriteriaType.enumValues)[number]
   criteriaValue: string
+  // Rara de verdade (ponto 044): ponto de partida editável no painel; quem decide é o catálogo.
+  isRare?: boolean
 }
 
 // Catálogo mínimo (tarefa 5.2) — 8 conquistas ilustrativas cobrindo os 4
@@ -29,6 +32,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Mantenha um streak de 30 dias consecutivos.',
     criteriaType: 'streak_days',
     criteriaValue: '30',
+    isRare: true,
   },
   {
     seedKey: 'lessons_10',
@@ -48,6 +52,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Complete todas as 35 lições da trilha.',
     criteriaType: 'lessons_completed',
     criteriaValue: '35',
+    isRare: true,
   },
   {
     seedKey: 'net_worth_12k',
@@ -62,6 +67,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Alcance R$ 25.000,00 de patrimônio no Mercado Ao Vivo.',
     criteriaType: 'net_worth',
     criteriaValue: '25000.00',
+    isRare: true,
   },
   {
     seedKey: 'trades_1',
@@ -91,6 +97,7 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Complete uma trilha inteira sem nenhum erro na aposta.',
     criteriaType: 'track_completed_no_errors',
     criteriaValue: '1',
+    isRare: true,
   },
   {
     seedKey: 'lesson_reviewed',
@@ -98,6 +105,39 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     description: 'Revise voluntariamente uma lição já concluída.',
     criteriaType: 'lesson_reviewed',
     criteriaValue: '1',
+  },
+  // Participação (MO.6.7): só por votar, nunca por estar do lado vencedor.
+  {
+    seedKey: 'assemblies_participated_3',
+    name: 'Acionista Ativo',
+    description: 'Vote em 3 assembleias de acionistas.',
+    criteriaType: 'assemblies_participated',
+    criteriaValue: '3',
+  },
+  // Indicação (MO.7.2): amigos que concluíram a primeira lição. Os marcos 5, 20 e 50 espelham a
+  // escada de `referral_milestones`.
+  {
+    seedKey: 'referrals_qualified_5',
+    name: 'Convidou os Primeiros',
+    description: 'Traga 5 amigos que concluíram a primeira lição.',
+    criteriaType: 'referrals_qualified',
+    criteriaValue: '5',
+  },
+  {
+    seedKey: 'referrals_qualified_20',
+    name: 'Comunidade em Crescimento',
+    description: 'Traga 20 amigos que concluíram a primeira lição.',
+    criteriaType: 'referrals_qualified',
+    criteriaValue: '20',
+    isRare: true,
+  },
+  {
+    seedKey: 'referrals_qualified_50',
+    name: 'Fundador de Turma',
+    description: 'Traga 50 amigos que concluíram a primeira lição.',
+    criteriaType: 'referrals_qualified',
+    criteriaValue: '50',
+    isRare: true,
   },
 ]
 
@@ -116,7 +156,10 @@ async function main() {
   const existing = await db.select({ seedKey: achievements.seedKey }).from(achievements)
   const existingKeys = new Set(existing.map((row) => row.seedKey))
 
+  // A conquista de assembleia só nasce com o recurso ligado (padrão): desligado, ninguém a alcança.
+  const assembliesOn = loadAssemblyConfig(process.env).enabled
   for (const seed of ACHIEVEMENT_SEEDS) {
+    if (seed.criteriaType === 'assemblies_participated' && !assembliesOn) continue
     if (existingKeys.has(seed.seedKey)) {
       console.log(`conquista "${seed.name}" já existia — nada a fazer`)
       continue

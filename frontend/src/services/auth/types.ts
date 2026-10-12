@@ -15,16 +15,33 @@ export interface AuthResult {
     user: AuthUser
 }
 
+// `POST /auth/register` não devolve sessão (EM.3.1): a conta só entra depois de verificar o e-mail.
+export interface RegisterResult {
+    user: AuthUser
+    emailVerificationRequired: true
+}
+
 export interface RegisterInput {
     name: string
     email: string
     username: string
     password: string
+    // Código do link de indicação (MO.7.2); o servidor ignora o que não reconhecer.
+    referralCode?: string
 }
 
 export interface LoginInput {
     email: string
     password: string
+}
+
+export interface VerifyEmailInput {
+    token: string
+}
+
+export interface ResetPasswordInput {
+    token: string
+    newPassword: string
 }
 
 // Tela 9.2 (tarefa 6.10) — `PATCH /me`, mesmas 3 regras de formato do

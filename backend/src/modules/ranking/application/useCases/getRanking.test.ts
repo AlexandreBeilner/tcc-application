@@ -167,7 +167,7 @@ describe('GetRankingUseCase', () => {
     })
 
     expect(Object.keys(result.entries[0]).sort()).toEqual(
-      ['userId', 'username', 'level', 'xp', 'profitabilityPct'].sort(),
+      ['userId', 'username', 'level', 'xp', 'profitabilityPct', 'cosmetics'].sort(),
     )
   })
 
@@ -1141,6 +1141,56 @@ describe('GetRankingUseCase', () => {
 
       expect(result.entries).toHaveLength(1)
       expect(result.updatedAt).toBeNull()
+    })
+  })
+
+  describe('cosméticos do PRO (MO.5.1)', () => {
+    const users = [
+      { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
+      { id: 'u2', username: 'u2', createdAt: new Date('2026-01-01T00:00:00Z') },
+    ]
+    const display = { isPro: true, frame: 'frame_aurora', title: 'Estrategista' }
+
+    function run(cosmeticsReader?: {
+      findDisplays(ids: string[]): Promise<Map<string, typeof display>>
+    }) {
+      const { levelReader, friendGraphReader } = build({
+        progressionByUserId: { u1: { level: 9, xp: 900 }, u2: { level: 2, xp: 100 } },
+      })
+      return new GetRankingUseCase(
+        createFakeUserDirectory(users),
+        createFakeSandboxAssetReader(),
+        {
+          async execute() {
+            return overallSnapshot(10000)
+          },
+        },
+        levelReader,
+        friendGraphReader,
+        undefined,
+        undefined,
+        cosmeticsReader,
+      ).execute({ scope: 'global', criterion: 'level', page: 1, requestingUserId: 'u1' })
+    }
+
+    it('mostra selo, moldura e título de quem é PRO e nada para os demais', async () => {
+      const result = await run({ findDisplays: async () => new Map([['u2', display]]) })
+      const byId = new Map(result.entries.map((e) => [e.userId, e.cosmetics]))
+      expect(byId.get('u2')).toEqual(display)
+      expect(byId.get('u1')).toEqual({ isPro: false, frame: null, title: null })
+    })
+
+    it('nunca muda a ordem do ranking', async () => {
+      const plain = await run()
+      const decorated = await run({ findDisplays: async () => new Map([['u2', display]]) })
+      expect(decorated.entries.map((e) => e.userId)).toEqual(plain.entries.map((e) => e.userId))
+      expect(plain.entries.map((e) => e.userId)).toEqual(['u1', 'u2'])
+    })
+
+    it('consulta só os usuários da página exibida', async () => {
+      const asked: string[][] = []
+      await run({ findDisplays: async (ids) => (asked.push(ids), new Map()) })
+      expect(asked).toEqual([['u1', 'u2']])
     })
   })
 })

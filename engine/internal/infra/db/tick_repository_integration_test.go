@@ -206,8 +206,10 @@ func TestListCompaniesForFundamentals_TrazPoliticaELucrosAnteriores(t *testing.T
 		if !c.ScheduleAssigned || c.DividendPolicy != catalog.DividendSemiannual || c.ComLagDays != 2 || c.PaymentLagDays != 9 {
 			t.Errorf("agenda = %+v", c)
 		}
-		if len(c.PriorNetIncomes) != 3 || c.PriorNetIncomes[0] != 400 || c.PriorNetIncomes[2] != 200 {
-			t.Errorf("PriorNetIncomes = %v, want [400 300 200]", c.PriorNetIncomes)
+		// Até 4 lucros: o pool anual de uma declaração liberada com atraso soma o balanço retido e
+		// os três anteriores (MO.6.11); o pool de um balanço novo usa só PoolCycles-1 deles.
+		if len(c.PriorNetIncomes) != 4 || c.PriorNetIncomes[0] != 400 || c.PriorNetIncomes[3] != 100 {
+			t.Errorf("PriorNetIncomes = %v, want [400 300 200 100]", c.PriorNetIncomes)
 		}
 		return
 	}

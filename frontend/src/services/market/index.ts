@@ -98,6 +98,13 @@ export function listAssets(token: string, type?: AssetType, includeSandbox?: boo
     return apiRequest<{ assets: AssetSummary[] }>(`/market/assets${query}`, { token })
 }
 
+// Séries curtas de preço de todos os ativos numa chamada só (MO.9.5), pra sparkline das listas;
+// o backend cacheia por `days`.
+export function getAssetPriceSeries(token: string, days?: number): Promise<{ series: Record<string, number[]> }> {
+    const query = days ? `?days=${days}` : ''
+    return apiRequest<{ series: Record<string, number[]> }>(`/market/assets/quotes${query}`, { token })
+}
+
 export function getAsset(token: string, id: string): Promise<{ asset: AssetDetail }> {
     return apiRequest<{ asset: AssetDetail }>(`/market/assets/${id}`, { token })
 }

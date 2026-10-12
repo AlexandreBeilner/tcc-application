@@ -1,4 +1,6 @@
 // Espelha `.docs/backend/ranking.md` (`GET /ranking`).
+import type { PublicCosmetics } from '../cosmetics'
+
 export type RankingWindow = 'week' | 'month'
 export type RankingScope = 'global' | 'friends'
 // 6.8.3 — critério de ordenação. `level` ignora janela por completo
@@ -17,6 +19,8 @@ export interface RankingEntry {
     // uma razão 0–1). `null` quando `criterion === 'level'` — esse
     // critério não calcula rentabilidade nenhuma.
     profitabilityPct: number | null
+    // Selo PRO, moldura e título (MO.5.1): só apresentação, nunca entra na ordem.
+    cosmetics: PublicCosmetics
 }
 
 export interface GetRankingParams {

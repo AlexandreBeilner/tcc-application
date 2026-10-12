@@ -38,6 +38,17 @@ describe('engineAccountReader', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://engine:8080/positions?user_id=user-1')
   })
 
+  it('GET /fixed-income/positions?user_id=&valuation=true quando pedido', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => [] })
+    const reader = createEngineAccountReader('http://engine:8080')
+
+    await reader.listFixedIncomePositions('user-1', { valuation: true })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://engine:8080/fixed-income/positions?user_id=user-1&valuation=true',
+    )
+  })
+
   it('GET /fixed-income/positions?user_id=', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => [] })
     const reader = createEngineAccountReader('http://engine:8080')

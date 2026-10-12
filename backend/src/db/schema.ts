@@ -23,6 +23,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
@@ -40,6 +41,10 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'micro_decisions_streak',
   'track_completed_no_errors',
   'lesson_reviewed',
+  // Participação em assembleias (MO.6.7): quantas assembleias distintas a pessoa votou.
+  'assemblies_participated',
+  // Indicações que viraram válidas (MO.7.2): a pessoa indicada concluiu a primeira lição.
+  'referrals_qualified',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
 // padrão (sem widget embutido); os outros três embutem um componente já
@@ -84,6 +89,9 @@ export const users = pgTable(
     // Incrementado por "forçar logout" (N.16): o token carrega a versão com que
     // foi emitido e o `authMiddleware` recusa token de versão antiga.
     tokenVersion: integer('token_version').notNull().default(0),
+    // Quando o dono provou controlar a caixa de e-mail (EM.3.1): link de verificação, reset de
+    // senha concluído, e-mail confirmado pelo Google ou seed do admin. `null` = não verificado.
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [check('users_status_chk', sql`${table.status} IN ('active', 'suspended')`)],
@@ -125,6 +133,9 @@ export const achievements = pgTable('achievements', {
   // nome, que o painel agora pode editar (casar por nome criaria duplicata a cada
   // seed depois de um renomear). Nula nas conquistas criadas pelo painel.
   seedKey: varchar('seed_key', { length: 50 }).unique(),
+  // Conquista rara de verdade (ponto 044, decisão 2026-10-11): marcada no catálogo pelo painel,
+  // independente do tamanho da base. É o que dispara o e-mail de conquista rara.
+  isRare: boolean('is_rare').notNull().default(false),
 })
 
 export const userAchievements = pgTable(
@@ -406,6 +417,9 @@ export const socialFeedEvents = pgTable('social_feed_events', {
     .references(() => users.id),
   type: text('type').notNull(),
   trackNumber: integer('track_number'),
+  // Dados extras de um tipo de evento (ex: o resultado de um duelo, MO.5.3). Nulo em
+  // `track_completed`. Nunca carrega valor financeiro absoluto (RNF09).
+  data: jsonb('data'),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -493,6 +507,8 @@ export const announcements = pgTable(
     severity: text('severity').notNull(),
     kind: text('kind').notNull().default('notice'),
     dismissible: boolean('dismissible').notNull().default(true),
+    // Aviso também por e-mail (EM.5.2): só a quem tem e-mail verificado, e só para crítico.
+    notifyByEmail: boolean('notify_by_email').notNull().default(false),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }),
     linkedHaltId: uuid('linked_halt_id'),
@@ -559,5 +575,638 @@ export const rankingValuationSamples = pgTable(
   (table) => [
     primaryKey({ columns: [table.computedAt, table.userId] }),
     index('ranking_valuation_samples_user_idx').on(table.userId),
+  ],
+)
+
+// Fila de e-mails a enviar (EM.1.1, `.claude/plano-gateway-email.md` 4.3). Quem precisa de um
+// e-mail só grava uma linha aqui (na mesma transação da escrita de negócio, quando houver); um
+// worker entrega depois, com retry e backoff. `idempotency_key` única impede enviar duas vezes o
+// mesmo fato. `claimed_at` marca quando o worker pegou a linha: uma `sending` velha é de um
+// processo que caiu e volta pra `pending`. `payload` guarda só o que o template precisa e é
+// limpo junto do endereço depois da retenção (EM.8.1). Texto + CHECK em vez de enum, como
+// `users.status`: um estado novo não exige migration de tipo.
+export const emailOutbox = pgTable(
+  'email_outbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id),
+    toAddress: varchar('to_address', { length: 320 }).notNull(),
+    templateKey: varchar('template_key', { length: 60 }).notNull(),
+    category: text('category').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+    idempotencyKey: varchar('idempotency_key', { length: 200 }).notNull().unique(),
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    providerMessageId: varchar('provider_message_id', { length: 200 }),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    // Confirmação de entrega que o webhook do provedor traz (EM.1.4); `sent` só diz que o
+    // provedor aceitou a mensagem.
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      'email_outbox_status_chk',
+      sql`${table.status} IN ('pending', 'sending', 'sent', 'failed', 'suppressed')`,
+    ),
+    check(
+      'email_outbox_category_chk',
+      sql`${table.category} IN ('security', 'transactional', 'social', 'engagement')`,
+    ),
+    index('email_outbox_pending_idx')
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} = 'pending'`),
+    index('email_outbox_user_idx').on(table.userId),
+  ],
+)
+
+// Endereços que não devem receber e-mail (EM.1.4): bounce permanente, reclamação de spam e
+// descadastro total. A chave é o endereço normalizado em minúsculo, não o usuário: o bounce vale
+// pro endereço mesmo se a conta mudar. Consultada em todo enfileiramento e de novo na entrega.
+export const emailSuppressions = pgTable(
+  'email_suppressions',
+  {
+    address: varchar('address', { length: 320 }).primaryKey(),
+    reason: text('reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'email_suppressions_reason_chk',
+      sql`${table.reason} IN ('bounce', 'complaint', 'unsubscribe_all')`,
+    ),
+  ],
+)
+
+// Preferências de e-mail por categoria opcional (EM.6.1). Sem linha = tudo desligado (D8): a linha
+// só nasce quando a pessoa liga ou desliga algo (onboarding, Configurações ou link de cancelar).
+// Segurança e transacional não têm coluna: nunca são desligáveis.
+export const emailPreferences = pgTable('email_preferences', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  social: boolean('social').notNull().default(false),
+  engagement: boolean('engagement').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Tokens de uso único enviados por e-mail (EM.2.1): hoje só `password_reset`, a verificação de
+// e-mail entra na EM.3.1. Só o hash SHA-256 do token é gravado; o token em claro existe apenas no
+// link do e-mail. `used_at` marca o consumo (ou a invalidação por um pedido mais novo).
+export const authEmailTokens = pgTable(
+  'auth_email_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind').notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'auth_email_tokens_kind_chk',
+      sql`${table.kind} IN ('password_reset', 'email_verification')`,
+    ),
+    index('auth_email_tokens_user_kind_idx').on(table.userId, table.kind),
+  ],
+)
+
+// Projeção local do direito ao PRO (MO.2.1), uma linha por usuário. A verdade é o RevenueCat:
+// esta tabela só guarda o que a última consulta devolveu (fatos, não um "status" gravado, porque
+// ativo/vencido depende da hora de agora). Sem linha = nunca assinou. Nunca guarda dado de cartão.
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id),
+    store: text('store').notNull(),
+    productId: varchar('product_id', { length: 200 }).notNull(),
+    period: text('period').notNull().default('unknown'),
+    purchasedAt: timestamp('purchased_at', { withTimezone: true }),
+    // Nulo = sem vencimento (concessão promocional vitalícia).
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    graceExpiresAt: timestamp('grace_expires_at', { withTimezone: true }),
+    billingIssueDetectedAt: timestamp('billing_issue_detected_at', { withTimezone: true }),
+    unsubscribeDetectedAt: timestamp('unsubscribe_detected_at', { withTimezone: true }),
+    refundedAt: timestamp('refunded_at', { withTimezone: true }),
+    isSandbox: boolean('is_sandbox').notNull().default(false),
+    managementUrl: text('management_url'),
+    lastEventAt: timestamp('last_event_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'subscriptions_store_chk',
+      sql`${table.store} IN ('app_store', 'play_store', 'stripe', 'rc_billing', 'promotional', 'other')`,
+    ),
+    check('subscriptions_period_chk', sql`${table.period} IN ('monthly', 'annual', 'unknown')`),
+  ],
+)
+
+// Eventos do webhook do RevenueCat já tratados (MO.2.1). A chave é o id do próprio evento, não um
+// id nosso. O efeito do webhook é reconsultar o estado e regravar a projeção (convergente), então
+// isto é auditoria e atalho contra reprocessar repetição, não o que garante a correção.
+export const billingWebhookEvents = pgTable('billing_webhook_events', {
+  id: varchar('id', { length: 200 }).primaryKey(),
+  eventType: varchar('event_type', { length: 60 }).notNull(),
+  processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Catálogo de cosméticos do PRO (MO.5.1): moldura de avatar e título. Tabela própria, nunca o
+// catálogo de conquistas (`achievements`): emblema de conquista real continua grátis. A chave é
+// estável e legível (o frontend mapeia a moldura pelo visual, o texto vem daqui). Os itens são
+// dado, inseridos na própria migração.
+export const cosmeticItems = pgTable(
+  'cosmetic_items',
+  {
+    key: varchar('key', { length: 40 }).primaryKey(),
+    kind: text('kind').notNull(),
+    name: varchar('name', { length: 60 }).notNull(),
+    description: varchar('description', { length: 200 }).notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    active: boolean('active').notNull().default(true),
+    // Título liberado por indicações (MO.7.2): só quem tem pelo menos N indicações válidas equipa.
+    // Nulo = livre pra todo PRO (o catálogo da MO.5.1).
+    unlockReferrals: integer('unlock_referrals'),
+  },
+  (table) => [check('cosmetic_items_kind_chk', sql`${table.kind} IN ('frame', 'title')`)],
+)
+
+// O que cada pessoa equipou: no máximo um item por tipo. Cancelar o PRO não apaga estas linhas
+// (arquivar, nunca apagar): a leitura pública só mostra o item de quem é PRO agora, então
+// reativar restaura o visual sem escrever nada.
+export const userCosmetics = pgTable(
+  'user_cosmetics',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind').notNull(),
+    itemKey: varchar('item_key', { length: 40 })
+      .notNull()
+      .references(() => cosmeticItems.key),
+    equippedAt: timestamp('equipped_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.kind] }),
+    check('user_cosmetics_kind_chk', sql`${table.kind} IN ('frame', 'title')`),
+  ],
+)
+
+// Ligas privadas do PRO (MO.5.2). Só quem é PRO cria (até 3 abertas por pessoa); qualquer amigo
+// convidado entra sem plano. A pontuação não é coluna: é sempre a rentabilidade percentual da
+// janela do ranking (`window_kind`), nunca patrimônio absoluto (RNF09). "Arquivada" quando o
+// dono cancela o PRO não é estado gravado, é derivado do plano do dono a cada leitura (volta
+// sozinha na reativação). `closed_at` é o encerramento voluntário pelo dono (libera a vaga das 3).
+export const leagues = pgTable(
+  'leagues',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id),
+    name: varchar('name', { length: 40 }).notNull(),
+    windowKind: text('window_kind').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('leagues_owner_idx').on(table.ownerId),
+    check('leagues_window_kind_chk', sql`${table.windowKind} IN ('week', 'month')`),
+  ],
+)
+
+// Participação numa liga. `invited` = convite pendente (só entre amigos aceitos); `active` =
+// participa do ranking da liga. O dono é um membro `active` desde a criação.
+export const leagueMembers = pgTable(
+  'league_members',
+  {
+    leagueId: uuid('league_id')
+      .notNull()
+      .references(() => leagues.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull(),
+    invitedBy: uuid('invited_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    joinedAt: timestamp('joined_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.leagueId, table.userId] }),
+    index('league_members_user_idx').on(table.userId),
+    check('league_members_status_chk', sql`${table.status} IN ('invited', 'active')`),
+  ],
+)
+
+// Duelos entre amigos (MO.5.3): desafio 1 contra 1 de 7 dias, vence a maior rentabilidade
+// percentual do período. Criar é PRO, aceitar nunca. O resultado é gravado uma única vez, no
+// encerramento, e depois nunca muda (arquivar, nunca apagar). `status`: pending (aguardando
+// aceite), active, finished, declined, cancelled (o desafiante desistiu) e expired (ninguém
+// respondeu a tempo).
+// Assembleias (MO.6.1): decisões coletivas por `kind` (hoje só `shareholder`). `subject_ref` é a
+// empresa (ou o mercado, em kinds futuros). O peso dos votos vem do snapshot de posições do motor,
+// que não é copiado para cá.
+export const assemblies = pgTable(
+  'assemblies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind').notNull(),
+    subjectRef: text('subject_ref').notNull(),
+    // Chave de idempotência da abertura (reexecutar o job não abre duas vezes a mesma assembleia).
+    dedupeKey: varchar('dedupe_key', { length: 200 }).notNull(),
+    // scheduled | open | closed
+    status: text('status').notNull(),
+    opensAt: timestamp('opens_at', { withTimezone: true }).notNull(),
+    // Data de corte: posições medidas nesse instante definem quem pode votar e com que peso.
+    snapshotAt: timestamp('snapshot_at', { withTimezone: true }).notNull(),
+    closesAt: timestamp('closes_at', { withTimezone: true }).notNull(),
+    effectAppliesAt: timestamp('effect_applies_at', { withTimezone: true }).notNull(),
+    // approved | not_approved (só depois de fechada)
+    outcome: text('outcome'),
+    // quorum | tie | decided
+    outcomeReason: text('outcome_reason'),
+    winningOptionId: uuid('winning_option_id'),
+    voterCount: integer('voter_count'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    // Contexto de exibição (MO.6.3): título da pauta, nome da empresa e a pauta do catálogo que
+    // originou a assembleia. Nulos em assembleias criadas sem catálogo.
+    title: text('title'),
+    subjectLabel: text('subject_label'),
+    templateKey: text('template_key'),
+    // Quando o resultado aprovado foi entregue ao motor (nulo = ainda não aplicado).
+    effectAppliedAt: timestamp('effect_applied_at', { withTimezone: true }),
+    // Quando o resultado foi publicado (feed social e e-mail, MO.6.7); nulo = ainda não publicado.
+    resultAnnouncedAt: timestamp('result_announced_at', { withTimezone: true }),
+    // Quórum fixado na abertura (MO.6.8): editar o parâmetro depois não muda as regras de quem já
+    // está votando. Nulo (assembleia anterior ao parâmetro editável) usa o valor de agora.
+    minVoters: integer('min_voters'),
+    // Declaração de dividendo retida no motor que esta assembleia vai liberar (MO.6.13): a decisão
+    // a libera com o payout novo, e fechar sem decisão a libera com o vigente. Nulo nas
+    // assembleias que não seguram dividendo.
+    declarationId: uuid('declaration_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('assemblies_dedupe_key_unique').on(table.dedupeKey),
+    index('assemblies_status_closes_idx').on(table.status, table.closesAt),
+    index('assemblies_kind_subject_idx').on(table.kind, table.subjectRef),
+    check('assemblies_status_chk', sql`${table.status} IN ('scheduled', 'open', 'closed')`),
+    check(
+      'assemblies_outcome_chk',
+      sql`${table.outcome} IS NULL OR ${table.outcome} IN ('approved', 'not_approved')`,
+    ),
+    check(
+      'assemblies_schedule_chk',
+      sql`${table.snapshotAt} <= ${table.opensAt} AND ${table.opensAt} < ${table.closesAt} AND ${table.closesAt} <= ${table.effectAppliesAt}`,
+    ),
+  ],
+)
+
+// Catálogo de pautas (MO.6.3): cada linha é uma pauta fechada de dois lados que o job de abertura
+// sorteia de forma determinística para uma empresa. `sector` nulo vale para qualquer setor.
+// `options` é uma lista `[{ key, label, gain, loss, effect }]`. Cresce por linha nova (migração
+// ou, na MO.6.8, painel admin); a MO.6.5 acrescenta proposta e apoio.
+export const agendaTemplates = pgTable(
+  'agenda_templates',
+  {
+    key: varchar('key', { length: 80 }).primaryKey(),
+    kind: text('kind').notNull(),
+    sector: text('sector'),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    options: jsonb('options').notNull(),
+    active: boolean('active').notNull().default(true),
+    // `general` é sorteada na abertura normal; `profit` só nas assembleias de destinação do lucro,
+    // abertas a partir da declaração de dividendo retida (MO.6.13).
+    purpose: text('purpose').notNull().default('general'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('agenda_templates_kind_active_idx').on(table.kind, table.active),
+    check('agenda_templates_purpose_chk', sql`${table.purpose} IN ('general', 'profit')`),
+  ],
+)
+
+// Parâmetros das assembleias editados no painel (MO.6.8). Uma linha por chave; sem linha vale o
+// valor inicial (variável de ambiente ou padrão do código). Restaurar apaga a linha.
+export const assemblySettings = pgTable('assembly_settings', {
+  key: varchar('key', { length: 60 }).primaryKey(),
+  value: integer('value').notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Pausa do ciclo das assembleias (MO.6.8), no padrão das pausas de negociação: global (todas) ou de
+// um assunto (uma empresa). Pausar só impede abrir e aplicar; nada se perde, retomar continua de
+// onde parou. `scope_key` ('global' ou 'kind:assunto') garante uma pausa vigente por escopo.
+export const assemblyPauses = pgTable(
+  'assembly_pauses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    scope: text('scope').notNull(),
+    kind: text('kind'),
+    subjectRef: text('subject_ref'),
+    scopeKey: varchar('scope_key', { length: 200 }).notNull(),
+    reason: text('reason').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    liftedAt: timestamp('lifted_at', { withTimezone: true }),
+    liftedBy: uuid('lifted_by').references(() => users.id),
+  },
+  (table) => [
+    check('assembly_pauses_scope_chk', sql`${table.scope} IN ('global', 'subject')`),
+    uniqueIndex('assembly_pauses_active_unique')
+      .on(table.scopeKey)
+      .where(sql`lifted_at IS NULL`),
+    index('assembly_pauses_created_idx').on(table.createdAt),
+  ],
+)
+
+// Opções da pauta (catálogo fechado, sem texto livre): cada uma com ganho e perda explícitos.
+export const assemblyOptions = pgTable(
+  'assembly_options',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assemblyId: uuid('assembly_id')
+      .notNull()
+      .references(() => assemblies.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    label: text('label').notNull(),
+    gain: text('gain').notNull(),
+    loss: text('loss').notNull(),
+    // Parâmetros do efeito, interpretados pelo `EffectApplier` do kind.
+    effect: jsonb('effect').notNull().default({}),
+    position: smallint('position').notNull(),
+  },
+  (table) => [unique('assembly_options_assembly_key_unique').on(table.assemblyId, table.key)],
+)
+
+// Um voto por pessoa e assembleia; trocar o voto até o fechamento atualiza a mesma linha.
+export const assemblyVotes = pgTable(
+  'assembly_votes',
+  {
+    assemblyId: uuid('assembly_id')
+      .notNull()
+      .references(() => assemblies.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    optionId: uuid('option_id')
+      .notNull()
+      .references(() => assemblyOptions.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.assemblyId, table.userId] }),
+    index('assembly_votes_option_idx').on(table.optionId),
+  ],
+)
+
+// Crédito mensal de voto de quem não é PRO: a linha existe quando o crédito foi consumido numa
+// assembleia (no primeiro voto). `month_key` é o mês de calendário de Brasília ('2026-10').
+export const assemblyVoteCredits = pgTable(
+  'assembly_vote_credits',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    assemblyId: uuid('assembly_id')
+      .notNull()
+      .references(() => assemblies.id, { onDelete: 'cascade' }),
+    monthKey: varchar('month_key', { length: 7 }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.assemblyId] }),
+    index('assembly_vote_credits_user_month_idx').on(table.userId, table.monthKey),
+  ],
+)
+
+// Proposta de pauta (MO.6.5): uma pessoa PRO escolhe uma pauta do catálogo para uma empresa que
+// possui e as demais apoiam. Sem texto livre: só `template_key`. `status`: active | consumed
+// (virou a pauta de uma assembleia) | expired (passou `expires_at` sem ser escolhida). Uma
+// proposta ativa por (kind, empresa, pauta): propor de novo vira apoio à existente.
+export const agendaProposals = pgTable(
+  'agenda_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: text('kind').notNull(),
+    subjectRef: text('subject_ref').notNull(),
+    templateKey: varchar('template_key', { length: 80 })
+      .notNull()
+      .references(() => agendaTemplates.key),
+    proposedBy: uuid('proposed_by')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    // Assembleia que consumiu a proposta (nula enquanto ativa ou expirada).
+    consumedAssemblyId: uuid('consumed_assembly_id').references(() => assemblies.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (table) => [
+    uniqueIndex('agenda_proposals_active_unique')
+      .on(table.kind, table.subjectRef, table.templateKey)
+      .where(sql`status = 'active'`),
+    index('agenda_proposals_subject_idx').on(table.kind, table.subjectRef, table.status),
+    index('agenda_proposals_proposer_idx').on(table.proposedBy, table.createdAt),
+  ],
+)
+
+// Apoio a uma proposta: uma linha por pessoa (o proponente entra como primeiro apoio).
+export const agendaProposalSupports = pgTable(
+  'agenda_proposal_supports',
+  {
+    proposalId: uuid('proposal_id')
+      .notNull()
+      .references(() => agendaProposals.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.proposalId, table.userId] })],
+)
+
+export const duels = pgTable(
+  'duels',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    challengerId: uuid('challenger_id')
+      .notNull()
+      .references(() => users.id),
+    opponentId: uuid('opponent_id')
+      .notNull()
+      .references(() => users.id),
+    status: text('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // Prazo para o convidado responder.
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    // challenger | opponent | draw
+    outcome: text('outcome'),
+    // profitability | abandonment | tie | both_inactive
+    reason: text('reason'),
+    challengerPct: doublePrecision('challenger_pct'),
+    opponentPct: doublePrecision('opponent_pct'),
+    challengerOperated: boolean('challenger_operated'),
+    opponentOperated: boolean('opponent_operated'),
+    // XP de participação já creditado (idempotência do encerramento).
+    xpAwardedAt: timestamp('xp_awarded_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('duels_challenger_idx').on(table.challengerId),
+    index('duels_opponent_idx').on(table.opponentId),
+    index('duels_status_ends_idx').on(table.status, table.endsAt),
+    check(
+      'duels_status_chk',
+      sql`${table.status} IN ('pending', 'active', 'finished', 'declined', 'cancelled', 'expired')`,
+    ),
+    check('duels_outcome_chk', sql`${table.outcome} IN ('challenger', 'opponent', 'draw')`),
+    check('duels_distinct_players_chk', sql`${table.challengerId} <> ${table.opponentId}`),
+  ],
+)
+
+// Dias em que a pessoa teve atividade qualificadora (lição ou missão concluída), um por linha (MO.5.4).
+// Dia presente = manteve a sequência; dia ausente = ficou off. Alimenta o calendário e a maior
+// sequência do mês da retrospectiva. Só o registro de atividade, nada financeiro.
+export const dailyActivity = pgTable(
+  'daily_activity',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    // Dia calendário em UTC, o mesmo do streak (`gamification/domain/streak.ts`).
+    day: date('day').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })],
+)
+
+// Retrospectiva mensal arquivada (MO.5.4): o conteúdo do mês fica gravado e nunca é recalculado,
+// então rever meses antigos independe do plano. `month` no formato AAAA-MM.
+export const retrospectives = pgTable(
+  'retrospectives',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    month: varchar('month', { length: 7 }).notNull(),
+    data: jsonb('data').notNull(),
+    generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.month] })],
+)
+
+// Funil de conversão do PRO (MO.1.3/MO.7.1): eventos próprios, sem terceiro. Guarda só quem fez o
+// quê e onde (ponto de convite), nunca valor em reais nem patrimônio (RNF09). `dedupe_key` torna a
+// gravação idempotente: o cliente reporta no máximo um evento por pessoa, nome, origem e dia, e os
+// eventos de servidor (assinou, cancelou) usam a chave do próprio fato.
+export const funnelEvents = pgTable(
+  'funnel_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    name: text('name').notNull(),
+    source: text('source'),
+    plan: text('plan'),
+    dedupeKey: varchar('dedupe_key', { length: 200 }).notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'funnel_events_name_chk',
+      sql`${table.name} IN ('invite_viewed', 'plans_opened', 'purchase_started', 'subscribed', 'cancelled')`,
+    ),
+    check(
+      'funnel_events_source_chk',
+      sql`${table.source} IS NULL OR ${table.source} IN ('league', 'duel', 'cosmetics', 'retrospective', 'assembly', 'portfolio', 'menu', 'header', 'direct')`,
+    ),
+    check(
+      'funnel_events_plan_chk',
+      sql`${table.plan} IS NULL OR ${table.plan} IN ('monthly', 'annual', 'unknown')`,
+    ),
+    index('funnel_events_name_created_idx').on(table.name, table.createdAt),
+    index('funnel_events_user_idx').on(table.userId),
+  ],
+)
+
+// Indicação entre amigos (MO.7.2). O código é do dono, gerado na primeira leitura. Uma conta
+// indicada só existe uma vez em `referrals` (`referred_id` único), então cada conta conta uma vez
+// para um único indicador. `qualified` = a pessoa indicada concluiu a primeira lição (ponto 052).
+export const referralCodes = pgTable('referral_codes', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  code: varchar('code', { length: 12 }).notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const referrals = pgTable(
+  'referrals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    referrerId: uuid('referrer_id')
+      .notNull()
+      .references(() => users.id),
+    referredId: uuid('referred_id')
+      .notNull()
+      .unique()
+      .references(() => users.id),
+    status: text('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    qualifiedAt: timestamp('qualified_at', { withTimezone: true }),
+  },
+  (table) => [
+    check('referrals_status_chk', sql`${table.status} IN ('pending', 'qualified')`),
+    check('referrals_not_self_chk', sql`${table.referrerId} <> ${table.referredId}`),
+    index('referrals_referrer_status_idx').on(table.referrerId, table.status),
+  ],
+)
+
+// Escada de marcos: dado, não código. Acima do último marco a regra continua no domínio
+// (`+1 semana a cada 50`). Cada marco só é concedido uma vez por pessoa (`referral_rewards`).
+export const referralMilestones = pgTable('referral_milestones', {
+  threshold: integer('threshold').primaryKey(),
+  rewardDays: integer('reward_days').notNull(),
+})
+
+export const referralRewards = pgTable(
+  'referral_rewards',
+  {
+    referrerId: uuid('referrer_id')
+      .notNull()
+      .references(() => users.id),
+    threshold: integer('threshold').notNull(),
+    rewardDays: integer('reward_days').notNull(),
+    status: text('status').notNull().default('pending'),
+    // Fim do PRO promocional, calculado e gravado ANTES de chamar o provedor: repetir a chamada
+    // com o mesmo fim é tratado como duplicata (não concede duas vezes).
+    promoEndsAt: timestamp('promo_ends_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    grantedAt: timestamp('granted_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.referrerId, table.threshold] }),
+    check('referral_rewards_status_chk', sql`${table.status} IN ('pending', 'granted')`),
   ],
 )

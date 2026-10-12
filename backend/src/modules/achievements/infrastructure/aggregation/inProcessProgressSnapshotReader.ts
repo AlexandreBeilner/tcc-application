@@ -23,6 +23,10 @@ export function createInProcessProgressSnapshotReader(deps: {
   getCurrentMicroDecisionStreak: GetCurrentMicroDecisionStreakUseCase
   getTracksCompletedWithoutErrorsCount: GetTracksCompletedWithoutErrorsCountUseCase
   countReviewedLessons: CountReviewedLessonsUseCase
+  // Assembleias distintas em que a pessoa votou (MO.6.7); 0 com o recurso desligado.
+  countAssembliesParticipated: { count(userId: string): Promise<number> }
+  // Indicações válidas (MO.7.2).
+  countReferralsQualified: { count(userId: string): Promise<number> }
   getNetWorth: NetWorthReader
   sandboxAssetReader: SandboxAssetReader
 }): ProgressSnapshotReader {
@@ -34,6 +38,8 @@ export function createInProcessProgressSnapshotReader(deps: {
         microDecisionsStreak,
         tracksCompletedNoErrors,
         lessonsReviewed,
+        assembliesParticipated,
+        referralsQualified,
         sandboxAssetIds,
       ] = await Promise.all([
         deps.getProgression.execute({ userId }),
@@ -41,6 +47,8 @@ export function createInProcessProgressSnapshotReader(deps: {
         deps.getCurrentMicroDecisionStreak.execute({ userId }),
         deps.getTracksCompletedWithoutErrorsCount.execute({ userId }),
         deps.countReviewedLessons.execute({ userId }),
+        deps.countAssembliesParticipated.count(userId),
+        deps.countReferralsQualified.count(userId),
         deps.sandboxAssetReader.listSandboxAssetIds(),
       ])
 
@@ -58,6 +66,8 @@ export function createInProcessProgressSnapshotReader(deps: {
         microDecisionsStreak,
         tracksCompletedNoErrors,
         lessonsReviewed,
+        assembliesParticipated,
+        referralsQualified,
       }
     },
   }

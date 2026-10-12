@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ProfileAboutPanel } from '../../components/molecules/ProfileAboutPanel'
 import { PublicProfileCard } from '../../components/organisms/PublicProfileCard'
 import { useAuth } from '../../features/auth/AuthContext'
@@ -41,6 +41,9 @@ export function MeuPerfil() {
         <main className={styles.page}>
             <div className={styles.container}>
                 <h1 className={styles.title}>Meu Perfil</h1>
+                <Link className={styles.retroLink} to="/retrospectiva">
+                    Minha retrospectiva do mês
+                </Link>
 
                 <div className={styles.layout}>
                     <div className={styles.main}>

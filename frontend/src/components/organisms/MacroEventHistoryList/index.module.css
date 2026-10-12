@@ -80,7 +80,7 @@
 
 .detailLink {
     align-self: flex-start;
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
     text-decoration: none;
@@ -160,5 +160,5 @@ button.targetChip {
 
 button.targetChip:hover {
     border-color: var(--color-border-strong);
-    color: var(--color-brand-500);
+    color: var(--color-link);
 }

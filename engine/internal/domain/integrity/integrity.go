@@ -91,6 +91,9 @@ func CashDeltaCents(eventType string, quantity *int, unitCents *int64) (delta in
 	// cotas de ETF (a contrapartida é em espécie) e a transferência de cotas.
 	case "bot_initial_allocation", "etf_creation", "etf_redemption", "etf_share_transfer":
 		return 0, true
+	// Decisão de assembleia (MO.6.2): evento de governança, sem caixa nem posição.
+	case "assembly_decision":
+		return 0, true
 	}
 	return 0, false
 }

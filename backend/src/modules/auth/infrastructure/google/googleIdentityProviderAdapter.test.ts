@@ -40,7 +40,12 @@ describe('googleIdentityProviderAdapter', () => {
   it('troca o code por perfil do usuário', async () => {
     getToken.mockResolvedValue({ tokens: { id_token: 'fake-id-token' } })
     verifyIdToken.mockResolvedValue({
-      getPayload: () => ({ sub: 'google-123', email: 'user@example.com', name: 'Usuário' }),
+      getPayload: () => ({
+        sub: 'google-123',
+        email: 'user@example.com',
+        name: 'Usuário',
+        email_verified: true,
+      }),
     })
     const provider = createGoogleIdentityProvider(CONFIG)
 
@@ -50,7 +55,24 @@ describe('googleIdentityProviderAdapter', () => {
       providerAccountId: 'google-123',
       email: 'user@example.com',
       name: 'Usuário',
+      emailVerified: true,
     })
+  })
+
+  it('trata email_verified ausente ou falso como e-mail não verificado', async () => {
+    getToken.mockResolvedValue({ tokens: { id_token: 'fake-id-token' } })
+    const provider = createGoogleIdentityProvider(CONFIG)
+
+    for (const emailVerified of [false, undefined, 'true']) {
+      verifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          sub: 'google-123',
+          email: 'user@example.com',
+          email_verified: emailVerified,
+        }),
+      })
+      expect((await provider.exchangeCode('auth-code')).emailVerified).toBe(false)
+    }
   })
 
   it('lança erro quando o payload do Google vem incompleto', async () => {
@@ -63,7 +85,12 @@ describe('googleIdentityProviderAdapter', () => {
 
   it('verifica um idToken recebido direto (SDK nativo) usando o client ID Web como audience', async () => {
     verifyIdToken.mockResolvedValue({
-      getPayload: () => ({ sub: 'google-123', email: 'user@example.com', name: 'Usuário' }),
+      getPayload: () => ({
+        sub: 'google-123',
+        email: 'user@example.com',
+        name: 'Usuário',
+        email_verified: true,
+      }),
     })
     const provider = createGoogleIdentityProvider(CONFIG)
 
@@ -73,6 +100,7 @@ describe('googleIdentityProviderAdapter', () => {
       providerAccountId: 'google-123',
       email: 'user@example.com',
       name: 'Usuário',
+      emailVerified: true,
     })
     expect(verifyIdToken).toHaveBeenCalledWith({
       idToken: 'native-id-token',

@@ -18,4 +18,6 @@ export interface PositionLike {
     quantity: number
     averagePrice: number
     markPrice?: number
+    // Renda fixa: valor bruto avaliado pelo motor (MO.8.1); sem ele, vale o custo.
+    currentValue?: number
 }

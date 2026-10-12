@@ -43,7 +43,7 @@ Observação: o seedLessons.ts tem ~20 comentários de código com "TCC/spec/tar
 - frontend/src/components/organisms/NetWorthCards/index.tsx:58 `Sandbox`; pages/Classificacao/index.tsx:106 `O Sandbox não entra.`; pages/Market/index.tsx:39 `Selic e IPCA simulados`. Inconsistência "Sandbox" vs "Modo Aprendizado": padronizar.
 - frontend/src/components/organisms/OrdersList/index.tsx:34 `requoted: 'Recotada pelo motor'` ("motor" é jargão; confirmar se aparece p/ usuário comum, ou só no admin).
 - frontend/src/components/organisms/OrderConfirmationDialog/index.tsx:254,262 (em dash, ver D).
-- Chaves de storage visíveis em DevTools: frontend features/auth/AuthContext/index.tsx:12 `'tcc.auth.token'`, features/theme/ThemeContext/index.tsx:12 `'tcc.theme'`, features/shell/unreadNews/index.ts:22 `'tcc.news.lastSeenId'`. Renomear para `investimenta.*` (com migração de leitura). Também docker-compose.yml container_name/POSTGRES_USER `tcc-*` e import path Go `tcc-investimentos/engine/...` (não visíveis ao usuário, só prefixo interno).
+- Chaves de storage visíveis em DevTools: frontend features/auth/AuthContext/index.tsx:12 `'tcc.auth.token'`, features/theme/ThemeContext/index.tsx:12 `'tcc.theme'`, features/shell/unreadNews/index.ts:22 `'tcc.news.lastSeenId'`. Renomear para `selucra.*` (com migração de leitura). Também docker-compose.yml container_name/POSTGRES_USER `tcc-*` e import path Go `tcc-investimentos/engine/...` (não visíveis ao usuário, só prefixo interno).
 - frontend/src/components/organisms/MacroEventTriggerForm/index.tsx:182 `"...este texto aparece pro jogador no Feed de Notícias."` ("jogador") é admin, mas troque por "usuário".
 
 ### A5 Conquistas e missões (backend/src/db)
@@ -54,7 +54,7 @@ Observação: o seedLessons.ts tem ~20 comentários de código com "TCC/spec/tar
 ### A6 Notícias / eventos macro
 - engine/internal/domain/macroevent/templates.go e cópia em frontend/src/features/admin/macroEventTemplates/index.ts: títulos/narrativas sem TCC/spec. Problemas: em dash (D) e duplicação do catálogo (risco de divergência).
 - Nenhum e-mail transacional encontrado (sem nodemailer/SMTP).
-- frontend/index.html `<title>Investimenta</title>` ok.
+- frontend/index.html `<title>Selucra</title>` ok.
 
 ## B. Dados factualmente errados, irreais ou desatualizados
 
@@ -70,7 +70,7 @@ Observação: o seedLessons.ts tem ~20 comentários de código com "TCC/spec/tar
 10. Poupança (0.5): regra 0,5% a.m. + TR com Selic > 8,5% e 70% da Selic + TR abaixo disso está correta. "Com a Selic simulada nesta plataforma rodando acima de 8,5%" mistura. Também falta dizer que poupança é isenta de IR e coberta pelo FGC (justiça comparativa).
 11. Valores do catálogo hardcoded nas lições e desatualizados vs seed: lições citam CDB2027 `12,00% ao ano` (1.4/1.6), LCI2026 `9,50%`, LTN2027 `11,75%`, NTNB2035 `6,00%`, CRI `11,00%`/CRA `10,50%`. O seed atual (engine/cmd/seed/main.go:~790) usa CDB 110% do CDI, LCI/LCA 90%, CRI 115%, CRA 112%, LTN spread 1,75 p.p., NTNB2035 spread 0,50 p.p. sobre real implícito (~6,75%). As taxas dependem da Selic simulada; textos ficam errados. Usar exemplos genéricos ("um CDB que paga 110% do CDI") e deixar números vivos via widget.
 12. Lição 2.9 (seedLessons.ts:1187-1193) diz composição "Mineradora 40%, Banco Nordeste Digital 35%, outras 25%"; seed real do SINT11: VALR3 40, BNDD3 20, TJLO11 25, PAPL11 15. Banco é 20%, não 35%. Erro de dado.
-13. SINT11 apresentado com índice de referência `"Ibovespa"` (engine/cmd/seed/main.go ~493) mas a cesta é de 4 ativos fictícios (incluindo 2 FIIs): afirma que replica um índice real. Trocar por índice fictício nomeado ("Índice Investimenta 4") ou remover. Também o Ibovespa real não tem FIIs.
+13. SINT11 apresentado com índice de referência `"Ibovespa"` (engine/cmd/seed/main.go ~493) mas a cesta é de 4 ativos fictícios (incluindo 2 FIIs): afirma que replica um índice real. Trocar por índice fictício nomeado ("Índice Selucra 4") ou remover. Também o Ibovespa real não tem FIIs.
 14. Lição 2.9: "O fundo também recebe os dividendos ... e os distribui aos cotistas": nos ETFs de ações brasileiros a prática predominante (ex.: BOVA11) é reinvestir os proventos, sem distribuir; também falta que ETF de renda variável paga 15% de IR sobre ganho de capital, sem a isenção de R$20 mil das ações. Ajustar.
 15. Lição 2.4: `'Uma notícia dizendo "quebra de safra afeta o Agronegócio"'` é correto, mas seedLessons.ts:1285 `testar essa estratégia contra um evento de mercado real` e unlocksDescription `'testada contra um evento real'` (3.4): o evento é simulado. Corrigir.
 16. Lição 2.3: ON/PN e units corretos. Observação: "Esta plataforma não tem unit negociável" (C). PN com voto: PN "sem voto" correto no geral; "prioridade em dividendos" correto (mínimo de dividendo).

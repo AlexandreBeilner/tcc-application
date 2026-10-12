@@ -1,0 +1,65 @@
+.board {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.sides {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: stretch;
+    gap: var(--space-3);
+}
+
+.side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-align: center;
+    min-width: 0;
+}
+
+/* Quem venceu ganha o destaque de marca. Dourado fica reservado ao que é conquista real. */
+.winner {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+}
+
+.versus {
+    align-self: center;
+    color: var(--color-text-muted);
+    font-family: var(--font-family-heading);
+    font-weight: 700;
+}
+
+.label {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    overflow-wrap: anywhere;
+}
+
+.pct {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+}
+
+.operated {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.reason {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    text-align: center;
+}

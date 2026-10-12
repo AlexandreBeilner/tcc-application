@@ -1,5 +1,8 @@
 # Arquitetura do app mobile (React Native + WebView)
 
+> **⏸ Adiado em 2026-10-10:** lançamento só na web, com PWA como canal mobile (ver
+> `backlog-lancamento-web-pwa.md`). Este documento continua válido como o "porquê" do app para quando for retomado.
+
 Análise pedida pelo autor em 2026-09-09: o que precisa ser feito pra embrulhar o
 frontend web já existente (`frontend/`, React + Vite) dentro de um app React
 Native "puro" (**sem Expo**, CLI/community template) rodando o SPA inteiro
@@ -313,7 +316,7 @@ visível) é um pré-requisito silencioso do login Google nativo, então não d�
 pra empurrar tudo desta seção igualmente pro final:
 
 - **Cedo, não no final:** `applicationId` (Android,
-  `android/app/build.gradle`, ex. `br.com.investimenta.app`, pode ser um
+  `android/app/build.gradle`, ex. `br.com.selucra.app`, pode ser um
   placeholder interno — trocar depois é possível, só exige atualizar o client
   ID do Google e a assinatura de novo) + bundle identifier (iOS) + SHA-1 do
   keystore de debug gerado pelo próprio RN CLI. Sem isso, a seção 7 (login

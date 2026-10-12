@@ -66,6 +66,38 @@ describe('rotas admin de parâmetros de simulação (N.7)', () => {
     expect(res.body).toEqual(sampleSettings)
   })
 
+  it('GET sem grupo pede o ritmo; com ?group=governance pede a governança das assembleias', async () => {
+    const { app, adminToken, engineSettingsAdmin } = buildApp()
+    await request(app).get('/admin/settings').set('Authorization', adminToken())
+    await request(app).get('/admin/settings?group=governance').set('Authorization', adminToken())
+    expect(engineSettingsAdmin.listGroups).toEqual([undefined, 'governance'])
+  })
+
+  it('GET com grupo desconhecido retorna 400 sem chamar o motor', async () => {
+    const { app, adminToken, engineSettingsAdmin } = buildApp()
+    const res = await request(app)
+      .get('/admin/settings?group=outro')
+      .set('Authorization', adminToken())
+    expect(res.status).toBe(400)
+    expect(engineSettingsAdmin.calls).toHaveLength(0)
+  })
+
+  it('PUT de um parâmetro de governança grava e audita como settings.update', async () => {
+    const { app, adminToken, engineSettingsAdmin, auditLog } = buildApp()
+    const res = await request(app)
+      .put('/admin/settings/governance_cooldown_days')
+      .set('Authorization', adminToken())
+      .send({ value: 60 })
+    expect(res.status).toBe(200)
+    expect(engineSettingsAdmin.saved).toEqual([
+      { key: 'governance_cooldown_days', value: 60, adminId: 'admin-1' },
+    ])
+    expect(auditLog.entries[0]).toMatchObject({
+      action: 'settings.update',
+      targetId: 'governance_cooldown_days',
+    })
+  })
+
   it('PUT grava o valor com o admin do token e audita', async () => {
     const { app, adminToken, engineSettingsAdmin, auditLog } = buildApp()
     const res = await request(app)

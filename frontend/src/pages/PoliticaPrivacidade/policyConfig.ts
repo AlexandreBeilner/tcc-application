@@ -12,21 +12,22 @@ export const PENDING_PLACEHOLDER_PREFIX = '[PREENCHER'
 
 export const policyConfig = {
     // Nome do controlador dos dados (LGPD art. 5º, VI): pessoa física ou jurídica.
-    controllerName: '[PREENCHER: nome completo ou razão social do controlador]',
+    controllerName: 'Alexandre Beilner',
     // CPF/CNPJ não é exigido na política; deixado de fora de propósito.
     // E-mail do encarregado (DPO, LGPD art. 41) e canal dos titulares.
-    contactEmail: '[PREENCHER: e-mail de contato para titulares de dados]',
+    contactEmail: 'privacidade@selucra.com.br',
     // Nome do encarregado. Pode ser o próprio controlador.
-    dpoName: '[PREENCHER: nome do encarregado pelo tratamento de dados]',
+    dpoName: 'Alexandre Beilner',
     // Onde o backend/banco rodam em produção (operador, LGPD art. 5º, VII).
-    hostingProvider: '[PREENCHER: provedor de hospedagem, ex: AWS, Google Cloud, Hetzner]',
+    // Decisão do autor (2026-10-12): Vultr, datacenter em São Paulo.
+    hostingProvider: 'Vultr',
     // País/região do datacenter; define se há transferência internacional (art. 33).
-    hostingCountry: '[PREENCHER: país do servidor]',
+    hostingCountry: 'Brasil',
     // Idade mínima de uso. Menores de 18 anos precisam de consentimento de
     // responsável (LGPD art. 14); confirme a regra que você quer adotar.
-    minimumAge: '[PREENCHER: idade mínima, ex: 13]',
+    minimumAge: '18',
     // Data de vigência exibida no topo. Atualize a cada mudança de conteúdo.
-    lastUpdated: '[PREENCHER: data da última atualização, ex: 10 de outubro de 2026]',
+    lastUpdated: '12 de outubro de 2026',
     // Prazo de resposta a pedidos de titulares (LGPD art. 19: até 15 dias pra
     // declaração completa). Valor já é o legal; só altere se for responder antes.
     responseDeadline: '15 dias',

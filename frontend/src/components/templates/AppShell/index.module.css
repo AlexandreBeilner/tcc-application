@@ -15,6 +15,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
 }
 
@@ -56,6 +57,6 @@
    qualquer tela fica coberto pela barra de navegação. */
 @media (max-width: 767px) {
     .content {
-        padding: var(--space-4) var(--space-4) calc(var(--space-4) + var(--nav-height-mobile));
+        padding: var(--space-4) var(--space-4) calc(var(--space-4) + var(--nav-height-mobile) + env(safe-area-inset-bottom, 0px));
     }
 }

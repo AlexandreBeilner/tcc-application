@@ -20,6 +20,73 @@ export const EDITABLE_SETTING_TEXT: Record<EngineSettingKey, SettingText> = {
         unit: 'ticks',
         effect: 'Quantos ticks atrasados o motor recupera de uma vez ao voltar de uma parada. O excedente é descartado e registrado.',
     },
+    // Governança das assembleias (MO.6.8): o motor aplica cada decisão com os valores do momento em que a recebe.
+    governance_growth_step_centipp: {
+        title: 'Faixa de efeito no crescimento',
+        unit: 'centésimos de ponto percentual',
+        effect: 'Mudança máxima do crescimento base de uma empresa por decisão (100 equivale a 1 ponto percentual). A intensidade de cada opção usa uma fração dessa faixa.',
+    },
+    governance_quality_step_centi: {
+        title: 'Faixa de efeito na qualidade',
+        unit: 'centésimos',
+        effect: 'Mudança máxima do multiplicador de qualidade de uma empresa por decisão (5 equivale a 0,05). A intensidade de cada opção usa uma fração dessa faixa.',
+    },
+    governance_ramp_ticks: {
+        title: 'Rampa do efeito',
+        unit: 'ticks',
+        effect: 'Em quantos ticks (dias do mercado) o efeito de uma decisão é aplicado, aos poucos, até fechar o total.',
+    },
+    governance_cooldown_days: {
+        title: 'Intervalo entre mudanças da mesma empresa',
+        unit: 'dias simulados',
+        effect: 'Depois de uma decisão, a empresa fica esse tempo sem aceitar outra. Uma decisão em período de espera é registrada, mas nada muda.',
+    },
+    // Destinação do lucro (Fase F2): a assembleia decide payout, política de dividendo e prêmio da PN.
+    governance_payout_step_centipp: {
+        title: 'Faixa de efeito no payout',
+        unit: 'centésimos de ponto percentual',
+        effect: 'Mudança máxima do payout (a parte do lucro distribuída) por decisão (1000 equivale a 10 pontos percentuais). A intensidade de cada opção usa uma fração dessa faixa.',
+    },
+    governance_payout_min_pct: {
+        title: 'Payout mínimo da empresa',
+        unit: '%',
+        effect: 'Piso do payout: uma decisão que levaria a empresa abaixo disso é registrada, mas nada muda.',
+    },
+    governance_payout_max_pct: {
+        title: 'Payout máximo da empresa',
+        unit: '%',
+        effect: 'Teto do payout: uma decisão que levaria a empresa acima disso é registrada, mas nada muda. Mínimo maior que máximo faz toda decisão de payout ser ignorada.',
+    },
+    governance_payout_cooldown_days: {
+        title: 'Intervalo entre mudanças de destinação do lucro',
+        unit: 'dias simulados',
+        effect: 'Payout, política de dividendo e prêmio da PN dividem este intervalo, separado do dos fundamentos. A empresa dentro dele paga o dividendo normal, sem esperar assembleia.',
+    },
+    governance_premium_step_centipp: {
+        title: 'Faixa de efeito no prêmio da ação PN',
+        unit: 'centésimos de ponto percentual',
+        effect: 'Mudança máxima do dividendo extra da PN sobre a ON por decisão (500 equivale a 5 pontos percentuais).',
+    },
+    governance_premium_min_pct: {
+        title: 'Prêmio mínimo da ação PN',
+        unit: '%',
+        effect: 'Piso do prêmio da PN. O piso legal é 10%: o motor não aceita menos que isso.',
+    },
+    governance_premium_max_pct: {
+        title: 'Prêmio máximo da ação PN',
+        unit: '%',
+        effect: 'Teto do prêmio da PN: uma decisão que passaria disso é registrada, mas nada muda.',
+    },
+    governance_hold_declarations: {
+        title: 'Reter o dividendo até a assembleia decidir',
+        unit: '0 desligado, 1 ligado (padrão)',
+        effect: 'Ligado, o dividendo do balanço de empresa com acionista fica retido até a assembleia de destinação do lucro decidir. Se desligar as assembleias em emergência, desligue este junto, senão o dividendo espera o prazo de segurança sem motivo.',
+    },
+    governance_declaration_safety_days: {
+        title: 'Prazo de segurança do dividendo retido',
+        unit: 'dias simulados',
+        effect: 'Se nada liberar o dividendo retido nesse prazo, o motor o paga sozinho com o payout vigente. Precisa cobrir a votação inteira (por volta de 42 dias simulados no ritmo atual).',
+    },
 }
 
 const READ_ONLY_TITLES: Record<string, string> = {

@@ -1,3 +1,8 @@
+import {
+  NO_COSMETICS,
+  type CosmeticsReader,
+  type PublicCosmetics,
+} from '../../../../shared/publicCosmetics'
 import { paginate } from '../../../../shared/pagination'
 import type { FriendshipRepository } from '../ports/friendshipRepository'
 import type { UserDirectory } from '../ports/userDirectory'
@@ -19,6 +24,7 @@ export interface FriendListItem {
   name: string
   avatarUrl: string | null
   friendsSince: Date | null
+  cosmetics: PublicCosmetics
 }
 
 export interface ListFriendsInput {
@@ -42,6 +48,7 @@ export class ListFriendsUseCase {
   constructor(
     private readonly friendshipRepository: FriendshipRepository,
     private readonly userDirectory: UserDirectory,
+    private readonly cosmeticsReader?: CosmeticsReader,
   ) {}
 
   async execute(input: ListFriendsInput): Promise<ListFriendsResult> {
@@ -76,6 +83,9 @@ export class ListFriendsUseCase {
     // de amigos pra só mostrar 20 por vez.
     const users = await this.userDirectory.findByIds(pageEntries.map((entry) => entry.otherUserId))
     const userById = new Map(users.map((user) => [user.id, user]))
+    const displays =
+      (await this.cosmeticsReader?.findDisplays(users.map((user) => user.id))) ??
+      new Map<string, PublicCosmetics>()
 
     const items = pageEntries
       .map((entry): FriendListItem | undefined => {
@@ -90,6 +100,7 @@ export class ListFriendsUseCase {
           name: user.name,
           avatarUrl: user.avatarUrl,
           friendsSince: entry.friendsSince,
+          cosmetics: displays.get(user.id) ?? NO_COSMETICS,
         }
       })
       .filter((item): item is FriendListItem => item !== undefined)

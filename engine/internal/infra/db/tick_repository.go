@@ -170,12 +170,23 @@ func (r *TickRepository) RecentTradedVolume(ctx context.Context, assetID string,
 // caso).
 func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]tick.CompanyForFundamentals, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.base_growth_pct, c.quality_multiplier, c.report_offset_days,
+		`SELECT c.id, c.report_frequency_days, c.sector, c.pn_dividend_premium_pct, c.payout_ratio_pct, c.base_growth_pct, c.quality_multiplier, c.report_offset_days,
 		        COALESCE((SELECT schedule_cutover_day FROM market_calendar WHERE id = 1), 0), f.net_revenue,
 		        c.schedule_assigned, c.dividend_policy, c.com_lag_days, c.payment_lag_days,
 		        ARRAY(SELECT net_income FROM company_fundamentals
 		              WHERE company_id = c.id AND net_income IS NOT NULL
-		              ORDER BY period_date DESC, created_at DESC LIMIT 3)
+		              ORDER BY period_date DESC, created_at DESC LIMIT 4),
+		        EXISTS (SELECT 1 FROM positions p
+		                JOIN accounts ac ON ac.user_id = p.user_id AND NOT ac.is_bot
+		                JOIN variable_income_assets v ON v.asset_id = p.asset_id
+		                WHERE v.company_id = c.id AND p.quantity > 0),
+		        (SELECT MAX(start_day) FROM governance_decision_effects
+		         WHERE company_id = c.id AND metric IN ('payout_ratio_pct', 'dividend_policy', 'pn_dividend_premium_pct') AND status IN ('scheduled', 'completed')),
+		        ARRAY(SELECT cycle_index FROM governance_pending_declarations WHERE company_id = c.id AND status = 'held'),
+		        ARRAY(SELECT cycle_index FROM governance_pending_declarations
+		              WHERE company_id = c.id AND status = 'released' AND release_ex_day IS NOT NULL ORDER BY cycle_index),
+		        ARRAY(SELECT release_ex_day FROM governance_pending_declarations
+		              WHERE company_id = c.id AND status = 'released' AND release_ex_day IS NOT NULL ORDER BY cycle_index)
 		 FROM companies c
 		 LEFT JOIN LATERAL (
 		   SELECT net_revenue FROM company_fundamentals
@@ -194,11 +205,28 @@ func (r *TickRepository) ListCompaniesForFundamentals(ctx context.Context) ([]ti
 	for rows.Next() {
 		var c tick.CompanyForFundamentals
 		var policy string
-		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.BaseGrowthPct, &c.QualityMultiplier, &c.ReportOffsetDays, &c.ScheduleCutoverDay, &c.LastRevenue,
-			&c.ScheduleAssigned, &policy, &c.ComLagDays, &c.PaymentLagDays, pq.Array(&c.PriorNetIncomes)); err != nil {
+		var lastPayoutStart sql.NullInt64
+		var heldCycles, releasedCycles, releasedEx []int64
+		if err := rows.Scan(&c.CompanyID, &c.ReportFrequencyDays, &c.Sector, &c.PnDividendPremiumPct, &c.PayoutRatioPct, &c.BaseGrowthPct, &c.QualityMultiplier, &c.ReportOffsetDays, &c.ScheduleCutoverDay, &c.LastRevenue,
+			&c.ScheduleAssigned, &policy, &c.ComLagDays, &c.PaymentLagDays, pq.Array(&c.PriorNetIncomes),
+			&c.UserShareholders, &lastPayoutStart, pq.Array(&heldCycles), pq.Array(&releasedCycles), pq.Array(&releasedEx)); err != nil {
 			return nil, err
 		}
 		c.DividendPolicy = catalog.DividendPolicy(policy)
+		if lastPayoutStart.Valid {
+			day := int(lastPayoutStart.Int64)
+			c.LastPayoutStartDay = &day
+		}
+		c.HasHeldDeclaration = len(heldCycles) > 0
+		for _, k := range heldCycles {
+			c.HeldCycles = append(c.HeldCycles, int(k))
+		}
+		if len(releasedCycles) == len(releasedEx) && len(releasedCycles) > 0 {
+			c.DeclaredExByCycle = make(map[int]int, len(releasedCycles))
+			for i, k := range releasedCycles {
+				c.DeclaredExByCycle[int(k)] = int(releasedEx[i])
+			}
+		}
 		companies = append(companies, c)
 	}
 	return companies, rows.Err()
@@ -547,6 +575,10 @@ func (r *TickRepository) SaveTick(ctx context.Context, result tick.Result) error
 		return err
 	}
 
+	if err := saveDeclarations(ctx, tx, result); err != nil {
+		return err
+	}
+
 	if err := saveDividendSnapshots(ctx, tx, result.Snapshots); err != nil {
 		return err
 	}
@@ -865,4 +897,28 @@ func (r *TickRepository) LastTickAt(ctx context.Context) (time.Time, bool, error
 		return time.Time{}, false, err
 	}
 	return at, true, nil
+}
+
+// saveDeclarations grava, atomicamente com o tick, as declarações de dividendo retidas hoje
+// (MO.6.11) e marca como liberadas as que viraram provento neste tick, com a data-ex real.
+// Idempotente: reter de novo o mesmo ciclo é ignorado e liberar de novo só repete o estado.
+func saveDeclarations(ctx context.Context, tx *sql.Tx, result tick.Result) error {
+	for _, h := range result.HeldDeclarations {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO governance_pending_declarations (company_id, cycle_index, report_day, held_day, pool_net_income)
+			 VALUES ($1, $2, $3, $3, $4) ON CONFLICT (company_id, cycle_index) DO NOTHING`,
+			h.CompanyID, h.CycleIndex, h.ReportDay, h.PoolNetIncome); err != nil {
+			return err
+		}
+	}
+	for _, rel := range result.ReleasedDeclarations {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE governance_pending_declarations
+			 SET status = 'released', released_day = $2, release_ex_day = NULLIF($3, 0), release_reason = $4
+			 WHERE id = $1 AND status = 'held'`,
+			rel.ID, result.State.Day, rel.ExDay, rel.Reason); err != nil {
+			return err
+		}
+	}
+	return nil
 }

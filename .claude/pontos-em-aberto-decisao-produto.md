@@ -966,3 +966,113 @@ Nenhum ponto em aberto no momento.
 - **Opções:** (a) manter e documentar; (b) valorizar a posição mantida pelo `net_value` (já devolvido pelo motor); (c) guardar o bruto do resgate nos fluxos.
 - **Decisão do autor (2026-10-09):** opção (b), líquido de IR dos dois lados, revertendo o "bruto de IR" da decisão de 2026-10-08; a tela de Classificação avisa que a renda fixa entra descontado o IR.
 - **Status:** ✅ resolvido (2026-10-09): `engineCurrentAccountStateReader` soma `net_value`; amostras de começo de janela gravadas antes da mudança ficam em bruto até a próxima virada de semana/mês.
+
+### 043 · Vínculo do Google por e-mail sem verificar o e-mail (pré-sequestro de conta) ✅, achado na análise do gateway de e-mail (2026-10-09)
+
+- **Local:** `backend/src/modules/auth/application/useCases/loginWithGoogle.ts` (casamento por `findByEmail`) e `backend/src/modules/auth/infrastructure/google/googleIdentityProviderAdapter.ts` (não lê `email_verified`); `RegisterUserUseCase` não confirma o e-mail.
+- **O que acontece:** alguém se cadastra com o e-mail de outra pessoa e uma senha própria; quando a vítima entra com o Google, a identidade dela é vinculada à conta do atacante, que ainda conhece a senha.
+- **Por que não foi corrigido:** a correção completa depende de verificação de e-mail (não existe envio de e-mail hoje) e de decidir o que fazer com a senha local de uma conta não verificada ao vincular.
+- **Opções:** (a) recusar o vínculo se a conta local não estiver verificada; (b) vincular e zerar a senha local, só com `email_verified` do Google; (c) manter.
+- **Recomendação (D3 em `.claude/plano-gateway-email.md`):** (b). Entra na tarefa EM.3.2 do plano.
+- **Status:** ✅ resolvido (2026-10-10, EM.3.2): `LoginWithGoogleUseCase` só vincula conta local com `email_verified` do Google; conta local não verificada tem a senha zerada, as sessões encerradas e o e-mail marcado como verificado. Teste do pré-sequestro em `loginWithGoogle.test.ts`.
+
+### 044 · O que é "conquista rara" no e-mail de conquista (EM.7.2, E14)
+
+- **Local:** `backend/src/modules/achievements/domain/rarity.ts` (`RARE_MAX_HOLDER_SHARE = 0.1`, `RARE_MIN_POPULATION = 20`).
+- **Origem:** o backlog do e-mail pede aviso de "conquista rara desbloqueada", mas o catálogo não tem o conceito de raridade em nenhum documento.
+- **O que foi feito (provisório):** rara = no máximo 10% dos jogadores ativos (usuário comum, ativo, não anonimizado) a têm, contando quem acabou de desbloquear, e só com 20 ou mais jogadores. Medido ao vivo com 23 jogadores: "Formado na Trilha", "Primeira Operação" e "Voltou pra Revisar" contam como raras, porque cada uma tem 1 dono.
+- **Por que isso pode estar errado:** a raridade é dinâmica, então no começo da vida do produto quase toda conquista é "rara" para quem a ganha primeiro, mesmo as fáceis (Primeira Operação), e deixa de ser quando a base cresce. O e-mail diz "poucas pessoas têm", o que é verdade no momento do envio, mas pode soar exagerado.
+- **Opções:** (a) manter a regra dinâmica; (b) marcar no catálogo (campo `is_rare` ou `rarity`, editável no painel de conquistas) quais conquistas são raras de verdade, independente da base; (c) combinar: marcada como rara no catálogo **e** abaixo do limite.
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor: opção (b)): só vale a marca do catálogo. Coluna `achievements.is_rare` (migração `0048`), editável no painel de conquistas (`PATCH /admin/gamification/achievements/:id` com `is_rare`, botão "Marcar como rara"), e a regra dinâmica de 10% dos jogadores foi removida (`rarity.ts`, `AchievementRarityReader` e adapter apagados). Ponto de partida marcado pela migração e pelo seed, editável: *Fiel*, *Formado na Trilha*, *Grande Investidor* e *Trilha Impecável* (escolha minha, as quatro mais difíceis; troque no painel se discordar). Conquista criada pelo painel nasce não rara e se marca depois.
+
+### 045 · Regras do lembrete de sequência em risco por e-mail (EM.7.3)
+
+- **Local:** `backend/src/modules/notifications/domain/engagement/streakReminder.ts` (`MIN_STREAK_FOR_REMINDER = 3`, janela 17h a 19h59 de Brasília) e a variável `EMAIL_STREAK_REMINDER`.
+- **Origem:** o backlog descreve o lembrete (opt-in, teto de 1 por dia, tom de convite) mas não dá a sequência mínima, o horário, nem diz se ele nasce ligado, e o plano manda medir cancelamento e reclamação do resumo semanal antes.
+- **O que foi feito (provisório):** (1) o job nasce **desligado** e só liga com `EMAIL_STREAK_REMINDER=on`, para honrar o "medir antes"; (2) só quem tem sequência de 3 dias ou mais (1 ou 2 dias não é algo a manter); (3) janela da tarde, 17h a 19h59 de Brasília, porque o dia da sequência é em UTC e termina às 21h de Brasília (o e-mail diz isso com todas as letras); (4) o teto de 1 por dia vale só para este lembrete, não é compartilhado com o resumo semanal nem com os avisos de salário e conquista.
+- **Opções:** ligar por padrão depois de olhar as métricas (cancelamento, reclamação abaixo de 0,1%, abandono da trilha); mudar a sequência mínima; ou um teto único de 1 e-mail de engajamento por dia somando os quatro tipos.
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor): mantidas as regras (sequência mínima 3, janela 17h a 19h59, teto de 1 por dia só dele) e o lembrete **passa a nascer ligado**; `EMAIL_STREAK_REMINDER=off` desliga. O plano de medir cancelamento e reclamação do resumo semanal antes (EM.7.1) vira acompanhamento depois de ligar, não pré-requisito: se piorarem, desligue pela variável.
+
+### 046 · Decisões de produto abertas da monetização (backlog-monetizacao.md)
+
+- **Local:** `.claude/backlog-monetizacao.md` (MO.1.1, MO.5.1, MO.5.4, MO.6.2) e `.claude/estrategia-monetizacao.md`.
+- **Origem:** ao fechar os planos (2026-10-10) ficaram perguntas que nenhum documento responde.
+- **Perguntas:** (1) **limites das ligas e duelos** (quantas ligas por assinante, quantos membros, regra de pontuação livre ou de catálogo, duração do duelo); (2) **catálogo inicial de cosméticos** (quais itens, quais visíveis para os outros); (3) **parâmetros da Assembleia de Acionistas** (mínimo de votantes, duração, faixa de efeito por indicador, cooldown, nível mínimo para o crédito mensal, tamanho do catálogo de pautas); (4) **preço final** nas faixas de BRL das lojas (19,97 pode não existir); (5) ~~checkout web~~ **decidido em 2026-10-10 (M12):** Stripe conectado ao RevenueCat, sem Pix, só recorrente no cartão; (6) **recompensa da indicação** (quantos dias de PRO, teto por pessoa).
+- **Decididas em 2026-10-10:** (1) **ligas:** até 3 ligas ativas por assinante, até 20 membros cada, pontuação fixa por rentabilidade percentual na janela semanal ou mensal do ranking; **duelos:** 1 contra 1, 7 dias, vence a maior rentabilidade percentual, empate é empate, quem não opera no período perde por abandono, XP só por participar (nunca por vencer), até 3 duelos simultâneos por pessoa. (2) **cosméticos:** catálogo enxuto e só visível aos outros: selo PRO, 6 molduras de avatar e 8 títulos; sem temas; itens como dado no banco. (4) **preço:** 19,90 mensal e 199,90 anual (faixas redondas das lojas, mesmo valor nas três plataformas; a tela calcula o desconto do preço real).
+- **Decididas em 2026-10-10 (parte do item 3):** a assembleia abre **2 dias depois do balanço**, fica aberta **7 dias**, o efeito começa **1 dia depois de fechar**, e o crédito mensal de voto exige **nível 3** e e-mail verificado. Todos como configuração, ajustáveis na MO.6.8. Seguem em aberto, para a calibração da MO.6.9: mínimo de votantes (ponto de partida 3), faixas de efeito por indicador, cooldown e tamanho do catálogo de pautas.
+- **Decidido em 2026-10-11:** (3) os parâmetros da Assembleia (mínimo de votantes, faixas de efeito, cooldown, tamanho do catálogo) **saem do teste ponta a ponta da MO.6.9**: os pontos de partida ficam e o relatório propõe os valores finais. (6) **indicação:** a recompensa de dias de PRO para os dois não fazia sentido (quem entra já vira PRO ao assinar), então: qualquer pessoa indica por link, **sem teto**; vale a conta criada pelo link que **verifica o e-mail** (Google já vem verificado); a recompensa é **só de quem indica**, escalonada em conquistas e dias de PRO (5 indicações = 1 semana, 20 = mais 1 semana, 50 = mais uma, e assim por diante). Registrado na MO.7.2 do `backlog-monetizacao.md`, que ainda precisa de um freio contra conta descartável (o gatilho é só verificar o e-mail) aprovado pelo autor antes de implementar.
+- **Status:** ✅ resolvido na parte de decisão; (3) segue sendo calibrado na MO.6.9 e (6) está pronto para a MO.7.2, sem iniciar.
+
+### 047 · Teto de ligas das quais uma pessoa pode participar (MO.5.2)
+
+- **Local:** `backend/src/modules/leagues` (`RespondToLeagueInvitationUseCase`).
+- **Origem:** a decisão de 2026-10-10 limita **criar** (3 ligas abertas por assinante) e o tamanho (20 pessoas), mas nada diz quantas ligas alguém pode **integrar**. Hoje não há teto: um usuário gratuito pode aceitar convites de qualquer número de amigos.
+- **Opções:** manter sem teto (o convite já exige amizade aceita, então o abuso é pequeno); ou um teto de participação (ex.: 10).
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor): teto de **10 ligas ativas** por pessoa (`MAX_JOINED_LEAGUES_PER_USER`). `RespondToLeagueInvitationUseCase` recusa aceitar o 11º convite com `409` (`JoinedLeaguesLimitReachedError`); recusar e sair continuam livres, e convite pendente não conta. Documentado em `.docs/backend/leagues.md`. Sem trava de corrida: dois aceites simultâneos da mesma pessoa podem passar de 10 por um, o que não tem consequência de custo.
+
+### 048 · Política de Privacidade não cita a medição do funil de conversão (MO.7.1), achado em 2026-10-10
+
+O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convite ao PRO, abriu os planos, iniciou a compra, assinou ou cancelou, com o ponto de origem). Não sai da plataforma e não tem valor nem patrimônio, mas é tratamento de dado de uso por pessoa identificada. **Decisão do autor:** incluir um parágrafo na Política de Privacidade (`/privacidade`) e definir por quanto tempo os eventos ficam (hoje, indefinidamente) e se `DELETE /me` deve apagá-los (hoje a conta é anonimizada e as linhas ficam ligadas ao id).
+
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor: parágrafo + 12 meses + anonimizar): `/privacidade` ganhou a linha "Passos de contato com o plano PRO" na tabela de dados e a retenção na seção 7; os eventos são apagados depois de 12 meses (`FUNNEL_RETENTION_MONTHS`, `PurgeOldFunnelEventsUseCase`, agendado uma vez por dia no `server.ts`); `DELETE /me` **não** apaga os eventos, porque a conta já é anonimizada (sem nome, e-mail, username nem senha) e o que resta dela não identifica ninguém, então não houve mudança de código na exclusão. Se a intenção era cortar também o `user_id`, é uma tarefa à parte (a coluna é `NOT NULL` e as contagens do funil usam `COUNT(DISTINCT user_id)`).
+
+### 049 · Unidade dos prazos da Assembleia de Acionistas: dias simulados ou reais? (MO.6.3), achado em 2026-10-10
+
+- **Local:** `backend/src/modules/assemblies` (`OpenDueAssembliesUseCase`, `planSchedule`) e `.docs/backend/assemblies.md`.
+- **Origem:** a decisão "abre 2 dias depois do balanço, fica aberta 7 dias, efeito 1 dia depois de fechar" não diz se "dia" é simulado ou real. O balanço só existe em dia simulado, mas votar é um prazo vivido em tempo real. Implementado: o atraso de abertura em dias **simulados**, duração e atraso do efeito em dias **reais**.
+- **Problema:** com `days_per_real_day` maior que 1 (hoje o Temporizador anda 5 dias simulados por dia real), 2 dias simulados equivalem a menos de 1 dia real e o efeito de um trimestre (cooldown de 90 dias simulados do motor) pode chegar antes de a pessoa ver o resultado.
+- **Opções:** manter como está; ou converter tudo para dias reais (abrir quando passou N dias reais do balanço); ou tudo em dias simulados.
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor): **manter** as unidades (abertura em dias simulados, duração e efeito em dias reais); revisar na calibração (MO.6.9).
+
+### 050 · Assembleia que abre com a empresa ainda em período de espera, e unidades do prazo da fila (MO.6.5), achado em 2026-10-10
+
+- **Local:** `backend/src/modules/assemblies` (`OpenDueAssembliesUseCase`, `ProposeAgendaUseCase`) e `engine/internal/domain/corporategovernance` (`CooldownDaysLeft`).
+- **Origem:** a MO.6.5 barra **propor e apoiar** quando a empresa está no cooldown de 90 dias simulados do motor, mas a **abertura** da assembleia não olha o cooldown (comportamento da MO.6.3): se a empresa mudou há pouco, a assembleia abre, a pessoa vota e o motor registra `skipped_cooldown` sem mudar nada, depois de a pessoa ter gasto um voto (ou crédito mensal) à toa.
+- **Opções:** (a) manter (o resultado público já diz que não houve efeito); (b) não abrir a assembleia de empresa em período de espera e deixar o balanço passar, ou abrir só dentro da janela de recuperação se o cooldown acabar a tempo; (c) abrir, mas não consumir o crédito mensal quando o motor já avisou o cooldown.
+- **Relacionado ao 049:** o prazo da fila (`ASSEMBLY_PROPOSAL_TTL_DAYS`, 30 dias **reais**) e o cooldown (90 dias **simulados**, hoje cerca de 18 dias reais a 5 dias simulados por dia real) têm unidades diferentes; com a decisão do 049 isso se alinha.
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor: opção (b)): `OpenDueAssembliesUseCase` consulta o cooldown da empresa no motor (porta `CompanyCooldownReader`, adaptador sobre `GET /governance/companies/{id}/standing` com o UUID nulo) e **não abre** enquanto houver dias de espera; a rodada seguinte tenta de novo, então se o cooldown acabar dentro da janela de recuperação (`ASSEMBLY_CATCH_UP_DAYS`) a assembleia abre, senão aquele balanço passa sem assembleia. Falha do motor conta como falha da empresa e repete. Testes no ciclo e `.docs/backend/assemblies.md` atualizados. A unidade do prazo da fila segue a decisão do 049.
+
+### 051 · Pausa das assembleias, balanço que sai da janela e parâmetros que mexem em votação aberta (MO.6.8), achado em 2026-10-11
+
+- **Local:** `backend/src/modules/assemblies` (`OpenDueAssembliesUseCase`, `AssemblySettingsService`, `domain/agendaTemplates.ts`) e o painel admin (`/admin/assembleias`).
+- **Origem:** três pontos que a MO.6.8 deixou como comportamento padrão, sem decisão do autor.
+- **(1) Balanço que passa da janela durante uma pausa.** A pausa impede abrir assembleia nova, e a abertura só olha balanços dentro da janela de recuperação (`ASSEMBLY_CATCH_UP_DAYS`, 7 dias simulados além da espera). Uma pausa longa (ou o painel esquecido pausado) faz o balanço sair da janela e **aquela assembleia nunca abre**, sem aviso. Opções: (a) manter, o painel já avisa na tela da pausa; (b) ao retomar, abrir também os balanços perdidos pela pausa (exigiria guardar o que ficou barrado); (c) limitar a duração da pausa por parâmetro (alerta depois de N dias vigente). Mesma família do 050 (abrir ou não fora do tempo certo).
+- **(2) Parâmetros de voto que mudam com a votação aberta.** Só o quórum fica congelado na assembleia. Crédito mensal, nível mínimo do voto gratuito e XP de participação valem **no momento do voto**, então editar esses parâmetros no meio de uma assembleia muda as regras de quem ainda não votou. Opções: (a) manter (são regras da pessoa, não da pauta); (b) congelar também o nível mínimo e o crédito por assembleia (mais colunas em `assemblies`).
+- **(3) Setor da pauta é texto livre.** O painel valida só o tamanho; um erro de digitação ("Varejo " ou "varejo") cria uma pauta que nunca é sorteada, porque o setor da empresa vem do motor. Opções: (a) manter, o painel sugere os setores já usados no catálogo (`datalist`); (b) lista fechada dos setores do motor (leitura do cadastro de empresas) e recusa de setor desconhecido.
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor: 1a, 2a, 3b): (1) mantido, o painel já avisa na tela da pausa; (2) mantido, são regras da pessoa e não da pauta; (3) o setor da pauta agora é **lista fechada** dos 6 setores do motor (`COMPANY_SECTORS` em `domain/agendaTemplates.ts`; setor desconhecido vira `400`; vazio vale para qualquer setor) e o painel usa um seletor. A lista espelha o enum `company_sector` do motor (spec 3.3.2) em vez de ler o cadastro de empresas: setor novo no motor exige somar à lista. Revisar (1) e (2) na calibração (MO.6.9) se a pausa longa virar problema real.
+
+### 052 · Freio contra conta descartável na indicação e escada acima de 50 (MO.7.2), decidido em 2026-10-11
+
+- **Local:** `.claude/backlog-monetizacao.md` (MO.7.2).
+- **Origem:** o gatilho da indicação é só verificar o e-mail e a recompensa em PRO não tem teto, então dava para fabricar PRO com e-mails descartáveis.
+- **Status:** ✅ resolvido (2026-10-11, decisão do autor): (1) **freio:** a indicação só conta quando a pessoa indicada **conclui a primeira lição** (além de verificar o e-mail ou entrar com Google); **sem limite por IP/dispositivo**. Risco aceito: um script paciente que conclua uma lição por conta ainda passa; observar no painel e revisar se aparecer abuso. (2) **escada:** 5, 20 e 50 indicações (1 semana de PRO cada), e acima de 50 **+1 semana a cada 50** (100, 150, 200...), como dado no banco. (3) **cosméticos por marco:** uma **conquista por marco e um título novo por marco**, nada de moldura nova.
+
+### 053 · O catálogo de pautas só empurra os fundamentos para cima (MO.6.9), achado em 2026-10-11
+
+- **Local:** tabela `agenda_templates` (migração `0043`) e `engine/internal/domain/corporategovernance`.
+- **Origem:** o ensaio de calibração de 12 meses simulados (`tmp/relatorio-calibracao-assembleia.md`) mostrou que das 34 opções ativas, 33 têm efeito de sentido positivo (crescimento ou qualidade sobem) e 1 negativo. Toda decisão aprovada melhora a empresa; o mercado inteiro deriva para cima (crescimento médio +0,23 p.p., qualidade +2% em 12 meses). O texto "o que ganha, o que perde" não tem contrapartida na mecânica.
+- **Opções:** (a) reescrever as pautas com troca real (um lado sobe uma métrica e baixa a outra) e acrescentar pautas, chegando a 25 ou mais; (b) manter e aceitar a deriva positiva (limitada pelo teto de 2 decisões por empresa por ano); (c) decaimento lento do fundamento de volta ao valor de cadastro.
+- **Status:** decidido em 2026-10-11 (opção (a), com extensão): pautas com troca real, 28 ou mais, em vozes variadas, **e** assembleia que decide também o payout, a política de dividendo e o prêmio da PN, com efeito composto de até 2 efeitos por opção e declaração de dividendo adiada durante a votação. Virou a Fase F2 do `backlog-monetizacao.md` (MO.6.10 a MO.6.15); o ponto fecha na MO.6.15, depois da nova calibração.
+- **Fechado em 2026-10-11 (MO.6.15):** as 28 pautas novas (migração `0051`) têm troca real e, ao acaso, o catálogo não deriva (crescimento 48 sobem e 52 descem); a recalibração de 12 meses (`tmp/relatorio-recalibracao-assembleia.md`) foi aprovada pelo autor. Só um eleitorado que vota sempre no mesmo lado empurra o mercado, o que é esperado e fica dentro do ruído do ranking.
+
+### 054 · Recompra e emissão de ações como pauta da Assembleia (melhoria futura), registrado em 2026-10-11
+
+- **Local:** `engine/internal/domain/catalog` (`OutstandingShares`), `corporategovernance`, bots de liquidez.
+- **Origem:** ao ampliar as alavancas da assembleia (Fase F2), o autor deixou recompra e emissão de ações **de fora desta rodada**. Mexer em ações em circulação muda float, liquidez dos bots, lucro por ação, ETFs que contêm o ativo e posições de usuários.
+- **Para quando voltar:** definir se a recompra cancela ações (reduz o float) ou vira ação em tesouraria, quem vende (a conta de uma contraparte técnica, nunca usuário), como fica o snapshot de acionistas e o dividendo por ação, e recalibrar. Hoje a pauta "Captar emitindo ações novas" do rascunho usa só o efeito em qualidade e deve ser reescrita sem prometer emissão.
+- **Status:** adiado por decisão do autor (melhoria futura), sem tarefa aberta.
+
+### 055 · Pauta do prêmio da PN sorteada para empresa que só tem ações ordinárias (MO.6.15), achado em 2026-10-11
+
+- **Local:** `agenda_templates` (pauta `lucro_premio_pn`, migração `0051`) e `pickTemplate` em `backend/src/modules/assemblies/domain/lifecycle.ts`.
+- **Origem:** o sorteio da pauta filtra só por setor. Numa empresa sem ação PN o efeito do prêmio é ignorado pelo motor (`skipped_not_applicable`) e a pauta fica só com o outro efeito (crescimento). No ensaio da recalibração quase todos os efeitos de prêmio caíram assim, porque o mundo sintético quase não tem PN.
+- **Opções:** (a) filtrar a pauta por empresas que têm PN (regra nova no sorteio e nas propostas); (b) manter, aceitando que a pauta vale só pelo crescimento nessas empresas; (c) reescrever a pauta para não depender de a empresa ter PN.
+- **Status:** aberto. Minha recomendação (e do relatório) é manter (b) por ora e revisar com dados reais; o autor aprovou o relatório sem pedir a regra nova.
+
+### 056 · Curva do patrimônio da carteira inteira desde a abertura da conta, registrado em 2026-10-11
+
+- **Local:** `backend/src/modules/ranking/domain/networth.ts` (replay de eventos) e a futura tela "Meus ativos" (Fase I do `backlog-monetizacao.md`).
+- **Origem:** ao pedir a tela de ativos com "rendimento desde o início", o autor pode estar falando de duas coisas: o retorno de **cada ativo desde a compra** (contra o preço médio, que a MO.8.x entrega) e a **evolução do patrimônio da carteira inteira desde que a conta foi aberta** (um gráfico de linha, por exemplo de R$ 10.000 até hoje). A segunda exige série histórica de patrimônio, que hoje só o ranking calcula (replay de `market_events` em janelas fixas, renda fixa a custo e sem marcação a mercado).
+- **Opções:** (a) ficar só com o retorno por ativo e o resultado agregado contra o custo (decisão proposta na Fase I); (b) gravar um instantâneo diário de patrimônio por usuário e desenhar a curva, com custo de armazenamento e um job novo; (c) calcular a curva sob demanda por replay, mais barato de manter e mais caro por consulta.
+- **Status:** aberto. Recomendação: (a) agora, e reavaliar (b) quando houver pedido real de gráfico de evolução.
+

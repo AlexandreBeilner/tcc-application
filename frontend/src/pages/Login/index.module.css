@@ -20,10 +20,13 @@
 }
 
 .brand {
-    font-family: var(--font-family-heading);
-    font-size: var(--font-size-2xl);
-    color: var(--color-brand-300);
-    text-align: center;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.brandLogo {
+    height: 44px;
 }
 
 .subtitle {
@@ -57,7 +60,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
 }
 
@@ -173,10 +176,43 @@
 .terms {
     margin: 0;
     text-align: center;
-    color: var(--color-text-muted);
+    color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
+}
+
+.forgot {
+    align-self: flex-end;
+    margin-top: calc(var(--space-2) * -1);
+    color: var(--color-brand-300);
+    font-size: var(--font-size-sm);
+}
+
+.notice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.notice p {
+    margin: 0;
+}
+
+.noticeTitle {
+    color: var(--color-text-primary);
+    font-weight: 600;
 }
 
 .terms a {
     color: var(--color-brand-300);
+}
+
+/* Tela de entrada mantém o padrão de links sublinhados (menos o botão do Google, que é botão). */
+.page a:not(.google) {
+    text-decoration: underline;
 }

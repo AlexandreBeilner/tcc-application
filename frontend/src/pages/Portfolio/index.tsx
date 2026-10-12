@@ -1,5 +1,6 @@
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Compass, PieChart, Target } from 'lucide-react'
+import { ArrowLeftRight, Compass, PieChart, Target } from 'lucide-react'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
@@ -7,10 +8,17 @@ import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useMissionsQuery } from '../../features/missions/useMissionsQuery'
 import { useNextSalaryPayment } from '../../features/market/useNextSalaryPayment'
+import { filterForCategory } from '../../features/portfolio/positionsView'
+import { buildMovements } from '../../features/market/movements'
+import { useAssetLabels } from '../../features/market/useAssetLabels'
+import { useAssetsQuery } from '../../features/market/useAssetsQuery'
+import { useRecentMovementsQuery } from '../../features/market/useRecentMovementsQuery'
 import { groupPositionsByCategory } from '../../features/portfolio/distribution'
+import { RecentMovements } from '../../components/organisms/RecentMovements'
 import { NetWorthCards } from '../../components/organisms/NetWorthCards'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { DistributionChart } from '../../components/organisms/DistributionChart'
+import { ProBenefitsCard } from '../../components/organisms/ProBenefitsCard'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
 import { DailyMissionsList } from '../../components/organisms/DailyMissionsList'
 import { SalaryIndicator } from '../../components/molecules/SalaryIndicator'
@@ -34,6 +42,19 @@ export function Portfolio() {
     const lessonsQuery = useLessonsQuery()
     const missionsQuery = useMissionsQuery()
     const daysUntilNextSalary = useNextSalaryPayment()
+    const movementsQuery = useRecentMovementsQuery()
+    // Catálogo com sandbox só para rotular (ticker) e separar o Modo Aprendizado do feed.
+    const assetsQuery = useAssetsQuery(undefined, { includeSandbox: true })
+    const assetLabels = useAssetLabels(assetsQuery.data?.assets)
+    const [now] = useState(() => new Date())
+    const movements = useMemo(
+        () =>
+            buildMovements(movementsQuery.data?.events ?? [], {
+                assetLabels,
+                sandboxAssetIds: new Set((assetsQuery.data?.assets ?? []).filter((asset) => asset.is_sandbox).map((asset) => asset.id)),
+            }),
+        [movementsQuery.data, assetsQuery.data, assetLabels],
+    )
 
     const account = accountQuery.data
     const hasNoPositions = account && account.positions.length === 0 && account.fixedIncomePositions.length === 0
@@ -75,14 +96,13 @@ export function Portfolio() {
                             </span>
                             <h2 className={styles.emptyTitle}>Você ainda não tem nenhuma posição</h2>
                             <p className={styles.emptyBody}>
-                                Comece pela Trilha pra entender os produtos antes de investir, ou vá direto pro Mercado se já sabe o que
-                                procura.
+                                Comece pela Trilha pra entender os produtos antes de investir, ou use o botão Investir do card acima se já
+                                sabe o que procura.
                             </p>
                             <div className={styles.emptyActions}>
                                 <Button variant="secondary" onClick={() => navigate('/trilha')}>
                                     Ir pra Trilha
                                 </Button>
-                                <Button onClick={() => navigate('/mercado')}>Ir pro Mercado</Button>
                             </div>
                         </section>
                     )}
@@ -93,7 +113,25 @@ export function Portfolio() {
                                 <PieChart size={18} strokeWidth={2} aria-hidden="true" />
                                 Distribuição
                             </h2>
-                            <DistributionChart slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)} />
+                            <DistributionChart
+                                slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)}
+                                onSelect={(category) => navigate(`/ativos?categoria=${filterForCategory(category)}`)}
+                            />
+                        </section>
+                    )}
+
+                    {account && (
+                        <section className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <ArrowLeftRight size={18} strokeWidth={2} aria-hidden="true" />
+                                Últimas movimentações
+                            </h2>
+                            <RecentMovements
+                                movements={movements}
+                                isLoading={movementsQuery.isLoading || assetsQuery.isLoading}
+                                isError={movementsQuery.isError}
+                                now={now}
+                            />
                         </section>
                     )}
                 </div>
@@ -111,12 +149,7 @@ export function Portfolio() {
 
                     {lessonsQuery.data && <ResumeLessonCard lessons={lessonsQuery.data.lessons} />}
 
-                    <div className={styles.actions}>
-                        <Button onClick={() => navigate('/mercado')}>Investir</Button>
-                        <Button variant="secondary" onClick={() => navigate('/conquistas')}>
-                            Conquistas
-                        </Button>
-                    </div>
+                    <ProBenefitsCard />
                 </div>
             </div>
         </main>

@@ -4,13 +4,13 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useUnlockedKeys } from '../../features/lessons/useUnlockedKeys'
-import { listAssets } from '../../services/market'
+import { getAssetPriceSeries, listAssets } from '../../services/market'
 import type { AssetSummary } from '../../services/market'
 import { EquityList } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../features/lessons/useUnlockedKeys', () => ({ useUnlockedKeys: vi.fn() }))
-vi.mock('../../services/market', () => ({ listAssets: vi.fn() }))
+vi.mock('../../services/market', () => ({ listAssets: vi.fn(), getAssetPriceSeries: vi.fn() }))
 
 // `AssetTable` sempre renderiza tabela E cards no DOM (só a media query
 // decide qual aparece; jsdom não aplica media query) — `getAllByText` em
@@ -66,6 +66,20 @@ describe('EquityList (tela 4.4)', () => {
     })
 
     afterEach(() => vi.clearAllMocks())
+
+    it('desenha a sparkline de quem tem série (uma chamada em lote) e segue sem ela se a série falhar', async () => {
+        vi.mocked(listAssets).mockResolvedValue({ assets })
+        vi.mocked(getAssetPriceSeries).mockResolvedValue({ series: { a1: [28, 29, 30] } })
+        const { container, unmount } = renderPage()
+        await waitFor(() => expect(container.querySelectorAll('svg path').length).toBeGreaterThan(0))
+        expect(getAssetPriceSeries).toHaveBeenCalledTimes(1)
+        unmount()
+
+        vi.mocked(getAssetPriceSeries).mockRejectedValue(new Error('falhou'))
+        renderPage()
+        await waitFor(() => expect(screen.getAllByText('PETR4').length).toBeGreaterThan(0))
+        expect(screen.queryByRole('alert')).toBeNull()
+    })
 
     it('mostra os ativos da aba Ações por padrão, com preço e variação', async () => {
         vi.mocked(listAssets).mockResolvedValue({ assets })

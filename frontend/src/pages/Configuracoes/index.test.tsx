@@ -6,6 +6,8 @@ import { useAuth } from '../../features/auth/AuthContext'
 import { useTheme } from '../../features/theme/ThemeContext'
 import { ApiError } from '../../services/client'
 import { changePassword, listIdentities, updateProfile, uploadAvatar } from '../../services/auth'
+import { getBillingStatus } from '../../services/billing'
+import { getEmailPreferences } from '../../services/emailPreferences'
 import { Configuracoes } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
@@ -15,6 +17,12 @@ vi.mock('../../services/auth', () => ({
     changePassword: vi.fn(),
     listIdentities: vi.fn(),
     uploadAvatar: vi.fn(),
+}))
+
+vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../../services/emailPreferences', () => ({
+    getEmailPreferences: vi.fn(),
+    updateEmailPreferences: vi.fn(),
 }))
 
 function renderPage() {
@@ -41,6 +49,17 @@ describe('Configuracoes (tela 9.2)', () => {
             setUser,
         })
         vi.mocked(useTheme).mockReturnValue({ theme: 'dark', setTheme })
+        vi.mocked(getBillingStatus).mockResolvedValue({
+            isPro: false,
+            state: 'none',
+            plan: null,
+            store: null,
+            expiresAt: null,
+            willRenew: false,
+            managementUrl: null,
+            billingEnabled: false,
+        })
+        vi.mocked(getEmailPreferences).mockResolvedValue({ preferences: { social: false, engagement: false }, suppression: null })
         vi.mocked(listIdentities).mockResolvedValue({
             identities: [{ id: 'i1', userId: 'u1', providerName: 'google', providerAccountId: 'g1' }],
         })
@@ -54,6 +73,13 @@ describe('Configuracoes (tela 9.2)', () => {
         expect(screen.getByDisplayValue('Ana')).toBeInTheDocument()
         expect(screen.getByDisplayValue('ana@x.com')).toBeInTheDocument()
         expect(await screen.findByText('Google')).toBeInTheDocument()
+    })
+
+    it('traz a seção de preferências de e-mail com tudo desligado (EM.6.1)', async () => {
+        renderPage()
+
+        expect(await screen.findByRole('checkbox', { name: /Amigos/ })).not.toBeChecked()
+        expect(screen.getByRole('checkbox', { name: /Resumo e lembretes/ })).not.toBeChecked()
     })
 
     it('e-mail é somente leitura (6.10.4)', () => {

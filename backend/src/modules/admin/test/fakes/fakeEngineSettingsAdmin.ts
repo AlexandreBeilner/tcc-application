@@ -6,6 +6,8 @@ import type {
 
 export interface FakeEngineSettingsAdmin extends EngineSettingsAdmin {
   calls: string[]
+  // Grupo pedido em cada `list` (undefined = padrão).
+  listGroups: Array<string | undefined>
   saved: Array<{ key: EngineSettingKey; value: number; adminId: string }>
   resets: EngineSettingKey[]
   errorToThrow?: Error
@@ -44,11 +46,13 @@ export const sampleSettings: EngineSettings = {
 export function createFakeEngineSettingsAdmin(): FakeEngineSettingsAdmin {
   const fake: FakeEngineSettingsAdmin = {
     calls: [],
+    listGroups: [],
     saved: [],
     resets: [],
     errorToThrow: undefined,
-    async list() {
+    async list(group) {
       fake.calls.push('list')
+      fake.listGroups.push(group)
       if (fake.errorToThrow) throw fake.errorToThrow
       return sampleSettings
     },

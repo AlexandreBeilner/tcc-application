@@ -6,6 +6,7 @@
 
 .trigger {
     display: flex;
+    min-height: 44px;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);

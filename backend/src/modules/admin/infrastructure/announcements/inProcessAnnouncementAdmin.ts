@@ -79,6 +79,7 @@ export function createInProcessAnnouncementAdmin(
               body: input.body,
               severity: 'critical',
               dismissible: false,
+              notifyByEmail: input.notifyByEmail,
               startsAt: input.startsAt,
               endsAt: input.endsAt,
             },

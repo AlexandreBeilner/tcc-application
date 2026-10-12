@@ -22,6 +22,8 @@ export interface User {
   // Versão de sessão: `forçar logout` incrementa e todo token emitido antes
   // (com versão menor) passa a ser recusado.
   tokenVersion: number
+  // Quando o dono provou controlar o e-mail (EM.3.1); `null` = não verificado.
+  emailVerifiedAt: Date | null
   createdAt: Date
 }
 
@@ -29,4 +31,8 @@ export interface User {
 // .claude/der-original-tcc.md, "password_hash passa a ser nullable".
 export function hasLocalPassword(user: User): boolean {
   return user.passwordHash !== null
+}
+
+export function isEmailVerified(user: User): boolean {
+  return user.emailVerifiedAt !== null
 }

@@ -128,6 +128,16 @@ export type AuditAction =
     | 'admin.login_failed'
     | 'admin.reauth'
     | 'admin.reauth_failed'
+    | 'admin.password_reset_denied'
+    | 'assembly.pause'
+    | 'assembly.resume'
+    | 'assembly.setting_update'
+    | 'assembly.setting_reset'
+    | 'assembly.template_create'
+    | 'assembly.template_update'
+    | 'assembly.template_activate'
+    | 'assembly.template_deactivate'
+    | 'billing.grant_promotional'
 export type AuditResult = 'success' | 'failed'
 
 export interface AuditLogEntry {
@@ -223,7 +233,7 @@ export interface AdvanceTicksResult {
 
 // Visão geral e saúde (N.5, `.docs/backend/admin.md#visao-geral-e-saude-do-sistema-tarefa-n5`).
 export type HealthStatus = 'ok' | 'degradado' | 'fora'
-export type HealthComponentKey = 'backend' | 'engine' | 'gamification_db' | 'market_db' | 'redis'
+export type HealthComponentKey = 'backend' | 'engine' | 'gamification_db' | 'market_db' | 'redis' | 'email_outbox'
 
 export interface ComponentHealth {
     key: HealthComponentKey
@@ -538,7 +548,25 @@ export interface FundBotInput {
 }
 
 // Parâmetros de simulação (N.7, `.docs/backend/admin.md#parametros-de-simulacao-tarefa-n7`).
-export type EngineSettingKey = 'ticks_per_day' | 'max_catch_up'
+export type PaceSettingKey = 'ticks_per_day' | 'max_catch_up'
+// Governança das assembleias (MO.6.8): faixa de efeito, rampa e cooldown, editados na tela das Assembleias.
+export type GovernanceSettingKey =
+    | 'governance_growth_step_centipp'
+    | 'governance_quality_step_centi'
+    | 'governance_ramp_ticks'
+    | 'governance_cooldown_days'
+    // Destinação do lucro (Fase F2): payout, prêmio da PN e retenção do dividendo do balanço.
+    | 'governance_payout_step_centipp'
+    | 'governance_payout_min_pct'
+    | 'governance_payout_max_pct'
+    | 'governance_payout_cooldown_days'
+    | 'governance_premium_step_centipp'
+    | 'governance_premium_min_pct'
+    | 'governance_premium_max_pct'
+    | 'governance_hold_declarations'
+    | 'governance_declaration_safety_days'
+export type EngineSettingKey = PaceSettingKey | GovernanceSettingKey
+export type EngineSettingGroup = 'pace' | 'governance'
 
 export interface EditableSetting {
     key: EngineSettingKey
@@ -720,6 +748,25 @@ export interface UserCorrectionContext {
     lessons: CorrectionLesson[]
 }
 
+export interface UserProStatus {
+    is_pro: boolean
+    state: string
+    plan: string | null
+    store: string | null
+    expires_at: string | null
+}
+
+export interface GrantUserProInput {
+    days: number
+    reason: string
+}
+
+export interface GrantUserProResult {
+    user_id: string
+    ends_at: string
+    previous_access_end: string | null
+}
+
 export interface CreditUserInput {
     amount: number
     reason?: string
@@ -746,6 +793,8 @@ export type AchievementCriteriaType =
     | 'micro_decisions_streak'
     | 'track_completed_no_errors'
     | 'lesson_reviewed'
+    | 'assemblies_participated'
+    | 'referrals_qualified'
 
 export interface AchievementCriterionOption {
     type: AchievementCriteriaType
@@ -761,6 +810,8 @@ export interface CatalogAchievement {
     criteria_type: AchievementCriteriaType
     criteria_value: number
     is_active: boolean
+    // Rara de verdade, marcada no catálogo (ponto 044): só ela dispara o e-mail de conquista rara.
+    is_rare: boolean
     // Quantos usuários já ganharam.
     unlocked_count: number
 }
@@ -777,7 +828,7 @@ export interface CreateAchievementInput {
     criteria_value: number
 }
 
-export type UpdateAchievementInput = Partial<CreateAchievementInput> & { is_active?: boolean }
+export type UpdateAchievementInput = Partial<CreateAchievementInput> & { is_active?: boolean; is_rare?: boolean }
 
 export type MissionVerification = 'lesson_completion' | 'server_check' | 'client_reported'
 
@@ -1050,6 +1101,7 @@ export interface AdminAnnouncement {
     severity: AnnouncementSeverity
     kind: AnnouncementKind
     dismissible: boolean
+    notify_by_email: boolean
     starts_at: string
     ends_at: string | null
     linked_halt_id: string | null
@@ -1062,17 +1114,20 @@ export interface AnnouncementInput {
     body: string
     severity: AnnouncementSeverity
     dismissible: boolean
+    // Também por e-mail, só para crítico e só na criação (o lote sai uma vez).
+    notify_by_email?: boolean
     starts_at?: string
     ends_at?: string | null
 }
 
-export type AnnouncementPatch = Partial<AnnouncementInput>
+export type AnnouncementPatch = Partial<Omit<AnnouncementInput, 'notify_by_email'>>
 
 export interface MaintenanceInput {
     title: string
     body: string
     ends_at?: string | null
     pause_trading: boolean
+    notify_by_email?: boolean
 }
 
 export interface EndAnnouncementResult {
@@ -1126,4 +1181,150 @@ export interface ExportFilters {
     from?: string
     to?: string
     limit?: number
+}
+
+// Painel das assembleias (MO.6.8, `.docs/backend/admin.md#assembleias-tarefa-mo68`).
+export type AdminAssemblyStatus = 'scheduled' | 'open' | 'closed'
+
+export interface AdminAssembly {
+    id: string
+    kind: string
+    subject_ref: string
+    subject_label: string | null
+    title: string | null
+    status: AdminAssemblyStatus
+    opens_at: string
+    closes_at: string
+    effect_applies_at: string
+    effect_applied_at: string | null
+    outcome: 'approved' | 'not_approved' | null
+    outcome_reason: 'decided' | 'quorum' | 'tie' | null
+    voter_count: number | null
+    winning_option_id: string | null
+    min_voters: number | null
+    // Aprovada, com o efeito já devido e ainda não entregue.
+    effect_pending: boolean
+    // Há pausa vigente cobrindo esta assembleia.
+    paused: boolean
+    // Assembleia de destinação do lucro (Fase F2): a declaração de dividendo que ela libera, e se o
+    // dividendo ainda está retido por ela.
+    declaration_id: string | null
+    dividend_on_hold: boolean
+}
+
+export type AdminEffectPreview =
+    | { metric: 'growth' | 'quality' | 'payout' | 'pn_premium'; direction: 1 | -1; intensity: number }
+    | { metric: 'dividend_policy'; value: 'quarterly' | 'semiannual' | 'annual' }
+
+export interface AdminAssemblyOption {
+    id: string
+    key: string
+    label: string
+    gain: string
+    loss: string
+    // O primeiro efeito (para quem lê um só) e todos eles, de 1 a 2, na ordem da pauta.
+    effect: AdminEffectPreview | null
+    effects: AdminEffectPreview[]
+    position: number
+    voters: number
+    weight: number
+}
+
+export interface AdminAssemblyVote {
+    user_id: string
+    username: string | null
+    name: string | null
+    option_id: string
+    // Ações na data de corte; nulo se a pessoa não era acionista (o voto é descartado).
+    weight: number | null
+    eligible: boolean
+    created_at: string
+    updated_at: string
+}
+
+export interface AdminAssemblyDetail {
+    assembly: AdminAssembly
+    options: AdminAssemblyOption[]
+    min_voters: number
+    counted_voters: number
+    holders: number
+    votes: AdminAssemblyVote[]
+}
+
+export interface AssemblyPause {
+    id: string
+    scope: 'global' | 'company'
+    company_id: string | null
+    reason: string
+    created_by: string
+    created_at: string
+    lifted_at: string | null
+    lifted_by: string | null
+}
+
+export interface AssemblyPauseListing {
+    active: AssemblyPause[]
+    recent: AssemblyPause[]
+}
+
+export type PauseAssembliesInput = { scope: 'global'; reason: string } | { scope: 'company'; company_id: string; reason: string }
+
+export type AssemblySettingKey =
+    | 'min_voters'
+    | 'duration_days'
+    | 'open_delay_days'
+    | 'catch_up_days'
+    | 'effect_delay_days'
+    | 'monthly_free_credits'
+    | 'free_credit_min_level'
+    | 'participation_xp'
+    | 'proposal_monthly_cap'
+    | 'proposal_min_support'
+    | 'proposal_ttl_days'
+
+export interface AssemblySetting {
+    key: AssemblySettingKey
+    value: number
+    default: number
+    min: number
+    max: number
+    overridden: boolean
+    updated_by: string | null
+    updated_at: string | null
+}
+
+// Um efeito de pauta: alavanca e sentido e intensidade, ou, na política de dividendo, o valor-alvo.
+export interface AgendaTemplateEffect {
+    metric: string
+    direction?: number
+    intensity?: number
+    value?: string
+}
+
+export interface AgendaTemplateOption {
+    key: string
+    label: string
+    gain: string
+    loss: string
+    // De 1 a 2 efeitos (`{ effects: [...] }`); pauta anterior à Fase F2 traz o objeto de um efeito só.
+    effect: AgendaTemplateEffect | { effects: AgendaTemplateEffect[] }
+}
+
+export type AgendaTemplatePurpose = 'general' | 'profit'
+
+export interface AgendaTemplateContent {
+    // `general` abre pelo balanço; `profit` só a partir do dividendo retido (destinação do lucro).
+    purpose?: AgendaTemplatePurpose
+    sector: string | null
+    title: string
+    description: string
+    options: AgendaTemplateOption[]
+}
+
+export interface AgendaTemplate extends AgendaTemplateContent {
+    purpose: AgendaTemplatePurpose
+    key: string
+    active: boolean
+    created_at: string
+    usage: { assemblies: number; active_proposals: number }
 }

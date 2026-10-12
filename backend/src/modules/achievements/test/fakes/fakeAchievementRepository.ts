@@ -20,7 +20,12 @@ export function createFakeAchievementRepository(
     },
 
     async create(draft) {
-      const created: Achievement = { id: `ach-${catalog.length + 1}`, isActive: true, ...draft }
+      const created: Achievement = {
+        id: `ach-${catalog.length + 1}`,
+        isActive: true,
+        isRare: false,
+        ...draft,
+      }
       catalog.push(created)
       return created
     },

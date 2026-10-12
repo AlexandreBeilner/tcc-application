@@ -3,6 +3,7 @@
 package httpserver
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
@@ -73,6 +74,7 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /positions", handleListPositions(userData))
 	mux.HandleFunc("GET /fixed-income/positions", handleListFixedIncomePositions(userData, fixedIncome))
 	mux.HandleFunc("GET /assets", handleListAssets(catalog))
+	mux.HandleFunc("GET /assets/quotes", handleListRecentPrices(catalog))
 	mux.HandleFunc("GET /assets/{id}", handleGetAsset(catalog))
 	mux.HandleFunc("GET /assets/{id}/quotes", handleGetAssetQuoteHistory(catalog))
 	mux.HandleFunc("GET /assets/{id}/book", handleGetAssetBook(catalog, orders))
@@ -124,6 +126,14 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	mux.HandleFunc("GET /market/indicators/history", handleGetIndicatorHistory(indicatorHistory))
 	mux.HandleFunc("GET /market/clock", handleGetMarketClock(calendar))
 	mux.HandleFunc("GET /market/calendar", handleGetMarketCalendar(calendar))
+	mux.HandleFunc("GET /governance/reports", handleGovernanceReports(cfg.governance))
+	mux.HandleFunc("POST /governance/snapshots", handleGovernanceTakeSnapshot(cfg.governance))
+	mux.HandleFunc("GET /governance/snapshots/{assembly_id}", handleGovernanceGetSnapshot(cfg.governance))
+	mux.HandleFunc("POST /governance/decisions", handleGovernanceRecordDecision(cfg.governance))
+	mux.HandleFunc("GET /governance/decisions/{assembly_id}", handleGovernanceGetDecision(cfg.governance))
+	mux.HandleFunc("GET /governance/companies/{company_id}/standing", handleGovernanceStanding(cfg.governance))
+	mux.HandleFunc("GET /governance/pending-declarations", handleGovernancePendingDeclarations(cfg.governance))
+	mux.HandleFunc("POST /governance/pending-declarations/{id}/release", handleGovernanceReleaseDeclaration(cfg.governance))
 
 	return &http.Server{
 		Addr:         addr,
@@ -134,9 +144,36 @@ func New(addr string, accounts accountWriter, catalog catalogReader, temporizado
 	}
 }
 
-// Run sobe o servidor e bloqueia até ele encerrar ou falhar.
-func Run(addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI, opts ...Option) error {
+// shutdownTimeout é o teto de espera pelas requisições em andamento no encerramento. O
+// `docker stop` dá 10 s antes do SIGKILL; 8 s deixa folga pra fechar o pool do banco.
+const shutdownTimeout = 8 * time.Second
+
+// Serve atende srv até ctx ser cancelado (SIGTERM/SIGINT no main) e então encerra com
+// http.Server.Shutdown: para de aceitar conexões e espera as requisições em andamento terminarem,
+// até timeout. Devolve nil num encerramento limpo, o erro do ListenAndServe se ele falhar antes,
+// ou o de Shutdown se estourar o prazo.
+func Serve(ctx context.Context, srv *http.Server, timeout time.Duration) error {
+	failed := make(chan error, 1)
+	go func() { failed <- srv.ListenAndServe() }()
+
+	select {
+	case err := <-failed:
+		return err
+	case <-ctx.Done():
+	}
+	log.Print("motor de simulação: sinal de encerramento recebido, aguardando requisições em andamento")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		_ = srv.Close()
+		return err
+	}
+	return nil
+}
+
+// Run sobe o servidor e bloqueia até ctx ser cancelado (encerramento limpo, devolve nil) ou o servidor falhar.
+func Run(ctx context.Context, addr string, accounts accountWriter, catalog catalogReader, temporizador ticker, orders orderSubmitter, fixedIncome fixedIncomeExecutor, macroEvents macroEventTriggerer, macroEventReader macroEventLister, userData userMarketDataReader, indicatorHistory indicatorHistoryReader, calendar *CalendarAPI, opts ...Option) error {
 	srv := New(addr, accounts, catalog, temporizador, orders, fixedIncome, macroEvents, macroEventReader, userData, indicatorHistory, calendar, opts...)
 	log.Printf("motor de simulação escutando em %s", addr)
-	return srv.ListenAndServe()
+	return Serve(ctx, srv, shutdownTimeout)
 }

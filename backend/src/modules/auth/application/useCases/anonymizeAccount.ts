@@ -1,4 +1,7 @@
 import { UserNotFoundError } from '../../domain/errors'
+import { notifySafely } from '../notifySafely'
+import type { AccountMailer } from '../ports/accountMailer'
+import type { EmailDataEraser } from '../ports/emailDataEraser'
 import type { AvatarStorage } from '../ports/avatarStorage'
 import type { UserRepository } from '../ports/userRepository'
 
@@ -22,6 +25,8 @@ export class AnonymizeAccountUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly avatarStorage: AvatarStorage,
+    private readonly accountMailer: AccountMailer,
+    private readonly emailDataEraser: EmailDataEraser,
   ) {}
 
   async execute(input: AnonymizeAccountInput): Promise<void> {
@@ -29,6 +34,17 @@ export class AnonymizeAccountUseCase {
     if (!user) {
       throw new UserNotFoundError('usuário não encontrado')
     }
+
+    // Confirmação da exclusão (E7) vai ao endereço real, por isso antes de ele virar `.invalid`.
+    // O outbox guarda o endereço de entrega, então o envio acontece mesmo depois da anonimização.
+    // Conta já anonimizada cai na recusa de `.invalid` do enfileiramento, sem e-mail.
+    await notifySafely('a confirmação de exclusão', () =>
+      this.accountMailer.sendAccountDeleted({
+        userId: user.id,
+        to: user.email,
+        eventId: user.id,
+      }),
+    )
 
     // Sufixo curto do próprio id garante e-mail/username sintéticos únicos
     // sem precisar checar colisão contra outras contas já anonimizadas.
@@ -43,6 +59,9 @@ export class AnonymizeAccountUseCase {
     await this.userRepository.deleteIdentitiesForUser(input.userId)
     // Encerra as sessões abertas (N.16): token emitido antes da exclusão não vale mais.
     await this.userRepository.revokeSessions(input.userId)
+    // Preferências de e-mail e linhas do outbox (endereço e payload são dado pessoal) somem
+    // junto, menos a confirmação de exclusão que ainda está para sair (EM.6.1).
+    await this.emailDataEraser.eraseForUser(input.userId)
 
     if (user.avatarPath) {
       await this.avatarStorage.delete(user.avatarPath)

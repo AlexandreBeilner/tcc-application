@@ -1,3 +1,6 @@
+import { createFakeAccountMailer } from '../../test/fakes/fakeAccountMailer'
+import { createFakeEmailDataEraser } from '../../test/fakes/fakeEmailDataEraser'
+import { createFakeEmailPreferencesExporter } from '../../test/fakes/fakeEmailPreferencesExporter'
 import express from 'express'
 import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
@@ -9,6 +12,7 @@ import { ListIdentitiesUseCase } from '../../application/useCases/listIdentities
 import { UpdateProfileUseCase } from '../../application/useCases/updateProfile'
 import { MAX_AVATAR_SIZE_BYTES, UploadAvatarUseCase } from '../../application/useCases/uploadAvatar'
 import { createFakeAchievementsExporter } from '../../test/fakes/fakeAchievementsExporter'
+import { createFakeAuthMailer } from '../../test/fakes/fakeAuthMailer'
 import { createFakeAvatarStorage } from '../../test/fakes/fakeAvatarStorage'
 import { createFakeFriendshipsExporter } from '../../test/fakes/fakeFriendshipsExporter'
 import { createFakeLessonProgressExporter } from '../../test/fakes/fakeLessonProgressExporter'
@@ -36,7 +40,11 @@ async function buildApp() {
   })
 
   const updateProfile = new UpdateProfileUseCase(userRepository)
-  const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher)
+  const changePassword = new ChangePasswordUseCase(
+    userRepository,
+    passwordHasher,
+    createFakeAuthMailer(),
+  )
   const listIdentities = new ListIdentitiesUseCase(userRepository)
   const exportUserData = new ExportUserDataUseCase(
     userRepository,
@@ -45,9 +53,16 @@ async function buildApp() {
     createFakeAchievementsExporter(),
     createFakeFriendshipsExporter(),
     createFakeMissionProgressExporter(),
+    createFakeEmailPreferencesExporter(),
+    createFakeAccountMailer(),
   )
   const { storage: avatarStorage, saved: savedAvatars } = createFakeAvatarStorage()
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+  const anonymizeAccount = new AnonymizeAccountUseCase(
+    userRepository,
+    avatarStorage,
+    createFakeAccountMailer(),
+    createFakeEmailDataEraser(),
+  )
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -107,16 +122,23 @@ describe('account routes', () => {
     expect(res.body.user.onboardingCompleted).toBe(true)
   })
 
-  it('PATCH /me retorna 409 pra e-mail já em uso por outro usuário', async () => {
+  it('PATCH /me não aceita trocar o e-mail (D6): só o e-mail no corpo vira 400, junto com outro campo é ignorado', async () => {
     const { app, tokenIssuer, alice, bob } = await buildApp()
     const token = tokenIssuer.issue({ sub: alice.id, role: 'user' })
 
-    const res = await request(app)
+    const only = await request(app)
       .patch('/me')
       .set('Authorization', `Bearer ${token}`)
       .send({ email: bob.email })
+    expect(only.status).toBe(400)
 
-    expect(res.status).toBe(409)
+    const mixed = await request(app)
+      .patch('/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Alice Nova', email: 'novo@example.com' })
+    expect(mixed.status).toBe(200)
+    expect(mixed.body.user.name).toBe('Alice Nova')
+    expect(mixed.body.user.email).toBe(alice.email)
   })
 
   it('PATCH /me retorna 400 sem nenhum campo', async () => {

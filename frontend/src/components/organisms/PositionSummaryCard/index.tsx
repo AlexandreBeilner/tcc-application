@@ -1,7 +1,8 @@
 import { OrderSummaryList } from '../OrderSummaryList'
 import { formatCurrency } from '../../../features/portfolio/format'
-import { formatSignedPercent } from '../../../features/market/format'
+import { calculateEquityReturn } from '../../../features/portfolio/positionReturns'
 import type { PositionSummaryCardProps } from './types'
+import { Delta } from '../../atoms/Delta'
 import styles from './index.module.css'
 
 export type { PositionSummaryCardProps } from './types'
@@ -15,9 +16,7 @@ export type { PositionSummaryCardProps } from './types'
 // entre os dois não é inconsistência, é o provento que já caiu em caixa
 // separadamente da cotação (mesmo espírito pedagógico do RF21).
 export function PositionSummaryCard({ quantity, averagePrice, markPrice, dividendsReceived }: PositionSummaryCardProps) {
-    const currentPrice = markPrice ?? averagePrice
-    const priceReturn = (currentPrice - averagePrice) / averagePrice
-    const totalReturn = ((currentPrice - averagePrice) * quantity + dividendsReceived) / (averagePrice * quantity)
+    const { currentPrice, priceReturn, totalReturn } = calculateEquityReturn({ quantity, averagePrice, markPrice, dividendsReceived })
 
     return (
         <section className={styles.card}>
@@ -35,15 +34,11 @@ export function PositionSummaryCard({ quantity, averagePrice, markPrice, dividen
             <div className={styles.returns}>
                 <div className={styles.returnItem}>
                     <span className={styles.returnLabel}>Retorno de preço</span>
-                    <span className={`${styles.returnValue} ${priceReturn >= 0 ? styles.gain : styles.loss} tabular-nums`}>
-                        {formatSignedPercent(priceReturn * 100)}
-                    </span>
+                    <Delta percent={priceReturn === null ? null : priceReturn * 100} className={styles.returnValue} />
                 </div>
                 <div className={styles.returnItem}>
                     <span className={styles.returnLabel}>Retorno total (com provento)</span>
-                    <span className={`${styles.returnValue} ${totalReturn >= 0 ? styles.gain : styles.loss} tabular-nums`}>
-                        {formatSignedPercent(totalReturn * 100)}
-                    </span>
+                    <Delta percent={totalReturn === null ? null : totalReturn * 100} className={styles.returnValue} />
                 </div>
             </div>
 

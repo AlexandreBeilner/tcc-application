@@ -15,17 +15,23 @@
     --grid-line: rgba(255, 255, 255, 0.05);
     --color-text-primary: #f5f6f8;
     --color-text-secondary: #9ba1ae;
-    --color-text-muted: #6b7280;
+    /* MO.9.10: #6b7280 dava 3.67:1 sobre a superfície escura (abaixo de AA); este dá 5.3:1 na superfície e 4.8:1 na elevada. */
+    --color-text-muted: #868c98;
 
     --color-brand-500: #2f6fed;
     --color-brand-600: #1d4fc4;
     --color-brand-300: #93b4ff;
     --color-brand-100: #0e1e42;
+    /* MO.9.10: cor de TEXTO de link/ação (brand-500 dava 3.9:1 sobre a superfície escura). Fundos e bordas seguem em brand-500. */
+    --color-link: #93b4ff;
 
     --color-gain-500: #34c77b;
     --color-gain-100: #0f2b1e;
     --color-loss-500: #e5484d;
     --color-loss-100: #2e1416;
+    /* Texto de variação (MO.9.4): par AA sobre superfície e sobre o chip -100. */
+    --color-gain-text: #34c77b;
+    --color-loss-text: #f0686c;
 
     --color-gamify-500: #f0a202;
     --color-gamify-100: #332405;
@@ -100,6 +106,23 @@
     --chart-series-4: #c98500;
     --chart-series-5: #d55181;
     --chart-series-6: #008300;
+
+    /* Molduras de avatar do PRO (MO.5.1, tokens doc seção 2.7): dois tons por moldura, só
+     decorativos. De propósito fora dos hues semânticos (verde de ganho, vermelho de perda,
+     dourado de conquista), pra cosmético nunca parecer resultado nem conquista. Mesmos valores
+     nos dois temas: o anel tem contraste próprio contra fundo claro e escuro. */
+    --frame-aurora-a: #2dd4bf;
+    --frame-aurora-b: #3b82f6;
+    --frame-oceano-a: #1d4fc4;
+    --frame-oceano-b: #60a5fa;
+    --frame-crepusculo-a: #8b5cf6;
+    --frame-crepusculo-b: #ec4899;
+    --frame-ametista-a: #7c3aed;
+    --frame-ametista-b: #c4b5fd;
+    --frame-coral-a: #fb7185;
+    --frame-coral-b: #f472b6;
+    --frame-grafite-a: #6b7280;
+    --frame-grafite-b: #d1d5db;
 }
 
 :root[data-theme='light'] {
@@ -113,17 +136,21 @@
     --grid-line: rgba(0, 0, 0, 0.06);
     --color-text-primary: #14161b;
     --color-text-secondary: #5b6270;
-    --color-text-muted: #8a8f9a;
+    /* MO.9.10: #8a8f9a dava 3.2:1 sobre o branco; este dá 5.1:1 no branco e 4.8:1 no fundo base. */
+    --color-text-muted: #686e7a;
 
     --color-brand-500: #2f6fed;
     --color-brand-600: #1d4fc4;
     --color-brand-300: #1b3f94;
     --color-brand-100: #e8effe;
+    --color-link: #2a63d4;
 
     --color-gain-500: #1e9e5a;
     --color-gain-100: #e3f7ec;
     --color-loss-500: #c4313a;
     --color-loss-100: #fce9ea;
+    --color-gain-text: #157a44;
+    --color-loss-text: #c4313a;
 
     --color-gamify-500: #8f5f06;
     --color-gamify-100: #fdf2db;
@@ -158,9 +185,17 @@
     box-sizing: border-box;
 }
 
+/* Link de navegação e de ação não leva sublinhado (convenção de app, principalmente no celular):
+   a cor e o peso sinalizam o toque. Quem precisa do sublinhado (texto corrido de documento legal,
+   rodapé de aviso, tela de entrada) o pede no próprio módulo. */
+a {
+    text-decoration: none;
+}
+
 body {
     margin: 0;
     min-height: 100vh;
+    min-height: 100dvh;
     background: var(--color-bg-base);
     color: var(--color-text-primary);
     font-family: var(--font-family-body);
@@ -181,4 +216,16 @@ h6 {
    doc de tokens) — aplicar esta classe em qualquer saldo/preço/variação. */
 .tabular-nums {
     font-variant-numeric: tabular-nums;
+}
+
+/* LW.2.1: iOS dá zoom automático ao focar um campo com fonte abaixo de 16px. Como o viewport não
+   bloqueia mais o zoom (acessibilidade), o campo é que precisa nascer com 16px no celular.
+   `!important` porque os módulos de componente definem o próprio `font-size` com mais
+   especificidade; vale só abaixo de 768px, onde o zoom automático acontece. */
+@media (max-width: 767px) {
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']),
+    select,
+    textarea {
+        font-size: max(16px, 1em) !important;
+    }
 }

@@ -8,13 +8,16 @@
  * @format
  */
 
-// Mesma chave usada por frontend/src/features/auth/AuthContext/index.tsx
-// (TOKEN_STORAGE_KEY) — não há import cross-package entre mobile/ e
-// frontend/, então as duas precisam ficar sincronizadas manualmente.
-export const AUTH_TOKEN_STORAGE_KEY = 'tcc.auth.token';
+// Mesma chave "current" de `authToken` em frontend/src/utils/storage/index.ts
+// — não há import cross-package entre mobile/ e frontend/, então as duas
+// precisam ficar sincronizadas manualmente. Era 'tcc.auth.token' até a RC.1.4
+// renomear a chave do SPA (a antiga virou `legacy`); sem acompanhar, a ponte
+// deixou de enxergar o login e o Keychain nunca recebia o token (achado ao
+// validar a MO.4.1 no emulador).
+export const AUTH_TOKEN_STORAGE_KEY = 'app.auth.token';
 
 export const AUTH_TOKEN_CHANGED_MESSAGE_TYPE =
-  'investimenta:auth-token-changed';
+  'selucra:auth-token-changed';
 
 export interface AuthTokenChangedMessage {
   type: typeof AUTH_TOKEN_CHANGED_MESSAGE_TYPE;
@@ -33,11 +36,19 @@ export interface AuthTokenChangedMessage {
 export function buildAuthWatcherScript(): string {
   return `
 (function () {
-  if (window.__investimentaAuthWatcherInstalled) { return; }
-  window.__investimentaAuthWatcherInstalled = true;
+  if (window.__selucraAuthWatcherInstalled) { return; }
+  window.__selucraAuthWatcherInstalled = true;
   var KEY = ${JSON.stringify(AUTH_TOKEN_STORAGE_KEY)};
   var MESSAGE_TYPE = ${JSON.stringify(AUTH_TOKEN_CHANGED_MESSAGE_TYPE)};
   var lastValue = localStorage.getItem(KEY);
+  // Sessão que já existia ao carregar a página (SPA logado antes do app abrir): avisa o lado nativo
+  // uma vez, senão o app só descobriria o login na próxima mudança (e a camada de compras, que
+  // precisa do id do usuário para o logIn, ficaria sem sessão).
+  if (lastValue) {
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({ type: MESSAGE_TYPE, token: lastValue })
+    );
+  }
   setInterval(function () {
     var current = localStorage.getItem(KEY);
     if (current !== lastValue) {
@@ -59,9 +70,7 @@ true;
  * tenha apagado o localStorage do WebView por baixo. `token` nulo/vazio
  * produz um script vazio (sem sessão salva, nada a reinjetar).
  */
-export function buildAuthTokenReinjectionScript(
-  token: string | null,
-): string {
+export function buildAuthTokenReinjectionScript(token: string | null): string {
   if (!token) {
     return '';
   }

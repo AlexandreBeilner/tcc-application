@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { Client } from 'pg'
 import { api } from './http'
 
 export interface E2EUser {
@@ -6,25 +7,46 @@ export interface E2EUser {
   userId: string
 }
 
+// Conta nova só entra com o e-mail verificado (EM.3.1, D2) e o link vai por e-mail, que a suíte
+// não lê. O e2e confirma a conta direto no banco de dev (mesmo `DATABASE_URL` do seed do admin)
+// e faz o login de verdade pelo gateway: o resto da jornada continua HTTP real.
+async function markEmailVerified(userId: string): Promise<void> {
+  const client = new Client({
+    connectionString:
+      process.env.E2E_DATABASE_URL ??
+      process.env.DATABASE_URL ??
+      'postgres://tcc:tcc@localhost:5432/gamification',
+  })
+  await client.connect()
+  try {
+    await client.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [userId])
+  } finally {
+    await client.end()
+  }
+}
+
 // Cadastro real via HTTP (não fake/fixture) — usuário/senha aleatórios por
 // execução, mesmo padrão já aceito em toda validação manual anterior
 // (usuários de teste ficam no banco de dev, README explica o motivo).
 export async function registerRandomUser(): Promise<E2EUser> {
   const suffix = randomUUID().replace(/-/g, '').slice(0, 12)
+  const email = `e2e-${suffix}@example.com`
+  const password = 'SenhaForte123!'
   const res = await api()
     .post('/auth/register')
-    .send({
-      name: `E2E ${suffix}`,
-      email: `e2e-${suffix}@example.com`,
-      username: `e2e_${suffix}`,
-      password: 'SenhaForte123!',
-    })
+    .send({ name: `E2E ${suffix}`, email, username: `e2e_${suffix}`, password })
 
   if (res.status !== 201) {
     throw new Error(`falha ao registrar usuário e2e: ${res.status} ${JSON.stringify(res.body)}`)
   }
+  const userId = res.body.user.id as string
+  await markEmailVerified(userId)
 
-  return { token: res.body.token as string, userId: res.body.user.id as string }
+  const login = await api().post('/auth/login').send({ email, password })
+  if (login.status !== 200) {
+    throw new Error(`falha ao logar usuário e2e: ${login.status} ${JSON.stringify(login.body)}`)
+  }
+  return { token: login.body.token as string, userId }
 }
 
 // Login do admin pré-seedado (npm run db:seed:admin, README desta suíte) —

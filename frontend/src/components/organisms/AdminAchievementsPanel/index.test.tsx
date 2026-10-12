@@ -23,6 +23,7 @@ const catalog: AchievementCatalog = {
             criteria_type: 'streak_days',
             criteria_value: 7,
             is_active: true,
+            is_rare: false,
             unlocked_count: 12,
         },
         {
@@ -32,6 +33,7 @@ const catalog: AchievementCatalog = {
             criteria_type: 'net_worth',
             criteria_value: 12000,
             is_active: false,
+            is_rare: true,
             unlocked_count: 3,
         },
     ],
@@ -154,6 +156,21 @@ describe('AdminAchievementsPanel', () => {
 
         await waitFor(() => expect(updateAchievement).toHaveBeenCalledWith('tok', 'a1', { is_active: false }))
         expect(await screen.findByRole('status')).toHaveTextContent('Conquista "Primeira Semana" desativada.')
+    })
+
+    it('marca e desmarca a conquista como rara, sem confirmação, e mostra a etiqueta', async () => {
+        vi.mocked(updateAchievement).mockResolvedValue({ ...catalog.achievements[0], is_rare: true })
+        renderPanel()
+        const first = (await (await table()).findByText('Primeira Semana')).closest('tr') as HTMLElement
+        expect(within(first).queryByText('Rara')).not.toBeInTheDocument()
+        fireEvent.click(within(first).getByRole('button', { name: 'Marcar como rara' }))
+
+        await waitFor(() => expect(updateAchievement).toHaveBeenCalledWith('tok', 'a1', { is_rare: true }))
+        expect(await screen.findByRole('status')).toHaveTextContent('Conquista "Primeira Semana" marcada como rara.')
+
+        const second = (await (await table()).findByText('Primeiro Patrimônio')).closest('tr') as HTMLElement
+        expect(within(second).getByText('Rara')).toBeInTheDocument()
+        expect(within(second).getByRole('button', { name: 'Tirar marca de rara' })).toBeInTheDocument()
     })
 
     it('reativar não pede confirmação', async () => {

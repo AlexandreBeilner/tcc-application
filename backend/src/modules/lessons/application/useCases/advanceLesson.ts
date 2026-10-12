@@ -15,6 +15,7 @@ import {
   type LessonSummary,
 } from '../../domain/lesson'
 import { checkpointIdsForStep } from '../../domain/widgets/lessonBlocks'
+import type { LessonCompletionListener } from '../ports/lessonCompletionListener'
 import type { LessonProgressRecord, LessonRepository } from '../ports/lessonRepository'
 import type { SocialFeedRecorder } from '../ports/socialFeedRecorder'
 import type { StreakTracker } from '../ports/streakTracker'
@@ -50,11 +51,13 @@ export interface AdvanceLessonResult {
 export interface AdvanceLessonOptions {
   minStepIntervalMs?: number
   clock?: () => Date
+  completionListener?: LessonCompletionListener
 }
 
 export class AdvanceLessonUseCase {
   private readonly minStepIntervalMs: number
   private readonly clock: () => Date
+  private readonly completionListener?: LessonCompletionListener
 
   constructor(
     private readonly lessonRepository: LessonRepository,
@@ -65,6 +68,7 @@ export class AdvanceLessonUseCase {
   ) {
     this.minStepIntervalMs = options.minStepIntervalMs ?? LESSON_MIN_STEP_INTERVAL_MS
     this.clock = options.clock ?? (() => new Date())
+    this.completionListener = options.completionListener
   }
 
   async execute(input: AdvanceLessonInput): Promise<AdvanceLessonResult> {
@@ -194,6 +198,12 @@ export class AdvanceLessonUseCase {
       progress,
       saved.completedAt,
     )
+
+    try {
+      await this.completionListener?.onLessonCompleted(input.userId)
+    } catch (err) {
+      console.error('[lessons] falha ao avisar a conclusão da lição', err)
+    }
 
     return {
       currentStep: saved.currentStep,

@@ -1,0 +1,10 @@
+[Unit]
+Description=Teste semanal de restauração do backup da Selucra
+
+[Timer]
+# Domingo 05:00 em São Paulo: depois do backup das 03:30, com o servidor quieto.
+OnCalendar=Sun *-*-* 05:00:00 America/Sao_Paulo
+Persistent=true
+
+[Install]
+WantedBy=timers.target

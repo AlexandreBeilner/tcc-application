@@ -42,6 +42,7 @@ export function serializeAnnouncement(a: AdminAnnouncement) {
     severity: a.severity,
     kind: a.kind,
     dismissible: a.dismissible,
+    notify_by_email: a.notifyByEmail,
     starts_at: a.startsAt.toISOString(),
     ends_at: a.endsAt?.toISOString() ?? null,
     linked_halt_id: a.linkedHaltId,
@@ -106,10 +107,11 @@ export function createAdminAnnouncementsRouter(deps: AdminAnnouncementsRouterDep
       })
       return
     }
-    const { starts_at, ends_at, ...rest } = parsed.data
+    const { starts_at, ends_at, notify_by_email, ...rest } = parsed.data
     try {
       const created = await deps.createAnnouncement.execute(req.auth.userId, {
         ...rest,
+        notifyByEmail: notify_by_email,
         startsAt: starts_at ? new Date(starts_at) : new Date(),
         endsAt: ends_at ? new Date(ends_at) : null,
       })
@@ -186,6 +188,7 @@ export function createAdminAnnouncementsRouter(deps: AdminAnnouncementsRouterDep
         startsAt: parsed.data.starts_at ? new Date(parsed.data.starts_at) : undefined,
         endsAt: parsed.data.ends_at ? new Date(parsed.data.ends_at) : null,
         pauseTrading: parsed.data.pause_trading,
+        notifyByEmail: parsed.data.notify_by_email,
       })
       res.status(201).json(serializeAnnouncement(created))
     } catch (err) {

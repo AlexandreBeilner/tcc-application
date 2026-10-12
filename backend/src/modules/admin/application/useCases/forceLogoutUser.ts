@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import type { AuthMailer } from '../../../auth/application/ports/authMailer'
 import type { UserRepository } from '../../../auth/application/ports/userRepository'
 import { AdminUserNotFoundError } from '../../domain/errors'
 import type { RecordAdminActionUseCase } from './recordAdminAction'
@@ -9,6 +11,9 @@ export class ForceLogoutUserUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly recordAdminAction: RecordAdminActionUseCase,
+    private readonly mailer: AuthMailer,
+    // Cada "forçar logout" é um evento novo: o id só serve de chave de idempotência do aviso.
+    private readonly newEventId: () => string = randomUUID,
   ) {}
 
   async execute(adminId: string, targetUserId: string): Promise<void> {
@@ -18,6 +23,17 @@ export class ForceLogoutUserUseCase {
         const user = await this.userRepository.findById(targetUserId)
         if (!user) throw new AdminUserNotFoundError('usuário não encontrado')
         await this.userRepository.revokeSessions(targetUserId)
+        // Já encerrou as sessões e a ação será auditada: falha ao enfileirar o aviso (E4) só é logada.
+        try {
+          await this.mailer.sendSessionsEnded({
+            userId: user.id,
+            to: user.email,
+            name: user.name,
+            eventId: this.newEventId(),
+          })
+        } catch (err) {
+          console.error('[admin] falha ao enfileirar o aviso de sessões encerradas', err)
+        }
       },
     )
   }

@@ -8,7 +8,7 @@ export interface UnlockedAchievementRecord {
 
 // Campos que o painel edita (N.19). `isActive` é só liga/desliga; nunca remove o que o
 // usuário já ganhou.
-export type AchievementPatch = Partial<AchievementDraft> & { isActive?: boolean }
+export type AchievementPatch = Partial<AchievementDraft> & { isActive?: boolean; isRare?: boolean }
 
 export interface AchievementRepository {
   // Catálogo completo, inclusive conquista desativada: quem usa filtra por `isActive`

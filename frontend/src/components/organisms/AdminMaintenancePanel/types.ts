@@ -5,6 +5,7 @@ export interface MaintenanceFormValues {
     body: string
     endsAt: string
     pauseTrading: boolean
+    notifyByEmail: boolean
 }
 
 export interface AdminMaintenancePanelProps {

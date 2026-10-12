@@ -33,6 +33,14 @@ describe('jsonErrorHandler', () => {
     expect(res.status).toBe(400)
   })
 
+  it('traduz ProRequiredError (code PRO_REQUIRED) pra 403, nunca 404', async () => {
+    const res = await request(
+      buildApp(() => Object.assign(new Error('requer plano PRO'), { code: 'PRO_REQUIRED' })),
+    ).get('/boom')
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'requer plano PRO' })
+  })
+
   it('devolve 500 JSON (sem HTML) pra erro inesperado', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const res = await request(buildApp(() => new Error('kaboom'))).get('/boom')

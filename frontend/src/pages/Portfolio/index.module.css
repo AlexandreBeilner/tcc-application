@@ -156,8 +156,7 @@
     color: var(--color-text-secondary);
 }
 
-.emptyActions,
-.actions {
+.emptyActions {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-3);

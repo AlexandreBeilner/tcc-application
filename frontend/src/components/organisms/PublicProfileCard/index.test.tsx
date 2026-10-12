@@ -13,6 +13,7 @@ function profile(overrides: Partial<PublicProfile> = {}): PublicProfile {
     return {
         username: 'bia',
         avatarUrl: null,
+        cosmetics: { isPro: false, frame: null, title: null },
         level: 4,
         xp: 820,
         currentStreak: 3,
@@ -111,7 +112,17 @@ describe('PublicProfileCard (tela 8.4)', () => {
     it('amigo mostra "Desfazer amizade" com confirmação em duas etapas (6.9.3)', async () => {
         vi.mocked(removeFriendship).mockResolvedValue(undefined)
         renderCard({
-            friends: [{ friendshipId: 'f9', userId: 'u2', username: 'bia', name: 'Bia', avatarUrl: null, friendsSince: '2026-01-01' }],
+            friends: [
+                {
+                    friendshipId: 'f9',
+                    userId: 'u2',
+                    username: 'bia',
+                    name: 'Bia',
+                    avatarUrl: null,
+                    cosmetics: { isPro: false, frame: null, title: null },
+                    friendsSince: '2026-01-01',
+                },
+            ],
         })
 
         expect(screen.getByText('Amigos')).toBeInTheDocument()

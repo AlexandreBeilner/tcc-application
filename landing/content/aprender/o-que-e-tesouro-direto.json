@@ -1,0 +1,152 @@
+{
+    "slug": "o-que-e-tesouro-direto",
+    "title": "O que é Tesouro Direto e como funciona",
+    "description": "Entenda o que é o Tesouro Direto, os tipos de título (Selic, Prefixado, IPCA+), como funciona o resgate, quais custos e impostos incidem e como começar.",
+    "h1": "O que é o Tesouro Direto e como funciona",
+    "lead": "O Tesouro Direto é o programa do governo federal em que qualquer pessoa com CPF compra títulos públicos pela internet. Você empresta dinheiro ao governo e recebe de volta com juros, conforme as regras do título escolhido.",
+    "summary": "Tipos de título, resgate, custos e impostos.",
+    "published": "2026-10-11",
+    "updated": "2026-10-11",
+    "facts": [
+        "tesouro-investimento-minimo",
+        "tesouro-tipos-titulos",
+        "tesouro-resgate-preco-mercado",
+        "tesouro-resgate-liquidez",
+        "tesouro-horario-negociacao",
+        "tesouro-custodia-b3",
+        "ir-renda-fixa-regressivo",
+        "iof-renda-fixa-30-dias"
+    ],
+    "sections": [
+        {
+            "h": "Como funciona",
+            "blocks": [
+                {
+                    "p": "Ao comprar um título, você empresta dinheiro ao Tesouro Nacional. O governo devolve o valor com juros, no vencimento ou ao longo do caminho, dependendo do título. Para investir, você precisa de CPF e de uma conta numa instituição financeira autorizada, como uma corretora ou um banco."
+                },
+                {
+                    "p": "O valor inicial é baixo. {{fact:tesouro-investimento-minimo}}"
+                },
+                {
+                    "p": "O Tesouro Direto é um investimento de [renda fixa](/aprender/o-que-e-selic-e-cdi/): a regra de remuneração é conhecida na hora da compra."
+                }
+            ]
+        },
+        {
+            "h": "Tipos de título",
+            "blocks": [
+                {
+                    "p": "{{fact:tesouro-tipos-titulos}}"
+                },
+                {
+                    "table": {
+                        "head": ["Título", "Como rende", "Para quem costuma servir"],
+                        "rows": [
+                            [
+                                "Tesouro Selic",
+                                "Acompanha a taxa Selic, a taxa básica de juros",
+                                "Reserva de emergência e objetivos de curto prazo, porque a oscilação de preço costuma ser pequena"
+                            ],
+                            [
+                                "Tesouro Prefixado",
+                                "Taxa fixa definida na compra: você sabe quanto vai receber se ficar até o vencimento",
+                                "Objetivos com data marcada, como uma viagem, um curso ou a entrada de um imóvel"
+                            ],
+                            [
+                                "Tesouro IPCA+",
+                                "A inflação (IPCA) mais uma taxa fixa definida na compra",
+                                "Prazos mais longos, para manter o poder de compra do dinheiro"
+                            ],
+                            [
+                                "Tesouro Renda+ e Educa+",
+                                "IPCA mais uma taxa fixa, com renda mensal depois da fase de acumulação",
+                                "Aposentadoria (Renda+) e despesas de estudo (Educa+)"
+                            ]
+                        ]
+                    }
+                },
+                {
+                    "p": "Prefixado e IPCA+ também existem em versões que pagam juros a cada semestre."
+                }
+            ]
+        },
+        {
+            "h": "Resgate antes do vencimento",
+            "blocks": [
+                {
+                    "p": "Você pode vender o título antes do vencimento: o Tesouro Nacional garante a recompra em dias úteis. {{fact:tesouro-resgate-preco-mercado}}"
+                },
+                {
+                    "p": "Na prática, isso significa que o Tesouro Selic costuma oscilar pouco, enquanto o Prefixado e o IPCA+ podem valer menos do que o esperado se você vender com os juros em alta. Por isso, o prazo do título deve combinar com o prazo do seu objetivo."
+                },
+                {
+                    "p": "{{fact:tesouro-resgate-liquidez}}"
+                },
+                {
+                    "p": "{{fact:tesouro-horario-negociacao}}"
+                }
+            ]
+        },
+        {
+            "h": "Custos e impostos",
+            "blocks": [
+                {
+                    "ul": [
+                        "**Taxa de custódia da B3:** {{fact:tesouro-custodia-b3}}",
+                        "**Imposto de renda:** cobrado só sobre o rendimento, na tabela regressiva. {{fact:ir-renda-fixa-regressivo}}",
+                        "**IOF:** incide apenas em resgates feitos nos primeiros 30 dias e diminui a cada dia.",
+                        "**Taxas da instituição:** corretoras e bancos podem cobrar taxas próprias. Compare antes de escolher onde investir."
+                    ]
+                }
+            ]
+        },
+        {
+            "h": "É seguro?",
+            "blocks": [
+                {
+                    "p": "Os títulos são emitidos pelo Tesouro Nacional, por isso o risco de o governo não pagar é considerado o menor do país. Isso não elimina a oscilação de preço de quem vende antes do vencimento, que é o principal risco para quem usa o Tesouro Direto."
+                },
+                {
+                    "p": "Este guia é conteúdo educacional e não é recomendação de investimento."
+                }
+            ]
+        },
+        {
+            "h": "Como começar",
+            "blocks": [
+                {
+                    "ul": [
+                        "Abra conta numa instituição autorizada a operar o Tesouro Direto.",
+                        "Defina o objetivo e o prazo do dinheiro.",
+                        "Escolha o título cujo vencimento combina com esse prazo.",
+                        "Acompanhe o investimento e evite vender antes do vencimento sem necessidade."
+                    ]
+                },
+                {
+                    "p": "Para entender por que a Selic muda o rendimento de cada título, leia [O que é Selic e CDI](/aprender/o-que-e-selic-e-cdi/)."
+                }
+            ]
+        }
+    ],
+    "faq": [
+        {
+            "q": "Qual o valor mínimo para investir no Tesouro Direto?",
+            "a": "{{fact:tesouro-investimento-minimo}}"
+        },
+        {
+            "q": "O Tesouro Direto é seguro?",
+            "a": "O risco de crédito é do governo federal, o menor do país. Mas o preço do título oscila, e quem vende antes do vencimento pode receber menos do que esperava, principalmente em Prefixado e IPCA+."
+        },
+        {
+            "q": "Quanto rende o Tesouro Direto?",
+            "a": "Depende do título. O Selic acompanha a taxa básica de juros, o Prefixado tem taxa definida na compra e o IPCA+ paga a inflação mais uma taxa. A taxa de cada título aparece no site do programa na hora da compra."
+        },
+        {
+            "q": "Posso resgatar a qualquer momento?",
+            "a": "Sim. {{fact:tesouro-resgate-liquidez}} Antes do vencimento, o título é vendido a preço de mercado."
+        }
+    ],
+    "related": ["o-que-e-selic-e-cdi", "o-que-e-etf"],
+    "ctaTitle": "Aprenda a escolher um título na prática",
+    "cta": "Na Selucra você monta uma carteira de renda fixa com capital virtual, vê como a Selic e a inflação mexem nos títulos e testa a decisão sem arriscar dinheiro de verdade."
+}

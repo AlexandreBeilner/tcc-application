@@ -3,6 +3,7 @@ export interface PositionLike {
     quantity: number
     averagePrice: number
     markPrice?: number
+    currentValue?: number
 }
 
 export interface AccountTotals {

@@ -29,6 +29,12 @@ export const getAssetQuotesQuerySchema = z.object({
   days: z.coerce.number().int().min(1).optional(),
 })
 
+// Sparkline das listas (MO.9.5): teto de 90 dias, o mesmo do motor, pra a
+// chave de cache não explodir em variações de `days`.
+export const getAssetPriceSeriesQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(90).optional(),
+})
+
 // Mesma convenção de coerção de getAssetQuotesQuerySchema — `days` aqui é
 // quantos dias simulados de histórico de Selic/IPCA vêm na resposta
 // (motor aplica o próprio default, tarefa M.2/M.3).

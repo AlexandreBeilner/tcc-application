@@ -45,6 +45,7 @@ function serializeAchievement(achievement: CatalogAchievement) {
     criteria_type: achievement.criteriaType,
     criteria_value: achievement.criteriaValue,
     is_active: achievement.isActive,
+    is_rare: achievement.isRare,
     unlocked_count: achievement.unlockedCount,
   }
 }
@@ -148,6 +149,7 @@ export function createAdminGamificationRouter(deps: AdminGamificationRouterDeps)
         criteriaType: body.criteria_type,
         criteriaValue: body.criteria_value,
         isActive: body.is_active,
+        isRare: body.is_rare,
       })
       res.status(200).json(serializeAchievement(updated))
     } catch (err) {

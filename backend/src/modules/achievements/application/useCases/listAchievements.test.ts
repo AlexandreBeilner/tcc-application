@@ -36,6 +36,8 @@ describe('ListAchievementsUseCase', () => {
         microDecisionsStreak: 0,
         tracksCompletedNoErrors: 0,
         lessonsReviewed: 0,
+        assembliesParticipated: 0,
+        referralsQualified: 0,
       },
     })
     const useCase = new ListAchievementsUseCase(achievementRepository, progressSnapshotReader)

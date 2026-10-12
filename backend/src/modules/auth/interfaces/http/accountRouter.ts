@@ -3,7 +3,6 @@ import multer from 'multer'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
-  EmailAlreadyInUseError,
   InvalidAvatarFileError,
   InvalidCredentialsError,
   UsernameAlreadyInUseError,
@@ -63,7 +62,7 @@ export function createAccountRouter(deps: AccountRouterDeps): Router {
       const user = await deps.updateProfile.execute({ userId: req.auth.userId, ...parsed.data })
       res.status(200).json({ user: toPublicUser(user) })
     } catch (err) {
-      if (err instanceof EmailAlreadyInUseError || err instanceof UsernameAlreadyInUseError) {
+      if (err instanceof UsernameAlreadyInUseError) {
         res.status(409).json({ error: err.message })
         return
       }

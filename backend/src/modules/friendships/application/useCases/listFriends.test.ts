@@ -83,4 +83,26 @@ describe('ListFriendsUseCase', () => {
     expect(clamped.page).toBe(2)
     expect(clamped.items).toHaveLength(5)
   })
+
+  it('amigo PRO vem com o cosmético que os outros veem (MO.5.1)', async () => {
+    const friendshipRepository = createFakeFriendshipRepository()
+    const useCase = new ListFriendsUseCase(
+      friendshipRepository,
+      createFakeUserDirectory([alice, bob]),
+      {
+        findDisplays: async () =>
+          new Map([[bob.id, { isPro: true, frame: 'frame_grafite', title: 'Sangue Frio' }]]),
+      },
+    )
+    const accepted = await friendshipRepository.create(alice.id, bob.id)
+    await friendshipRepository.accept(accepted.id)
+
+    const result = await useCase.execute({ userId: alice.id, page: 1, sort: 'desc' })
+
+    expect(result.items[0].cosmetics).toEqual({
+      isPro: true,
+      frame: 'frame_grafite',
+      title: 'Sangue Frio',
+    })
+  })
 })

@@ -9,6 +9,8 @@ export interface NewUserInput {
   // uso de autocadastro (RegisterUserUseCase, LoginWithGoogleUseCase) nunca
   // definem esse campo (RNF07).
   role?: UserRole
+  // Nasce com o e-mail já verificado: seed do admin e conta criada pelo Google (EM.3.1).
+  emailVerified?: boolean
 }
 
 export interface IdentityRecord {
@@ -40,6 +42,8 @@ export interface UpdateUserInput {
   status?: UserStatus
   suspendedReason?: string | null
   suspendedAt?: Date | null
+  // Marca a verificação do e-mail (EM.3.1); o vínculo Google seguro (EM.3.2) também usa.
+  emailVerifiedAt?: Date | null
 }
 
 export interface UserRepository {

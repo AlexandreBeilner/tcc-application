@@ -1,8 +1,12 @@
 import cors from 'cors'
-import express, { Express } from 'express'
+import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
+import { readTrustedProxyHops } from './shared/http/trustProxy'
+import { apiSecurityHeaders, JSON_BODY_LIMIT } from './shared/http/securityHeaders'
 import { healthRouter } from './routes/health'
+import { createReadinessRouter } from './routes/readiness'
+import { requestLogger } from './shared/http/requestLogger'
 import { jsonErrorHandler } from './shared/http/errorHandler'
 import { statusRouter } from './routes/status'
 import { createEngineMacroEventTrigger } from './modules/admin/infrastructure/engine/engineMacroEventTrigger'
@@ -31,6 +35,7 @@ import {
   createMarketDatabaseProbe,
   createRedisProbe,
 } from './modules/admin/infrastructure/health/probes'
+import { createDrizzleEmailOutboxHealthReader } from './modules/admin/infrastructure/health/emailOutboxHealthReader'
 import { GetSystemHealthUseCase } from './modules/admin/application/useCases/getSystemHealth'
 import { GetAdminOverviewUseCase } from './modules/admin/application/useCases/getAdminOverview'
 import { createAdminSystemRouter } from './modules/admin/interfaces/http/adminSystemRouter'
@@ -59,6 +64,23 @@ import { ListEngineSettingsUseCase } from './modules/admin/application/useCases/
 import { UpdateEngineSettingUseCase } from './modules/admin/application/useCases/updateEngineSetting'
 import { ResetEngineSettingUseCase } from './modules/admin/application/useCases/resetEngineSetting'
 import { createAdminSettingsRouter } from './modules/admin/interfaces/http/adminSettingsRouter'
+import { createAdminAssembliesRouter } from './modules/admin/interfaces/http/adminAssembliesRouter'
+import { createInProcessAssemblyAdmin } from './modules/admin/infrastructure/assemblies/inProcessAssemblyAdmin'
+import { createDrizzleVoterIdentityReader } from './modules/admin/infrastructure/persistence/drizzleVoterIdentityReader'
+import {
+  CreateAgendaTemplateAdminUseCase,
+  GetAssemblyAdminDetailUseCase,
+  LiftAssemblyPauseAdminUseCase,
+  ListAgendaTemplatesAdminUseCase,
+  ListAssembliesAdminUseCase,
+  ListAssemblyPausesAdminUseCase,
+  ListAssemblySettingsAdminUseCase,
+  PauseAssembliesAdminUseCase,
+  ResetAssemblySettingAdminUseCase,
+  SetAgendaTemplateActiveAdminUseCase,
+  UpdateAgendaTemplateAdminUseCase,
+  UpdateAssemblySettingAdminUseCase,
+} from './modules/admin/application/useCases/assemblyAdmin'
 import { createEngineBotAdmin } from './modules/admin/infrastructure/engine/engineBotAdmin'
 import { FundAdminBotUseCase } from './modules/admin/application/useCases/fundAdminBot'
 import { GetAdminBotActivityUseCase } from './modules/admin/application/useCases/getAdminBotActivity'
@@ -82,6 +104,12 @@ import { DeleteUserAccountUseCase } from './modules/admin/application/useCases/d
 import { createAdminUsersRouter } from './modules/admin/interfaces/http/adminUsersRouter'
 import { createAdminUserCorrectionsRouter } from './modules/admin/interfaces/http/adminUserCorrectionsRouter'
 import { CreditUserCashUseCase } from './modules/admin/application/useCases/creditUserCash'
+import {
+  GetUserProStatusUseCase,
+  GrantUserProUseCase,
+} from './modules/admin/application/useCases/userProGrants'
+import { createInProcessUserProGrants } from './modules/admin/infrastructure/billing/inProcessUserProGrants'
+import { createAdminUserProRouter } from './modules/admin/interfaces/http/adminUserProRouter'
 import {
   AdjustUserXpUseCase,
   CompleteUserLessonUseCase,
@@ -152,6 +180,12 @@ import {
   UpdateAnnouncementUseCase,
 } from './modules/announcements/application/useCases/announcements'
 import { createAnnouncementsRouter } from './modules/announcements/interfaces/http/announcementsRouter'
+import {
+  BroadcastAnnouncementEmailUseCase,
+  createBackgroundAnnouncementBroadcaster,
+} from './modules/admin/application/useCases/broadcastAnnouncementEmail'
+import { createDrizzleAnnouncementRecipients } from './modules/admin/infrastructure/announcements/drizzleAnnouncementRecipients'
+import { createNotificationsAnnouncementMailer } from './modules/admin/infrastructure/announcements/notificationsAnnouncementMailer'
 import { createInProcessAnnouncementAdmin } from './modules/admin/infrastructure/announcements/inProcessAnnouncementAdmin'
 import {
   CreateAdminAnnouncementUseCase,
@@ -187,6 +221,7 @@ import { ListAchievementsUseCase } from './modules/achievements/application/useC
 import { createInProcessProgressSnapshotReader } from './modules/achievements/infrastructure/aggregation/inProcessProgressSnapshotReader'
 import { createDrizzleAchievementRepository } from './modules/achievements/infrastructure/persistence/drizzleAchievementRepository'
 import { createAchievementsRouter } from './modules/achievements/interfaces/http/achievementsRouter'
+import { createDrizzleActivityDayRecorder } from './modules/gamification/infrastructure/persistence/drizzleActivityDayRecorder'
 import { AwardXpUseCase } from './modules/gamification/application/useCases/awardXp'
 import { GetProgressionUseCase } from './modules/gamification/application/useCases/getProgression'
 import { TouchStreakUseCase } from './modules/gamification/application/useCases/touchStreak'
@@ -234,6 +269,10 @@ import { SearchUsersUseCase } from './modules/friendships/application/useCases/s
 import { SendFriendRequestUseCase } from './modules/friendships/application/useCases/sendFriendRequest'
 import { createDrizzleFriendshipRepository } from './modules/friendships/infrastructure/persistence/drizzleFriendshipRepository'
 import { createDrizzleUserDirectory as createDrizzleFriendshipUserDirectory } from './modules/friendships/infrastructure/persistence/drizzleUserDirectory'
+import { createNotificationsAchievementMailer } from './modules/achievements/infrastructure/notifications/notificationsAchievementMailer'
+import { createNotificationsFriendRequestMailer } from './modules/friendships/infrastructure/notifications/notificationsFriendRequestMailer'
+import { createInProcessFriendProfileReader } from './modules/friendships/infrastructure/profile/inProcessFriendProfileReader'
+import { createDrizzleRecipientDirectory } from './modules/notifications/infrastructure/persistence/drizzleRecipientDirectory'
 import { createFriendshipsRouter } from './modules/friendships/interfaces/http/friendshipsRouter'
 import { CompleteMissionUseCase } from './modules/missions/application/useCases/completeMission'
 import { ExportMissionProgressUseCase } from './modules/missions/application/useCases/exportMissionProgress'
@@ -309,7 +348,16 @@ import { PurchaseFixedIncomeUseCase } from './modules/market/application/useCase
 import { RedeemFixedIncomeUseCase } from './modules/market/application/useCases/redeemFixedIncome'
 import { SimulateFixedIncomeUseCase } from './modules/market/application/useCases/simulateFixedIncome'
 import { GetFixedIncomeTaxRateUseCase } from './modules/market/application/useCases/getFixedIncomeTaxRate'
+import { GetAssetPriceSeriesUseCase } from './modules/market/application/useCases/getAssetPriceSeries'
+import { createEngineAssetPriceSeriesReader } from './modules/market/infrastructure/engine/engineAssetPriceSeriesReader'
+import { createRedisAssetPriceSeriesCache } from './modules/market/infrastructure/cache/redisAssetPriceSeriesCache'
+import { createRedisAssetPriceSeriesCacheStore } from './modules/market/infrastructure/cache/redisAssetPriceSeriesCacheStore'
 import { GetIndicatorHistoryUseCase } from './modules/market/application/useCases/getIndicatorHistory'
+import { RecordAssemblyParticipationUseCase } from './modules/socialfeed/application/useCases/recordAssemblyParticipation'
+import { createAssembliesModule, createAssemblyAdminCore } from './modules/assemblies/composition'
+import { loadAssemblyConfig } from './modules/assemblies/infrastructure/config/assemblyConfig'
+import { createDrizzleAssemblyRepository } from './modules/assemblies/infrastructure/persistence/drizzleAssemblyRepository'
+import { createInProcessAssemblyCalendarSource } from './modules/market/infrastructure/assemblies/inProcessAssemblyCalendarSource'
 import { GetMarketCalendarUseCase } from './modules/market/application/useCases/getMarketCalendar'
 import { GetMarketClockUseCase } from './modules/market/application/useCases/getMarketClock'
 import { GetTradingHaltsUseCase } from './modules/market/application/useCases/getTradingHalts'
@@ -324,17 +372,64 @@ import { createEngineOrderExecutor } from './modules/market/infrastructure/engin
 import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
+import { createBillingModule } from './modules/billing/composition'
+import { createReferralsCore, createReferralsModule } from './modules/referrals/composition'
+import { createCosmeticsModule } from './modules/cosmetics/composition'
+import { createDuelsModule } from './modules/duels/composition'
+import { createRetrospectivesModule } from './modules/retrospectives/composition'
+import { createLeaguesModule } from './modules/leagues/composition'
+import { MeasurePeriodReturnUseCase } from './modules/ranking/application/useCases/measurePeriodReturn'
+import { RecordDuelResultUseCase } from './modules/socialfeed/application/useCases/recordDuelResult'
+import { RankingScorer } from './modules/ranking/application/rankingScorer'
+import { RankUsersByProfitabilityUseCase } from './modules/ranking/application/useCases/rankUsersByProfitability'
+import { createInProcessCosmeticsReader } from './shared/publicCosmetics'
+import {
+  loadBillingConfig,
+  loadBillingPrices,
+} from './modules/billing/infrastructure/config/billingConfig'
 import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
 import { noStore } from './shared/http/noStore'
 import { createRateLimiter } from './shared/http/rateLimit'
 import { ReauthenticateUseCase } from './modules/auth/application/useCases/reauthenticate'
+import { RequestPasswordResetUseCase } from './modules/auth/application/useCases/requestPasswordReset'
+import { ResetPasswordUseCase } from './modules/auth/application/useCases/resetPassword'
+import { SendEmailVerificationUseCase } from './modules/auth/application/useCases/sendEmailVerification'
+import { VerifyEmailUseCase } from './modules/auth/application/useCases/verifyEmail'
+import { createNotificationsAccountMailer } from './modules/auth/infrastructure/notifications/notificationsAccountMailer'
+import { createNotificationsAuthMailer } from './modules/auth/infrastructure/notifications/notificationsAuthMailer'
+import { createDrizzleAuthEmailTokenRepository } from './modules/auth/infrastructure/persistence/drizzleAuthEmailTokenRepository'
+import { createCryptoEmailTokenGenerator } from './modules/auth/infrastructure/security/cryptoEmailTokenGenerator'
+import {
+  createForgotPasswordRateLimiters,
+  createResetPasswordRateLimiter,
+} from './modules/auth/interfaces/http/passwordResetRateLimit'
+import {
+  createEmailPreferencesComposition,
+  createEnqueueEmailUseCase,
+} from './modules/notifications/composition'
+import { loadEmailLinksConfig } from './modules/notifications/infrastructure/config/emailLinksConfig'
+import {
+  createInProcessEmailDataEraser,
+  createInProcessEmailPreferencesExporter,
+} from './modules/auth/infrastructure/notifications/notificationsEmailPreferences'
 import { createAuditLogAdminSessionAuditor } from './modules/admin/infrastructure/audit/auditLogAdminSessionAuditor'
 
 export interface AppDeps {
   userRepository?: UserRepository
   tokenIssuer?: TokenIssuer
   googleIdentityProvider?: GoogleIdentityProvider
+  // Webhook do provedor de e-mail (EM.1.4): precisa do corpo bruto, então é montado antes do
+  // `express.json()`.
+  emailWebhookRouter?: Router
+  // Enfileirar e-mail (módulo `notifications`): o `server.ts` passa o mesmo da composição do
+  // worker; sem ele, `createApp` monta um próprio sobre o mesmo banco.
+  enqueueEmail?: Pick<ReturnType<typeof createEnqueueEmailUseCase>, 'execute' | 'acceptsOptional'>
+  // Intervalo entre e-mails de um lote (comunicado), derivado de `EMAIL_SEND_RPS` (EM.5.2).
+  emailSpacingMs?: number
 }
+
+// Espaçamento padrão do lote (2 e-mails por segundo, o padrão de `EMAIL_SEND_RPS`).
+const DEFAULT_EMAIL_SPACING_MS = 500
 
 function resolveGoogleIdentityProvider(): GoogleIdentityProvider {
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -421,24 +516,26 @@ export function createApp(deps: AppDeps = {}): Express {
     createRedisIndicatorHistoryCacheStore(redisClient),
   )
   const getIndicatorHistory = new GetIndicatorHistoryUseCase(cachedIndicatorHistoryReader)
+  // Séries de preço pra sparkline das listas (MO.9.5): uma chamada em lote ao
+  // motor, com cache Redis por `days` (sem N+1, nem por abertura de lista).
+  const getAssetPriceSeries = new GetAssetPriceSeriesUseCase(
+    createRedisAssetPriceSeriesCache(
+      createEngineAssetPriceSeriesReader(engineUrl),
+      createRedisAssetPriceSeriesCacheStore(redisClient),
+    ),
+  )
   const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
   const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
-  const getMarketCalendar = new GetMarketCalendarUseCase(marketCalendarReader)
+  // Marcos das assembleias no Calendário (MO.6.3): só com o ciclo ligado (o padrão).
+  const getMarketCalendar = new GetMarketCalendarUseCase(
+    marketCalendarReader,
+    loadAssemblyConfig(process.env).enabled
+      ? createInProcessAssemblyCalendarSource(createDrizzleAssemblyRepository(db))
+      : undefined,
+  )
   const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
-  const registerUser = new RegisterUserUseCase(
-    userRepository,
-    passwordHasher,
-    tokenIssuer,
-    accountProvisioner,
-  )
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
-  const loginWithGoogle = new LoginWithGoogleUseCase(
-    userRepository,
-    googleIdentityProvider,
-    tokenIssuer,
-    accountProvisioner,
-  )
   const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
   const auditLogRepository = createDrizzleAuditLogRepository(db)
   const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
@@ -453,6 +550,87 @@ export function createApp(deps: AppDeps = {}): Express {
     passwordHasher,
     tokenIssuer,
     adminSessionAuditor,
+  )
+  const emailLinks = loadEmailLinksConfig(process.env)
+  const enqueueEmail = deps.enqueueEmail ?? createEnqueueEmailUseCase(db, emailLinks)
+  const billing = createBillingModule({
+    db,
+    redis: redisClient,
+    config: loadBillingConfig(process.env),
+    prices: loadBillingPrices(process.env),
+    authMiddleware,
+    enqueueEmail,
+  })
+  // Indicação (MO.7.2): leitura do contador e atribuição no cadastro; o módulo completo (recompensa
+  // e rota) nasce depois, quando as conquistas existem.
+  const referralsCore = createReferralsCore(db)
+  // Identidade visível do PRO (MO.5.1): selo, moldura e título que os outros veem no ranking, no
+  // feed, na busca/lista de amigos e no perfil público.
+  const cosmetics = createCosmeticsModule({
+    db,
+    authMiddleware,
+    proAccess: billing.proAccessGuard,
+    listActiveProUserIds: billing.listActiveProUserIds,
+    referralUnlocks: { qualifiedCount: referralsCore.countQualified },
+  })
+  const cosmeticsReader = createInProcessCosmeticsReader(cosmetics.getCosmeticDisplays)
+  const { getEmailPreferences, eraseEmailData, emailPreferencesRouter } =
+    createEmailPreferencesComposition(db, emailLinks, authMiddleware)
+  const authEmailTokens = createDrizzleAuthEmailTokenRepository(db)
+  const emailTokenGenerator = createCryptoEmailTokenGenerator()
+  const authMailer = createNotificationsAuthMailer({
+    enqueueEmail,
+    appUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+  })
+  const accountMailer = createNotificationsAccountMailer({ enqueueEmail })
+  const loginWithGoogle = new LoginWithGoogleUseCase(
+    userRepository,
+    googleIdentityProvider,
+    tokenIssuer,
+    accountProvisioner,
+    accountMailer,
+    {
+      attribute: async (userId, code) => {
+        await referralsCore.attribute.execute(userId, code)
+      },
+    },
+  )
+  const sendEmailVerification = new SendEmailVerificationUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    authMailer,
+  )
+  const verifyEmail = new VerifyEmailUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    accountMailer,
+  )
+  const registerUser = new RegisterUserUseCase(
+    userRepository,
+    passwordHasher,
+    accountProvisioner,
+    sendEmailVerification,
+    {
+      attribute: async (userId, code) => {
+        await referralsCore.attribute.execute(userId, code)
+      },
+    },
+  )
+  const requestPasswordReset = new RequestPasswordResetUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    authMailer,
+    adminSessionAuditor,
+  )
+  const resetPassword = new ResetPasswordUseCase(
+    userRepository,
+    authEmailTokens,
+    emailTokenGenerator,
+    passwordHasher,
+    authMailer,
   )
   const recordAdminAction = new RecordAdminActionUseCase(auditLogRepository)
   const listAuditLog = new ListAuditLogUseCase(auditLogRepository)
@@ -473,12 +651,15 @@ export function createApp(deps: AppDeps = {}): Express {
   // Visão geral e saúde (N.5): só leitura. O banco "market" é sondado pela mesma
   // leitura da visão geral do motor (só o motor fala com ele).
   const marketOverviewReader = createEngineMarketOverviewReader(engineUrl)
-  const getSystemHealth = new GetSystemHealthUseCase({
-    engine: createEngineHealthProbe(engineUrl),
-    gamification_db: createDatabaseProbe(db),
-    market_db: createMarketDatabaseProbe(marketOverviewReader),
-    redis: createRedisProbe(redisClient),
-  })
+  const getSystemHealth = new GetSystemHealthUseCase(
+    {
+      engine: createEngineHealthProbe(engineUrl),
+      gamification_db: createDatabaseProbe(db),
+      market_db: createMarketDatabaseProbe(marketOverviewReader),
+      redis: createRedisProbe(redisClient),
+    },
+    createDrizzleEmailOutboxHealthReader(db),
+  )
   // Monitor do mercado (N.8): só leitura.
   const marketMonitorReader = createEngineMarketMonitorReader(engineUrl)
   const listMarketMonitor = new ListMarketMonitorUseCase(marketMonitorReader)
@@ -503,9 +684,17 @@ export function createApp(deps: AppDeps = {}): Express {
     endAnnouncement: new EndAnnouncementUseCase(announcementRepository),
   })
   const listAdminAnnouncements = new ListAdminAnnouncementsUseCase(announcementAdmin)
+  const announcementBroadcaster = createBackgroundAnnouncementBroadcaster(
+    new BroadcastAnnouncementEmailUseCase(
+      createDrizzleAnnouncementRecipients(db),
+      createNotificationsAnnouncementMailer({ enqueueEmail }),
+      deps.emailSpacingMs ?? DEFAULT_EMAIL_SPACING_MS,
+    ),
+  )
   const createAdminAnnouncement = new CreateAdminAnnouncementUseCase(
     announcementAdmin,
     recordAdminAction,
+    announcementBroadcaster,
   )
   const updateAdminAnnouncement = new UpdateAdminAnnouncementUseCase(
     announcementAdmin,
@@ -521,6 +710,7 @@ export function createApp(deps: AppDeps = {}): Express {
     pauseTrading,
     liftTradingHalt,
     recordAdminAction,
+    announcementBroadcaster,
   )
   // Integridade financeira e exportação CSV (N.21).
   const integrityAdmin = createEngineIntegrityAdmin(engineUrl)
@@ -597,12 +787,22 @@ export function createApp(deps: AppDeps = {}): Express {
     getCurrentMicroDecisionStreak,
     getTracksCompletedWithoutErrorsCount,
     countReviewedLessons,
+    // Conta votos mesmo com as assembleias desligadas (tabela vazia, resultado 0).
+    countAssembliesParticipated: {
+      count: (userId) => createDrizzleAssemblyRepository(db).countVotedAssemblies(userId),
+    },
+    countReferralsQualified: { count: referralsCore.countQualified },
     getNetWorth,
     sandboxAssetReader,
   })
+  // Aviso de conquista rara por e-mail (EM.7.2): só as marcadas como raras no catálogo (ponto 044) e só para quem ligou o engajamento.
   const checkAndUnlockAchievements = new CheckAndUnlockAchievementsUseCase(
     achievementRepository,
     progressSnapshotReader,
+    createNotificationsAchievementMailer({
+      enqueueEmail,
+      recipients: createDrizzleRecipientDirectory(db),
+    }),
   )
   const listAchievements = new ListAchievementsUseCase(
     achievementRepository,
@@ -611,7 +811,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const achievementChecker = createInProcessAchievementChecker(checkAndUnlockAchievements)
 
   const awardXp = new AwardXpUseCase(progressionRepository, achievementChecker)
-  const touchStreak = new TouchStreakUseCase(progressionRepository, achievementChecker)
+  const touchStreak = new TouchStreakUseCase(
+    progressionRepository,
+    achievementChecker,
+    createDrizzleActivityDayRecorder(db),
+  )
 
   const xpAwarder = createInProcessXpAwarder(awardXp)
   const streakTracker = createInProcessStreakTracker(touchStreak)
@@ -626,6 +830,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessSocialFeedFriendGraphReader(friendshipRepository),
     socialFeedEventRepository,
     createDrizzleSocialFeedUserDirectory(db),
+    cosmeticsReader,
   )
 
   // Tempo mínimo entre avanços de passo de lição (S.4); env inválida ou
@@ -639,12 +844,24 @@ export function createApp(deps: AppDeps = {}): Express {
   const getLesson = new GetLessonUseCase(lessonRepository)
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
+  // Indicação (MO.7.2): recompensa do indicador quando a pessoa indicada conclui a primeira lição.
+  const referrals = createReferralsModule({
+    db,
+    authMiddleware,
+    grantPromotionalPro: billing.grantPromotionalPro,
+    checkAndUnlockAchievements,
+  })
   const advanceLesson = new AdvanceLessonUseCase(
     lessonRepository,
     xpAwarder,
     streakTracker,
     createInProcessSocialFeedRecorder(recordTrackCompleted),
-    { minStepIntervalMs: lessonMinStepIntervalMs },
+    {
+      minStepIntervalMs: lessonMinStepIntervalMs,
+      completionListener: {
+        onLessonCompleted: (userId) => referrals.qualify.execute(userId),
+      },
+    },
   )
   const reviewLesson = new ReviewLessonUseCase(
     lessonRepository,
@@ -666,17 +883,36 @@ export function createApp(deps: AppDeps = {}): Express {
   )
 
   const friendshipUserDirectory = createDrizzleFriendshipUserDirectory(db)
-  const searchUsers = new SearchUsersUseCase(friendshipUserDirectory)
+  const searchUsers = new SearchUsersUseCase(friendshipUserDirectory, cosmeticsReader)
+  // Aviso por e-mail de pedido de amizade (EM.6.2). O `getPublicProfile` é declarado mais abaixo
+  // (depende do ranking), então o leitor de perfil resolve na hora do envio.
+  const friendRequestMailer = createNotificationsFriendRequestMailer({
+    enqueueEmail,
+    recipients: createDrizzleRecipientDirectory(db),
+    userDirectory: friendshipUserDirectory,
+    profiles: createInProcessFriendProfileReader({
+      execute: (input) => getPublicProfile.execute(input),
+    }),
+  })
   const sendFriendRequest = new SendFriendRequestUseCase(
     friendshipRepository,
     friendshipUserDirectory,
+    friendRequestMailer,
   )
-  const respondToFriendRequest = new RespondToFriendRequestUseCase(friendshipRepository)
+  const respondToFriendRequest = new RespondToFriendRequestUseCase(
+    friendshipRepository,
+    friendRequestMailer,
+  )
   const removeFriendship = new RemoveFriendshipUseCase(friendshipRepository)
-  const listFriends = new ListFriendsUseCase(friendshipRepository, friendshipUserDirectory)
+  const listFriends = new ListFriendsUseCase(
+    friendshipRepository,
+    friendshipUserDirectory,
+    cosmeticsReader,
+  )
   const listFriendRequests = new ListFriendRequestsUseCase(
     friendshipRepository,
     friendshipUserDirectory,
+    cosmeticsReader,
   )
 
   // Cache de leitura (tarefa 5.7) só pra GetRankingUseCase — decora a
@@ -700,7 +936,79 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessFriendGraphReader(friendshipRepository),
     createDrizzleRankingSnapshotStore(db),
     createDrizzleRankingValuationSampleStore(db),
+    cosmeticsReader,
   )
+
+  // Ligas privadas do PRO (MO.5.2): pontuam pelo mesmo snapshot e janela do ranking oficial,
+  // só com os membros da liga. O ranking Global/Amigos não é tocado.
+  const rankUsersByProfitability = new RankUsersByProfitabilityUseCase(
+    userDirectory,
+    new RankingScorer(
+      sandboxAssetReader,
+      cachedNetWorthForRanking,
+      createInProcessLevelReader(getProgression),
+      createDrizzleRankingValuationSampleStore(db),
+    ),
+    createDrizzleRankingSnapshotStore(db),
+  )
+  const leagues = createLeaguesModule({
+    db,
+    authMiddleware,
+    proAccess: billing.proAccessGuard,
+    listActiveProUserIds: billing.listActiveProUserIds,
+    friendshipRepository,
+    rankUsers: rankUsersByProfitability,
+    cosmeticsReader,
+  })
+
+  // Duelos entre amigos (MO.5.3): rentabilidade medida por replay nos instantes de início e fim
+  // (sem cache de patrimônio: o resultado tem de ser exato), XP e feed por portas em processo.
+  const duels = createDuelsModule({
+    db,
+    authMiddleware,
+    proAccess: billing.proAccessGuard,
+    friendshipRepository,
+    measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
+    awardXp,
+    recordDuelResult: new RecordDuelResultUseCase(socialFeedEventRepository),
+    cosmeticsReader,
+  })
+  // Assembleia de Acionistas (MO.6.3/6.4): rotas de voto e o ciclo só existem com
+  // ligadas por padrão; só `ASSEMBLIES_ENABLED=off` as desliga (emergência).
+  const assemblyConfig = loadAssemblyConfig(process.env)
+  // Parâmetros, pausas, catálogo e leitura do painel existem mesmo com o recurso desligado
+  // (MO.6.8): é antes de ligar que se calibra. Os parâmetros gravados pelo painel entram por cima
+  // do valor inicial; falha ao ler mantém o valor inicial e a próxima rodada tenta de novo.
+  const assemblyCore = createAssemblyAdminCore({ db, engineUrl, config: assemblyConfig })
+  assemblyCore.settings
+    .refresh()
+    .catch((err) => console.error('assembleias: falha ao ler os parâmetros do painel', err))
+  const assemblies = assemblyConfig.enabled
+    ? createAssembliesModule({
+        db,
+        engineUrl,
+        core: assemblyCore,
+        config: assemblyConfig,
+        authMiddleware,
+        redis: redisClient,
+        proAccess: billing.proAccessGuard,
+        getProgression,
+        userRepository,
+        awardXp,
+        recordAssemblyParticipation: new RecordAssemblyParticipationUseCase(
+          socialFeedEventRepository,
+        ),
+        enqueueEmail,
+        recipients: createDrizzleRecipientDirectory(db),
+      })
+    : null
+  // Retrospectiva mensal (MO.5.4): contagens do mês, dias de atividade e rentabilidade percentual.
+  const retrospectives = createRetrospectivesModule({
+    db,
+    authMiddleware,
+    listActiveProUserIds: billing.listActiveProUserIds,
+    measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
+  })
 
   const getPublicProfile = new GetPublicProfileUseCase(
     createDrizzleProfileUserDirectory(db),
@@ -708,17 +1016,23 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessAchievementsReader(listAchievements),
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
     createInProcessTrackCompletionReader(new GetCompletedTracksUseCase(lessonRepository)),
+    cosmeticsReader,
   )
 
   const updateProfile = new UpdateProfileUseCase(userRepository)
-  const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher)
+  const changePassword = new ChangePasswordUseCase(userRepository, passwordHasher, authMailer)
   const listIdentities = new ListIdentitiesUseCase(userRepository)
   // Tarefa 6.10.8 — volume Docker persistente (docker-compose.yml), servido
   // de volta por `express.static('/avatars', ...)` logo abaixo.
   const avatarStorageDir = process.env.AVATAR_STORAGE_DIR ?? '/data/avatars'
   const avatarStorage = createDiskAvatarStorage(avatarStorageDir)
   const uploadAvatar = new UploadAvatarUseCase(userRepository, avatarStorage)
-  const anonymizeAccount = new AnonymizeAccountUseCase(userRepository, avatarStorage)
+  const anonymizeAccount = new AnonymizeAccountUseCase(
+    userRepository,
+    avatarStorage,
+    accountMailer,
+    createInProcessEmailDataEraser(eraseEmailData),
+  )
   // Reaproveitados pelo detalhe de usuário do painel admin (N.16).
   const progressionExporter = createInProcessProgressionExporter(getProgression)
   const achievementsExporter = createInProcessAchievementsExporter(
@@ -734,6 +1048,8 @@ export function createApp(deps: AppDeps = {}): Express {
     achievementsExporter,
     friendshipsExporter,
     createInProcessMissionProgressExporter(new ExportMissionProgressUseCase(missionRepository)),
+    createInProcessEmailPreferencesExporter(getEmailPreferences),
+    accountMailer,
   )
 
   // Sem isso, o build de produção do frontend (vite build + preview, ou
@@ -744,12 +1060,18 @@ export function createApp(deps: AppDeps = {}): Express {
   // observável rodando só `npm run dev` — só em `vite build && vite preview`.
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
   const app = express()
-  // Atrás do gateway nginx (um salto): sem isso `req.ip` seria sempre o IP do
-  // gateway e o limitador de taxa (N.22) trataria todo mundo como um cliente só.
-  app.set('trust proxy', 1)
+  // `req.ip` alimenta o limitador de taxa (N.22). Sem confiar no proxy ele seria sempre o IP do
+  // proxy e todo mundo viraria um cliente só; confiando demais, um `X-Forwarded-For` forjado
+  // trocaria o balde. Em produção o Caddy entrega um único salto com o IP real (LW.3.9).
+  app.set('trust proxy', readTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS))
+  // Um log por requisição, só com logs estruturados ligados (LW.3.5); em desenvolvimento ficaria ruído.
+  if (process.env.LOG_FORMAT === 'json') app.use(requestLogger())
+  app.use(apiSecurityHeaders())
   app.use(cors({ origin: frontendUrl }))
-  app.use(express.json())
+  if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
+  app.use(express.json({ limit: JSON_BODY_LIMIT }))
   app.use(healthRouter)
+  app.use(createReadinessRouter({ getSystemHealth, getSchedulerStatus }))
   app.use(statusRouter)
   // Serve os arquivos salvos por `UploadAvatarUseCase`/`diskAvatarStorage`
   // (tarefa 6.10.8) — mesma pasta do volume Docker, montado na raiz do
@@ -757,6 +1079,14 @@ export function createApp(deps: AppDeps = {}): Express {
   app.use('/avatars', express.static(avatarStorageDir))
   // Conferência de senha é alvo de força bruta: teto bem menor que o do painel.
   app.use('/auth/reauth', createRateLimiter({ windowMs: 5 * 60_000, max: 10 }))
+  // Recuperação de senha (EM.2.2): teto por IP e por e-mail no pedido, por IP na troca.
+  app.use('/auth/forgot-password', ...createForgotPasswordRateLimiters())
+  app.use('/auth/reset-password', createResetPasswordRateLimiter())
+  // Verificação de e-mail (EM.3.1): reenvio com o mesmo teto por IP e por e-mail do reset.
+  app.use('/auth/resend-verification', ...createForgotPasswordRateLimiters())
+  app.use('/auth/verify-email', createResetPasswordRateLimiter())
+  // Cancelar inscrição (EM.6.1): rota pública, só freia laço descontrolado.
+  app.use('/email', createRateLimiter({ windowMs: 60_000, max: 30 }))
   app.use(
     createAuthRouter({
       registerUser,
@@ -764,6 +1094,10 @@ export function createApp(deps: AppDeps = {}): Express {
       getCurrentUser,
       loginWithGoogle,
       reauthenticate,
+      requestPasswordReset,
+      resetPassword,
+      sendEmailVerification,
+      verifyEmail,
       googleIdentityProvider,
       authMiddleware,
     }),
@@ -779,6 +1113,7 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  app.use(emailPreferencesRouter)
   // N.22: respostas do painel nunca em cache e teto de requisições por IP
   // (o painel faz polling, então o teto é folgado; freia laço descontrolado).
   app.use('/admin', noStore, createRateLimiter({ windowMs: 60_000, max: 600 }))
@@ -835,6 +1170,28 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  const assemblyAdmin = createInProcessAssemblyAdmin({
+    ...assemblyCore,
+    settings: assemblyCore.settings,
+    readVoters: createDrizzleVoterIdentityReader(db),
+  })
+  app.use(
+    createAdminAssembliesRouter({
+      listAssemblies: new ListAssembliesAdminUseCase(assemblyAdmin),
+      getAssembly: new GetAssemblyAdminDetailUseCase(assemblyAdmin),
+      listPauses: new ListAssemblyPausesAdminUseCase(assemblyAdmin),
+      pauseAssemblies: new PauseAssembliesAdminUseCase(assemblyAdmin, recordAdminAction),
+      liftPause: new LiftAssemblyPauseAdminUseCase(assemblyAdmin, recordAdminAction),
+      listSettings: new ListAssemblySettingsAdminUseCase(assemblyAdmin),
+      updateSetting: new UpdateAssemblySettingAdminUseCase(assemblyAdmin, recordAdminAction),
+      resetSetting: new ResetAssemblySettingAdminUseCase(assemblyAdmin, recordAdminAction),
+      listTemplates: new ListAgendaTemplatesAdminUseCase(assemblyAdmin),
+      createTemplate: new CreateAgendaTemplateAdminUseCase(assemblyAdmin, recordAdminAction),
+      updateTemplate: new UpdateAgendaTemplateAdminUseCase(assemblyAdmin, recordAdminAction),
+      setTemplateActive: new SetAgendaTemplateActiveAdminUseCase(assemblyAdmin, recordAdminAction),
+      authMiddleware,
+    }),
+  )
   app.use(
     createAdminBotsRouter({
       listAdminBots,
@@ -855,6 +1212,18 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
+  // Plano PRO de uma pessoa e concessão promocional (MO.2.5), pelo módulo `billing`.
+  const userProGrants = createInProcessUserProGrants({
+    getSubscriptionStatus: billing.getSubscriptionStatus,
+    grantPromotionalPro: billing.grantPromotionalPro,
+  })
+  app.use(
+    createAdminUserProRouter({
+      getUserProStatus: new GetUserProStatusUseCase(userRepository, userProGrants),
+      grantUserPro: new GrantUserProUseCase(userRepository, userProGrants, recordAdminAction),
+      authMiddleware,
+    }),
+  )
   // Correções manuais de conta (N.17): crédito de caixa vai ao motor; XP, streak,
   // conquistas e lições passam pelos casos de uso dos módulos donos do dado.
   const userCorrections = createInProcessUserCorrections({
@@ -871,23 +1240,37 @@ export function createApp(deps: AppDeps = {}): Express {
         userRepository,
         createEngineUserCashCreditor(engineUrl),
         recordAdminAction,
+        accountMailer,
       ),
-      adjustUserXp: new AdjustUserXpUseCase(userRepository, userCorrections, recordAdminAction),
-      setUserStreak: new SetUserStreakUseCase(userRepository, userCorrections, recordAdminAction),
+      adjustUserXp: new AdjustUserXpUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+        accountMailer,
+      ),
+      setUserStreak: new SetUserStreakUseCase(
+        userRepository,
+        userCorrections,
+        recordAdminAction,
+        accountMailer,
+      ),
       grantUserAchievement: new GrantUserAchievementUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,
+        accountMailer,
       ),
       completeUserLesson: new CompleteUserLessonUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,
+        accountMailer,
       ),
       reopenUserLesson: new ReopenUserLessonUseCase(
         userRepository,
         userCorrections,
         recordAdminAction,
+        accountMailer,
       ),
       getCorrectionContext: new GetUserCorrectionContextUseCase(userRepository, userCorrections),
       authMiddleware,
@@ -968,9 +1351,9 @@ export function createApp(deps: AppDeps = {}): Express {
         orderAdmin,
         auditLogRepository,
       ),
-      suspendUser: new SuspendUserUseCase(userRepository, recordAdminAction),
-      reactivateUser: new ReactivateUserUseCase(userRepository, recordAdminAction),
-      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, recordAdminAction),
+      suspendUser: new SuspendUserUseCase(userRepository, recordAdminAction, accountMailer),
+      reactivateUser: new ReactivateUserUseCase(userRepository, recordAdminAction, accountMailer),
+      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, recordAdminAction, authMailer),
       deleteUserAccount: new DeleteUserAccountUseCase(
         userRepository,
         anonymizeAccount,
@@ -994,6 +1377,22 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createRankingRouter({ getRanking, authMiddleware }))
+  // Cobrança (MO.2.3): plano do usuário e webhook do RevenueCat. Desligada por padrão
+  // (`BILLING_PROVIDER`), caso em que ninguém é PRO e o webhook responde 503.
+  app.use(billing.router)
+  app.use(cosmetics.router)
+  app.use(referrals.router)
+  app.use(leagues.router)
+  app.use(duels.router)
+  if (assemblies) {
+    app.use(assemblies.router)
+    // O job do ciclo é ligado em `server.ts` (nunca em testes de rota).
+    app.locals.runAssemblyLifecycle = assemblies.runAssemblyLifecycle
+  }
+  app.use(retrospectives.router)
+  app.locals.generateMonthlyRetrospectives = retrospectives.generateMonthly
+  // O job que encerra os duelos vencidos é ligado em `server.ts` (nunca em testes de rota).
+  app.locals.settleDueDuels = duels.settleDueDuels
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
@@ -1015,6 +1414,7 @@ export function createApp(deps: AppDeps = {}): Express {
       simulateFixedIncome,
       getFixedIncomeTaxRate,
       getIndicatorHistory,
+      getAssetPriceSeries,
       getMarketClock,
       getMarketCalendar,
       getTradingHalts,

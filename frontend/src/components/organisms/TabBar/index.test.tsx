@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import type { Lesson } from '../../../services/lessons'
@@ -43,43 +43,47 @@ function renderTabBar(
 }
 
 describe('TabBar', () => {
-    it('Portfólio e Calculadora aparecem travados (sem link) antes de 0.1/0.2', () => {
-        renderTabBar(new Set())
+    it('a barra tem sempre Portfólio, Trilha, Mercado, Assembleias e Classificação, nessa ordem, sem Calculadora (MO.9.6)', () => {
+        renderTabBar(new Set(['portfolio']))
 
-        const portfolio = screen.getByRole('button', { name: /Portfólio travado/ })
-        expect(portfolio).toBeInTheDocument()
-        expect(screen.getByText('Portfólio').closest('a')).not.toBeInTheDocument()
-
-        expect(screen.getByRole('button', { name: /Calculadora travado/ })).toBeInTheDocument()
+        const labels = within(screen.getByRole('navigation', { name: 'Navegação principal' }))
+            .getAllByText(/Portfólio|Trilha|Mercado|Assembleias|Classificação|Calculadora/)
+            .map((node) => node.textContent)
+        expect(labels).toEqual(['Portfólio', 'Trilha', 'Mercado', 'Assembleias', 'Classificação'])
     })
 
-    it('Trilha/Mercado/Classificação nunca ficam travadas, mesmo sem nenhum desbloqueio', () => {
+    it('Portfólio aparece travado (sem link) antes da lição 0.1', () => {
+        renderTabBar(new Set())
+
+        expect(screen.getByRole('button', { name: /Portfólio travado/ })).toBeInTheDocument()
+        expect(screen.getByText('Portfólio').closest('a')).not.toBeInTheDocument()
+    })
+
+    it('Trilha/Mercado/Assembleias/Classificação nunca ficam travadas, mesmo sem nenhum desbloqueio', () => {
         renderTabBar(new Set())
 
         expect(screen.getByText('Trilha').closest('a')).toBeInTheDocument()
         expect(screen.getByText('Mercado').closest('a')).toBeInTheDocument()
+        expect(screen.getByText('Assembleias').closest('a')).toHaveAttribute('href', '/assembleias')
         expect(screen.getByText('Classificação').closest('a')).toBeInTheDocument()
     })
 
-    it('Portfólio e Calculadora viram link normal depois de desbloqueados', () => {
-        renderTabBar(new Set(['portfolio', 'calculator']))
+    it('Portfólio vira link normal depois de desbloqueado', () => {
+        renderTabBar(new Set(['portfolio']))
 
         expect(screen.getByText('Portfólio').closest('a')).toHaveAttribute('href', '/')
-        expect(screen.getByText('Calculadora').closest('a')).toHaveAttribute('href', '/calculadora')
     })
 
     it('enquanto GET /lessons ainda carrega, não mostra nenhuma aba como travada', () => {
         renderTabBar(new Set(), { isLoading: true })
 
         expect(screen.getByText('Portfólio').closest('a')).toBeInTheDocument()
-        expect(screen.getByText('Calculadora').closest('a')).toBeInTheDocument()
     })
 
     it('numa falha de GET /lessons, não mostra nenhuma aba como travada', () => {
         renderTabBar(new Set(), { isError: true })
 
         expect(screen.getByText('Portfólio').closest('a')).toBeInTheDocument()
-        expect(screen.getByText('Calculadora').closest('a')).toBeInTheDocument()
     })
 
     it('tocar numa aba travada navega pra própria rota da aba, nunca pra outro lugar (Fase Q, bloqueio é parede)', () => {
@@ -94,14 +98,6 @@ describe('TabBar', () => {
         // está protegida por `RequiresUnlock`, que renderiza `LockedGate`
         // (o card de bloqueio) no lugar do `Portfolio` real.
         expect(screen.getByTestId('location')).toHaveTextContent('/')
-    })
-
-    it('tocar na Calculadora travada navega pra "/calculadora", nunca pra outro lugar', () => {
-        renderTabBar(new Set(), { initialPath: '/mercado', lessons: [] })
-
-        fireEvent.click(screen.getByRole('button', { name: 'Calculadora travado pela trilha' }))
-
-        expect(screen.getByTestId('location')).toHaveTextContent('/calculadora')
     })
 
     it('aba travada nunca mostra o código da lição em texto visível (Fase Q)', () => {

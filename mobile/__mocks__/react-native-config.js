@@ -8,4 +8,7 @@ export default {
   API_BASE_URL: 'http://10.0.2.2:8000',
   GOOGLE_WEB_CLIENT_ID: 'web-client-id.apps.googleusercontent.com',
   GOOGLE_IOS_CLIENT_ID: 'ios-client-id.apps.googleusercontent.com',
+  PURCHASES_MODE: 'fake',
+  REVENUECAT_ANDROID_API_KEY: '',
+  REVENUECAT_IOS_API_KEY: '',
 };

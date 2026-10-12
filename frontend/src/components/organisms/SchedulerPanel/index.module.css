@@ -37,7 +37,7 @@
 }
 
 .running {
-    color: var(--color-brand-500);
+    color: var(--color-link);
     font-size: var(--font-size-sm);
     font-weight: 600;
 }

@@ -44,17 +44,17 @@ não são o valor de `audience` na verificação do backend.
 
 ## 2. Cenário A — mudar `applicationId` (Android) / bundle identifier (iOS)
 
-Quando isso se aplica: trocar o identificador técnico do pacote (hoje `com.investimenta` nos dois,
+Quando isso se aplica: trocar o identificador técnico do pacote (hoje `com.selucra` nos dois,
 decidido na tarefa 3.1) — não o nome visível, isso é o Cenário B.
 
 ### 2.1 Arquivos do projeto
 
 - `mobile/android/app/build.gradle`: `applicationId` (e `namespace`, só se decidir também mudar o
-  pacote Java — nesse caso as pastas `mobile/android/app/src/main/java/com/investimenta/` precisam
-  ser movidas pro novo pacote e a linha `package com.investimenta` em `MainActivity.kt`/
+  pacote Java — nesse caso as pastas `mobile/android/app/src/main/java/com/selucra/` precisam
+  ser movidas pro novo pacote e a linha `package com.selucra` em `MainActivity.kt`/
   `MainApplication.kt` atualizada; `applicationId` sozinho, sem mudar `namespace`, **não** exige
   isso — são coisas independentes no Gradle moderno).
-- `mobile/ios/Investimenta.xcodeproj/project.pbxproj`: `PRODUCT_BUNDLE_IDENTIFIER`, aparece **duas
+- `mobile/ios/Selucra.xcodeproj/project.pbxproj`: `PRODUCT_BUNDLE_IDENTIFIER`, aparece **duas
   vezes** (config `Debug` e `Release`) — trocar as duas, ou editar via Xcode (que já propaga pras
   duas configs sozinho).
 - Se a tarefa 3.3 (SDK nativo de login Google) já estiver implementada: o Info.plist do iOS ganha
@@ -116,7 +116,7 @@ institucional, ou qualquer outro motivo de troca de titularidade.
 2. **Três client IDs recriados no projeto novo**, com os mesmos dados de hoje:
    - Web application: mesmo(s) `redirect URI` autorizado(s) (`GOOGLE_REDIRECT_URI` atual, ex.
      `http://localhost:8000/auth/google/callback` em dev, o domínio real de produção quando existir).
-   - Android: mesmo pacote (`com.investimenta` ou o que estiver valendo no momento da troca) + mesmo
+   - Android: mesmo pacote (`com.selucra` ou o que estiver valendo no momento da troca) + mesmo
      SHA-1 de debug (**o SHA-1 não muda com a troca de conta Google** — é do keystore local, roda
      `keytool -list -v -keystore mobile/android/app/debug.keystore -alias androiddebugkey
      -storepass android -keypass android` de novo só se o keystore em si tiver sido regerado).
@@ -177,7 +177,7 @@ decisão vale só enquanto o conteúdo continuar sendo só identificador públic
 | O quê | Onde |
 |---|---|
 | `applicationId` Android | `mobile/android/app/build.gradle` |
-| Bundle identifier iOS | `mobile/ios/Investimenta.xcodeproj/project.pbxproj` (`PRODUCT_BUNDLE_IDENTIFIER`, 2 configs) |
+| Bundle identifier iOS | `mobile/ios/Selucra.xcodeproj/project.pbxproj` (`PRODUCT_BUNDLE_IDENTIFIER`, 2 configs) |
 | SHA-1 do keystore de debug | gerado com `keytool -list -v -keystore mobile/android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android` |
 | Client ID Web (login web) | `backend/.env` → `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI` (não versionado) |
 | Client ID Android (login nativo) | `mobile/.env.debug` / `mobile/.env.release` → `GOOGLE_ANDROID_CLIENT_ID` |

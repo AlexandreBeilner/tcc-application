@@ -128,3 +128,11 @@
 .error {
     color: var(--color-feedback-error-500);
 }
+
+/* Atalho para as ligas privadas (MO.5.2c). */
+.leaguesLink {
+    align-self: flex-start;
+    color: var(--color-link);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}

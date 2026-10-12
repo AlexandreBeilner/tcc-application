@@ -35,6 +35,17 @@ describe('PrivacidadeLgpd (tela 9.3)', () => {
 
     afterEach(() => vi.clearAllMocks())
 
+    it('explica o uso do e-mail, o operador e a retenção, com atalho pras preferências', () => {
+        renderPage()
+
+        const section = screen.getByRole('region', { name: 'Como usamos seu e-mail' })
+        expect(section).toHaveTextContent('Resend')
+        expect(section).toHaveTextContent('transferência internacional')
+        expect(section).toHaveTextContent('30 dias')
+        expect(section).not.toHaveTextContent('—')
+        expect(screen.getByRole('link', { name: 'Escolher quais e-mails receber' })).toHaveAttribute('href', '/configuracoes')
+    })
+
     it('exporta os dados chamando GET /me/export', async () => {
         vi.mocked(exportAccountData).mockResolvedValue({ export: { user: { id: 'u1' } } })
         const createObjectURL = vi.fn(() => 'blob:fake')

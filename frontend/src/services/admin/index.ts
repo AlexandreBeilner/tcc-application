@@ -43,6 +43,7 @@ import type {
     CatalogAsset,
     CatalogPatch,
     CreatedCatalogAsset,
+    EngineSettingGroup,
     EngineSettingKey,
     EngineSettings,
     ListAdminOrdersResult,
@@ -67,11 +68,27 @@ import type {
     TickResult,
     TradingHalt,
     TradingHaltListing,
+    AdminAssembly,
+    AdminAssemblyDetail,
+    AdminAssemblyStatus,
+    AgendaTemplate,
+    AgendaTemplateContent,
+    AssemblyPause,
+    AssemblyPauseListing,
+    AssemblySetting,
+    AssemblySettingKey,
+    PauseAssembliesInput,
     TriggerMacroEventInput,
     TriggerMacroEventResult,
+    UserProStatus,
+    GrantUserProInput,
+    GrantUserProResult,
 } from './types'
 
 export type {
+    UserProStatus,
+    GrantUserProInput,
+    GrantUserProResult,
     AdminLesson,
     AdminLessonContent,
     AdminLessonDetail,
@@ -166,6 +183,25 @@ export type {
     PauseTradingInput,
     TradingHalt,
     TradingHaltListing,
+    AdminAssembly,
+    AdminAssemblyDetail,
+    AdminAssemblyOption,
+    AdminEffectPreview,
+    AdminAssemblyStatus,
+    AdminAssemblyVote,
+    AgendaTemplate,
+    AgendaTemplateContent,
+    AgendaTemplateEffect,
+    AgendaTemplateOption,
+    AgendaTemplatePurpose,
+    AssemblyPause,
+    AssemblyPauseListing,
+    AssemblySetting,
+    AssemblySettingKey,
+    EngineSettingGroup,
+    GovernanceSettingKey,
+    PaceSettingKey,
+    PauseAssembliesInput,
     AdminOrder,
     AdminOrdersFilters,
     AdminOrderStatus,
@@ -358,8 +394,10 @@ export function getAdminBotsSummary(token: string, idleDays?: number): Promise<B
     return apiRequest<BotsSummary>(`/admin/bots/summary${query}`, { token })
 }
 
-export function getEngineSettings(token: string): Promise<EngineSettings> {
-    return apiRequest<EngineSettings>('/admin/settings', { token })
+// Cada tela lê o seu grupo: o Tempo (padrão) o ritmo do Temporizador, as Assembleias a governança.
+export function getEngineSettings(token: string, group: EngineSettingGroup = 'pace'): Promise<EngineSettings> {
+    const query = group === 'pace' ? '' : `?group=${group}`
+    return apiRequest<EngineSettings>(`/admin/settings${query}`, { token })
 }
 
 export function updateEngineSetting(token: string, key: EngineSettingKey, value: number): Promise<EngineSettings> {
@@ -432,6 +470,14 @@ export function deleteAdminUser(token: string, userId: string, confirmUsername: 
 
 export function getUserCorrectionContext(token: string, userId: string): Promise<UserCorrectionContext> {
     return apiRequest<UserCorrectionContext>(`/admin/users/${userId}/corrections`, { token })
+}
+
+export function getAdminUserPro(token: string, userId: string): Promise<UserProStatus> {
+    return apiRequest<UserProStatus>(`/admin/users/${userId}/pro`, { token })
+}
+
+export function grantAdminUserPro(token: string, userId: string, input: GrantUserProInput): Promise<GrantUserProResult> {
+    return apiRequest<GrantUserProResult>(`/admin/users/${userId}/pro-grants`, { token, method: 'POST', body: input })
 }
 
 export function creditAdminUser(token: string, userId: string, input: CreditUserInput): Promise<CreditUserResult> {
@@ -557,4 +603,56 @@ export function downloadAdminExport(token: string, dataset: ExportDataset, filte
     }
     const query = params.toString()
     return apiDownload(`/admin/exports/${dataset}${query ? `?${query}` : ''}`, { token })
+}
+
+// Assembleias (MO.6.8): leitura com voto por pessoa, pausa, parâmetros e catálogo de pautas.
+export async function listAdminAssemblies(token: string, status?: AdminAssemblyStatus): Promise<AdminAssembly[]> {
+    const query = status ? `?status=${status}` : ''
+    return (await apiRequest<{ assemblies: AdminAssembly[] }>(`/admin/assemblies${query}`, { token })).assemblies
+}
+
+export function getAdminAssembly(token: string, id: string): Promise<AdminAssemblyDetail> {
+    return apiRequest<AdminAssemblyDetail>(`/admin/assemblies/${id}`, { token })
+}
+
+export function listAssemblyPauses(token: string): Promise<AssemblyPauseListing> {
+    return apiRequest<AssemblyPauseListing>('/admin/assemblies/pauses', { token })
+}
+
+export function pauseAssemblies(token: string, input: PauseAssembliesInput): Promise<AssemblyPause> {
+    return apiRequest<AssemblyPause>('/admin/assemblies/pauses', { token, method: 'POST', body: input })
+}
+
+export function liftAssemblyPause(token: string, pauseId: string): Promise<AssemblyPause> {
+    return apiRequest<AssemblyPause>(`/admin/assemblies/pauses/${pauseId}/lift`, { token, method: 'POST' })
+}
+
+export async function listAssemblySettings(token: string): Promise<AssemblySetting[]> {
+    return (await apiRequest<{ settings: AssemblySetting[] }>('/admin/assemblies/settings', { token })).settings
+}
+
+export async function updateAssemblySetting(token: string, key: AssemblySettingKey, value: number): Promise<AssemblySetting[]> {
+    return (
+        await apiRequest<{ settings: AssemblySetting[] }>(`/admin/assemblies/settings/${key}`, { token, method: 'PUT', body: { value } })
+    ).settings
+}
+
+export async function resetAssemblySetting(token: string, key: AssemblySettingKey): Promise<AssemblySetting[]> {
+    return (await apiRequest<{ settings: AssemblySetting[] }>(`/admin/assemblies/settings/${key}`, { token, method: 'DELETE' })).settings
+}
+
+export async function listAgendaTemplates(token: string): Promise<AgendaTemplate[]> {
+    return (await apiRequest<{ templates: AgendaTemplate[] }>('/admin/assemblies/agenda-templates', { token })).templates
+}
+
+export function createAgendaTemplate(token: string, key: string, content: AgendaTemplateContent): Promise<AgendaTemplate> {
+    return apiRequest<AgendaTemplate>('/admin/assemblies/agenda-templates', { token, method: 'POST', body: { key, ...content } })
+}
+
+export function updateAgendaTemplate(token: string, key: string, content: AgendaTemplateContent): Promise<AgendaTemplate> {
+    return apiRequest<AgendaTemplate>(`/admin/assemblies/agenda-templates/${key}`, { token, method: 'PUT', body: content })
+}
+
+export function setAgendaTemplateActive(token: string, key: string, active: boolean): Promise<AgendaTemplate> {
+    return apiRequest<AgendaTemplate>(`/admin/assemblies/agenda-templates/${key}/active`, { token, method: 'POST', body: { active } })
 }

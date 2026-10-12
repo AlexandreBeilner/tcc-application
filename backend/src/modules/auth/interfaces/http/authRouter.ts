@@ -5,6 +5,9 @@ import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
   AccountSuspendedError,
   EmailAlreadyInUseError,
+  EmailNotVerifiedError,
+  GoogleEmailNotVerifiedError,
+  InvalidEmailTokenError,
   InvalidCredentialsError,
   UsernameAlreadyInUseError,
   UserNotFoundError,
@@ -15,11 +18,19 @@ import type { LoginUserUseCase } from '../../application/useCases/loginUser'
 import type { LoginWithGoogleUseCase } from '../../application/useCases/loginWithGoogle'
 import type { ReauthenticateUseCase } from '../../application/useCases/reauthenticate'
 import type { RegisterUserUseCase } from '../../application/useCases/registerUser'
+import type { RequestPasswordResetUseCase } from '../../application/useCases/requestPasswordReset'
+import type { ResetPasswordUseCase } from '../../application/useCases/resetPassword'
+import type { SendEmailVerificationUseCase } from '../../application/useCases/sendEmailVerification'
+import type { VerifyEmailUseCase } from '../../application/useCases/verifyEmail'
 import {
+  forgotPasswordBodySchema,
   googleTokenBodySchema,
   loginBodySchema,
   reauthBodySchema,
   registerBodySchema,
+  resendVerificationBodySchema,
+  resetPasswordBodySchema,
+  verifyEmailBodySchema,
 } from './schemas'
 import { toPublicUser } from './userSerializer'
 
@@ -29,8 +40,24 @@ export interface AuthRouterDeps {
   getCurrentUser: GetCurrentUserUseCase
   loginWithGoogle: LoginWithGoogleUseCase
   reauthenticate: ReauthenticateUseCase
+  requestPasswordReset: RequestPasswordResetUseCase
+  resetPassword: ResetPasswordUseCase
+  sendEmailVerification: SendEmailVerificationUseCase
+  verifyEmail: VerifyEmailUseCase
   googleIdentityProvider: GoogleIdentityProvider
   authMiddleware: AuthMiddleware
+}
+
+// Extrai o código de indicação do `state` do OAuth ("<uuid>.<código>"). Sem código, `undefined`.
+function referralFromState(state: unknown): string | undefined {
+  if (typeof state !== 'string') return undefined
+  const dot = state.indexOf('.')
+  if (dot < 0) return undefined
+  try {
+    return decodeURIComponent(state.slice(dot + 1)).slice(0, 32) || undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function createAuthRouter(deps: AuthRouterDeps): Router {
@@ -47,7 +74,8 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
 
     try {
       const result = await deps.registerUser.execute(parsed.data)
-      res.status(201).json({ token: result.token, user: toPublicUser(result.user) })
+      // Sem token (D2): a sessão só nasce depois de verificar o e-mail e entrar.
+      res.status(201).json({ user: toPublicUser(result.user), emailVerificationRequired: true })
     } catch (err) {
       if (err instanceof EmailAlreadyInUseError || err instanceof UsernameAlreadyInUseError) {
         res.status(409).json({ error: err.message })
@@ -74,6 +102,91 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       }
       if (err instanceof AccountSuspendedError) {
         res.status(403).json({ error: 'account_suspended' })
+        return
+      }
+      if (err instanceof EmailNotVerifiedError) {
+        res.status(403).json({ error: 'email_not_verified' })
+        return
+      }
+      throw err
+    }
+  })
+
+  // EM.3.1: reenvio do link de verificação. Resposta idêntica exista a conta ou não, já esteja
+  // verificada ou não (sem enumeração de e-mail).
+  router.post('/auth/resend-verification', async (req, res) => {
+    const parsed = resendVerificationBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'e-mail inválido' })
+      return
+    }
+
+    await deps.sendEmailVerification.execute({ email: parsed.data.email })
+    res.status(202).json({
+      message:
+        'Se existir uma conta pendente com esse e-mail, enviamos um novo link de verificação.',
+    })
+  })
+
+  router.post('/auth/verify-email', async (req, res) => {
+    const parsed = verifyEmailBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'token obrigatório' })
+      return
+    }
+
+    try {
+      await deps.verifyEmail.execute(parsed.data)
+      res.status(200).json({ message: 'e-mail verificado' })
+    } catch (err) {
+      if (err instanceof InvalidEmailTokenError) {
+        // Mesma convenção do reset: desconhecido => 401; venceu ou já usado => 410 (a tela oferece reenviar).
+        if (err.reason === 'invalid') {
+          res.status(401).json({ error: 'invalid_token' })
+          return
+        }
+        res.status(410).json({ error: err.reason === 'expired' ? 'token_expired' : 'token_used' })
+        return
+      }
+      throw err
+    }
+  })
+
+  // EM.2.2: resposta idêntica exista a conta ou não (sem enumeração de e-mail). O trabalho pesado
+  // é só gravar no outbox, então o tempo de resposta também não denuncia.
+  router.post('/auth/forgot-password', async (req, res) => {
+    const parsed = forgotPasswordBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'e-mail inválido' })
+      return
+    }
+
+    await deps.requestPasswordReset.execute({ email: parsed.data.email })
+    res.status(202).json({
+      message: 'Se existir uma conta com esse e-mail, enviamos um link para redefinir a senha.',
+    })
+  })
+
+  router.post('/auth/reset-password', async (req, res) => {
+    const parsed = resetPasswordBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'dados de redefinição inválidos', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      await deps.resetPassword.execute(parsed.data)
+      res.status(200).json({ message: 'senha redefinida' })
+    } catch (err) {
+      if (err instanceof InvalidEmailTokenError) {
+        // Desconhecido => 401; existiu mas venceu ou já foi usado => 410 (o frontend oferece pedir outro).
+        if (err.reason === 'invalid') {
+          res.status(401).json({ error: 'invalid_token' })
+          return
+        }
+        res.status(410).json({ error: err.reason === 'expired' ? 'token_expired' : 'token_used' })
         return
       }
       throw err
@@ -115,8 +228,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
 
   // Sem caso de uso próprio: montar a URL de autorização não tem regra de
   // negócio, só delega pro adapter — um RequestHandler cobre o suficiente.
-  router.get('/auth/google', (_req, res) => {
-    const state = randomUUID()
+  router.get('/auth/google', (req, res) => {
+    // O código de indicação (MO.7.2) viaja no `state`, que o Google devolve intacto no callback.
+    const ref = typeof req.query.ref === 'string' ? req.query.ref.trim().slice(0, 32) : ''
+    const state = ref ? `${randomUUID()}.${encodeURIComponent(ref)}` : randomUUID()
     res.redirect(deps.googleIdentityProvider.buildAuthUrl(state))
   })
 
@@ -128,13 +243,21 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     }
 
     try {
-      const result = await deps.loginWithGoogle.execute({ code })
+      const result = await deps.loginWithGoogle.execute({
+        code,
+        referralCode: referralFromState(req.query.state),
+      })
       const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
       res.redirect(`${frontendUrl}/auth/callback#token=${result.token}`)
     } catch (err) {
       if (err instanceof AccountSuspendedError) {
         const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
         res.redirect(`${frontendUrl}/auth/callback#error=account_suspended`)
+        return
+      }
+      if (err instanceof GoogleEmailNotVerifiedError) {
+        const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
+        res.redirect(`${frontendUrl}/auth/callback#error=google_email_not_verified`)
         return
       }
       console.error('falha na troca de código OAuth do Google:', err)
@@ -154,7 +277,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     }
 
     try {
-      const result = await deps.loginWithGoogle.execute({ idToken: parsed.data.idToken })
+      const result = await deps.loginWithGoogle.execute({
+        idToken: parsed.data.idToken,
+        referralCode: parsed.data.referralCode,
+      })
       res.status(200).json({ token: result.token, user: toPublicUser(result.user) })
     } catch (err) {
       console.error('falha na verificação do idToken do Google:', err)

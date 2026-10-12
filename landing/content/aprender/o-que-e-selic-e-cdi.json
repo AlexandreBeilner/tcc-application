@@ -1,0 +1,117 @@
+{
+    "slug": "o-que-e-selic-e-cdi",
+    "title": "O que é Selic e CDI? Como afetam a renda fixa",
+    "description": "Entenda o que é a taxa Selic, o CDI e o Copom, como a meta de juros influencia a inflação, a poupança e a renda fixa e o que significa render 100% do CDI.",
+    "h1": "O que é Selic e CDI e como afetam seus investimentos",
+    "lead": "A Selic é a taxa básica de juros do Brasil e o CDI anda colado a ela. Os dois servem de referência para boa parte da renda fixa, por isso entender as duas ajuda a comparar investimentos.",
+    "summary": "Selic, CDI, Copom e o que significa render % do CDI.",
+    "published": "2026-10-11",
+    "updated": "2026-10-11",
+    "facts": ["selic-definicao", "meta-inflacao", "cdi-taxa-di", "poupanca-regra"],
+    "sections": [
+        {
+            "h": "O que é a Selic",
+            "blocks": [
+                {
+                    "p": "A Selic é a taxa básica de juros da economia brasileira. {{fact:selic-definicao}}"
+                }
+            ]
+        },
+        {
+            "h": "Quem decide e por quê",
+            "blocks": [
+                {
+                    "p": "O Comitê de Política Monetária (Copom), do Banco Central, define a meta da Selic em reuniões ordinárias ao longo do ano. O objetivo é manter a inflação dentro da meta. {{fact:meta-inflacao}}"
+                },
+                {
+                    "p": "Quando o Copom sobe a Selic, o crédito fica mais caro e a economia tende a esfriar, o que ajuda a segurar os preços. Quando reduz, o crédito fica mais barato e a atividade tende a ganhar força."
+                }
+            ]
+        },
+        {
+            "h": "Onde a Selic aparece no seu dia a dia",
+            "blocks": [
+                {
+                    "ul": [
+                        "**Crédito:** financiamentos, empréstimos e cartão ficam mais caros quando a Selic sobe.",
+                        "**Renda fixa:** títulos pós-fixados, como o [Tesouro Selic](/aprender/o-que-e-tesouro-direto/), acompanham a taxa.",
+                        "**Poupança:** a regra de rendimento depende da meta da Selic.",
+                        "**Inflação:** a Selic é a principal ferramenta do Banco Central para trazer a inflação para a meta."
+                    ]
+                },
+                {
+                    "p": "A regra da poupança mostra bem essa ligação. {{fact:poupanca-regra}}"
+                }
+            ]
+        },
+        {
+            "h": "O que é o CDI",
+            "blocks": [
+                {
+                    "p": "O CDI acompanha de perto a Selic e é a principal referência da renda fixa privada. {{fact:cdi-taxa-di}}"
+                }
+            ]
+        },
+        {
+            "h": "O que significa render 110% do CDI",
+            "blocks": [
+                {
+                    "p": "Dizer que um CDB rende 110% do CDI significa que ele paga 110% da taxa DI do período. Num exemplo ilustrativo, se o CDI estiver em 10% ao ano, 110% do CDI equivale a 11% ao ano, antes do imposto."
+                },
+                {
+                    "p": "Se o CDI cair, a rentabilidade cai junto. Por isso esse tipo de título é chamado de pós-fixado."
+                }
+            ]
+        },
+        {
+            "h": "Como os juros afetam cada tipo de título",
+            "blocks": [
+                {
+                    "table": {
+                        "head": ["Tipo", "Como rende", "Quando os juros sobem"],
+                        "rows": [
+                            ["Pós-fixado (CDB a % do CDI, Tesouro Selic)", "Acompanha a Selic ou o CDI", "O rendimento acompanha a alta"],
+                            [
+                                "Prefixado",
+                                "Taxa definida na compra",
+                                "O preço de mercado do título cai, o que importa se você vender antes do vencimento"
+                            ],
+                            [
+                                "Atrelado ao IPCA",
+                                "Inflação mais uma taxa",
+                                "O preço de mercado do título também cai se você vender antes do vencimento"
+                            ]
+                        ]
+                    }
+                },
+                {
+                    "p": "Para ver os títulos públicos em detalhe, leia [O que é o Tesouro Direto](/aprender/o-que-e-tesouro-direto/)."
+                },
+                {
+                    "p": "Este guia é conteúdo educacional e não é recomendação de investimento."
+                }
+            ]
+        }
+    ],
+    "faq": [
+        {
+            "q": "Qual a diferença entre Selic e CDI?",
+            "a": "A Selic é a taxa básica definida pelo Banco Central. O CDI é a taxa das operações de um dia entre bancos e acompanha de perto a Selic, por isso as duas ficam quase iguais."
+        },
+        {
+            "q": "Selic alta é boa para quem investe?",
+            "a": "Para a renda fixa pós-fixada, sim, porque o rendimento acompanha a taxa. Em compensação, o crédito fica mais caro e a renda variável costuma sentir o efeito."
+        },
+        {
+            "q": "Quem define a Selic?",
+            "a": "O Copom, o Comitê de Política Monetária do Banco Central, define a meta da Selic em reuniões ordinárias."
+        },
+        {
+            "q": "A poupança depende da Selic?",
+            "a": "Sim. {{fact:poupanca-regra}}"
+        }
+    ],
+    "related": ["o-que-e-tesouro-direto", "o-que-e-etf"],
+    "ctaTitle": "Veja os juros mexendo no mercado",
+    "cta": "Na Selucra, eventos macroeconômicos simulados, como mudanças de juros, mexem nos preços e você vê o efeito na sua carteira."
+}

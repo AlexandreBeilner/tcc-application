@@ -25,6 +25,7 @@ func TestAppendEvent(t *testing.T) {
 	assetID := "asset-1"
 	quantity := 10
 	unitValue := 25.50
+	assembly := "assembly-1"
 
 	ex := &fakeExecer{}
 	event := domain.MarketEvent{
@@ -33,6 +34,8 @@ func TestAppendEvent(t *testing.T) {
 		EventType: domain.EventBuyOrderExecuted,
 		Quantity:  &quantity,
 		UnitValue: &unitValue,
+		// ReferenceID (MO.6.2) segue o evento até a coluna reference_id.
+		ReferenceID: &assembly,
 	}
 
 	if err := appendEvent(context.Background(), ex, event); err != nil {
@@ -42,7 +45,7 @@ func TestAppendEvent(t *testing.T) {
 	if ex.query != insertEventSQL {
 		t.Errorf("query = %q, want %q", ex.query, insertEventSQL)
 	}
-	want := []any{event.UserID, event.AssetID, event.EventType, event.Quantity, event.UnitValue, event.ReferenceMonth}
+	want := []any{event.UserID, event.AssetID, event.EventType, event.Quantity, event.UnitValue, event.ReferenceMonth, event.ReferenceID}
 	if len(ex.args) != len(want) {
 		t.Fatalf("args = %+v, want %+v", ex.args, want)
 	}

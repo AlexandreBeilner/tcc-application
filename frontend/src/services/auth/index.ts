@@ -6,6 +6,8 @@ import type {
     Identity,
     LoginInput,
     RegisterInput,
+    RegisterResult,
+    ResetPasswordInput,
     AuthUser,
     UpdateProfileInput,
 } from './types'
@@ -14,19 +16,43 @@ export type {
     AuthUser,
     AuthResult,
     RegisterInput,
+    RegisterResult,
     LoginInput,
+    ResetPasswordInput,
     UpdateProfileInput,
     ChangePasswordInput,
     Identity,
     AccountExport,
 } from './types'
 
-export function register(input: RegisterInput): Promise<AuthResult> {
-    return apiRequest<AuthResult>('/auth/register', { method: 'POST', body: input })
+export function register(input: RegisterInput): Promise<RegisterResult> {
+    return apiRequest<RegisterResult>('/auth/register', { method: 'POST', body: input })
 }
 
 export function login(input: LoginInput): Promise<AuthResult> {
     return apiRequest<AuthResult>('/auth/login', { method: 'POST', body: input })
+}
+
+// Verificação de e-mail (EM.3.1/EM.3.3). O reenvio responde 202 sempre igual (conta existente ou
+// não, já verificada ou não); `verifyEmail` recebe o token do fragmento do link: 401 = desconhecido,
+// 410 = expirado ou já usado. Não devolve sessão: depois de verificar a pessoa entra pelo login.
+export function resendVerification(email: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/resend-verification', { method: 'POST', body: { email } })
+}
+
+export function verifyEmail(token: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/verify-email', { method: 'POST', body: { token } })
+}
+
+// Recuperação de senha (EM.2.2/EM.2.3). O backend responde 202 sempre igual, exista a conta ou
+// não: a tela nunca descobre (nem mostra) se o e-mail tem conta.
+export function requestPasswordReset(email: string): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { email } })
+}
+
+// `token` vem do fragmento do link do e-mail. 401 = link desconhecido, 410 = expirado ou já usado.
+export function resetPassword(input: ResetPasswordInput): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/auth/reset-password', { method: 'POST', body: input })
 }
 
 // N.22: confere a senha de quem já está logado e devolve um token novo com a
@@ -54,8 +80,11 @@ export function completeOnboarding(token: string): Promise<{ user: AuthUser }> {
 // Sem caso de uso próprio no backend (delegação pura pro Google) — aqui
 // também não é uma chamada `fetch`, é a URL de um redirecionamento de
 // navegador inteiro (`<a href={googleLoginUrl()}>`), tela 1.1 (tarefa 6.2).
-export function googleLoginUrl(): string {
-    return `${API_BASE_URL}/auth/google`
+//
+// Indicação (MO.7.2): com `referralCode`, ele vai na URL e o backend o carrega pelo `state` do OAuth;
+// só vale se esse login criar a conta.
+export function googleLoginUrl(referralCode?: string | null): string {
+    return referralCode ? `${API_BASE_URL}/auth/google?ref=${encodeURIComponent(referralCode)}` : `${API_BASE_URL}/auth/google`
 }
 
 // Tela 9.2 (tarefa 6.10) — `accountRouter.ts`, mesmo módulo `auth`

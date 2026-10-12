@@ -1,0 +1,26 @@
+.link {
+    display: none;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    color: var(--color-brand-300);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.link:hover {
+    text-decoration: underline;
+}
+
+.link:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+@media (min-width: 768px) {
+    .link {
+        display: inline-flex;
+    }
+}

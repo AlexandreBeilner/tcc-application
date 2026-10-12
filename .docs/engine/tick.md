@@ -74,6 +74,10 @@ Desde a tarefa 4.9, o mesmo tick também gera e paga dividendos (`dividend_event
 
 Logo depois de `SaveTick` commitar (nunca antes — cache nunca reflete um preço que não foi de fato persistido), cada cotação nova do tick é espelhada no Redis (write-through, `TickRepository.refreshQuoteCache`). `dailyChangePct` é recalculado a partir do preço que ainda estava em cache de *antes* deste tick — sem nenhuma consulta a Postgres no caminho de escrita; cache frio (ex: logo após um restart do Redis) grava só o preço, sem variação, e se autocorrige no tick seguinte. Falha de cache é só logada, nunca interrompe o tick. Ver `.docs/engine/catalog.md` pro lado de leitura (`GET /assets`/`GET /assets/:id`).
 
+### Efeito de assembleia no tick (MO.6.2)
+
+Se `WithGovernance` está ligado, cada tick aplica, **antes de ler as empresas**, o passo da rampa dos efeitos de Assembleia de Acionistas em andamento (`corporategovernance.Service.ApplyDue`), só nos fundamentos da empresa. Falha ali é logada e nunca derruba o tick. Detalhes em `governance.md`.
+
 ### Job automático
 
 Além do disparo manual, `cmd/api/main.go` sobe uma goroutine (`scheduler.RunDaily`) que chama `tick.Service.Run` a cada 24h reais enquanto o motor está no ar — não alinhado à meia-noite, só um intervalo fixo a partir da subida do processo. Uma falha isolada de tick é logada, não derruba o motor; o próximo tick agendado tenta de novo.

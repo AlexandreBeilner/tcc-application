@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DistributionChart } from '.'
 
 const slices = [
@@ -70,5 +70,24 @@ describe('DistributionChart', () => {
         fireEvent.keyDown(acoes, { key: 'ArrowUp' })
         fireEvent.keyDown(tesouro, { key: 'ArrowUp' })
         expect(screen.getByRole('button', { name: /FIIs/ })).toHaveFocus()
+    })
+
+    it('com onSelect, clicar na fatia ou na linha da legenda navega em vez de fixar o destaque', () => {
+        const onSelect = vi.fn()
+        const { container } = render(<DistributionChart slices={slices} onSelect={onSelect} />)
+
+        fireEvent.click(container.querySelectorAll('circle')[1])
+        fireEvent.click(screen.getByRole('button', { name: /FIIs/ }))
+
+        expect(onSelect).toHaveBeenNthCalledWith(1, 'acao')
+        expect(onSelect).toHaveBeenNthCalledWith(2, 'fii')
+        expect(screen.getByRole('button', { name: /FIIs/ })).not.toHaveAttribute('aria-pressed')
+    })
+
+    it('com onSelect, focar a linha destaca a fatia no furo (sem depender de mouse)', () => {
+        render(<DistributionChart slices={slices} onSelect={() => {}} />)
+
+        fireEvent.focus(screen.getByRole('button', { name: /Ações/ }))
+        expect(norm(hole().textContent)).toContain('R$ 3.000,00')
     })
 })

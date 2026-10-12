@@ -89,6 +89,26 @@ export function PrivacidadeLgpd() {
                 </p>
             </section>
 
+            <section className={styles.section} aria-labelledby="privacidade-email">
+                <h2 id="privacidade-email" className={styles.sectionTitle}>
+                    Como usamos seu e-mail
+                </h2>
+                <p className={styles.description}>
+                    Usamos seu endereço de e-mail para confirmar sua conta, recuperar a senha e avisar sobre segurança. Esses avisos não
+                    podem ser desligados. Mensagens sobre amigos, resumos e lembretes só são enviadas se você ligar, e cada uma traz um link
+                    para cancelar com um clique.
+                </p>
+                <p className={styles.description}>
+                    O envio é feito pelo Resend, serviço de e-mail com sede nos Estados Unidos, que atua como operador dos seus dados e
+                    recebe o endereço e o conteúdo de cada mensagem. Isso pode envolver transferência internacional de dados, nos termos do
+                    art. 33 da LGPD. Depois de 30 dias, apagamos de nossa base o endereço e o conteúdo de cada mensagem já enviada, mantendo
+                    só o registro mínimo (tipo, data e situação). Ao excluir a conta, o que ainda estava na fila é apagado.
+                </p>
+                <Link to="/configuracoes" className={styles.inlineLink}>
+                    Escolher quais e-mails receber
+                </Link>
+            </section>
+
             <div className={styles.actions}>
                 <section className={styles.section}>
                     <h2 className={styles.sectionTitle}>Exportar dados</h2>

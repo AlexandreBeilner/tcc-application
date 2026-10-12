@@ -211,6 +211,167 @@
       "when": 1792100000000,
       "tag": "0029_add_announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792200000000,
+      "tag": "0030_add_email_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792300000000,
+      "tag": "0031_add_email_suppressions",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0032_add_auth_email_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0033_add_users_email_verified_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0034_add_announcements_notify_by_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792700000000,
+      "tag": "0035_add_email_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792800000000,
+      "tag": "0036_add_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0037_add_cosmetics",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0038_add_leagues",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793100000000,
+      "tag": "0039_add_duels",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793200000000,
+      "tag": "0040_add_daily_activity_retrospectives",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0041_add_funnel_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793400000000,
+      "tag": "0042_add_assemblies",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0043_add_assembly_cycle_and_agenda_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793600000000,
+      "tag": "0044_add_agenda_proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0045_add_assembly_funnel_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793800000000,
+      "tag": "0046_add_assembly_participation",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0047_add_assembly_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0048_add_achievement_is_rare",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794100000000,
+      "tag": "0049_add_referrals",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794200000000,
+      "tag": "0050_add_profit_assemblies",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0051_replace_agenda_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0052_add_pro_entry_funnel_sources",
+      "breakpoints": true
     }
   ]
 }

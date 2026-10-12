@@ -15,7 +15,7 @@
     margin: 0;
     font-size: var(--font-size-5xl);
     font-weight: 700;
-    color: var(--color-brand-500);
+    color: var(--color-link);
 }
 
 .title {

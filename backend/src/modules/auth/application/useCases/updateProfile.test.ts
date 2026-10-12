@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  EmailAlreadyInUseError,
-  UsernameAlreadyInUseError,
-  UserNotFoundError,
-} from '../../domain/errors'
+import { UsernameAlreadyInUseError, UserNotFoundError } from '../../domain/errors'
 import { createFakeUserRepository } from '../../test/fakes/fakeUserRepository'
 import { UpdateProfileUseCase } from './updateProfile'
 
@@ -20,7 +16,7 @@ async function seedUser(
 }
 
 describe('UpdateProfileUseCase', () => {
-  it('atualiza nome/e-mail/username', async () => {
+  it('atualiza nome e username', async () => {
     const userRepository = createFakeUserRepository()
     const user = await seedUser(userRepository)
     const useCase = new UpdateProfileUseCase(userRepository)
@@ -28,38 +24,38 @@ describe('UpdateProfileUseCase', () => {
     const updated = await useCase.execute({
       userId: user.id,
       name: 'Alexandre Beilner',
-      email: 'novo@example.com',
       username: 'novousername',
     })
 
     expect(updated.name).toBe('Alexandre Beilner')
-    expect(updated.email).toBe('novo@example.com')
     expect(updated.username).toBe('novousername')
   })
 
-  it('permite reenviar o mesmo e-mail/username já em uso pelo próprio usuário', async () => {
+  it('permite reenviar o mesmo username já em uso pelo próprio usuário', async () => {
     const userRepository = createFakeUserRepository()
     const user = await seedUser(userRepository)
     const useCase = new UpdateProfileUseCase(userRepository)
 
     const updated = await useCase.execute({
       userId: user.id,
-      email: user.email,
       username: user.username,
     })
 
-    expect(updated.email).toBe(user.email)
+    expect(updated.username).toBe(user.username)
   })
 
-  it('rejeita e-mail já em uso por outro usuário (409)', async () => {
+  it('nunca troca o e-mail (D6): campo extra é ignorado pelo caso de uso', async () => {
     const userRepository = createFakeUserRepository()
     const user = await seedUser(userRepository)
-    await seedUser(userRepository, { email: 'outro@example.com', username: 'outrousername' })
     const useCase = new UpdateProfileUseCase(userRepository)
 
-    await expect(
-      useCase.execute({ userId: user.id, email: 'outro@example.com' }),
-    ).rejects.toBeInstanceOf(EmailAlreadyInUseError)
+    const updated = await useCase.execute({
+      userId: user.id,
+      name: 'Novo Nome',
+      email: 'outro@example.com',
+    } as Parameters<UpdateProfileUseCase['execute']>[0])
+
+    expect(updated.email).toBe(user.email)
   })
 
   it('rejeita username já em uso por outro usuário (409)', async () => {

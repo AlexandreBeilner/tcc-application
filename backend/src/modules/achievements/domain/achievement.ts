@@ -8,6 +8,10 @@ export type AchievementCriteriaType =
   | 'micro_decisions_streak'
   | 'track_completed_no_errors'
   | 'lesson_reviewed'
+  // Assembleias distintas em que a pessoa votou (MO.6.7), só por participar, nunca por vencer.
+  | 'assemblies_participated'
+  // Indicações que viraram válidas (MO.7.2): a pessoa indicada concluiu a primeira lição.
+  | 'referrals_qualified'
 
 export interface Achievement {
   id: string
@@ -18,6 +22,8 @@ export interface Achievement {
   // Desativada (N.19): deixa de ser concedida e some pra quem ainda não a tem,
   // mas nunca é tirada de quem já ganhou.
   isActive: boolean
+  // Rara de verdade (ponto 044): marcada no catálogo; só ela dispara o e-mail de conquista rara.
+  isRare: boolean
 }
 
 // Os números que qualquer critério de conquista pode consultar — agregado em
@@ -32,6 +38,8 @@ export interface ProgressSnapshot {
   microDecisionsStreak: number
   tracksCompletedNoErrors: number
   lessonsReviewed: number
+  assembliesParticipated: number
+  referralsQualified: number
 }
 
 export function progressValueFor(
@@ -53,6 +61,10 @@ export function progressValueFor(
       return snapshot.tracksCompletedNoErrors
     case 'lesson_reviewed':
       return snapshot.lessonsReviewed
+    case 'assemblies_participated':
+      return snapshot.assembliesParticipated
+    case 'referrals_qualified':
+      return snapshot.referralsQualified
   }
 }
 

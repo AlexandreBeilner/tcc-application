@@ -1,0 +1,149 @@
+/* Mobile e tablet: cartões. A tabela só existe a partir de 1024 px. */
+.table {
+    display: none;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+@media (min-width: 1024px) {
+    .table {
+        display: table;
+    }
+
+    .cards {
+        display: none;
+    }
+}
+
+.th {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    vertical-align: top;
+}
+
+.num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tr {
+    cursor: pointer;
+}
+
+.tr:hover {
+    background: var(--color-bg-surface-elevated);
+}
+
+.ticker {
+    display: block;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.name {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    overflow-wrap: anywhere;
+}
+
+.note {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.muted {
+    color: var(--color-text-muted);
+}
+
+.result {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 56px;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.card:hover {
+    background: var(--color-bg-surface-elevated);
+}
+
+.card:focus-visible,
+.tr:focus-visible {
+    outline: 2px solid var(--color-border-strong);
+    outline-offset: 2px;
+}
+
+.cardTop,
+.cardMid {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.cardId {
+    min-width: 0;
+}
+
+.cardValue {
+    flex: none;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.cardMid .result {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.weight,
+.cardMeta {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.weight {
+    flex: none;
+}

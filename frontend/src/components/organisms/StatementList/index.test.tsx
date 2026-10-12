@@ -24,14 +24,15 @@ describe('StatementList', () => {
             />,
         )
         expect(screen.getByText('Compra executada')).toBeInTheDocument()
-        expect(screen.getByText('R$ 300,00')).toBeInTheDocument()
+        // compra é saída: valor com sinal − e seta para baixo (MO.9.4)
+        expect(screen.getByLabelText('saída de R$ 300,00')).toHaveTextContent('−R$ 300,00')
     })
 
     it('mostra o valor total (unit_value já é o total) quando o evento não tem quantidade', () => {
         render(
             <StatementList events={[{ id: 'e1', event_type: 'initial_deposit', unit_value: 10000, timestamp: '2026-01-01T12:00:00Z' }]} />,
         )
-        expect(screen.getByText('R$ 10.000,00')).toBeInTheDocument()
+        expect(screen.getByLabelText('entrada de R$ 10.000,00')).toHaveTextContent('+R$ 10.000,00')
     })
 
     it('mostra ativo e quantidade só quando presentes no evento', () => {
@@ -79,5 +80,20 @@ describe('StatementList', () => {
             />,
         )
         expect(screen.getByText('a1')).toBeInTheDocument()
+    })
+
+    it('salário e crédito do administrador têm rótulo em português e entram como entrada', () => {
+        render(
+            <StatementList
+                events={[
+                    { id: 's', event_type: 'salary_payment', unit_value: 200, timestamp: '2026-01-01T12:00:00Z' },
+                    { id: 'c', event_type: 'admin_credit', unit_value: 500, timestamp: '2026-01-02T12:00:00Z' },
+                ]}
+            />,
+        )
+        expect(screen.getByText('Salário')).toBeInTheDocument()
+        expect(screen.getByText('Crédito do administrador')).toBeInTheDocument()
+        expect(screen.queryByText('salary_payment')).not.toBeInTheDocument()
+        expect(screen.getByLabelText('entrada de R$ 200,00')).toBeInTheDocument()
     })
 })

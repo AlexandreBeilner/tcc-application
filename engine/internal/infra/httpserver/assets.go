@@ -45,6 +45,11 @@ type assetCatalogReader interface {
 	// ListQuoteHistory devolve a série histórica de cotações de um ativo —
 	// usado só por GET /assets/:id/quotes (tarefa 4.6).
 	ListQuoteHistory(ctx context.Context, assetID string, days int) ([]catalog.QuoteHistoryEntry, error)
+	// ListRecentPricesByAsset devolve, numa única consulta, os `days`
+	// preços mais recentes de todo ativo cotado (cronológicos, indexados
+	// por asset_id) — usado só por GET /assets/quotes (sparklines das
+	// listas do Mercado, MO.9.5), pra não fazer uma chamada por ativo.
+	ListRecentPricesByAsset(ctx context.Context, days int) (map[string][]float64, error)
 	// FindLatestFundamentals devolve o ciclo de relatório mais recente da
 	// empresa emissora — usado só pelo bloco de especialização de ação de
 	// GET /assets/:id, pra calcular os indicadores de RF21 (tarefa 4.8).
@@ -594,5 +599,44 @@ func handleGetAssetQuoteHistory(catalogReader assetCatalogReader) http.HandlerFu
 			entries = append(entries, quoteHistoryEntryResponse{SimulatedDay: e.SimulatedDay, Price: e.Price})
 		}
 		writeJSON(w, http.StatusOK, entries)
+	}
+}
+
+const (
+	defaultSparklineDays = 30
+	maxSparklineDays     = 90
+)
+
+type recentPricesResponse struct {
+	Series map[string][]float64 `json:"series"`
+}
+
+// handleListRecentPrices serve GET /assets/quotes?days= — a série curta de
+// preços de todos os ativos cotados numa resposta só (MO.9.5), pra a
+// sparkline das listas do Mercado sem N+1. Ativo sem cotação não aparece no
+// mapa. `days` fica entre 1 e 90 (a série cresce com o catálogo, não com
+// quem pede).
+func handleListRecentPrices(catalogReader assetCatalogReader) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if catalogReader == nil {
+			writeCatalogError(w, http.StatusServiceUnavailable, "serviço de catálogo indisponível")
+			return
+		}
+
+		days, ok := parsePaginationParam(r.URL.Query().Get("days"), defaultSparklineDays, 1, maxSparklineDays)
+		if !ok {
+			writeCatalogError(w, http.StatusBadRequest, "days inválido")
+			return
+		}
+
+		series, err := catalogReader.ListRecentPricesByAsset(r.Context(), days)
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar séries de preço")
+			return
+		}
+		if series == nil {
+			series = map[string][]float64{}
+		}
+		writeJSON(w, http.StatusOK, recentPricesResponse{Series: series})
 	}
 }

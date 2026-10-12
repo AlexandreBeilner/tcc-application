@@ -22,6 +22,7 @@ Azul cobalto elétrico — mais saturado que o azul de banco tradicional (Banco 
 | Token | Dark | Light | Uso |
 |---|---|---|---|
 | `--color-brand-500` | `#2F6FED` | `#2F6FED` | Ação primária (botões, links, foco) |
+| `--color-link` | `#93B4FF` | `#2A63D4` | **Texto** de link e ação (MO.9.10): AA sobre as superfícies dos dois temas. Fundo e borda de marca seguem em `--color-brand-500`; texto nunca usa brand-500 |
 | `--color-brand-600` | `#1D4FC4` | `#1D4FC4` | Hover/active de ação primária |
 | `--color-brand-300` | `#93B4FF` | `#1B3F94` | Texto/ícone sobre fundo de marca, destaque leve |
 | `--color-brand-100` | `#0E1E42` | `#E8EFFE` | Fundo suave de elemento relacionado à marca (badge, chip) |
@@ -38,7 +39,7 @@ Azul cobalto elétrico — mais saturado que o azul de banco tradicional (Banco 
 | `--grid-line` | `rgba(255,255,255,0.05)` | `rgba(0,0,0,0.06)` | Linhas da grade quadriculada do fundo do Mapa da Trilha (CSS `background-image`, 28px) |
 | `--color-text-primary` | `#F5F6F8` | `#14161B` | Texto principal |
 | `--color-text-secondary` | `#9BA1AE` | `#5B6270` | Texto de apoio, labels |
-| `--color-text-muted` | `#6B7280` | `#8A8F9A` | Texto desabilitado, metadados de baixa prioridade |
+| `--color-text-muted` | `#868C98` | `#686E7A` | Texto desabilitado, metadados de baixa prioridade |
 
 Sombra é evitada no dark mode (não lê bem sobre fundo escuro) — elevação é comunicada por diferença de `--color-bg-surface*` + borda de 1px. No light mode, elevação usa sombra suave (`box-shadow: 0 2px 8px rgba(20, 22, 27, 0.08)`).
 
@@ -98,6 +99,19 @@ Tarefa F.1 (backlog de engajamento, Fase F — sala de troféus no Perfil). Cada
 
 Tons 0 e 2 reaproveitam o hex exato de `--color-brand-300`/`--color-loss-500` (mesmo padrão da seção 2.3a — hue idêntico, token separado por semântica, já com contraste comprovado). Tons 1 e 3 **não** reaproveitam `--color-gain-500`/`--color-gamify-500` no tema claro: o valor original fica em ~3.45:1/~3.64:1 contra fundo branco, abaixo do AA de texto normal (4.5:1) — só serviria pra elemento gráfico/texto grande (limiar 3:1). Por isso o tom claro de `--color-track-1`/`--color-track-3` é uma variação mais escura da mesma família, calculada pra ficar acima de 4.5:1. Fundo suave do emblema, se precisar, reaproveita o `-100` da família de origem (`--color-brand-100`, `--color-gain-100`, `--color-loss-100`, `--color-gamify-100`) — não é um token novo.
 
+### 2.7 Molduras de avatar do PRO (MO.5.1)
+
+Cosmético decorativo: dois tons por moldura (`--frame-<nome>-a` e `-b`, gradiente de 135°), iguais nos dois temas. De propósito **fora** dos hues semânticos (verde de ganho, vermelho de perda, dourado de conquista), para um cosmético nunca parecer resultado nem conquista real (regra da estratégia de monetização). O selo PRO usa o azul de marca (`--color-brand-100`/`--color-brand-300`), nunca dourado.
+
+| Moldura | Chave | Tom A | Tom B |
+|---|---|---|---|
+| Aurora | `frame_aurora` | `#2DD4BF` | `#3B82F6` |
+| Oceano | `frame_oceano` | `#1D4FC4` | `#60A5FA` |
+| Crepúsculo | `frame_crepusculo` | `#8B5CF6` | `#EC4899` |
+| Ametista | `frame_ametista` | `#7C3AED` | `#C4B5FD` |
+| Coral | `frame_coral` | `#FB7185` | `#F472B6` |
+| Grafite | `frame_grafite` | `#6B7280` | `#D1D5DB` |
+
 ## 3. Tipografia
 
 Duas famílias, papéis bem separados — evita depender de cor sozinha pra diferenciar "dado sério" de "elemento de jogo".
@@ -151,7 +165,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --grid-line: rgba(255, 255, 255, 0.05);
   --color-text-primary: #F5F6F8;
   --color-text-secondary: #9BA1AE;
-  --color-text-muted: #6B7280;
+  --color-text-muted: #868C98;
 
   --color-brand-500: #2F6FED;
   --color-brand-600: #1D4FC4;
@@ -185,7 +199,7 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
   --grid-line: rgba(0, 0, 0, 0.06);
   --color-text-primary: #14161B;
   --color-text-secondary: #5B6270;
-  --color-text-muted: #8A8F9A;
+  --color-text-muted: #686E7A;
 
   --color-brand-500: #2F6FED;
   --color-brand-600: #1D4FC4;

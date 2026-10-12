@@ -23,6 +23,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme)
+        // LW.2.1: a barra do navegador/PWA acompanha o tema (valores de `--color-bg-base` em index.css).
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f7f7f9' : '#0e0f13')
         writeStored(STORAGE_KEYS.theme, theme)
     }, [theme])
 

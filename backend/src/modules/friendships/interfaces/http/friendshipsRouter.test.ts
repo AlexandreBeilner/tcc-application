@@ -9,6 +9,7 @@ import { RemoveFriendshipUseCase } from '../../application/useCases/removeFriend
 import { RespondToFriendRequestUseCase } from '../../application/useCases/respondToFriendRequest'
 import { SearchUsersUseCase } from '../../application/useCases/searchUsers'
 import { SendFriendRequestUseCase } from '../../application/useCases/sendFriendRequest'
+import { createFakeFriendRequestMailer } from '../../test/fakes/fakeFriendRequestMailer'
 import { createFakeFriendshipRepository } from '../../test/fakes/fakeFriendshipRepository'
 import { createFakeUserDirectory } from '../../test/fakes/fakeUserDirectory'
 import { createFriendshipsRouter } from './friendshipsRouter'
@@ -27,8 +28,15 @@ function buildApp() {
   app.use(
     createFriendshipsRouter({
       searchUsers: new SearchUsersUseCase(userDirectory),
-      sendFriendRequest: new SendFriendRequestUseCase(friendshipRepository, userDirectory),
-      respondToFriendRequest: new RespondToFriendRequestUseCase(friendshipRepository),
+      sendFriendRequest: new SendFriendRequestUseCase(
+        friendshipRepository,
+        userDirectory,
+        createFakeFriendRequestMailer(),
+      ),
+      respondToFriendRequest: new RespondToFriendRequestUseCase(
+        friendshipRepository,
+        createFakeFriendRequestMailer(),
+      ),
       removeFriendship: new RemoveFriendshipUseCase(friendshipRepository),
       listFriends: new ListFriendsUseCase(friendshipRepository, userDirectory),
       listFriendRequests: new ListFriendRequestsUseCase(friendshipRepository, userDirectory),

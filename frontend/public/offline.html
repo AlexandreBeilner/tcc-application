@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="color-scheme" content="dark light" />
+        <title>Sem conexão · Selucra</title>
+        <style>
+            :root {
+                --bg: #0e0f13;
+                --surface: #16181d;
+                --border: #2a2e38;
+                --text: #f5f6f8;
+                --muted: #9ba1ae;
+                --brand: #2f6fed;
+            }
+            @media (prefers-color-scheme: light) {
+                :root {
+                    --bg: #f7f7f9;
+                    --surface: #ffffff;
+                    --border: #e4e5ea;
+                    --text: #14161b;
+                    --muted: #5b6270;
+                    --brand: #2f6fed;
+                }
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                min-height: 100vh;
+                min-height: 100dvh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+                background: var(--bg);
+                color: var(--text);
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    'Segoe UI',
+                    Roboto,
+                    sans-serif;
+            }
+            main {
+                width: 100%;
+                max-width: 420px;
+                padding: 32px 24px;
+                text-align: center;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 16px;
+            }
+            img {
+                width: 72px;
+                height: 72px;
+                border-radius: 16px;
+            }
+            h1 {
+                margin: 16px 0 8px;
+                font-size: 1.375rem;
+            }
+            p {
+                margin: 0 0 24px;
+                line-height: 1.5;
+                color: var(--muted);
+            }
+            button {
+                min-height: 44px;
+                padding: 0 24px;
+                border: 0;
+                border-radius: 12px;
+                background: var(--brand);
+                color: #ffffff;
+                font: inherit;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            button:focus-visible {
+                outline: 3px solid var(--text);
+                outline-offset: 3px;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <img src="/icon-192.png" alt="" width="72" height="72" />
+            <h1>Sem conexão</h1>
+            <p>
+                A Selucra precisa de internet para mostrar o mercado, porque ele é uma simulação que não para. Confira sua conexão e tente
+                de novo.
+            </p>
+            <button type="button" id="retry">Tentar de novo</button>
+        </main>
+        <script>
+            // Volta sozinho quando a rede volta; o botão serve para tentar na hora.
+            document.getElementById('retry').addEventListener('click', function () {
+                location.reload()
+            })
+            window.addEventListener('online', function () {
+                location.reload()
+            })
+        </script>
+    </body>
+</html>

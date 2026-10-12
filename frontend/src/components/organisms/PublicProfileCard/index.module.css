@@ -135,7 +135,8 @@
     font-family: inherit;
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
-    text-decoration: underline;
+    font-weight: 600;
+    text-decoration: none;
     cursor: pointer;
 }
 
@@ -199,18 +200,6 @@
 }
 
 .statXp .statValue {
-    color: var(--color-text-primary);
-}
-
-.gain {
-    color: var(--color-gain-500);
-}
-
-.loss {
-    color: var(--color-loss-500);
-}
-
-.neutral {
     color: var(--color-text-primary);
 }
 

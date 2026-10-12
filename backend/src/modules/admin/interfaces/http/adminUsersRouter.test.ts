@@ -1,3 +1,5 @@
+import { createFakeAccountMailer } from '../../../auth/test/fakes/fakeAccountMailer'
+import { createFakeEmailDataEraser } from '../../../auth/test/fakes/fakeEmailDataEraser'
 import express from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
@@ -5,6 +7,7 @@ import { createAuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { AnonymizeAccountUseCase } from '../../../auth/application/useCases/anonymizeAccount'
 import { UserSessionGuard } from '../../../auth/application/services/userSessionGuard'
 import { createFakeAchievementsExporter } from '../../../auth/test/fakes/fakeAchievementsExporter'
+import { createFakeAuthMailer } from '../../../auth/test/fakes/fakeAuthMailer'
 import { createFakeAvatarStorage } from '../../../auth/test/fakes/fakeAvatarStorage'
 import { createFakeFriendshipsExporter } from '../../../auth/test/fakes/fakeFriendshipsExporter'
 import { createFakeProgressionExporter } from '../../../auth/test/fakes/fakeProgressionExporter'
@@ -72,12 +75,17 @@ async function buildApp() {
         createFakeOrderAdmin(),
         auditLog,
       ),
-      suspendUser: new SuspendUserUseCase(userRepository, record),
-      reactivateUser: new ReactivateUserUseCase(userRepository, record),
-      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, record),
+      suspendUser: new SuspendUserUseCase(userRepository, record, createFakeAccountMailer()),
+      reactivateUser: new ReactivateUserUseCase(userRepository, record, createFakeAccountMailer()),
+      forceLogoutUser: new ForceLogoutUserUseCase(userRepository, record, createFakeAuthMailer()),
       deleteUserAccount: new DeleteUserAccountUseCase(
         userRepository,
-        new AnonymizeAccountUseCase(userRepository, createFakeAvatarStorage()),
+        new AnonymizeAccountUseCase(
+          userRepository,
+          createFakeAvatarStorage(),
+          createFakeAccountMailer(),
+          createFakeEmailDataEraser(),
+        ),
         record,
       ),
       authMiddleware,

@@ -29,16 +29,24 @@ describe('PoliticaPrivacidade (tarefa 4.2)', () => {
         }
     })
 
-    it('declara que os dados de investimento são simulados e que não há analytics de terceiros', () => {
+    it('declara que os dados são simulados, que o app não tem analytics de terceiros e que o site de apresentação mede visitas sem cookies', () => {
         renderPage()
 
         expect(screen.getByText(/simulações com dinheiro fictício/)).toBeInTheDocument()
-        expect(screen.getByText(/Não usamos cookies de rastreamento/)).toBeInTheDocument()
+        expect(screen.getByText(/No aplicativo, não usamos cookies de rastreamento/)).toBeInTheDocument()
+        expect(screen.getByText(/Cloudflare Web Analytics.*Ele não usa cookies/)).toBeInTheDocument()
     })
 
     it('o link de voltar leva ao login', () => {
         renderPage()
 
         expect(screen.getByRole('link', { name: /Voltar/ })).toHaveAttribute('href', '/login')
+    })
+
+    it('cita a hospedagem na Vultr, em São Paulo, e as cópias de segurança (sem placeholder pendente)', () => {
+        renderPage()
+        expect(screen.getByText(/Com o provedor de hospedagem \(Vultr\)/)).toBeInTheDocument()
+        expect(screen.getByText(/Com o provedor das cópias de segurança/)).toBeInTheDocument()
+        expect(document.body.textContent).not.toContain('[PREENCHER')
     })
 })
