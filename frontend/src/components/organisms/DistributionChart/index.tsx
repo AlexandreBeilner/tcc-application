@@ -77,57 +77,63 @@ export function DistributionChart({ slices }: DistributionChartProps) {
     }
 
     return (
-        <div className={styles.wrapper} onKeyDown={handleKeyDown}>
-            <div className={styles.ringBox}>
-                <svg
-                    className={styles.ring}
-                    viewBox="0 0 100 100"
-                    role="img"
-                    aria-label="Distribuição dos investimentos por categoria de ativo"
-                >
-                    {arcs.map((arc) => (
-                        <circle
-                            key={arc.category}
-                            className={`${styles.arc} ${activeCategory && activeCategory !== arc.category ? styles.arcDimmed : ''}`}
-                            cx="50"
-                            cy="50"
-                            r={RADIUS}
-                            stroke={SLICE_COLOR_VAR[arc.category]}
-                            strokeDasharray={`${arc.dash} ${CIRCUMFERENCE - arc.dash}`}
-                            strokeDashoffset={arc.offset}
-                            transform="rotate(-90 50 50)"
-                            onMouseEnter={() => setHovered(arc.category)}
-                            onMouseLeave={() => setHovered(null)}
-                            onClick={() => togglePinned(arc.category)}
-                        />
-                    ))}
-                </svg>
-                <div className={styles.hole} aria-live="polite">
-                    <span className={styles.holeLabel}>{active ? active.label : 'Total investido'}</span>
-                    <span className={`${styles.holeValue} tabular-nums`}>{formatCurrency(active ? active.value : total)}</span>
-                    {active && <span className={`${styles.holePercent} tabular-nums`}>{formatPercentage(active.percentage)}</span>}
+        <div className={styles.root}>
+            <div className={styles.wrapper} onKeyDown={handleKeyDown}>
+                <div className={styles.ringBox}>
+                    <svg
+                        className={styles.ring}
+                        viewBox="0 0 100 100"
+                        role="img"
+                        aria-label="Distribuição dos investimentos por categoria de ativo"
+                    >
+                        {arcs.map((arc) => (
+                            <circle
+                                key={arc.category}
+                                className={`${styles.arc} ${activeCategory && activeCategory !== arc.category ? styles.arcDimmed : ''}`}
+                                cx="50"
+                                cy="50"
+                                r={RADIUS}
+                                stroke={SLICE_COLOR_VAR[arc.category]}
+                                strokeDasharray={`${arc.dash} ${CIRCUMFERENCE - arc.dash}`}
+                                strokeDashoffset={arc.offset}
+                                transform="rotate(-90 50 50)"
+                                onMouseEnter={() => setHovered(arc.category)}
+                                onMouseLeave={() => setHovered(null)}
+                                onClick={() => togglePinned(arc.category)}
+                            />
+                        ))}
+                    </svg>
+                    <div className={styles.hole} aria-live="polite">
+                        <span className={styles.holeLabel}>{active ? active.label : 'Total investido'}</span>
+                        <span className={`${styles.holeValue} tabular-nums`}>{formatCurrency(active ? active.value : total)}</span>
+                        {active && <span className={`${styles.holePercent} tabular-nums`}>{formatPercentage(active.percentage)}</span>}
+                    </div>
                 </div>
+                <ul className={styles.legend} ref={legendRef}>
+                    {slices.map((slice) => (
+                        <li key={slice.category}>
+                            <button
+                                type="button"
+                                className={`${styles.legendItem} ${activeCategory === slice.category ? styles.legendItemActive : ''}`}
+                                aria-pressed={pinned === slice.category}
+                                aria-label={`${slice.label}: ${formatCurrency(slice.value)}, ${formatPercentage(slice.percentage)} da carteira`}
+                                onMouseEnter={() => setHovered(slice.category)}
+                                onMouseLeave={() => setHovered(null)}
+                                onClick={() => togglePinned(slice.category)}
+                            >
+                                <span
+                                    className={styles.swatch}
+                                    style={{ background: SLICE_COLOR_VAR[slice.category] }}
+                                    aria-hidden="true"
+                                />
+                                <span className={styles.legendLabel}>{slice.label}</span>
+                                <span className={`${styles.legendValue} tabular-nums`}>{formatCurrency(slice.value)}</span>
+                                <span className={`${styles.legendPercent} tabular-nums`}>{formatPercentage(slice.percentage)}</span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             </div>
-            <ul className={styles.legend} ref={legendRef}>
-                {slices.map((slice) => (
-                    <li key={slice.category}>
-                        <button
-                            type="button"
-                            className={`${styles.legendItem} ${activeCategory === slice.category ? styles.legendItemActive : ''}`}
-                            aria-pressed={pinned === slice.category}
-                            aria-label={`${slice.label}: ${formatCurrency(slice.value)}, ${formatPercentage(slice.percentage)} da carteira`}
-                            onMouseEnter={() => setHovered(slice.category)}
-                            onMouseLeave={() => setHovered(null)}
-                            onClick={() => togglePinned(slice.category)}
-                        >
-                            <span className={styles.swatch} style={{ background: SLICE_COLOR_VAR[slice.category] }} aria-hidden="true" />
-                            <span className={styles.legendLabel}>{slice.label}</span>
-                            <span className={`${styles.legendValue} tabular-nums`}>{formatCurrency(slice.value)}</span>
-                            <span className={`${styles.legendPercent} tabular-nums`}>{formatPercentage(slice.percentage)}</span>
-                        </button>
-                    </li>
-                ))}
-            </ul>
         </div>
     )
 }

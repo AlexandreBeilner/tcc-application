@@ -1,8 +1,26 @@
+/* O layout depende da largura do BLOCO (container query), não da janela: no desktop o Portfólio dá
+   a este gráfico só a coluna de 2/3. Estreito = rosca centralizada com a legenda embaixo, em largura
+   total; só lado a lado quando cabe sem espremer (rosca 180 + respiro + legenda de ao menos 300). */
+.root {
+    container-type: inline-size;
+}
+
 .wrapper {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: var(--space-6);
-    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+@container (min-width: 540px) {
+    .wrapper {
+        flex-direction: row;
+        gap: var(--space-6);
+    }
+
+    .legend {
+        min-width: 300px;
+    }
 }
 
 .ringBox {
@@ -67,7 +85,8 @@
     flex-direction: column;
     gap: var(--space-1);
     flex: 1;
-    min-width: 220px;
+    width: 100%;
+    min-width: 0;
 }
 
 .legendItem {
@@ -75,7 +94,8 @@
     align-items: center;
     gap: var(--space-2);
     width: 100%;
-    padding: var(--space-2);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -102,6 +122,8 @@
 }
 
 .legendLabel {
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--color-text-secondary);
 }
 
