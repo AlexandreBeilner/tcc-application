@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AssemblyCard } from '../../components/molecules/AssemblyCard'
+import { AssemblyProBlock } from '../../components/molecules/AssemblyProBlock'
 import { isFeatureOff, useAssembliesQuery } from '../../features/assemblies/useAssemblies'
 import styles from './index.module.css'
 
@@ -86,11 +87,10 @@ export function Assembleias() {
                     <h2 className={styles.sectionTitle}>Como funciona</h2>
                     <ul className={styles.rules}>
                         <li>Vota quem tinha ações da empresa na abertura. O peso do voto é a quantidade de ações.</li>
-                        <li>Quem é PRO vota sem limite. Os demais têm 1 voto por mês, a partir do nível 3, com e-mail verificado.</li>
                         <li>Dá para trocar o voto até a votação fechar.</li>
                         <li>Com poucos votantes ou empate, nada muda.</li>
-                        <li>O efeito é igual para todo acionista, tenha votado ou não.</li>
                     </ul>
+                    <AssemblyProBlock />
                 </aside>
             </div>
         </main>

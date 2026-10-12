@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { AssemblyOptionCard } from '../../components/molecules/AssemblyOptionCard'
+import { AssemblyProBlock } from '../../components/molecules/AssemblyProBlock'
 import { ProInvite } from '../../components/molecules/ProInvite'
 import { closesLabel, formatShortDate, isCreditShortage, outcomeBadge, resultHeadline } from '../../features/assemblies/assemblyText'
 import { isFeatureOff, useAssemblyQuery, useCastVoteMutation, useMyVotingStatusQuery } from '../../features/assemblies/useAssemblies'
@@ -101,6 +102,8 @@ export function AssembleiaDetalhe() {
                         votou.
                         {isOpen && ' O placar se atualiza sozinho.'}
                     </p>
+
+                    <AssemblyProBlock hideLink={Boolean(isOpen && status && isCreditShortage(status.reason))} />
                 </div>
 
                 {isOpen && (

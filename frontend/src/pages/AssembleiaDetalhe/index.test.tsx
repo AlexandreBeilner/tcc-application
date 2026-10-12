@@ -142,6 +142,9 @@ describe('AssembleiaDetalhe (MO.6.6)', () => {
 
         expect(await screen.findByText('requer plano PRO ou crédito de voto')).toBeInTheDocument()
         expect(await screen.findByRole('link', { name: 'Conhecer o PRO' })).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { name: 'Como o PRO participa' })).toBeInTheDocument()
+        // O convite contextual já está na tela: o bloco não repete o link.
+        expect(screen.queryByRole('link', { name: 'Ver o que o PRO inclui' })).toBeNull()
         expect(screen.queryByRole('button', { name: 'Votar nesta opção' })).toBeNull()
     })
 
@@ -154,6 +157,7 @@ describe('AssembleiaDetalhe (MO.6.6)', () => {
 
         expect(await screen.findByText(/Só quem tinha ações da empresa na abertura vota/)).toBeInTheDocument()
         expect(screen.queryByRole('link', { name: 'Conhecer o PRO' })).toBeNull()
+        expect(await screen.findByRole('link', { name: 'Ver o que o PRO inclui' })).toBeInTheDocument()
     })
 
     it('encerrada aprovada destaca o resultado e não oferece voto', async () => {
