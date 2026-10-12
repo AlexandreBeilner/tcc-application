@@ -1,0 +1,45 @@
+# Porta de entrada única de produção e staging (LW.3.7, decisão LW6: Caddy no lugar do nginx do `gateway/`).
+# É a ÚNICA peça com portas publicadas no host (80/443). Projeto à parte de `docker-compose.prod.yml`:
+#   docker compose -p selucra-edge --env-file /opt/selucra/prod.env -f docker-compose.edge.yml up -d
+# Alcança os backends pela rede externa `selucra-edge` (apelidos `backend-prod` e `backend-staging`).
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    pids_limit: 256
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL (aviso de expiração do certificado)}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks: [edge]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: ${CADDY_MEM_LIMIT:-128m}
+    cpus: ${CADDY_CPUS:-0.5}
+
+networks:
+  edge:
+    external: true
+    name: selucra-edge
+
+volumes:
+  caddy_data:
+  caddy_config:
