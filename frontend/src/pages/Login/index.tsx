@@ -5,6 +5,7 @@ import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
 import { captureReferralCode, clearReferralCode } from '../../features/referral/referralCode'
 import { isAccountSuspendedError, isEmailNotVerifiedError } from '../../services/client'
+import { ApiError } from '../../services/client'
 import { formatApiError } from '../../utils/formatApiError'
 import { googleLoginUrl, login as loginRequest, register as registerRequest } from '../../services/auth'
 import { BrandLogo } from '../../components/atoms/BrandLogo'
@@ -102,6 +103,9 @@ export function Login() {
                 setPendingVerificationEmail(email)
             } else if (isAccountSuspendedError(err)) {
                 setError(SUSPENDED_MESSAGE)
+            } else if (err instanceof ApiError && err.status === 429) {
+                // Limite de tentativas do backend (por IP e por e-mail); não revela nada sobre contas.
+                setError('Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.')
             } else {
                 setError(formatApiError(err, 'Não foi possível completar a operação.'))
             }

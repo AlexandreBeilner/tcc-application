@@ -150,6 +150,28 @@ describe('Login (tela 1.1)', () => {
         expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
     })
 
+    it('limite de tentativas (429) mostra uma mensagem clara, sem navegar', async () => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+        vi.mocked(login).mockRejectedValue(new ApiError(429, 'muitas requisições, tente novamente em instantes'))
+
+        renderLogin()
+        fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.com' } })
+        fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha-forte-123' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.'),
+        )
+        expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
+    })
+
     it('conta suspensa (403 account_suspended) mostra a mensagem própria, sem navegar', async () => {
         vi.mocked(useAuth).mockReturnValue({
             token: null,

@@ -57,6 +57,12 @@ export function findProductionConfigProblems(
       `ASSEMBLIES_ENABLED="${assemblies}" não é reconhecido: use "off" para desligar as assembleias (ou deixe vazio/"on")`,
     )
   }
+  // Limites de login e cadastro são a proteção contra força bruta: nunca desligados fora do desenvolvimento.
+  if (read('AUTH_RATE_LIMIT') === 'off') {
+    problems.push(
+      'AUTH_RATE_LIMIT=off desliga a proteção contra força bruta e só vale em desenvolvimento',
+    )
+  }
   if (read('BILLING_PROVIDER') === 'dev') {
     problems.push('BILLING_PROVIDER=dev grava assinatura de mentira, não vale em produção')
   }

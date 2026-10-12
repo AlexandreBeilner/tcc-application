@@ -19,6 +19,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `400` — payload não bate com o schema (campo faltando, e-mail inválido, senha curta, username com caractere inválido etc).
   - `409` — e-mail já cadastrado.
   - `409` — username já em uso.
+  - `429` — `{ error }` com `Retry-After`: mais de 20 cadastros em 1 hora pelo mesmo IP.
   - `500` — motor de simulação indisponível ao abrir a conta (ver regra abaixo) — cai no handler de erro padrão do Express.
 - **Regra:** `RegisterUserUseCase`. Faz hash da senha (bcrypt, 12 salt rounds) e cria o usuário sempre com `role: 'user'` — o caso de uso nunca aceita `role` como entrada (RNF07). `onboarding_completed` sempre nasce `false` (default da coluna, tarefa 6.0.4) — controla se o pós-login (frontend, 6.2) cai na tela de onboarding (1.2) ou direto no Portfólio (2.1). Em seguida abre a conta do usuário no motor de simulação (`POST /accounts`, ver `.docs/engine/account.md`) com o capital inicial padronizado (RNF06) — se essa chamada falhar, o cadastro inteiro falha (não fica usuário sem conta). A conta nasce com `email_verified_at` nulo e o caso de uso enfileira o e-mail de verificação (`SendEmailVerificationUseCase`); falha ao enfileirar nunca derruba o cadastro, a pessoa pede outro link por `POST /auth/resend-verification`. Não emite JWT.
 
@@ -34,6 +35,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
   - `401` — credenciais inválidas: e-mail não encontrado, senha incorreta, **ou** conta criada só via Google (sem `password_hash` local) tentando logar por senha. As três situações retornam a mesma mensagem genérica, de propósito (não vazar se um e-mail existe).
   - `403` — `{ error: "email_not_verified" }`: senha correta, mas a conta criada por e-mail e senha ainda não confirmou o e-mail (EM.3.1, D2). O frontend oferece reenviar o link (`POST /auth/resend-verification`). Também só aparece depois de a senha conferir; a suspensão tem precedência. Conta criada pelo Google, admin do seed e conta que concluiu um reset de senha já são verificadas.
   - `403` — `{ error: "account_suspended" }`: senha correta, mas a conta foi suspensa pelo painel admin (N.16). Só aparece depois de a senha conferir, então quem erra a senha nunca descobre que a conta está suspensa. No login com Google o callback redireciona para `${FRONTEND_URL}/auth/callback#error=account_suspended`.
+  - `429` — `{ error }` com `Retry-After`: mais de 30 tentativas em 15 minutos pelo mesmo IP **ou** mais de 10 em 15 minutos para o mesmo e-mail (normalizado, guardado só como hash). Conta **todas** as tentativas, inclusive de e-mail que não existe, então o 429 não revela quem está cadastrado. Contar também as certas é de propósito: uma rajada em paralelo passaria inteira por um limite que só contasse as erradas. Efeito colateral aceito: quem mandar 10 tentativas com o e-mail de outra pessoa trava o login dela por até 15 minutos (o IP do atacante também é limitado). Contadores em memória, zeram ao reiniciar; `AUTH_RATE_LIMIT=off` desliga, só em desenvolvimento (a subida de staging e produção é recusada com ele).
 - **Regra:** `LoginUserUseCase`. O token carrega `tokenVersion` (versão de sessão da conta, N.16) e `authTime` (momento da conferência da senha) e expira em **7 dias** para `role: 'user'` e em **2 horas** para `role: 'admin'` (N.22). Login e tentativa falha de uma conta `admin` são gravados no `admin_audit_log` (`admin.login`, `admin.login_failed`).
 
 ---
@@ -146,6 +148,7 @@ Módulo: `backend/src/modules/auth/`. Ver `.claude/arquitetura-backend-ddd-lite.
 - **Erros:**
   - `400` — `idToken` ausente ou vazio.
   - `401` — `idToken` inválido, expirado, ou com `audience`/assinatura que não bate (a lib `google-auth-library` rejeita antes de chegar no caso de uso).
+  - `429` — `{ error }` com `Retry-After`: mais de 30 tentativas em 15 minutos pelo mesmo IP.
 - **Regra:** `LoginWithGoogleUseCase`, mesmo caso de uso de `GET /auth/google/callback` — só muda a origem do perfil (`verifyIdToken` em vez de `exchangeCode`). Reaproveita identidade/usuário existente por `(google, sub)`, depois por e-mail, senão cria conta nova com capital inicial padronizado (RNF06), exatamente como o fluxo de redirect. **Importante:** o `audience` aceito na verificação é o client ID **Web** (`GOOGLE_CLIENT_ID`, o mesmo do fluxo de redirect) — não os client IDs Android/iOS cadastrados só pra autenticar o app nativo junto ao Google. Ver `.claude/runbook-mudanca-identidade-app-conta-google.md` seção 0 pra detalhe de por quê. Rota aditiva — `GET /auth/google`/`GET /auth/google/callback` não mudam.
 
 ---

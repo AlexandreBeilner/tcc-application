@@ -30,6 +30,7 @@ services:
       ENGINE_URL: http://engine:8080
       JWT_SECRET: e2e-secret
       FRONTEND_URL: http://localhost:5173
+      AUTH_RATE_LIMIT: "off"  # a simulação cria centenas de contas do mesmo IP
       AVATAR_STORAGE_DIR: /data/avatars
       # Gate de tempo entre passos de lição (S.4): curto o bastante pros scripts completarem a trilha inteira.
       LESSON_MIN_STEP_INTERVAL_MS: "300"
