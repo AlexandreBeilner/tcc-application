@@ -1,3 +1,4 @@
+import { positionCurrentValue } from '../positionValue'
 import type { AssetCategory, CategorySlice, PositionLike } from './types'
 
 export type { AssetCategory, CategorySlice } from './types'
@@ -14,6 +15,10 @@ const CATEGORY_BY_TYPE: Record<string, AssetCategory> = {
     acao: 'acao',
     etf: 'etf',
     fii: 'fii',
+}
+
+export function categoryOfType(type: string): AssetCategory | null {
+    return CATEGORY_BY_TYPE[type] ?? null
 }
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
@@ -44,7 +49,7 @@ export function groupPositionsByCategory(positions: PositionLike[], fixedIncomeP
         if (position.isSandbox) continue
         const category = CATEGORY_BY_TYPE[position.type]
         if (!category) continue
-        const value = position.quantity * (position.markPrice ?? position.averagePrice)
+        const value = positionCurrentValue(position)
         totalsByCategory.set(category, (totalsByCategory.get(category) ?? 0) + value)
     }
 

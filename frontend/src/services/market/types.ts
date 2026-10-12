@@ -27,6 +27,10 @@ export interface MyAccountPosition extends BaseMyAccountPosition {
 
 export interface MyAccountFixedIncomePosition extends BaseMyAccountPosition {
     averageRate: number
+    // Valor bruto de hoje e líquido de IR (MO.8.1). Ausentes no sandbox e quando o motor não
+    // conseguiu avaliar a posição: quem lê cai no custo (`quantity × averagePrice`).
+    currentValue?: number
+    netValue?: number
 }
 
 export interface MyAccount {

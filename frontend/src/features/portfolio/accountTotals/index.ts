@@ -1,3 +1,4 @@
+import { positionCurrentValue } from '../positionValue'
 import type { AccountTotals, PositionLike } from './types'
 
 export type { AccountTotals } from './types'
@@ -19,7 +20,7 @@ export function calculateAccountTotals(positions: PositionLike[], fixedIncomePos
     let sandboxInvested = 0
 
     for (const position of [...positions, ...fixedIncomePositions]) {
-        const value = position.quantity * (position.markPrice ?? position.averagePrice)
+        const value = positionCurrentValue(position)
         if (position.isSandbox) {
             sandboxInvested += value
         } else {
