@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { AssemblyCard } from '../../components/molecules/AssemblyCard'
 import { isFeatureOff, useAssembliesQuery } from '../../features/assemblies/useAssemblies'
 import styles from './index.module.css'
@@ -11,8 +12,13 @@ export function Assembleias() {
     if (isFeatureOff(query.error)) {
         return (
             <main className={styles.page}>
-                <h1 className={styles.title}>Assembleias</h1>
-                <p className={styles.muted}>As assembleias de acionistas ainda não estão disponíveis.</p>
+                <h1 className={styles.title}>Assembleias indisponíveis no momento</h1>
+                <p className={styles.muted}>
+                    As votações estão pausadas por enquanto. Seu progresso e suas ações continuam como estão. Volte em breve.
+                </p>
+                <Link to="/mercado" className={styles.backLink}>
+                    Voltar ao Mercado
+                </Link>
             </main>
         )
     }

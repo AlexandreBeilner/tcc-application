@@ -79,8 +79,8 @@ export const EDITABLE_SETTING_TEXT: Record<EngineSettingKey, SettingText> = {
     },
     governance_hold_declarations: {
         title: 'Reter o dividendo até a assembleia decidir',
-        unit: '0 desligado, 1 ligado',
-        effect: 'Ligado, o dividendo do balanço de empresa com acionista fica retido até a assembleia de destinação do lucro decidir. Ligue só junto das assembleias, senão o dividendo espera o prazo de segurança sem motivo.',
+        unit: '0 desligado, 1 ligado (padrão)',
+        effect: 'Ligado, o dividendo do balanço de empresa com acionista fica retido até a assembleia de destinação do lucro decidir. Se desligar as assembleias em emergência, desligue este junto, senão o dividendo espera o prazo de segurança sem motivo.',
     },
     governance_declaration_safety_days: {
         title: 'Prazo de segurança do dividendo retido',

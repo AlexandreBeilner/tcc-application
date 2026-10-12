@@ -522,8 +522,7 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   const marketCalendarReader = createEngineMarketCalendarReader(engineUrl)
   const getMarketClock = new GetMarketClockUseCase(marketCalendarReader)
-  // Marcos das assembleias no Calendário (MO.6.3): só com o ciclo ligado. O frontend precisa
-  // conhecer os tipos `assembly_*` antes (MO.6.6), por isso nasce atrás da mesma chave.
+  // Marcos das assembleias no Calendário (MO.6.3): só com o ciclo ligado (o padrão).
   const getMarketCalendar = new GetMarketCalendarUseCase(
     marketCalendarReader,
     loadAssemblyConfig(process.env).enabled
@@ -971,7 +970,7 @@ export function createApp(deps: AppDeps = {}): Express {
     cosmeticsReader,
   })
   // Assembleia de Acionistas (MO.6.3/6.4): rotas de voto e o ciclo só existem com
-  // `ASSEMBLIES_ENABLED=on` (desligada por padrão até a calibração, MO.6.9).
+  // ligadas por padrão; só `ASSEMBLIES_ENABLED=off` as desliga (emergência).
   const assemblyConfig = loadAssemblyConfig(process.env)
   // Parâmetros, pausas, catálogo e leitura do painel existem mesmo com o recurso desligado
   // (MO.6.8): é antes de ligar que se calibra. Os parâmetros gravados pelo painel entram por cima

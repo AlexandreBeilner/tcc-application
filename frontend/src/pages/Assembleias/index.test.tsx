@@ -77,9 +77,11 @@ describe('Assembleias (MO.6.6)', () => {
         expect(screen.queryByRole('heading', { name: 'Encerradas' })).toBeNull()
     })
 
-    it('recurso desligado (404) mostra aviso em vez de tela quebrada', async () => {
+    it('desligamento de emergência (404): tela "indisponíveis no momento" com a saída para o Mercado', async () => {
         vi.mocked(listAssemblies).mockRejectedValue(new ApiError(404, 'não encontrado'))
         renderPage()
-        expect(await screen.findByText(/ainda não estão disponíveis/)).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { name: 'Assembleias indisponíveis no momento' })).toBeInTheDocument()
+        expect(screen.getByText(/Seu progresso e suas ações continuam como estão/)).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: 'Voltar ao Mercado' })).toHaveAttribute('href', '/mercado')
     })
 })

@@ -104,7 +104,7 @@ export function AdminAssembleias() {
                     <h1 className={styles.title}>Assembleias de acionistas</h1>
                     <p className={styles.subtitle}>
                         Acompanhe as assembleias, os votos e o efeito, e pause o ciclo quando precisar. Parâmetros e pautas podem ser
-                        ajustados mesmo com o recurso desligado para os usuários (ASSEMBLIES_ENABLED), que é quando se calibra.
+                        ajustados mesmo com as assembleias desligadas para os usuários (ASSEMBLIES_ENABLED=off).
                     </p>
                 </div>
                 <nav className={styles.links} aria-label="Ajustes das assembleias">

@@ -12,10 +12,10 @@
 ### 0.1 Navegação primária (sempre visível, tab bar / sidebar)
 
 ```
-Portfólio · Trilha · Mercado · Calculadora · Classificação
+Portfólio · Trilha · Mercado · Assembleias · Classificação
 ```
 
-Cinco itens — mesmo número da spec original, com "Trilha" adicionada como novo item de primeiro nível, já que é o núcleo pedagógico do produto (seção 1.1 da análise anterior) e não deveria viver escondida dentro de outra aba.
+Cinco itens — mesmo número da spec original, com "Trilha" adicionada como novo item de primeiro nível, já que é o núcleo pedagógico do produto (seção 1.1 da análise anterior) e não deveria viver escondida dentro de outra aba. **Mudança da MO.9.6 (2026-10-11):** "Assembleias" (ícone de edifício) ocupa o lugar da Calculadora e está **sempre presente**, porque a Assembleia nasce com a aplicação; a **Calculadora vai para o menu do avatar** (bloco "Ferramentas"), com o mesmo gate de trilha (cadeado, e a rota mostra o bloqueio). Com o desligamento de emergência (`ASSEMBLIES_ENABLED=off`) a aba continua e abre a tela "Assembleias indisponíveis no momento", com a saída "Voltar ao Mercado".
 
 ### 0.2 Barra superior (persistente em todas as telas autenticadas)
 

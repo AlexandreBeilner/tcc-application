@@ -3,7 +3,8 @@ import { DEFAULT_LIFECYCLE_PARAMS, type LifecycleParams } from '../../domain/lif
 import { DEFAULT_PROPOSAL_PARAMS, type ProposalParams } from '../../domain/proposals'
 
 export interface AssemblyConfig {
-  // Desligado por padrão: ligar só depois da calibração (MO.6.9).
+  // Ligado por padrão (decisão do autor, 2026-10-11): a Assembleia nasce com a aplicação. Só
+  // `ASSEMBLIES_ENABLED=off` desliga (emergência); esquecer a variável deixa ligado.
   enabled: boolean
   lifecycle: LifecycleParams
   params: AssemblyParams
@@ -23,7 +24,7 @@ function positiveInt(raw: string | undefined, fallback: number): number {
 // cai no padrão, nunca derruba a subida.
 export function loadAssemblyConfig(env: NodeJS.ProcessEnv): AssemblyConfig {
   return {
-    enabled: env.ASSEMBLIES_ENABLED === 'on',
+    enabled: env.ASSEMBLIES_ENABLED?.trim().toLowerCase() !== 'off',
     lifecycle: {
       openDelayDays: positiveInt(
         env.ASSEMBLY_OPEN_DELAY_DAYS,

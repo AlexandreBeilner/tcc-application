@@ -74,3 +74,24 @@
 .item:hover {
     background: var(--color-bg-surface);
 }
+
+.groupLabel {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.itemWithIcon {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.lockIcon {
+    flex: none;
+    color: var(--color-text-muted);
+}

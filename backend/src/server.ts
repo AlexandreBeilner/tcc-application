@@ -147,8 +147,8 @@ async function main() {
       DEFAULT_RETROSPECTIVE_INTERVAL_MS,
   )
 
-  // Assembleia de Acionistas (MO.6.3): desligada por padrão (`ASSEMBLIES_ENABLED=on` liga), porque
-  // só entra no ar depois da calibração (MO.6.9).
+  // Assembleia de Acionistas (MO.6.3): ligada por padrão; `ASSEMBLIES_ENABLED=off` desliga em
+  // emergência (decisão do autor, 2026-10-11).
   const runAssemblyLifecycle = app.locals.runAssemblyLifecycle as
     RunAssemblyLifecycleUseCase | undefined
   if (runAssemblyLifecycle) {
@@ -158,7 +158,7 @@ async function main() {
     )
     console.log('assembleias: ciclo ligado')
   } else {
-    console.log('assembleias: ciclo desligado (ASSEMBLIES_ENABLED=on para ligar)')
+    console.log('assembleias: ciclo desligado (ASSEMBLIES_ENABLED=off)')
   }
 
   startFunnelRetentionScheduler(createFunnelRetentionPurge(db), FUNNEL_RETENTION_INTERVAL_MS)

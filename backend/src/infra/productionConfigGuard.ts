@@ -36,6 +36,14 @@ export function findProductionConfigProblems(env: NodeJS.ProcessEnv): string[] {
   if (read('EMAIL_PROVIDER') !== 'resend') {
     problems.push('EMAIL_PROVIDER deve ser "resend" em produção ("log" só imprime o e-mail no log)')
   }
+  // A Assembleia nasce ligada: só "off" desliga (emergência). Um valor fora de on/off (ex: "false",
+  // "0", "desligado") seria lido como ligado, ao contrário do que quem escreveu esperava.
+  const assemblies = read('ASSEMBLIES_ENABLED')
+  if (assemblies !== undefined && assemblies !== 'on' && assemblies !== 'off') {
+    problems.push(
+      `ASSEMBLIES_ENABLED="${assemblies}" não é reconhecido: use "off" para desligar as assembleias (ou deixe vazio/"on")`,
+    )
+  }
   if (read('BILLING_PROVIDER') === 'dev') {
     problems.push('BILLING_PROVIDER=dev grava assinatura de mentira, não vale em produção')
   }

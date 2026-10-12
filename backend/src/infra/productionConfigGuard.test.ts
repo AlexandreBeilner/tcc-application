@@ -49,6 +49,15 @@ describe('findProductionConfigProblems', () => {
     expect(findProductionConfigProblems(validEnv())).toEqual([])
   })
 
+  it('ASSEMBLIES_ENABLED: ausente, on e off passam; outro valor é recusado (seria lido como ligado)', () => {
+    for (const value of [undefined, 'on', 'off']) {
+      expect(findProductionConfigProblems(validEnv({ ASSEMBLIES_ENABLED: value }))).toEqual([])
+    }
+    expect(findProductionConfigProblems(validEnv({ ASSEMBLIES_ENABLED: 'false' }))).toEqual([
+      'ASSEMBLIES_ENABLED="false" não é reconhecido: use "off" para desligar as assembleias (ou deixe vazio/"on")',
+    ])
+  })
+
   it('aceita BILLING_PROVIDER ausente ou disabled (cobrança ainda não ligada)', () => {
     expect(findProductionConfigProblems(validEnv({ BILLING_PROVIDER: undefined }))).toEqual([])
     expect(findProductionConfigProblems(validEnv({ BILLING_PROVIDER: 'disabled' }))).toEqual([])

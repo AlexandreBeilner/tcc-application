@@ -30,15 +30,10 @@ export function useAssembliesQuery(params: ListAssembliesParams = {}): UseQueryR
     })
 }
 
-// O recurso nasce desligado (`ASSEMBLIES_ENABLED`): o servidor responde 404 e a interface some,
-// em vez de mostrar uma tela quebrada.
+// A Assembleia nasce ligada; só o desligamento de emergência (`ASSEMBLIES_ENABLED=off`) faz o
+// servidor responder 404. Quem chama trata como "indisponível no momento", sem tela quebrada.
 export function isFeatureOff(error: unknown): boolean {
     return error instanceof ApiError && error.status === 404
-}
-
-export function useAssembliesAvailable(): boolean {
-    const query = useAssembliesQuery({ status: 'open' })
-    return query.isSuccess
 }
 
 export function useAssemblyQuery(id: string): UseQueryResult<AssemblyDetail> {

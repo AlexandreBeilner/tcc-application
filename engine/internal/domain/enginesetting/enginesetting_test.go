@@ -177,8 +177,8 @@ func TestGovernanceDefaults_ValoresDeLancamentoAprovados(t *testing.T) {
 		{"degrau do prêmio da PN (5 p.p., em centésimos)", DefaultGovernancePremiumStepCentiPP, 500},
 		{"piso do prêmio da PN (%)", DefaultGovernancePremiumMinPct, 10},
 		{"teto do prêmio da PN (%)", DefaultGovernancePremiumMaxPct, 30},
-		// Declaração pendente (MO.6.11): a retenção nasce desligada, o prazo de segurança é de 60 dias.
-		{"retenção de declaração (0 = desligada)", DefaultGovernanceHoldDeclarations, 0},
+		// Declaração pendente (MO.6.11): a retenção nasce ligada, o prazo de segurança é de 60 dias.
+		{"retenção de declaração (1 = ligada, a Assembleia nasce ligada)", DefaultGovernanceHoldDeclarations, 1},
 		{"prazo de segurança da declaração em dias simulados", DefaultGovernanceDeclarationSafetyDays, 60},
 	}
 	for _, c := range cases {

@@ -9,7 +9,7 @@ export interface ListAssembliesParams {
     limit?: number
 }
 
-// Recurso desligado no servidor responde 404 (sem a chave `ASSEMBLIES_ENABLED`): quem chama trata.
+// Recurso desligado de emergência no servidor (`ASSEMBLIES_ENABLED=off`) responde 404: quem chama trata.
 export function listAssemblies(token: string, params: ListAssembliesParams = {}): Promise<AssemblyList> {
     const query = new URLSearchParams()
     if (params.status) query.set('status', params.status)

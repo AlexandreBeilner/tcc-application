@@ -48,15 +48,15 @@ describe('Assembleia de Acionistas (MO.6.4): rotas atrás de ASSEMBLIES_ENABLED'
     else process.env.ASSEMBLIES_ENABLED = original
   })
 
-  it('desligada (padrão): as rotas não existem e o job não é exposto', async () => {
-    delete process.env.ASSEMBLIES_ENABLED
+  it('desligada de emergência (off): as rotas não existem e o job não é exposto', async () => {
+    process.env.ASSEMBLIES_ENABLED = 'off'
     const app = createApp()
     expect((await request(app).get(`/assemblies/${id}/me`)).status).toBe(404)
     expect(app.locals.runAssemblyLifecycle).toBeUndefined()
   })
 
-  it('ligada: as rotas exigem login e o job do ciclo é exposto ao server.ts', async () => {
-    process.env.ASSEMBLIES_ENABLED = 'on'
+  it('ligada por padrão (sem a variável): as rotas exigem login e o job do ciclo é exposto ao server.ts', async () => {
+    delete process.env.ASSEMBLIES_ENABLED
     const app = createApp()
     expect((await request(app).get(`/assemblies/${id}/me`)).status).toBe(401)
     expect((await request(app).post(`/assemblies/${id}/vote`).send({})).status).toBe(401)

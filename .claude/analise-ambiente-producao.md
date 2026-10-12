@@ -107,7 +107,7 @@ Ordem, num servidor novo (o motor e o backend já no ar, porque as **migrações
 
 1. **Catálogo do motor** (ativos, empresas, ETFs, FIIs, bots): `docker compose run --rm --entrypoint seed engine`. O binário `seed` é compilado na imagem do motor (`engine/Dockerfile`). Sem `--synthetic-*` (esses só existem em stack de teste e exigem `SEED_ALLOW_SYNTHETIC=true`).
 2. **Lições**: `docker compose exec backend node dist/db/seedLessons.js`. Só importa o que falta (por `stable_key`) e nunca sobrescreve texto editado no painel (`/admin/conteudo`).
-3. **Conquistas**: `docker compose exec backend node dist/db/seedAchievements.js`. A conquista da Assembleia só nasce com `ASSEMBLIES_ENABLED=on` no ambiente do comando: **ao ligar a Assembleia, rode este seed de novo com a variável ligada**.
+3. **Conquistas**: `docker compose exec backend node dist/db/seedAchievements.js`. A conquista da Assembleia nasce por padrão (a Assembleia vem ligada); só não nasce se o ambiente do comando tiver `ASSEMBLIES_ENABLED=off`: **se ela já tiver ficado desligada num seed anterior, rode este seed de novo sem a variável em `off`**.
 4. **Missões**: `docker compose exec backend node dist/db/seedMissions.js`.
 5. **Administrador** (por último, só uma vez): `docker compose exec -it backend node dist/db/seed.js` com `ADMIN_EMAIL` no ambiente. A senha **nunca** vai na linha de comando nem em `ADMIN_PASSWORD` (recusada com `NODE_ENV=production`, ficaria no histórico do shell). Três jeitos: digitar no terminal (sem eco, é o padrão com `-it`); `ADMIN_PASSWORD_FILE=/caminho` apontando para um arquivo temporário (apagar depois); ou por pipe. Se o e-mail já existe, não pergunta nada e não muda nada.
 

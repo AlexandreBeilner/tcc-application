@@ -140,6 +140,6 @@ func TestHoldPolicyFrom(t *testing.T) {
 		t.Errorf("política = %+v", p)
 	}
 	if HoldPolicyFrom(enginesetting.Values{}).Enabled {
-		t.Error("por padrão a retenção fica desligada")
+		t.Error("valor zerado (não informado) não retém; o padrão ligado vem de enginesetting")
 	}
 }

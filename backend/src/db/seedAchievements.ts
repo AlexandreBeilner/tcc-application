@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createDb } from './client'
 import { achievementCriteriaType, achievements } from './schema'
+import { loadAssemblyConfig } from '../modules/assemblies/infrastructure/config/assemblyConfig'
 
 export interface AchievementSeed {
   // Chave estável (N.19): o painel pode renomear a conquista, então o seed não casa por nome.
@@ -155,8 +156,8 @@ async function main() {
   const existing = await db.select({ seedKey: achievements.seedKey }).from(achievements)
   const existingKeys = new Set(existing.map((row) => row.seedKey))
 
-  // A conquista de assembleia só nasce com o recurso ligado: desligado, ninguém a alcança.
-  const assembliesOn = process.env.ASSEMBLIES_ENABLED === 'on'
+  // A conquista de assembleia só nasce com o recurso ligado (padrão): desligado, ninguém a alcança.
+  const assembliesOn = loadAssemblyConfig(process.env).enabled
   for (const seed of ACHIEVEMENT_SEEDS) {
     if (seed.criteriaType === 'assemblies_participated' && !assembliesOn) continue
     if (existingKeys.has(seed.seedKey)) {

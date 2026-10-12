@@ -47,9 +47,10 @@ const (
 	GovernancePayoutMaxPct       Key = "governance_payout_max_pct"
 	GovernancePayoutCooldownDays Key = "governance_payout_cooldown_days"
 
-	// Declaração pendente (MO.6.11). GovernanceHoldDeclarations (0 ou 1, padrão 0) liga a
-	// retenção do dividendo do balanço enquanto a assembleia de destinação do lucro decide; só
-	// ligar junto de ASSEMBLIES_ENABLED no backend. GovernanceDeclarationSafetyDays é o prazo,
+	// Declaração pendente (MO.6.11). GovernanceHoldDeclarations (0 ou 1, padrão 1: a Assembleia
+	// nasce com a aplicação) liga a retenção do dividendo do balanço enquanto a assembleia de
+	// destinação do lucro decide; ao desligar as assembleias em emergência
+	// (ASSEMBLIES_ENABLED=off no backend), desligar este junto. GovernanceDeclarationSafetyDays é o prazo,
 	// em dias simulados, para a declaração retida sair sozinha com o payout vigente.
 	GovernanceHoldDeclarations Key = "governance_hold_declarations"
 
@@ -78,7 +79,7 @@ const (
 	DefaultGovernancePremiumMinPct      = 10
 	DefaultGovernancePremiumMaxPct      = 30
 
-	DefaultGovernanceHoldDeclarations      = 0
+	DefaultGovernanceHoldDeclarations      = 1
 	DefaultGovernanceDeclarationSafetyDays = 60
 )
 
@@ -189,6 +190,9 @@ func (v Values) withGovernanceDefaults() Values {
 	}
 	if unset {
 		v.GovernanceCooldownDays = DefaultGovernanceCooldownDays
+		// A retenção é 0 ou 1 (0 é válido), então só ganha o padrão (ligada) quando nenhum
+		// parâmetro de governança foi informado, como o cooldown.
+		v.GovernanceHoldDeclarations = DefaultGovernanceHoldDeclarations
 	}
 	// Payout: a faixa só vale se o máximo foi informado (mínimo 0 é válido); cooldown 0 é
 	// válido, então só ganha padrão se nenhum parâmetro de payout veio.

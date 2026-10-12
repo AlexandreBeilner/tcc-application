@@ -105,7 +105,7 @@ describe('AppShell', () => {
 
         renderShell()
 
-        for (const label of ['Portfólio', 'Trilha', 'Mercado', 'Calculadora', 'Classificação']) {
+        for (const label of ['Portfólio', 'Trilha', 'Mercado', 'Assembleias', 'Classificação']) {
             expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
         }
         expect(screen.getByText('conteúdo da rota')).toBeInTheDocument()

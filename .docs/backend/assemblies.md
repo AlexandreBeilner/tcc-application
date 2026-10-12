@@ -3,7 +3,7 @@
 Fundação genérica das assembleias (MO.6.1). Só `kind = shareholder` está registrado hoje; o
 desenho é extensível por `kind` (M9).
 
-**Rotas HTTP:** voto e "minha situação" (MO.6.4, abaixo). Elas só existem com `ASSEMBLIES_ENABLED=on` (sem a chave, 404). Propostas de pauta e apoio estão na MO.6.5 (abaixo); leitura e placar entram na MO.6.6, pausa e auditoria no admin na MO.6.8.
+**Rotas HTTP:** voto e "minha situação" (MO.6.4, abaixo). Elas existem **por padrão** (a Assembleia nasce ligada, decisão do autor de 2026-10-11); só `ASSEMBLIES_ENABLED=off` as desliga (404), em emergência. Propostas de pauta e apoio estão na MO.6.5 (abaixo); leitura e placar entram na MO.6.6, pausa e auditoria no admin na MO.6.8.
 Cada tarefa documenta as suas rotas neste arquivo, no mesmo commit.
 
 ## Modelo
@@ -36,7 +36,7 @@ Cada tarefa documenta as suas rotas neste arquivo, no mesmo commit.
 
 ## Ciclo de vida (MO.6.3)
 
-Job (`RunAssemblyLifecycleUseCase`, ligado em `server.ts`) a cada hora (`ASSEMBLY_INTERVAL_MS`), **desligado por padrão**: só roda com `ASSEMBLIES_ENABLED=on`. Quatro etapas independentes e idempotentes, nesta ordem:
+Job (`RunAssemblyLifecycleUseCase`, ligado em `server.ts`) a cada hora (`ASSEMBLY_INTERVAL_MS`), **ligado por padrão**: só deixa de rodar com `ASSEMBLIES_ENABLED=off` (desligamento de emergência; junto, desligue `governance_hold_declarations` no painel, senão o dividendo retido espera o prazo de segurança). Um valor fora de `on`/`off` é recusado pela guarda de produção. Quatro etapas independentes e idempotentes, nesta ordem:
 
 1. **Fechar** (`CloseDueAssembliesUseCase`): abertas com `closes_at` vencido. Apura (`TallyAssemblyUseCase`, com o snapshot do motor) e grava o resultado, **público a partir daí e antes de o efeito valer**. Sem o mínimo de votantes (`quorum`) ou com empate (`tie`) fecha como `not_approved` e nada vai ao motor. Se o motor estiver fora do ar a assembleia continua aberta e a próxima rodada tenta de novo.
 2. **Abrir** (`OpenDueAssembliesUseCase`): **antes de tudo lê as declarações de dividendo retidas** (`GET /governance/pending-declarations`; se o motor não responde, a rodada não abre nada e conta uma falha, porque uma assembleia comum tomaria o lugar da de destinação do lucro: mesma chave de idempotência). Depois pede ao motor `GET /governance/reports` (balanço de `openDelayDays` a `openDelayDays + catchUpDays` dias simulados atrás), escolhe a pauta do catálogo de forma **determinística** (hash de empresa e dia do balanço, entre as pautas gerais e as do setor), cria a assembleia com `dedupe_key = shareholder:{empresa}:{dia do balanço}`, pede o snapshot ao motor (`POST /governance/snapshots`) e a abre. **Antes de criar, consulta o período de espera da empresa no motor (`CompanyCooldownReader`, ponto 050): empresa em cooldown não abre; a rodada seguinte tenta de novo, então se o cooldown acabar dentro da janela de recuperação a assembleia abre, senão aquele balanço passa sem assembleia.** Reexecutar não duplica; assembleia que ficou `scheduled` por falha no meio é retomada. **Só sorteia pautas `general`**, e **não abre a comum para o balanço que tem declaração retida** (ver "Assembleia de destinação do lucro" abaixo).
@@ -55,7 +55,7 @@ Com o ciclo ligado, `GET /market/calendar` (ver `market.md`) acrescenta fatos gl
 
 ## Voto e elegibilidade (MO.6.4)
 
-Autenticação: Bearer token, `userId` sempre do token. `:id` precisa ser UUID (`400`). Só existem com `ASSEMBLIES_ENABLED=on`.
+Autenticação: Bearer token, `userId` sempre do token. `:id` precisa ser UUID (`400`). Existem por padrão (somem só com `ASSEMBLIES_ENABLED=off`).
 
 ### `POST /assemblies/:id/vote`
 
@@ -84,7 +84,7 @@ Autenticação: Bearer token, `userId` sempre do token. `:id` precisa ser UUID (
 
 ## Propostas de pauta e apoio (MO.6.5)
 
-PRO propõe uma pauta **do catálogo** para uma empresa que possui e PRO acionista apoia; a mais apoiada entra na próxima assembleia da empresa. Sem texto livre: o único dado da proposta é `templateKey`. Só existem com `ASSEMBLIES_ENABLED=on`. Autenticação Bearer; `:companyId` e `:proposalId` precisam ser UUID (`400`). Gating de PRO só pelo `ProAccessGuard` (porta `ProGate`), nunca claim de JWT: sem plano, `403 { error: "requer plano PRO" }` (o handler compartilhado).
+PRO propõe uma pauta **do catálogo** para uma empresa que possui e PRO acionista apoia; a mais apoiada entra na próxima assembleia da empresa. Sem texto livre: o único dado da proposta é `templateKey`. Existem por padrão (somem só com `ASSEMBLIES_ENABLED=off`). Autenticação Bearer; `:companyId` e `:proposalId` precisam ser UUID (`400`). Gating de PRO só pelo `ProAccessGuard` (porta `ProGate`), nunca claim de JWT: sem plano, `403 { error: "requer plano PRO" }` (o handler compartilhado).
 
 ### `GET /assemblies/companies/:companyId/proposals`
 
@@ -129,7 +129,7 @@ Só o do motor (`governance_cooldown_days`, 90 dias simulados): não há segundo
 
 ## Leitura pública: lista, detalhe e placar (MO.6.6)
 
-Qualquer pessoa autenticada lê (Bearer; sem PRO, sem ações). Só existem com `ASSEMBLIES_ENABLED=on`. Assembleia ainda `scheduled` nunca é pública (`404`). **Nunca** devolve quem votou em quê, ações absolutas nem valor em reais.
+Qualquer pessoa autenticada lê (Bearer; sem PRO, sem ações). Existem por padrão (somem só com `ASSEMBLIES_ENABLED=off`). Assembleia ainda `scheduled` nunca é pública (`404`). **Nunca** devolve quem votou em quê, ações absolutas nem valor em reais.
 
 ### `GET /assemblies`
 

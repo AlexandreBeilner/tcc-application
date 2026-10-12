@@ -392,7 +392,7 @@ Todas exigem `role = admin` (`401` sem token, `403` para usuário comum). Proxy 
 
 ### Assembleias (tarefa MO.6.8)
 
-Todas exigem `role = admin` (`401` sem token, `403` para usuário comum) e **funcionam com o recurso desligado** (`ASSEMBLIES_ENABLED` só liga o ciclo e as rotas de usuário): é antes de ligar que se calibra (MO.6.9). A regra vive no módulo `assemblies`; aqui a borda, a auditoria e a tradução dos erros (`404`, `409`, `422`). Corpos e respostas em `snake_case`, como o restante do painel. **Privacidade:** o admin vê o voto por pessoa e o peso em ações (exceção deliberada, como o patrimônio absoluto, ver `CLAUDE.md`); **a leitura não é auditada, toda escrita é**.
+Todas exigem `role = admin` (`401` sem token, `403` para usuário comum) e **funcionam também com o recurso desligado** (`ASSEMBLIES_ENABLED=off`, desligamento de emergência, só tira o ciclo e as rotas de usuário do ar): a calibração (MO.6.9) não depende dele. A regra vive no módulo `assemblies`; aqui a borda, a auditoria e a tradução dos erros (`404`, `409`, `422`). Corpos e respostas em `snake_case`, como o restante do painel. **Privacidade:** o admin vê o voto por pessoa e o peso em ações (exceção deliberada, como o patrimônio absoluto, ver `CLAUDE.md`); **a leitura não é auditada, toda escrita é**.
 
 #### `GET /admin/assemblies`
 

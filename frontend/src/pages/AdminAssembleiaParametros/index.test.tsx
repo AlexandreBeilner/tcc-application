@@ -91,7 +91,7 @@ describe('AdminAssembleiaParametros: destinação do lucro (Fase F2)', () => {
                 engineRow('governance_premium_step_centipp', 500, 500, 1, 2000),
                 engineRow('governance_premium_min_pct', 10, 10, 10, 100),
                 engineRow('governance_premium_max_pct', 30, 30, 10, 100),
-                engineRow('governance_hold_declarations', 0, 0, 0, 1),
+                engineRow('governance_hold_declarations', 1, 1, 0, 1),
                 engineRow('governance_declaration_safety_days', 60, 60, 1, 80),
             ] as EngineSettings['editable'],
             read_only: [],
@@ -107,7 +107,7 @@ describe('AdminAssembleiaParametros: destinação do lucro (Fase F2)', () => {
         expect(await card('Prêmio mínimo da ação PN')).toBeInTheDocument()
         expect(await card('Prêmio máximo da ação PN')).toBeInTheDocument()
         const hold = await card('Reter o dividendo até a assembleia decidir')
-        expect(within(hold).getByText(/Ligue só junto das assembleias/)).toBeInTheDocument()
+        expect(within(hold).getByText(/desligue este junto/)).toBeInTheDocument()
         expect(within(hold).getByText(/Faixa permitida: 0 a 1/)).toBeInTheDocument()
         expect(await card('Prazo de segurança do dividendo retido')).toBeInTheDocument()
     })
