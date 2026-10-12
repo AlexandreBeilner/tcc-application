@@ -27,7 +27,9 @@ O script (idempotente) instala o **Docker Engine e o plugin Compose** do reposit
 
 O Docker publica portas por `iptables` e **passa por cima do `ufw`**: por isso os compose de produção só publicam 80/443 do Caddy. O `verify.sh` falha se qualquer contêiner expuser outra porta em `0.0.0.0`. Reinício por atualização de kernel é feito à mão, de madrugada (o alerta avisa); depois dele, `docker ps` e `/health/ready`.
 
-**Checklist assinável** (rodar `/opt/selucra/verify-hardening.sh` como root e colar a saída; de fora, o `nmap` e a tentativa por senha):
+**Acesso de root depois do endurecimento:** não existe por SSH, e o `deploy` não tem `sudo` (de propósito). Para tarefas de root (rodar o `verify-hardening.sh`, atualizar pacotes, reiniciar o servidor) use o **console web do provedor** (Vultr: servidor, "View Console", login `root` com a senha mostrada no painel) ou o botão de reinício do painel. Atualizações de segurança são automáticas; só o reinício por kernel novo é manual.
+
+**Checklist assinável** (rodar `/opt/selucra/verify-hardening.sh` como root pelo console e colar a saída; de fora, o `nmap` e a tentativa por senha):
 
 | Item | Como provar | Resultado |
 |---|---|---|
