@@ -1,0 +1,225 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+/* Desktop não é mobile esticado: a tabela de 8 colunas pede a largura toda. */
+@media (min-width: 1024px) {
+    .page {
+        max-width: 1080px;
+    }
+}
+
+.header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.extractLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--color-brand-300);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.tabs,
+.filters {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+}
+
+.tab,
+.pill {
+    flex: none;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.tab:focus-visible,
+.pill:focus-visible {
+    outline: 2px solid var(--color-border-strong);
+    outline-offset: 2px;
+}
+
+.tabActive,
+.pillActive {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+    color: var(--color-brand-300);
+}
+
+.learningNote,
+.help,
+.noMatch {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+@keyframes myAssetsSkeleton {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.skeleton {
+    height: 220px;
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface-elevated);
+    animation: myAssetsSkeleton 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton {
+        animation: none;
+    }
+}
+
+.summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+/* Mobile: valor atual e proventos dividem a primeira linha; o resultado (o mais largo, com % e R$)
+   ocupa a de baixo inteira, para a lista aparecer sem rolar três cartões e nada ser cortado. */
+.summary > :nth-child(2) {
+    grid-column: 1 / -1;
+    order: 3;
+}
+
+@media (min-width: 768px) {
+    .summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .summary > :nth-child(2) {
+        grid-column: auto;
+        order: 0;
+    }
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.statLabel {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.statValue {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.statDelta {
+    font-size: var(--font-size-base);
+}
+
+.statHint {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+    .controls {
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: space-between;
+    }
+}
+
+.sort {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 180px;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-6);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.emptyIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface-elevated);
+    color: var(--color-text-muted);
+}
+
+.emptyTitle {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.emptyBody {
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+.emptyActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}

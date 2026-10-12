@@ -68,6 +68,7 @@ import { PoliticaPrivacidade } from '../pages/PoliticaPrivacidade'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
+import { MyAssets } from '../pages/MyAssets'
 import { TrackMap } from '../pages/TrackMap'
 import { TrilhasHub } from '../pages/TrilhasHub'
 import { Glossario } from '../pages/Glossario'
@@ -199,6 +200,8 @@ export const router = createBrowserRouter([
                     // Destino do clique no card de patrimônio (tela 2.1, tarefa 6.3)
                     // — conteúdo real (4.8 Extrato, tarefa 6.5).
                     { path: '/extrato', element: <Statement /> },
+                    // Meus ativos (MO.8.3): posições com rendimento desde a compra; fora da barra principal.
+                    { path: '/ativos', element: <MyAssets /> },
                     { path: '/perfil', element: <MeuPerfil /> },
                     // Tarefa 6.9 — 8.1 (hub) + 8.2 (buscar) + 8.3
                     // (solicitações). `/perfil/:id` é rota irmã de `/perfil`

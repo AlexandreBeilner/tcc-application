@@ -145,6 +145,19 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, oferecendo a Trilha; o "Investir" do card já leva ao Mercado); carregamento com placeholders de altura próxima da final. **Composição por breakpoint (RC.7.5):** coluna única em mobile e tablet; a partir de 1024px, 2 colunas (patrimônio e Distribuição à esquerda; missões, retomar lição e ações à direita).
 - **Dados envolvidos:** `accounts`, `positions`, `assets` (join pro gráfico de distribuição).
 
+### 2.2 Meus ativos (MO.8.3)
+- **Objetivo:** mostrar todos os ativos que o jogador possui e quanto cada um rendeu desde a compra. Padrão de corretora, sem gamificação em tela de dado.
+- **Acesso:** `/ativos`, fora da barra principal. Entradas: card de patrimônio e rosca do Portfólio (MO.8.4).
+- **Conteúdo:**
+  - Abas **Mercado Ao Vivo** (padrão) e **Modo Aprendizado** (`?aba=aprendizado`); o aprendizado nunca entra nos totais do ao vivo.
+  - Resumo: valor atual das posições (e custo), resultado total (R$ e %, com proventos) e proventos recebidos.
+  - Filtro por categoria (Todos, Ações, FIIs, ETFs, Renda fixa; `?categoria=`) e ordenação (valor atual, resultado %, ticker; `?ordem=`).
+  - Desktop (>= 1024 px): tabela com ativo, quantidade, preço médio, preço atual, valor atual, resultado, peso e proventos. Mobile e tablet: um cartão por ativo, sem rolagem horizontal.
+  - Renda fixa: resultado sobre o valor bruto; "Líquido se resgatar hoje" como informação secundária; sem avaliação do motor mostra "Sem avaliação agora" em vez de zero.
+- **Ações:** a linha leva à página do ativo (`/mercado/ativos/:id` ou `/mercado/renda-fixa/:id`); "Ver extrato completo" leva a `/extrato`.
+- **Estados especiais:** carregando (skeleton), vazio (convite ao Mercado e à Trilha), erro, filtro sem resultado.
+- **Dados envolvidos:** `GET /market/me/account` (posições, `markPrice`, `currentValue`, `netValue`, `dividendsReceived`).
+
 ---
 
 ## 3. Trilha de Aprendizado
