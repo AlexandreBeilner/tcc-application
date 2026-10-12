@@ -42,4 +42,11 @@ describe('PoliticaPrivacidade (tarefa 4.2)', () => {
 
         expect(screen.getByRole('link', { name: /Voltar/ })).toHaveAttribute('href', '/login')
     })
+
+    it('cita a hospedagem na Vultr, em São Paulo, e as cópias de segurança (sem placeholder pendente)', () => {
+        renderPage()
+        expect(screen.getByText(/Com o provedor de hospedagem \(Vultr\)/)).toBeInTheDocument()
+        expect(screen.getByText(/Com o provedor das cópias de segurança/)).toBeInTheDocument()
+        expect(document.body.textContent).not.toContain('[PREENCHER')
+    })
 })

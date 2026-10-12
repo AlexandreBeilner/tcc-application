@@ -19,7 +19,8 @@ export const policyConfig = {
     // Nome do encarregado. Pode ser o próprio controlador.
     dpoName: 'Alexandre Beilner',
     // Onde o backend/banco rodam em produção (operador, LGPD art. 5º, VII).
-    hostingProvider: '[PREENCHER: provedor de hospedagem, ex: AWS, Google Cloud, Hetzner]',
+    // Decisão do autor (2026-10-12): Vultr, datacenter em São Paulo.
+    hostingProvider: 'Vultr',
     // País/região do datacenter; define se há transferência internacional (art. 33).
     hostingCountry: 'Brasil',
     // Idade mínima de uso. Menores de 18 anos precisam de consentimento de

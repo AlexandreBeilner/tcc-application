@@ -182,9 +182,14 @@ export function PoliticaPrivacidade() {
                             {c.hostingCountry}, como operador, seguindo nossas instruções.
                         </li>
                         <li>
+                            <strong>Com o provedor das cópias de segurança:</strong> cópias criptografadas do banco de dados ficam em um
+                            armazenamento de nuvem separado do servidor, como operador. Dados excluídos deixam de existir nessas cópias
+                            quando elas vencem, no ciclo de retenção delas.
+                        </li>
+                        <li>
                             <strong>Transferência internacional:</strong> Stripe, RevenueCat, Resend e Cloudflare tratam dados também fora
-                            do Brasil, inclusive nos Estados Unidos. Essas transferências seguem o art. 33 da LGPD, com as garantias
-                            contratuais oferecidas por cada empresa.
+                            do Brasil, inclusive nos Estados Unidos, e o provedor das cópias de segurança pode fazer o mesmo. Essas
+                            transferências seguem o art. 33 da LGPD, com as garantias contratuais oferecidas por cada empresa.
                         </li>
                         <li>
                             <strong>Por obrigação legal:</strong> quando uma autoridade competente exigir por ordem judicial ou determinação

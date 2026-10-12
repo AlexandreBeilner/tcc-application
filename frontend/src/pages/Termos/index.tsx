@@ -44,8 +44,8 @@ export function Termos() {
                     <p>
                         O Selucra é uma plataforma educacional gamificada de educação financeira. Todas as operações são{' '}
                         <strong>simulações com dinheiro fictício e dados sintéticos</strong>. Não movimentamos dinheiro real, não somos
-                        corretora, gestora nem consultoria, e <strong>nada na plataforma é recomendação de investimento</strong>.
-                        Rentabilidades simuladas não indicam resultado futuro em mercados reais.
+                        corretora, gestora nem consultoria, e <strong>nada no Selucra é recomendação de investimento</strong>.
+                        Rentabilidades de simulação não indicam resultado futuro em mercados reais.
                     </p>
                 </section>
 
@@ -96,7 +96,7 @@ export function Termos() {
                     </p>
                     <p>
                         <strong>O PRO nunca é necessário para aprender nem para jogar o essencial.</strong> Lições da trilha, XP, sequência,
-                        conquistas, compra e venda no mercado simulado e o ranking oficial continuam gratuitos. Não usamos contagem
+                        conquistas, compra e venda no mercado de simulação e o ranking oficial continuam gratuitos. Não usamos contagem
                         regressiva nem escassez artificial para forçar a assinatura.
                     </p>
                 </section>
@@ -182,9 +182,9 @@ export function Termos() {
                     <h2>12. Disponibilidade e limitação de responsabilidade</h2>
                     <p>
                         Trabalhamos para manter a plataforma disponível, mas ela pode ficar indisponível por manutenção, falhas de terceiros
-                        ou motivos fora do nosso controle. Por ser uma ferramenta educacional com dados simulados, não nos responsabilizamos
-                        por decisões financeiras reais tomadas com base no conteúdo. Nada nestes termos limita direitos que a lei do
-                        consumidor garante a você.
+                        ou motivos fora do nosso controle. Por ser uma ferramenta educacional com dados sintéticos, não nos
+                        responsabilizamos por decisões financeiras reais tomadas com base no conteúdo. Nada nestes termos limita direitos
+                        que a lei do consumidor garante a você.
                     </p>
                 </section>
 
