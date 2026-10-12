@@ -8,6 +8,7 @@ import { useReportFunnel } from '../../features/billing/useReportFunnel'
 import { usePurchaseFlow } from '../../features/billing/usePurchaseFlow'
 import { useBillingStatusQuery } from '../../features/billing/useBillingStatus'
 import { useWebPlansQuery } from '../../features/billing/useWebPlans'
+import { useInstallMode } from '../../features/pwa/install'
 import { annualDiscountPercent, annualPerMonth } from '../../features/billing/webPurchases'
 import type { WebPlan } from '../../features/billing/webPurchases'
 import type { BillingStatus, FunnelSource } from '../../services/billing'
@@ -113,6 +114,7 @@ function PlanOptions({ plans, onChoose, busy }: { plans: WebPlan[]; onChoose: Pl
 // compra é a web (MO.3.2) ou, dentro do app, a nativa pela ponte (MO.4.2), com o preço da loja.
 // Sem escassez, sem contador: só o convite.
 export function Planos() {
+    const installMode = useInstallMode()
     const statusQuery = useBillingStatusQuery()
     const status = statusQuery.data
     const billingEnabled = status?.billingEnabled ?? false
@@ -237,6 +239,19 @@ export function Planos() {
                     ) : null}
                 </aside>
             </div>
+
+            {/* LW.1.2: sem prometer data. Dentro do app nativo o aviso não faz sentido. */}
+            {!isNativeApp() && (
+                <p className={styles.note}>
+                    App Android e iOS em breve.
+                    {installMode !== 'none' && (
+                        <>
+                            {' '}
+                            Por enquanto, <Link to="/configuracoes">instale a Selucra na tela inicial</Link>.
+                        </>
+                    )}
+                </p>
+            )}
         </main>
     )
 }
