@@ -8,7 +8,8 @@ na hora de contratar (preços de nuvem mudaram várias vezes em 2026).
 
 ```
 Usuário ──► Cloudflare (DNS + proxy + WAF)
-              ├─ selucra.com.br, www ──► Cloudflare Pages (frontend estático + PWA)
+              ├─ selucra.com.br, www ──► Cloudflare Pages, projeto `landing` (HTML estático, SEO)
+              ├─ app.selucra.com.br ──► Cloudflare Pages, projeto `frontend` (SPA React + PWA)
               └─ api.selucra.com.br ──► VPS São Paulo (Docker Compose)
                                           Caddy (TLS) ──► backend (Node) ──► motor (Go)
                                                               │                 │
@@ -44,11 +45,12 @@ tem consequência fiscal. Confirmar com o contador antes de ativar a cobrança (
 ## 3. Configurações a fazer nas plataformas
 
 - **Registro.br:** apontar os servidores de nome para a Cloudflare; ligar DNSSEC conforme a Cloudflare orientar.
-- **Cloudflare:** registros `selucra.com.br` e `www` para o Pages; `api` apontando para o IP do VPS (com proxy ligado, LW7); SSL em
+- **Cloudflare:** registros `selucra.com.br` e `www` para o Pages da landing (`www` redireciona para o domínio raiz) e `app` para o Pages do app; `api` apontando para o IP do VPS (com proxy ligado, LW7); SSL em
   "Full (strict)"; regras de WAF e limitação de taxa básicas; registros do Resend (SPF, DKIM, DMARC) **sem proxy**.
 - **VPS:** região São Paulo, Ubuntu LTS, IP fixo, backup/snapshot semanal do provedor ligado, chave SSH cadastrada (sem senha).
+- **Cloudflare Web Analytics (landing):** painel da Cloudflare, Web Analytics, adicionar o site `selucra.com.br` pela opção do snippet de JavaScript, copiar o `token` (32 caracteres) que aparece no `data-cf-beacon` e criar a variável `CF_ANALYTICS_TOKEN` (produção) no projeto `landing` do Pages. Não ligar também a injeção automática do Pages, para não contar visita em dobro. O token é público, não é segredo.
 - **Google OAuth:** tela de consentimento em "Em produção", domínio autorizado `selucra.com.br`, URL da política de privacidade
-  (`/privacidade`), origem `https://selucra.com.br` e redirecionamento `https://api.selucra.com.br/auth/google/callback`.
+  (`/privacidade`), origem `https://app.selucra.com.br` e redirecionamento `https://api.selucra.com.br/auth/google/callback`.
 - **Resend:** domínio verificado, chave de API de envio, webhook assinado apontando para `https://api.selucra.com.br/webhooks/...`
   (conferir a rota em `.docs/backend/notifications.md`).
 - **Stripe + RevenueCat:** integração Stripe Billing conectada ao projeto do RevenueCat, produtos mensal e anual (R$ 19,90 e R$ 199,90),
@@ -71,7 +73,7 @@ Gerar **todos** com `openssl rand -base64 48` (ou gerenciador de senhas) e guard
 | `JWT_SECRET` | gerada, 32+ caracteres | girar invalida os logins ativos |
 | `EMAIL_UNSUBSCRIBE_SECRET` | gerada (ou vazio) | vazio reaproveita o `JWT_SECRET` |
 | `SIMULATION_SEED` | número fixo | **nunca mudar depois do primeiro dia** (RNF08) |
-| `FRONTEND_URL`, `PUBLIC_API_URL` | `https://selucra.com.br`, `https://api.selucra.com.br` | |
+| `FRONTEND_URL`, `PUBLIC_API_URL` | `https://app.selucra.com.br`, `https://api.selucra.com.br` | `FRONTEND_URL` é a origem do app (CORS, links de e-mail), não a da landing |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud Console | |
 | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY_TRANSACTIONAL`, `RESEND_API_KEY_NEWS`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM_TRANSACTIONAL`, `EMAIL_FROM_NEWS`, `EMAIL_REPLY_TO` | Resend | duas chaves (subdomínios `send` e `news`); remetentes `no-reply@send.` e `no-reply@news.selucra.com.br`; reply-to `suporte@selucra.com.br` |
 | `BILLING_PROVIDER=revenuecat`, `REVENUECAT_SECRET_KEY` (sk_...), `REVENUECAT_WEBHOOK_AUTH`, `REVENUECAT_ENTITLEMENT_ID=pro` | RevenueCat | |

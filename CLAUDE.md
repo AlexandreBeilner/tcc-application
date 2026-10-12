@@ -54,6 +54,7 @@ Diferente de `.claude/` (decisão de produto/arquitetura fechada), `.docs/` docu
 | Motor de Simulação | Go | **Sim**, sempre |
 | Backend Gamificado | Node.js + TypeScript | **Sim**, sempre |
 | Frontend | React + TypeScript | **Não** — roda local (dev server / build estático fora do Compose) |
+| Landing (`landing/`) | HTML/CSS/JS puros, sem React (decisão de 2026-10-11, `backlog-lancamento-web-pwa.md` Fase 6) | **Não** — site estático no Cloudflare Pages em `selucra.com.br`; o app fica em `app.selucra.com.br` |
 | App Mobile (`mobile/`) | React Native (CLI, sem Expo) + WebView | **⏸ Adiado (2026-10-10): lançamento só na web, PWA como canal mobile; não evoluir `mobile/` nem abrir tarefa do app.** **Não** — build nativo (Gradle/Xcode) não roda em Compose; Xcode em particular não roda em Linux. Casca fina em volta do mesmo frontend web, carregada via URL (não empacota build estático) — detalhe completo em `.claude/arquitetura-app-mobile-react-native-webview.md` |
 | Postgres (2 bancos lógicos: usuário/gamificação e mercado) | — | Sim |
 | Redis (cache de cotações e rankings) | — | Sim |

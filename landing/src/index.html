@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Selucra | Simulador de Investimentos para Aprender na Prática</title>
+        <meta
+            name="description"
+            content="Aprenda a investir com R$ 10.000 virtuais. Simule ações, FIIs, ETFs e renda fixa num mercado ao vivo, com lições curtas, ranking e conquistas."
+        />
+        <link rel="canonical" href="{{SITE_URL}}/" />
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <meta name="theme-color" content="#0e0f13" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Selucra" />
+        <meta property="og:locale" content="pt_BR" />
+        <meta property="og:url" content="{{SITE_URL}}/" />
+        <meta property="og:title" content="Selucra | Simulador de Investimentos para Aprender na Prática" />
+        <meta
+            property="og:description"
+            content="Comece com R$ 10.000 virtuais e aprenda renda fixa e renda variável num mercado simulado que se mexe de verdade."
+        />
+        <meta property="og:image" content="{{SITE_URL}}/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="Selucra, simulador de investimentos com mercado ao vivo" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Selucra | Simulador de Investimentos para Aprender na Prática" />
+        <meta
+            name="twitter:description"
+            content="Comece com R$ 10.000 virtuais e aprenda renda fixa e renda variável num mercado simulado que se mexe de verdade."
+        />
+        <meta name="twitter:image" content="{{SITE_URL}}/og-image.png" />
+
+        {{PRELOAD_FONTS}} {{CSS}}
+        <script type="application/ld+json">
+            {{JSONLD}}
+        </script>
+    </head>
+    <body>
+        <a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
+        <header class="nav">
+            <div class="wrap">
+                <a class="logo" href="/"><img src="/logo-selucra-branco.png" alt="Selucra" width="137" height="30" /></a>
+                <nav aria-label="Principal">
+                    <ul>
+                        <li><a href="#como-funciona">Como funciona</a></li>
+                        <li><a href="#trilha">Trilha</a></li>
+                        <li><a href="#recursos">Recursos</a></li>
+                        <li><a href="/aprender/">Guias</a></li>
+                        <li><a href="#faq">Dúvidas</a></li>
+                    </ul>
+                </nav>
+                <a class="btn btn-ghost login" href="{{APP_URL}}/login">Entrar</a>
+                <a class="btn btn-primary" href="{{APP_URL}}/login?modo=cadastro">Começar</a>
+            </div>
+        </header>
+
+        <main id="conteudo">
+            <div class="hero">
+                <canvas id="gl" aria-hidden="true"></canvas>
+                <div class="wrap">
+                    <div>
+                        <span class="pill"><i></i>Mercado simulado ao vivo</span>
+                        <h1>Aprenda a investir <em>investindo</em>. Sem arriscar um real.</h1>
+                        <p class="lead">
+                            A Selucra é um simulador de investimentos para aprender na prática. Comece com R$ 10.000 virtuais, estude renda
+                            fixa e renda variável em lições curtas e coloque cada conceito em prática num mercado que se mexe de verdade.
+                            Ganhe XP, suba no ranking com os amigos e erre à vontade.
+                        </p>
+                        <div class="cta-row">
+                            <a class="btn btn-primary" href="{{APP_URL}}/login?modo=cadastro"
+                                >Criar conta
+                                <svg class="i" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M5 12h14M13 6l6 6-6 6" /></svg
+                            ></a>
+                            <a class="btn btn-ghost" href="#demo">Fazer minha primeira ordem</a>
+                        </div>
+                    </div>
+
+                    <div style="position: relative">
+                        <div class="float" aria-hidden="true">
+                            <svg class="i" viewBox="0 0 24 24">
+                                <path d="M12 2l3 7 7 .6-5.4 4.7 1.7 7.2L12 17.8 5.7 21.5l1.7-7.2L2 9.6 9 9z" />
+                            </svg>
+                            +40 XP
+                        </div>
+                        <div class="ticket" role="group" aria-label="Exemplo de carteira na plataforma">
+                            <div class="t-head"><span>Sua carteira</span><span class="chip gain num">+4,8% no mês</span></div>
+                            <div class="t-val num" id="heroVal">R$ 10.482,30</div>
+                            <div class="t-sub">Patrimônio simulado</div>
+                            {{SPARK_SVG}}
+                            <div class="legend">
+                                <span><i></i>Já aconteceu</span><span><i class="d"></i>Projeção</span>
+                            </div>
+                            <div class="rows">
+                                <div class="row">
+                                    <span><b>BNDD3</b><small>Ação</small></span
+                                    ><span class="num" style="color: var(--gain)">+2,1%</span>
+                                </div>
+                                <div class="row">
+                                    <span><b>Tesouro Selic</b><small>Renda fixa</small></span
+                                    ><span class="num" style="color: var(--gain)">+0,9%</span>
+                                </div>
+                                <div class="row">
+                                    <span><b>FIIX11</b><small>Fundo imobiliário</small></span
+                                    ><span class="num" style="color: var(--loss)">-0,6%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strip">
+                <div class="wrap">
+                    <div><b class="num">R$ 10.000</b><span>de capital virtual para começar</span></div>
+                    <div><b class="num">40+</b><span>lições em 5 trilhas</span></div>
+                    <div><b>4 classes</b><span>Ações, FIIs, ETFs e renda fixa</span></div>
+                    <div><b>Ao vivo</b><span>preços que reagem a eventos e notícias</span></div>
+                </div>
+            </div>
+
+            <section id="como-funciona">
+                <div class="wrap">
+                    <div class="sec-head">
+                        <span class="eyebrow">Como funciona</span>
+                        <h2>Do primeiro conceito à primeira carteira em poucos minutos</h2>
+                        <p>
+                            Você aprende um pouco, pratica logo em seguida e vê o resultado. Nada de decorar teoria para só usar meses
+                            depois.
+                        </p>
+                    </div>
+                    <div class="steps">
+                        <article class="step">
+                            <span class="tag">Passo 1</span>
+                            <div class="ic">
+                                <svg class="i" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z" />
+                                    <path d="M4 19.5V21h16" />
+                                </svg>
+                            </div>
+                            <h3>Aprenda em cartões curtos</h3>
+                            <p>Lições de poucos minutos, com exemplos do Brasil real e perguntas que só avançam quando você entende.</p>
+                        </article>
+                        <article class="step">
+                            <span class="tag">Passo 2</span>
+                            <div class="ic">
+                                <svg class="i" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 17l6-6 4 4 8-8" />
+                                    <path d="M15 7h6v6" />
+                                </svg>
+                            </div>
+                            <h3>Invista no mercado simulado</h3>
+                            <p>
+                                Compre e venda ações, FIIs, ETFs e títulos de renda fixa com o seu capital virtual. Os preços se mexem o
+                                tempo todo.
+                            </p>
+                        </article>
+                        <article class="step">
+                            <span class="tag">Passo 3</span>
+                            <div class="ic">
+                                <svg class="i" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />
+                                    <path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3" />
+                                </svg>
+                            </div>
+                            <h3>Evolua e compare com amigos</h3>
+                            <p>
+                                Ganhe XP, mantenha sua sequência, destrave conquistas e dispute o ranking de rentabilidade com quem você
+                                convidar.
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section id="trilha">
+                <div class="wrap trail">
+                    <div>
+                        <span class="eyebrow">A trilha</span>
+                        <h2 style="font-size: clamp(1.75rem, 3.6vw, 2.6rem); margin: 12px 0 14px">
+                            Um caminho claro, do zero à estratégia
+                        </h2>
+                        <p style="color: var(--text2); font-size: 17px">
+                            Cada trilha libera a próxima. Seu progresso sobe e desce como um gráfico de verdade, porque aprender e investir
+                            nunca são uma linha reta.
+                        </p>
+                        <ul class="tracks">
+                            <li>
+                                <span class="dot" style="background: var(--brand-300)"></span>
+                                <div><b>Fundamentos</b><small>Juros, inflação, risco e como o dinheiro rende.</small></div>
+                            </li>
+                            <li>
+                                <span class="dot" style="background: var(--gain)"></span>
+                                <div><b>Renda Fixa</b><small>Tesouro, CDB, LCI e LCA, com impostos explicados.</small></div>
+                            </li>
+                            <li>
+                                <span class="dot" style="background: var(--loss)"></span>
+                                <div><b>Renda Variável</b><small>Ações, FIIs e ETFs, indicadores e leitura de mercado.</small></div>
+                            </li>
+                            <li>
+                                <span class="dot" style="background: var(--gamify)"></span>
+                                <div><b>Estratégia e Tributação</b><small>Diversificação, rebalanceamento e Imposto de Renda.</small></div>
+                            </li>
+                            <li>
+                                <span class="dot" style="background: var(--teal)"></span>
+                                <div><b>Finanças do dia a dia</b><small>Orçamento, reserva de emergência e dívidas.</small></div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="trail-map">{{TRAIL_SVG}}</div>
+                </div>
+            </section>
+
+            <section id="recursos">
+                <div class="wrap">
+                    <div class="sec-head">
+                        <span class="eyebrow">Recursos</span>
+                        <h2>Feito para você voltar amanhã</h2>
+                        <p>Aprender dinheiro costuma ser chato. Aqui cada sessão tem um motivo para começar e um motivo para voltar.</p>
+                    </div>
+                    <div class="bento">
+                        <article class="card b1">
+                            <svg class="i ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M3 3v18h18" />
+                                <path d="M7 14l4-4 3 3 5-6" />
+                            </svg>
+                            <h3>Mercado que se mexe de verdade</h3>
+                            <p>
+                                Preço formado por ordens de compra e venda, não por sorteio. Balanços, notícias e decisões de juros movem os
+                                ativos, e você aprende a ler cada um.
+                            </p>
+                            <div class="badges">
+                                <span class="badge off">Selic</span><span class="badge off">Inflação</span
+                                ><span class="badge off">Balanços</span><span class="badge off">Dividendos</span>
+                            </div>
+                        </article>
+                        <article class="card b2">
+                            <svg class="i ic" viewBox="0 0 24 24" style="color: var(--gamify)" aria-hidden="true">
+                                <path d="M12 2c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z" />
+                            </svg>
+                            <h3>Sequência e missões</h3>
+                            <p>Uma missão curta por dia mantém o hábito sem pesar.</p>
+                            <div class="badges">
+                                <span class="badge num">12 dias seguidos</span>
+                            </div>
+                        </article>
+                        <article class="card b3">
+                            <svg class="i ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="9" cy="8" r="3.5" />
+                                <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+                                <path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6" />
+                            </svg>
+                            <h3>Ranking entre amigos</h3>
+                            <p>Só rentabilidade percentual. Ninguém vê o patrimônio de ninguém.</p>
+                            <div class="bars">
+                                <div class="bar">
+                                    <span class="av" style="background: var(--brand)">AB</span
+                                    ><span class="t"><i style="width: 82%"></i></span
+                                    ><span class="num" style="color: var(--gain)">+8,2%</span>
+                                </div>
+                                <div class="bar">
+                                    <span class="av" style="background: #7c3aed">MC</span><span class="t"><i style="width: 61%"></i></span
+                                    ><span class="num" style="color: var(--gain)">+6,1%</span>
+                                </div>
+                                <div class="bar">
+                                    <span class="av" style="background: #be185d">JP</span><span class="t"><i style="width: 30%"></i></span
+                                    ><span class="num" style="color: var(--gain)">+3,0%</span>
+                                </div>
+                            </div>
+                        </article>
+                        <article class="card b4">
+                            <svg class="i ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="12" cy="9" r="6" />
+                                <path d="M8.5 14 7 22l5-3 5 3-1.5-8" />
+                            </svg>
+                            <h3>Conquistas</h3>
+                            <p>Reconhecimento pelo que você fez bem, como diversificar ou manter a calma numa queda.</p>
+                            <div class="badges">
+                                <span class="badge">Primeira ordem</span><span class="badge">Diversificado</span
+                                ><span class="badge off">Mão firme</span>
+                            </div>
+                        </article>
+                        <article class="card b5">
+                            <svg class="i ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="3" y="4" width="18" height="17" rx="2" />
+                                <path d="M3 9h18M8 2v4M16 2v4" />
+                            </svg>
+                            <h3>Calendário do mercado</h3>
+                            <p>Veja quando saem proventos e balanços e como isso afeta a sua carteira.</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section id="demo">
+                <div class="wrap">
+                    <div class="demo">
+                        <div>
+                            <span class="eyebrow">Experimente agora</span>
+                            <h2>Sua primeira ordem leva dez segundos</h2>
+                            <p>
+                                Escolha a quantidade e confirme. É exatamente assim que funciona dentro da plataforma, só que aqui sem
+                                login. Ao criar a conta, a sua carteira de R$ 10.000 já espera por você.
+                            </p>
+                            <p class="fine">Ativo e preço fictícios, gerados para demonstração.</p>
+                        </div>
+                        <div class="order" id="order">
+                            <div class="asset">
+                                <div><b>BNDD3</b><small>Banco Delta S.A. · Ação ON</small></div>
+                                <span class="chip gain num">R$ 24,80</span>
+                            </div>
+                            <div class="qty">
+                                <button type="button" id="dMinus" aria-label="Diminuir quantidade">&minus;</button>
+                                <output class="num" id="dQty" aria-live="polite">10 ações</output>
+                                <button type="button" id="dPlus" aria-label="Aumentar quantidade">+</button>
+                            </div>
+                            <div class="tot"><span>Total da ordem</span><b class="num" id="dTot">R$ 248,00</b></div>
+                            <button class="btn btn-primary" type="button" id="dBuy">Comprar</button>
+                            <div class="reward" id="reward" role="status" hidden>
+                                <svg
+                                    class="i"
+                                    viewBox="0 0 24 24"
+                                    style="width: 44px; height: 44px; margin: auto; color: var(--gamify)"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M12 2l3 7 7 .6-5.4 4.7 1.7 7.2L12 17.8 5.7 21.5l1.7-7.2L2 9.6 9 9z" />
+                                </svg>
+                                <div class="xp num">+40 XP</div>
+                                <div><b>Conquista: Primeira ordem</b></div>
+                                <a class="btn btn-primary" href="{{APP_URL}}/login?modo=cadastro">Guardar meu progresso</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="faq">
+                <div class="wrap faq">
+                    <div class="sec-head">
+                        <span class="eyebrow">Dúvidas frequentes</span>
+                        <h2>O que as pessoas perguntam antes de começar</h2>
+                    </div>
+                    <details open>
+                        <summary>A Selucra usa dinheiro de verdade? Como funciona o simulador?</summary>
+                        <p>
+                            Não. Todo o dinheiro é virtual e os dados de mercado são simulados. A plataforma serve para aprender e praticar,
+                            não para investir de fato.
+                        </p>
+                    </details>
+                    <details>
+                        <summary>Como aprender a investir do zero?</summary>
+                        <p>A trilha de Fundamentos parte do zero e cada conceito é explicado antes de aparecer na prática.</p>
+                    </details>
+                    <details>
+                        <summary>Dá para usar o simulador no celular?</summary>
+                        <p>
+                            Sim. A Selucra funciona no navegador e pode ser instalada na tela inicial como um aplicativo, no Android e no
+                            iPhone.
+                        </p>
+                    </details>
+                    <details>
+                        <summary>Existe simulador de ações, FIIs e renda fixa?</summary>
+                        <p>
+                            Sim. Os dados são sintéticos, mas formados por regras parecidas com as do mercado real: oferta e demanda, juros,
+                            inflação, balanços e eventos macroeconômicos.
+                        </p>
+                    </details>
+                </div>
+            </section>
+
+            <div class="wrap">
+                <div class="final">
+                    <h2>Seu primeiro investimento começa sem risco</h2>
+                    <p>Crie a conta em menos de um minuto e comece com R$ 10.000 virtuais.</p>
+                    <a class="btn" href="{{APP_URL}}/login?modo=cadastro">Criar conta</a>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="wrap">
+                <div>
+                    <a class="logo" href="/"><img src="/logo-selucra-branco.png" alt="Selucra" width="137" height="30" /></a>
+                    <p>
+                        Simulador de investimentos educacional, com dados sintéticos. Não é recomendação de investimento nem oferta de
+                        produtos financeiros.
+                    </p>
+                </div>
+                <nav aria-label="Rodapé">
+                    <a href="{{APP_URL}}/termos">Termos de uso</a>
+                    <a href="{{APP_URL}}/privacidade">Privacidade</a>
+                    <a href="{{APP_URL}}/reembolso">Reembolso</a>
+                    <a href="{{APP_URL}}/login">Entrar</a>
+                </nav>
+            </div>
+        </footer>
+        {{JS}} {{ANALYTICS}}
+    </body>
+</html>

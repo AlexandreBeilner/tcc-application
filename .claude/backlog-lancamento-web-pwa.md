@@ -111,7 +111,7 @@ decidido ainda; **a primeira tarefa é escolher a hospedagem** (decisão do auto
 - **Aceite:** decisão registrada neste arquivo e na spec.
 
 ### LW.3.2 · Domínio, HTTPS, CORS e cabeçalhos
-- **O que fazer:** domínio, certificado, `FRONTEND_URL` real (hoje o padrão é `localhost:5173`), `VITE_GATEWAY_URL`, cabeçalhos de segurança (CSP compatível com Stripe/RevenueCat, HSTS, `X-Content-Type-Options`), `Cache-Control` por tipo (HTML e `sw.js` sem cache longo; assets com hash imutáveis). Confirmar `trust proxy` do Express atrás do gateway (limitador de taxa depende do IP real). Atualizar os redirecionamentos do Google OAuth (origem e callback de produção) no Console.
+- **O que fazer:** domínio (landing em `selucra.com.br`, app em `app.selucra.com.br`, API em `api.selucra.com.br`; decisão de 2026-10-11), certificado, `FRONTEND_URL=https://app.selucra.com.br` (hoje o padrão é `localhost:5173`; atualizar também os exemplos em `.env.example` e `productionConfigGuard.test.ts`), `VITE_GATEWAY_URL`, cabeçalhos de segurança (CSP compatível com Stripe/RevenueCat, HSTS, `X-Content-Type-Options`), `Cache-Control` por tipo (HTML e `sw.js` sem cache longo; assets com hash imutáveis). Confirmar `trust proxy` do Express atrás do gateway (limitador de taxa depende do IP real). Atualizar os redirecionamentos do Google OAuth (origem e callback de produção) no Console.
 - **Aceite:** login e-mail/senha, login Google e checkout funcionando no domínio real.
 - **Dependências:** LW.3.1.
 
@@ -203,7 +203,7 @@ Análise completa em `.claude/analise-ambiente-producao.md` (tabela dev x produ�
 - **Dependências:** LW.3.12, LW.3.13, LW.3.14.
 
 #### LW.3.16 · Deploy do frontend no Cloudflare Pages
-- **O que fazer:** projeto no Pages ligado ao repositório (ou publicação pelo CI), com `VITE_GATEWAY_URL` e `VITE_REVENUECAT_WEB_PUBLIC_KEY` por ambiente (**embutidas na hora do build**, então trocar o valor exige novo build); `frontend/public/_redirects` com o fallback da SPA e `_headers` com CSP, cache e `sw.js` sem cache longo (alinhado à LW.2.2 e à LW.3.10); domínio `selucra.com.br` e `www`, ambiente de preview por PR apontando para `staging`; procedimento de rollback (promover o deploy anterior).
+- **O que fazer:** projeto no Pages ligado ao repositório (ou publicação pelo CI), com `VITE_GATEWAY_URL` e `VITE_REVENUECAT_WEB_PUBLIC_KEY` por ambiente (**embutidas na hora do build**, então trocar o valor exige novo build); `frontend/public/_redirects` com o fallback da SPA e `_headers` com CSP, cache e `sw.js` sem cache longo (alinhado à LW.2.2 e à LW.3.10); domínio `app.selucra.com.br` (a landing é outro projeto, LW.6.1), ambiente de preview por PR apontando para `staging`; procedimento de rollback (promover o deploy anterior).
 - **Aceite:** F5 em uma rota interna (ex.: `/mapa`) não dá 404; o build de produção fala com `api.selucra.com.br` sem erro de CORS; preview de PR funciona.
 - **Dependências:** LW.3.2.
 
@@ -252,7 +252,40 @@ Análise completa em `.claude/analise-ambiente-producao.md` (tabela dev x produ�
 
 ## Sequência sugerida
 
-`LW.1.3 → LW.3.8 → LW.2.1 → LW.2.2 → LW.2.3 → LW.2.5 → LW.2.4 → LW.1.2 → LW.3.14 → LW.3.1 → LW.3.7 → LW.3.17 → LW.3.13 → LW.3.9 → LW.3.2 → LW.3.10 → LW.3.11 → LW.3.12 → LW.3.15 → LW.3.16 → LW.3.4 → LW.3.5 → LW.4.1 → LW.4.2 → LW.3.6 → LW.4.3 → LW.2.6 → LW.5.1 → LW.5.2 → LW.5.3 → LW.2.8`
+## Fase 6 — Landing page e SEO (acrescentada em 2026-10-11)
+
+> Mockup aprovado pelo autor: https://claude.ai/artifact/8vZqUrBZbLZ3mUx8rfcKt3.
+>
+> **Decisões do autor (2026-10-11):**
+> - **Landing separada do app, em HTML/CSS/JS puros** (sem React, sem pré-render): pasta `landing/` na raiz do repositório, projeto próprio no Cloudflare Pages em `selucra.com.br` (`www` redireciona para o domínio raiz). O app React fica em `app.selucra.com.br` e a API em `api.selucra.com.br`. Escolhida por entregar HTML pronto sem ferramenta de build e isolar o three.js do bundle do app. Nada estava em produção, então a troca de `FRONTEND_URL`, CORS, origem do Google OAuth, links de e-mail, `start_url` do PWA e domínio do checkout para `app.` só mexe em configuração (LW.3.2 e LW.3.16).
+> - **Sem preço nem PRO na landing** ("grátis", "sem cartão" e a seção PRO ficaram de fora, para não parecer cobrança obrigatória).
+> - **three.js só decorativo**, carregado depois do `load`.
+> - **SEO como objetivo explícito.** O app inteiro (`app.`) sai do índice (`noindex`, fora do sitemap); a autoridade se concentra no domínio raiz.
+> - `landing/` não tem Dockerfile (mesma regra do `frontend/`). Os tokens de cor e fonte vêm de `.claude/identidade-visual-tokens.md` e ficam duplicados em `landing/` e `frontend/src/index.css`: mudou um, muda o outro.
+
+### LW.6.1 · Landing estática em `landing/`
+- **O que fazer:** transformar o mockup em arquivos (`index.html`, `styles.css`, `main.js`, ícones SVG e fontes Inter/Sora locais), com hero, ticket, faixa de fatos, como funciona, trilha, recursos, demo de primeira ordem, FAQ, CTA final e rodapé, nos 3 breakpoints. Botões "Começar" e "Entrar" apontam para `https://app.selucra.com.br`. `h1` único, HTML semântico, sem layout shift, sem `maximum-scale`. Projeto no Cloudflare Pages com `_headers` (cache, CSP mínima) e redirecionamento `www` para o domínio raiz.
+- **Aceite:** todo o texto do hero e do FAQ está no HTML entregue (sem JS); responsiva em 320, 390, 768 e 1280 px; funciona com JS desligado (só perde a demo e as animações).
+- **Estado (2026-10-11): implementada, falta validar em produção.** Entregável: `landing/` (`src/index.html`, `styles.css`, `main.js`, `scene.js`, `svg.mjs`, `build.mjs`, `README.md`, 10 testes em `test/`). Conferido em 320, 390 e 1280 px e no `lighthouse` local (SEO 100, Acessibilidade 100, Boas práticas 100, CLS 0). Também feito (2026-10-11): botões "Criar conta"/"Começar" apontam para `/login?modo=cadastro` (o `Login` do app abre direto no cadastro, com teste); CI próprio em `.github/workflows/landing-ci.yml` (prettier, build e testes; dispara também quando `regulatoryFacts.ts` muda e toda segunda-feira, para pegar fato vencido). Lighthouse da home com gzip: Desempenho 99, Acessibilidade 100, Boas práticas 100, SEO 100 (LCP 1,6 s, CLS 0, TBT 130 ms em laboratório com GL por software). A cena 3D sozinha custava 1,5 s de TBT: passou a iniciar 1,5 s depois do `load`, a 30 quadros por segundo, sem antialias, e para sozinha em aparelho lento (média acima de 28 ms por quadro). Não testado em Safari e Firefox (o Firefox do ambiente não gerou captura). Analytics aprovado pelo autor (2026-10-11): Cloudflare Web Analytics, sem cookies, via `CF_ANALYTICS_TOKEN` no build (`landing/build.mjs`, CSP liberada em `_headers`); a política de privacidade do app (seção 6) passou a citar a medição. Falta o autor criar o site no Web Analytics e a variável no Pages (passo a passo em `checklist-contas-e-segredos-producao.md`). Pendente: projeto no Cloudflare Pages com `www` redirecionando para o raiz (depende da LW.3.16 e do domínio) e conferir 768 px com calma; fotos de tela em tablet só passaram por captura headless.
+
+### LW.6.2 · Metadados, dados estruturados e `noindex` do app
+- **O que fazer:** `title` (`Selucra | Simulador de Investimentos para Aprender na Prática`), meta description, `canonical`, Open Graph e Twitter Card com imagem 1200x630, JSON-LD `Organization`, `WebSite`, `SoftwareApplication` e `FAQPage` (perguntas escritas como as pessoas buscam), `sitemap.xml` e `robots.txt` da landing. Nenhuma menção a preço ou "grátis". No `frontend/`: `noindex` (meta e cabeçalho `X-Robots-Tag` no `_headers`) e `robots.txt` bloqueando o app; corrigir o viewport do `index.html` (remover `maximum-scale=1, user-scalable=no`). Registrar o domínio raiz no Search Console (LW.4.3).
+- **Aceite:** Rich Results Test sem erro; Lighthouse SEO e Acessibilidade >= 95 na landing; o app não aparece no índice.
+- **Estado (2026-10-11): feito na landing e no HTML do app; faltam os cabeçalhos e a validação externa.** Entregue: title, description, canonical, Open Graph e Twitter Card com `og-image.png` 1200x630, JSON-LD (`Organization`, `WebSite`, `SoftwareApplication`, `FAQPage` gerado do FAQ visível, com teste de consistência), `sitemap.xml`, `robots.txt`; no `frontend/`: viewport sem `maximum-scale`/`user-scalable`, `<meta name="robots" content="noindex, nofollow">` e `public/robots.txt` com `Disallow: /`. Pendente: `X-Robots-Tag: noindex` no `_headers` do app (entra com a LW.3.16, que cria esse arquivo), Rich Results Test e Search Console com a URL real.
+
+### LW.6.3 · Cena three.js decorativa
+- **O que fazer:** `three` hospedado junto da landing (arquivo local, não CDN), carregado por `import()` depois do `load`, em ociosidade; só os módulos usados; pausa fora da tela e em aba oculta; quadro estático com `prefers-reduced-motion`; não carrega com `saveData`; menos instâncias ou desligada em aparelho fraco; canvas `aria-hidden` com altura fixa.
+- **Aceite:** LCP e CLS sem piora medível com e sem a cena; peso do arquivo medido e registrado aqui.
+- **Estado (2026-10-11): implementada (`landing/src/scene.js`).** `three@0.170` tree-shaken no chunk `scene-*.js`: 480 KB sem compressão, ~121 KB gzip, baixado só depois do `load` e fora do JS principal (1,5 KB, 0,8 KB gzip). Opacidade baixa e máscara para não competir com o texto. Pendente: medir LCP/CLS com e sem a cena em produção com compressão (no servidor local sem gzip o Lighthouse deu performance 81 e LCP 4,1 s sob throttling móvel simulado; CLS 0).
+
+### LW.6.4 · Páginas de conteúdo evergreen
+- **O que fazer:** páginas HTML estáticas em `landing/aprender/...` (ex: `renda-fixa`, `o-que-sao-fiis`) reaproveitando lições e glossário, cada uma mirando uma busca específica, com links internos para a landing e entre si, entrando no sitemap. Definir antes a lista de temas com o autor.
+- **Depende de:** LW.6.1 e LW.6.2.
+- **Estado (2026-10-11): sistema pronto e três guias no build, aprovados pelo autor.** Decisão do autor: a home não tem seção de guias nem link no rodapé; o link "Guias" fica só no menu do cabeçalho. Guias (pesquisados em páginas oficiais do Tesouro Direto e da B3 e escritos com palavras próprias, levando para a aplicação): `o-que-e-selic-e-cdi`, `o-que-e-etf` e `o-que-e-tesouro-direto`, mais o hub `/aprender/`. Entregue: `landing/aprender.mjs`, `content/aprender/*.json`, sitemap gerado, JSON-LD `Article`, `BreadcrumbList` e `FAQPage` por guia, links entre os guias, 21 testes (inclui link quebrado e regras de fato) e Lighthouse 100/100/100/100 num guia. Os números vêm de `regulatoryFacts.ts` e a build recusa fato conferido só por trecho de busca ou com mais de 12 meses. Foram registrados 8 fatos novos (`tesouro-investimento-minimo`, `tesouro-tipos-titulos`, `tesouro-horario-negociacao`, `etf-definicao-b3`, `etf-liquidacao-b3`, `etf-formador-mercado`, `etf-codigo-lote`, `etf-ir-b3`) e `tesouro-resgate-liquidez` passou de trecho de busca para página oficial. Fora dos guias, por não terem página oficial aberta: intervalo e número de reuniões do Copom, IR de ETF segundo a IN RFB 1.585 e a isenção de come-cotas. O mínimo do Tesouro Direto diverge entre a página inicial (R$ 2) e material da B3 (R$ 30); o guia usa o site do programa. **Os três guias foram aprovados pelo autor em 2026-10-11, e a decisão é manter só eles por agora** (nada de novos temas até o autor pedir).
+
+---
+
+`LW.1.3 → LW.3.8 → LW.2.1 → LW.2.2 → LW.2.3 → LW.2.5 → LW.2.4 → LW.1.2 → LW.3.14 → LW.3.1 → LW.3.7 → LW.3.17 → LW.3.13 → LW.3.9 → LW.3.2 → LW.3.10 → LW.3.11 → LW.3.12 → LW.3.15 → LW.3.16 → LW.3.4 → LW.3.5 → LW.4.1 → LW.4.2 → LW.3.6 → LW.4.3 → LW.2.6 → LW.5.1 → LW.5.2 → LW.5.3 → LW.2.8 → LW.6.1 → LW.6.2 → LW.6.3 → LW.6.4`
 
 (Revisada em 2026-10-10: a LW.3.8 sobe para o começo porque é código puro, independe de servidor e fecha o pior risco; o endurecimento LW.3.7 a LW.3.12 entra antes de qualquer servidor ficar acessível pela internet.)
 

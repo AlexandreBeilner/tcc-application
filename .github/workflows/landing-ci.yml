@@ -1,0 +1,48 @@
+name: Landing CI
+
+# Landing estática (landing/, HTML/CSS/JS puros): formatação, build e testes. O build lê os fatos
+# regulatórios de backend/src/modules/lessons/domain/regulatoryFacts.ts, por isso esse arquivo
+# também dispara o pipeline: um fato vencido (mais de 12 meses) ou sem fonte oficial quebra o build.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "landing/**"
+      - "backend/src/modules/lessons/domain/regulatoryFacts.ts"
+      - ".github/workflows/landing-ci.yml"
+  pull_request:
+    paths:
+      - "landing/**"
+      - "backend/src/modules/lessons/domain/regulatoryFacts.ts"
+      - ".github/workflows/landing-ci.yml"
+  schedule:
+    # Toda segunda: pega fato regulatório que venceu sem ninguém ter mexido no código.
+    - cron: "0 12 * * 1"
+
+jobs:
+  test:
+    name: formatação, build e testes
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: landing/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: prettier --check
+        run: npm run format:check
+
+      - name: build
+        run: npm run build
+
+      - name: testes
+        run: npm test

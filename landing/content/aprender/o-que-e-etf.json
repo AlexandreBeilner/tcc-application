@@ -1,0 +1,140 @@
+{
+    "slug": "o-que-e-etf",
+    "title": "O que é ETF? Como funciona o fundo de índice",
+    "description": "Entenda o que é um ETF, como ele replica um índice, como comprar e vender cotas na bolsa, quanto custa, quais os impostos e os riscos antes de investir.",
+    "h1": "O que é ETF e como funciona o fundo de índice",
+    "lead": "ETF é um fundo que replica um índice e é negociado na bolsa como uma ação. Com uma única cota, você passa a ter exposição indireta a uma cesta de ativos, em vez de escolher um por um.",
+    "summary": "Como replica um índice, custos, imposto e riscos.",
+    "published": "2026-10-11",
+    "updated": "2026-10-11",
+    "facts": ["etf-definicao-b3", "etf-codigo-lote", "etf-formador-mercado", "etf-liquidacao-b3", "etf-ir-b3", "acoes-isencao-20-mil"],
+    "sections": [
+        {
+            "h": "O que é um ETF",
+            "blocks": [
+                {
+                    "p": "A sigla vem do inglês Exchange Traded Fund, ou fundo negociado em bolsa. Também é chamado de fundo de índice. {{fact:etf-definicao-b3}}"
+                }
+            ]
+        },
+        {
+            "h": "Como funciona na prática",
+            "blocks": [
+                {
+                    "p": "O gestor não escolhe os ativos: ele replica as posições do índice que o ETF acompanha. Se o índice sobe, a cota tende a subir. Se cai, a cota tende a cair."
+                },
+                {
+                    "p": "Cada ETF acompanha um índice de referência, e a composição desse índice é pública. O BOVA11, por exemplo, acompanha o Ibovespa, e o DIVO11 acompanha o Índice Dividendos B3."
+                },
+                {
+                    "p": "O retorno de um ETF fica um pouco abaixo do índice, porque o índice não considera as taxas e despesas do fundo."
+                }
+            ]
+        },
+        {
+            "h": "Como comprar e vender",
+            "blocks": [
+                {
+                    "ul": [
+                        "**Onde:** pela sua corretora, durante o pregão, como se fosse uma ação.",
+                        "**Código:** {{fact:etf-codigo-lote}}",
+                        "**Liquidez:** {{fact:etf-formador-mercado}}",
+                        "**Prazo:** {{fact:etf-liquidacao-b3}}"
+                    ]
+                }
+            ]
+        },
+        {
+            "h": "ETF, fundo tradicional e ação",
+            "blocks": [
+                {
+                    "table": {
+                        "head": ["", "ETF", "Fundo de ações tradicional", "Ação"],
+                        "rows": [
+                            [
+                                "Onde negocia",
+                                "Na bolsa, durante o pregão",
+                                "Por pedido de aplicação e resgate no fundo",
+                                "Na bolsa, durante o pregão"
+                            ],
+                            [
+                                "O que você tem",
+                                "Uma cota de um fundo que replica um índice",
+                                "Uma cota de um fundo",
+                                "Uma parte de uma empresa"
+                            ],
+                            ["Quem escolhe os ativos", "O índice de referência", "O gestor, em geral", "Você"],
+                            ["Taxa de administração", "Costuma ser menor que a dos fundos tradicionais", "Costuma ser maior", "Não tem"],
+                            ["Valor mínimo", "Uma cota", "Varia por fundo", "Uma ação"]
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "h": "Tipos de ETF",
+            "blocks": [
+                {
+                    "ul": [
+                        "**Ações brasileiras:** acompanham índices como o Ibovespa ou o de dividendos.",
+                        "**Ações internacionais:** acompanham índices de outros países, e a variação do câmbio também afeta o preço da cota.",
+                        "**Renda fixa:** acompanham índices de títulos públicos ou privados, com regras próprias de imposto.",
+                        "**Outros ativos:** moedas e cestas temáticas, entre outros."
+                    ]
+                }
+            ]
+        },
+        {
+            "h": "Quanto custa e como é tributado",
+            "blocks": [
+                {
+                    "p": "Todo ETF cobra uma taxa de administração, embutida no valor da cota e cobrada apenas pelos dias em que você mantém as cotas. O percentual varia de um ETF para outro, então confira antes de comprar. Há também corretagem e emolumentos, como em qualquer ação."
+                },
+                {
+                    "p": "A regra vale para os ETFs de renda variável. {{fact:etf-ir-b3}}"
+                },
+                {
+                    "p": "Existe uma isenção de IR para vendas de ações, mas ela não vale para ETF. {{fact:acoes-isencao-20-mil}}"
+                }
+            ]
+        },
+        {
+            "h": "Riscos",
+            "blocks": [
+                {
+                    "ul": [
+                        "**Oscilação:** a cota acompanha o índice e cai quando ele cai, inclusive com perda de capital.",
+                        "**Concentração:** um ETF de um setor ou tema depende de poucas empresas ou de um só mercado.",
+                        "**Câmbio:** nos ETFs internacionais, o dólar e outras moedas mexem no preço da cota.",
+                        "**Liquidez:** alguns ETFs negociam pouco, e vender no preço desejado pode levar mais tempo.",
+                        "**Sem FGC:** cotas de ETF não contam com a proteção do Fundo Garantidor de Créditos."
+                    ]
+                },
+                {
+                    "p": "Este guia é conteúdo educacional e não é recomendação de investimento."
+                }
+            ]
+        }
+    ],
+    "faq": [
+        {
+            "q": "ETF é bom para iniciante?",
+            "a": "Muita gente começa por ETFs porque uma cota já dá exposição a vários ativos e a taxa costuma ser menor. Mas o preço oscila como em qualquer renda variável, então é importante entender o índice que o ETF replica."
+        },
+        {
+            "q": "Qual o valor mínimo para comprar um ETF?",
+            "a": "Uma cota. O preço de cada cota varia de um ETF para outro."
+        },
+        {
+            "q": "Qual a diferença entre ETF e ação?",
+            "a": "Ação é uma parte de uma empresa. ETF é uma cota de um fundo que replica um índice e, por isso, reúne várias ações ou outros ativos de uma vez."
+        },
+        {
+            "q": "Como é o imposto de renda no ETF?",
+            "a": "A regra vale para os ETFs de renda variável. {{fact:etf-ir-b3}} A isenção para vendas de ações até um limite mensal não vale para ETF."
+        }
+    ],
+    "related": ["o-que-e-tesouro-direto", "o-que-e-selic-e-cdi"],
+    "ctaTitle": "Compre sua primeira cota de ETF sem risco",
+    "cta": "Na Selucra você compra cotas de ETFs com capital virtual e vê o índice de referência, a metodologia e a composição de cada um antes de decidir."
+}
