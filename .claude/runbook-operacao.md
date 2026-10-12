@@ -104,6 +104,8 @@ Cada rotina avisa um monitor "dead man's switch" (healthchecks.io ou equivalente
 
 ## 4. Deploy, rollback e migrações (LW.3.15)
 
+> **Roteiro de todo dia:** `.claude/checklist-atualizar-producao.md` (passo a passo curto, com o que conferir antes e depois). Esta seção é a referência do que o script faz por dentro.
+
 Script: `infra/deploy/deploy.sh` (copiado para `/opt/selucra/deploy.sh`). Fluxo: **versão = SHA de 40 caracteres** do commit (o CI de imagens, LW.3.13, publica `selucra-backend`, `-engine` e `-backup` com essa tag; nunca `latest`).
 
 ```
