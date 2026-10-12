@@ -95,7 +95,13 @@ func main() {
 		return
 	}
 
-	if err := db.Migrate(databaseURL); err != nil {
+	// LW.3.17: as migrações usam o papel dono do schema (DATABASE_MIGRATE_URL); o resto do processo usa
+	// DATABASE_URL, um papel só com DML, que não consegue desligar o gatilho append-only de market_events.
+	migrateURL := os.Getenv("DATABASE_MIGRATE_URL")
+	if migrateURL == "" {
+		migrateURL = databaseURL
+	}
+	if err := db.Migrate(migrateURL); err != nil {
 		log.Fatalf("erro ao aplicar migrations: %v", err)
 	}
 	log.Print("migrations do banco market aplicadas")

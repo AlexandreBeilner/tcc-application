@@ -162,6 +162,30 @@ describe('findProductionConfigProblems', () => {
     ])
   })
 
+  it('aplica as mesmas regras de senha à URL do papel que migra (opcional)', () => {
+    expect(
+      findProductionConfigProblems(
+        validEnv({
+          DATABASE_MIGRATE_URL:
+            'postgres://selucra_owner:SenhaLongaDoDonoDoBanco1@postgres:5432/gamification',
+        }),
+      ),
+    ).toEqual([])
+    expect(findProductionConfigProblems(validEnv({ DATABASE_MIGRATE_URL: '' }))).toEqual([])
+    expect(
+      findProductionConfigProblems(
+        validEnv({
+          DATABASE_MIGRATE_URL: 'postgres://selucra_owner:curta@postgres:5432/gamification',
+        }),
+      ),
+    ).toEqual(['a senha do banco em DATABASE_MIGRATE_URL precisa ter pelo menos 16 caracteres'])
+    expect(
+      findProductionConfigProblems(
+        validEnv({ DATABASE_MIGRATE_URL: 'postgres://selucra_owner@postgres:5432/gamification' }),
+      ),
+    ).toEqual(['DATABASE_MIGRATE_URL sem senha'])
+  })
+
   it('exige Redis e motor', () => {
     expect(findProductionConfigProblems(validEnv({ REDIS_URL: undefined }))).toEqual([
       'REDIS_URL é obrigatória em produção',

@@ -41,9 +41,13 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-selucra}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD (openssl rand -hex 24)}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?defina DB_OWNER_PASSWORD (openssl rand -hex 24)}
+      GAMIFICATION_APP_PASSWORD: ${GAMIFICATION_APP_PASSWORD:?defina GAMIFICATION_APP_PASSWORD (openssl rand -hex 24)}
+      MARKET_APP_PASSWORD: ${MARKET_APP_PASSWORD:?defina MARKET_APP_PASSWORD (openssl rand -hex 24)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      # Papéis sem superusuário e os dois bancos (LW.3.17). Só roda na primeira inicialização do volume.
+      - ./infra/postgres/init-prod:/docker-entrypoint-initdb.d:ro
     # O entrypoint do Postgres troca de usuário e ajusta dono do diretório de dados.
     cap_add:
       - CHOWN
@@ -98,7 +102,9 @@ services:
     image: ${REGISTRY_PREFIX:?defina REGISTRY_PREFIX (ex. ghcr.io/dono/selucra)}-engine:${IMAGE_TAG:?defina IMAGE_TAG (SHA do commit)}
     environment:
       ENGINE_ADDR: ":8080"
-      DATABASE_URL: postgres://${POSTGRES_USER:-selucra}:${POSTGRES_PASSWORD}@postgres:5432/market?sslmode=disable
+      # Papel de runtime só com DML (LW.3.17); as migrações usam o dono do schema.
+      DATABASE_URL: postgres://market_app:${MARKET_APP_PASSWORD}@postgres:5432/market?sslmode=disable
+      DATABASE_MIGRATE_URL: postgres://selucra_owner:${DB_OWNER_PASSWORD}@postgres:5432/market?sslmode=disable
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       # Imutável depois do primeiro dia em produção (RNF08: série determinística entre reinícios).
       SIMULATION_SEED: ${SIMULATION_SEED:?defina SIMULATION_SEED (fixo, nunca mude)}
@@ -128,7 +134,8 @@ services:
       PORT: "3000"
       # `production` ou `staging` liga a guarda de configuração (LW.3.8): recusa subir com segredo de dev etc.
       DEPLOY_ENV: ${DEPLOY_ENV:?defina DEPLOY_ENV (production ou staging)}
-      DATABASE_URL: postgres://${POSTGRES_USER:-selucra}:${POSTGRES_PASSWORD}@postgres:5432/gamification?sslmode=disable
+      DATABASE_URL: postgres://gamification_app:${GAMIFICATION_APP_PASSWORD}@postgres:5432/gamification?sslmode=disable
+      DATABASE_MIGRATE_URL: postgres://selucra_owner:${DB_OWNER_PASSWORD}@postgres:5432/gamification?sslmode=disable
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
       ENGINE_URL: http://engine:8080
       # O Caddy é o único proxy que o backend enxerga e entrega o IP real (LW.3.9).

@@ -68,7 +68,10 @@ export function findProductionConfigProblems(
     checkPublicUrl('GOOGLE_REDIRECT_URI', read('GOOGLE_REDIRECT_URI'), true, problems)
   }
 
-  checkDatabaseUrl(read('DATABASE_URL'), problems)
+  checkDatabaseUrl('DATABASE_URL', read('DATABASE_URL'), problems)
+  // Papel que migra o schema (LW.3.17): opcional, mas se existir segue as mesmas regras de senha.
+  const migrateUrl = read('DATABASE_MIGRATE_URL')
+  if (migrateUrl !== undefined) checkDatabaseUrl('DATABASE_MIGRATE_URL', migrateUrl, problems)
   if (!read('REDIS_URL')) problems.push('REDIS_URL é obrigatória em produção')
   if (!read('ENGINE_URL')) problems.push('ENGINE_URL é obrigatória em produção')
 
@@ -125,26 +128,26 @@ function checkPublicUrl(
   if (isLocalHost(url.hostname)) problems.push(`${name} aponta para localhost`)
 }
 
-function checkDatabaseUrl(value: string | undefined, problems: string[]) {
+function checkDatabaseUrl(name: string, value: string | undefined, problems: string[]) {
   if (value === undefined) {
-    problems.push('DATABASE_URL é obrigatória em produção')
+    problems.push(`${name} é obrigatória em produção`)
     return
   }
   let url: URL
   try {
     url = new URL(value)
   } catch {
-    problems.push('DATABASE_URL não é uma URL válida')
+    problems.push(`${name} não é uma URL válida`)
     return
   }
   const password = decodeURIComponent(url.password)
   if (!password) {
-    problems.push('DATABASE_URL sem senha')
+    problems.push(`${name} sem senha`)
   } else if (WEAK_DB_PASSWORDS.has(password.toLowerCase())) {
-    problems.push('a senha do banco em DATABASE_URL é uma senha padrão conhecida')
+    problems.push(`a senha do banco em ${name} é uma senha padrão conhecida`)
   } else if (password.length < MIN_DB_PASSWORD_LENGTH) {
     problems.push(
-      `a senha do banco em DATABASE_URL precisa ter pelo menos ${MIN_DB_PASSWORD_LENGTH} caracteres`,
+      `a senha do banco em ${name} precisa ter pelo menos ${MIN_DB_PASSWORD_LENGTH} caracteres`,
     )
   }
 }

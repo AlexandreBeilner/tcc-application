@@ -69,7 +69,9 @@ Gerar **todos** com `openssl rand -base64 48` (ou gerenciador de senhas) e guard
 | Variável | Origem | Observação |
 |---|---|---|
 | `DEPLOY_ENV=production` | fixo | liga a guarda da LW.3.8 |
-| `POSTGRES_PASSWORD` | gerada | superusuário só de administração; 16+ caracteres |
+| `POSTGRES_PASSWORD` | gerada | superusuário só de administração e backup; 16+ caracteres |
+| `DB_OWNER_PASSWORD` | gerada | papel `selucra_owner`, dono dos dois bancos, usado só para migrar (LW.3.17); `openssl rand -hex 24`; só vale na primeira inicialização do volume |
+| `GAMIFICATION_APP_PASSWORD`, `MARKET_APP_PASSWORD` | geradas | papéis de runtime só com DML (LW.3.17); mesma regra |
 | senhas dos papéis `gamification_app`, `market_app` | geradas | LW.3.17 |
 | `REDIS_PASSWORD` | gerada | LW.3.7 |
 | `JWT_SECRET` | gerada, 32+ caracteres | girar invalida os logins ativos |

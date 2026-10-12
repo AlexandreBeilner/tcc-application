@@ -72,7 +72,9 @@ async function main() {
 
   const databaseUrl = process.env.DATABASE_URL
   if (databaseUrl) {
-    await runMigrations(databaseUrl)
+    // LW.3.17: em produção as migrações usam o papel dono do schema (DATABASE_MIGRATE_URL); o resto do
+    // processo usa DATABASE_URL, um papel só com DML, que não consegue desligar o gatilho append-only.
+    await runMigrations(process.env.DATABASE_MIGRATE_URL || databaseUrl)
     console.log('migrations do banco gamification aplicadas')
   }
 

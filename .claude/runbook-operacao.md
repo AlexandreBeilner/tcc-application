@@ -29,6 +29,9 @@ Desenho do servidor e o porquê das escolhas: `analise-ambiente-producao.md`. Co
    Detalhes e a prova de idempotência: `analise-ambiente-producao.md` seção 7.
 6. Backup: seção 3 abaixo (configurar antes de abrir ao público).
 
+### Papéis do banco (LW.3.17)
+O Postgres nasce com **três papéis sem superusuário** (`infra/postgres/init-prod/`, só na primeira inicialização do volume): `selucra_owner` (dono dos dois bancos, usado **só** para migrar no boot, via `DATABASE_MIGRATE_URL`), `gamification_app` (backend) e `market_app` (motor), estes dois **só com DML** (`SELECT/INSERT/UPDATE/DELETE`, sem DDL, sem `TRUNCATE`). O superusuário `POSTGRES_USER` fica só para administração e backup. Consequência intencional: o motor **não consegue** `DROP`/`DISABLE TRIGGER` do `market_events_append_only` nem `TRUNCATE` o log (o dono conseguiria; a migração 000034 desliga o gatilho). Tabelas novas de migrações futuras já chegam com o acesso certo (`ALTER DEFAULT PRIVILEGES`). Mudar a senha de um papel depois: `ALTER ROLE ... PASSWORD` com o superusuário **e** atualizar o `.env` (a variável só vale na criação). Conferir: `docker exec <postgres> psql -U <superusuário> -c '\du'`.
+
 ## 3. Backup e restauração (LW.3.12)
 
 ### O que é salvo
