@@ -13,11 +13,13 @@ on:
     paths:
       - "backend/**"
       - "engine/**"
+      - "infra/backup/**"
       - ".github/workflows/images.yml"
   pull_request:
     paths:
       - "backend/**"
       - "engine/**"
+      - "infra/backup/**"
       - ".github/workflows/images.yml"
   workflow_dispatch:
 
@@ -36,7 +38,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [backend, engine]
+        service: [backend, engine, backup]
+        include:
+          - service: backend
+            context: backend
+          - service: engine
+            context: engine
+          # Ferramentas de backup e restauração (LW.3.12).
+          - service: backup
+            context: infra/backup
     steps:
       - uses: actions/checkout@v4
 
@@ -54,7 +64,7 @@ jobs:
       - name: build${{ github.event_name != 'pull_request' && ' e publica' || '' }}
         uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.service }}
+          context: ${{ matrix.context }}
           push: ${{ github.event_name != 'pull_request' }}
           load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }}

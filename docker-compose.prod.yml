@@ -184,6 +184,48 @@ services:
     mem_limit: ${BACKEND_MEM_LIMIT:-768m}
     cpus: ${BACKEND_CPUS:-1.0}
 
+  # Ferramentas de backup e restauração (LW.3.12). Não sobe com `up`: roda sob demanda
+  # (`docker compose ... run --rm backup backup.sh`), pelos timers do systemd (`infra/systemd/`).
+  backup:
+    profiles: [tools]
+    image: ${REGISTRY_PREFIX}-backup:${IMAGE_TAG}
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    environment:
+      BACKUP_ENV_NAME: ${DEPLOY_ENV}
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-selucra}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # Chaves PÚBLICAS do age (a privada principal fica fora do servidor, com o autor).
+      AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:-}
+      # Destino no rclone (ex. r2:selucra-backups). Vazio = só cópia local (não protege contra perda do servidor).
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_R2_ENDPOINT: ${R2_ENDPOINT:-}
+      RCLONE_CONFIG_R2_ACL: private
+      # O token do R2 só escreve no bucket (não cria bucket).
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+      HEALTHCHECK_URL: ${BACKUP_HEALTHCHECK_URL:-}
+      RESTORE_TEST_HEALTHCHECK_URL: ${RESTORE_TEST_HEALTHCHECK_URL:-}
+    volumes:
+      - backup_data:/backups
+      - avatar_data:/data/avatars
+      # Entradas do host: o .env do servidor e a chave PRIVADA só de teste (ver runbook); /dev/null se ausentes.
+      - ${APP_ENV_FILE:-/dev/null}:/backup-input/app.env:ro
+      - ${BACKUP_TEST_IDENTITY_FILE:-/dev/null}:/backup-input/age-identity:ro
+    tmpfs:
+      - /work:size=2g,mode=1777
+    networks: [internal, edge]
+    mem_limit: 256m
+    cpus: 0.5
+
 networks:
   # Sem saída para a internet e sem acesso de fora: Postgres, Redis e motor vivem só aqui.
   internal:
@@ -196,3 +238,4 @@ networks:
 volumes:
   postgres_data:
   avatar_data:
+  backup_data:

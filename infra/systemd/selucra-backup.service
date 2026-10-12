@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup da Selucra (produção)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/selucra
+ExecStart=/usr/bin/docker compose -p selucra-prod --env-file /opt/selucra/prod.env -f /opt/selucra/docker-compose.prod.yml --profile tools run --rm backup backup.sh
