@@ -198,7 +198,13 @@ export function PoliticaPrivacidade() {
                     <p>
                         No aplicativo, não usamos cookies de rastreamento nem ferramentas de analytics ou publicidade de terceiros.
                         Guardamos no seu dispositivo apenas o necessário para manter você conectado (o token de sessão) e para lembrar
-                        preferências como o tema.
+                        preferências como o tema. As fontes de letra são servidas pelo próprio aplicativo, sem chamada a serviços de
+                        terceiros.
+                    </p>
+                    <p>
+                        Se você instalar o aplicativo na tela inicial do celular ou do computador, o navegador guarda no aparelho apenas os
+                        arquivos do próprio aplicativo (telas, fontes e ícones), para abrir mais rápido e mostrar um aviso quando não houver
+                        internet. Dados da sua conta, do mercado e da sua carteira nunca ficam guardados nesses arquivos.
                     </p>
                     <p>
                         No site de apresentação (selucra.com.br), usamos o Cloudflare Web Analytics para contar visitas e medir o desempenho

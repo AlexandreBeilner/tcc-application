@@ -26,7 +26,7 @@ export const policyConfig = {
     // responsável (LGPD art. 14); confirme a regra que você quer adotar.
     minimumAge: '18',
     // Data de vigência exibida no topo. Atualize a cada mudança de conteúdo.
-    lastUpdated: '11 de outubro de 2026',
+    lastUpdated: '12 de outubro de 2026',
     // Prazo de resposta a pedidos de titulares (LGPD art. 19: até 15 dias pra
     // declaração completa). Valor já é o legal; só altere se for responder antes.
     responseDeadline: '15 dias',
