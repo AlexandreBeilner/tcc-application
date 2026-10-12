@@ -75,14 +75,13 @@ export function Portfolio() {
                             </span>
                             <h2 className={styles.emptyTitle}>Você ainda não tem nenhuma posição</h2>
                             <p className={styles.emptyBody}>
-                                Comece pela Trilha pra entender os produtos antes de investir, ou vá direto pro Mercado se já sabe o que
-                                procura.
+                                Comece pela Trilha pra entender os produtos antes de investir, ou use o botão Investir do card acima se já
+                                sabe o que procura.
                             </p>
                             <div className={styles.emptyActions}>
                                 <Button variant="secondary" onClick={() => navigate('/trilha')}>
                                     Ir pra Trilha
                                 </Button>
-                                <Button onClick={() => navigate('/mercado')}>Ir pro Mercado</Button>
                             </div>
                         </section>
                     )}
@@ -110,13 +109,6 @@ export function Portfolio() {
                     )}
 
                     {lessonsQuery.data && <ResumeLessonCard lessons={lessonsQuery.data.lessons} />}
-
-                    <div className={styles.actions}>
-                        <Button onClick={() => navigate('/mercado')}>Investir</Button>
-                        <Button variant="secondary" onClick={() => navigate('/conquistas')}>
-                            Conquistas
-                        </Button>
-                    </div>
                 </div>
             </div>
         </main>

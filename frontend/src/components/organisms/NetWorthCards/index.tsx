@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { CandlestickChart, ChevronRight, FlaskConical } from 'lucide-react'
+import { Button } from '../../atoms/Button'
 import { Card } from '../../atoms/Card'
 import { calculateAccountTotals } from '../../../features/portfolio/accountTotals'
 import { formatCurrency } from '../../../features/portfolio/format'
@@ -29,28 +30,33 @@ export function NetWorthCards({ account }: NetWorthCardsProps) {
 
     return (
         <div className={styles.cards}>
-            <Card className={styles.cardLayout} onClick={() => navigate('/extrato')} aria-label="Ver extrato do mercado ao vivo">
-                <div className={styles.cardHeader}>
-                    <span className={styles.headerLeft}>
-                        <span className={styles.iconBadge} aria-hidden="true">
-                            <CandlestickChart size={15} strokeWidth={2} />
+            <div className={styles.livePanel}>
+                <Card className={styles.cardLayout} onClick={() => navigate('/extrato')} aria-label="Ver extrato do mercado ao vivo">
+                    <div className={styles.cardHeader}>
+                        <span className={styles.headerLeft}>
+                            <span className={styles.iconBadge} aria-hidden="true">
+                                <CandlestickChart size={15} strokeWidth={2} />
+                            </span>
+                            <span className={styles.label}>Mercado Ao Vivo</span>
                         </span>
-                        <span className={styles.label}>Mercado Ao Vivo</span>
+                        <span className={styles.liveTag}>
+                            <span className={styles.liveDot} aria-hidden="true" />
+                            ao vivo
+                            <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
+                        </span>
+                    </div>
+                    <span className={`${styles.total} tabular-nums`}>{formatCurrency(livePatrimony)}</span>
+                    <span className={styles.detail}>
+                        Investido: <span className="tabular-nums">{formatCurrency(liveInvested)}</span>
                     </span>
-                    <span className={styles.liveTag}>
-                        <span className={styles.liveDot} aria-hidden="true" />
-                        ao vivo
-                        <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
+                    <span className={styles.detail}>
+                        Saldo em caixa: <span className="tabular-nums">{formatCurrency(account.cashBalance)}</span>
                     </span>
+                </Card>
+                <div className={styles.liveFooter}>
+                    <Button onClick={() => navigate('/mercado')}>Investir</Button>
                 </div>
-                <span className={`${styles.total} tabular-nums`}>{formatCurrency(livePatrimony)}</span>
-                <span className={styles.detail}>
-                    Investido: <span className="tabular-nums">{formatCurrency(liveInvested)}</span>
-                </span>
-                <span className={styles.detail}>
-                    Saldo em caixa: <span className="tabular-nums">{formatCurrency(account.cashBalance)}</span>
-                </span>
-            </Card>
+            </div>
 
             {hasSandboxPosition ? (
                 <button

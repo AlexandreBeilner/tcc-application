@@ -137,13 +137,12 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
   - Indicador de **XP/nível** e **streak diário** (mecânicas da seção 6, hoje sem espaço em nenhuma tela).
   - Gráfico de rosca de distribuição de investimentos (herdado do wireframe original, Fig. 3), **interativo** (RC.7.3): anel em SVG, furo com o total investido por padrão e, ao passar o mouse, tocar ou focar uma fatia, o nome, o R$ e a %; legenda sempre com R$ e %; teclado (Tab, setas, Enter, Esc). Só mercado ao vivo, a preço de mercado (a soma bate com "Investido" do card).
   - Atalho "Retomar lição" se a trilha não estiver concluída — link direto pra **4.2 Lição** no ponto onde o usuário parou.
-  - Botões "Investir" e "Conquistas".
+  - Botão **"Investir"** no rodapé do card de patrimônio (MO.9.1, decisão do autor): uma vez só, fora da área clicável do card. "Conquistas" saiu da tela (continua no menu do avatar e na Classificação).
 - **Ações:**
   - "Investir" → **5.1 Navegação de Mercado**.
-  - "Conquistas" → **8.1 Conquistas**.
   - "Retomar lição" → **4.2 Lição** (estado atual do usuário).
   - Clique no card de patrimônio → **5.8 Extrato/Histórico** (ver o que compõe aquele número).
-- **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, incentivando ir pro Mercado ou pra Trilha); carregamento com placeholders de altura próxima da final. **Composição por breakpoint (RC.7.5):** coluna única em mobile e tablet; a partir de 1024px, 2 colunas (patrimônio e Distribuição à esquerda; missões, retomar lição e ações à direita).
+- **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, oferecendo a Trilha; o "Investir" do card já leva ao Mercado); carregamento com placeholders de altura próxima da final. **Composição por breakpoint (RC.7.5):** coluna única em mobile e tablet; a partir de 1024px, 2 colunas (patrimônio e Distribuição à esquerda; missões, retomar lição e ações à direita).
 - **Dados envolvidos:** `accounts`, `positions`, `assets` (join pro gráfico de distribuição).
 
 ---

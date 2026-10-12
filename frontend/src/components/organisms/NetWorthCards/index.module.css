@@ -10,6 +10,42 @@
    já vêm de lá, tarefa 6.3.4) — só o gap é específico deste card. */
 .cardLayout {
     gap: var(--space-1);
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+/* Painel do Mercado Ao Vivo: a área dos números é clicável (leva a "Meus ativos"/extrato) e o
+   "Investir" fica no rodapé, fora do botão (botão dentro de botão é HTML inválido). */
+.livePanel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.liveFooter {
+    display: flex;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.liveFooter > * {
+    flex: 1;
+}
+
+@media (min-width: 768px) {
+    .liveFooter {
+        justify-content: flex-end;
+    }
+
+    .liveFooter > * {
+        flex: none;
+        min-width: 160px;
+    }
 }
 
 /* Faixa do modo aprendizado (inventário 2.1): fundo diferente do card de

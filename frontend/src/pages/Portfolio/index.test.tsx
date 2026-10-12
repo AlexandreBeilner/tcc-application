@@ -96,7 +96,7 @@ describe('Portfolio (tela 2.1)', () => {
         vi.clearAllMocks()
     })
 
-    it('estado vazio: sem posições incentiva ir pra Trilha ou pro Mercado', async () => {
+    it('estado vazio: sem posições oferece a Trilha, e o Investir fica no card', async () => {
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
         vi.mocked(getProgression).mockResolvedValue(progression)
         vi.mocked(getStreak).mockResolvedValue(streak)
@@ -106,7 +106,8 @@ describe('Portfolio (tela 2.1)', () => {
 
         await waitFor(() => expect(screen.getByText('Você ainda não tem nenhuma posição')).toBeInTheDocument())
         expect(screen.getByRole('button', { name: 'Ir pra Trilha' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Ir pro Mercado' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ir pro Mercado' })).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Investir' })).toBeInTheDocument()
     })
 
     it('com posições mostra os cards de patrimônio e o gráfico de distribuição, sem estado vazio', async () => {
@@ -193,7 +194,7 @@ describe('Portfolio (tela 2.1)', () => {
         expect(screen.queryByText('Reserva de emergência')).not.toBeInTheDocument()
     })
 
-    it('botão "Investir" navega pro Mercado e "Conquistas" pra tela de conquistas', async () => {
+    it('"Investir" fica uma vez só, no card de patrimônio, e leva ao Mercado; "Conquistas" saiu da tela', async () => {
         vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
         vi.mocked(getProgression).mockResolvedValue(progression)
         vi.mocked(getStreak).mockResolvedValue(streak)
@@ -201,9 +202,10 @@ describe('Portfolio (tela 2.1)', () => {
 
         renderPortfolio()
 
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Investir' })).toBeInTheDocument())
-        fireEvent.click(screen.getByRole('button', { name: 'Conquistas' }))
-        await waitFor(() => expect(screen.getByText('tela de conquistas')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Investir' })).toHaveLength(1))
+        expect(screen.queryByRole('button', { name: 'Conquistas' })).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Investir' }))
+        await waitFor(() => expect(screen.getByText('tela de mercado')).toBeInTheDocument())
     })
 
     it('clique no card de patrimônio leva pro Extrato', async () => {
