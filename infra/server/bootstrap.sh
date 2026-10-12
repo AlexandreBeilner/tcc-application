@@ -15,6 +15,7 @@
 #   SSH_PORT              padrão 22 (decisão do autor: porta 22 com fail2ban)
 #   SKIP_FIREWALL=1       não mexe no ufw (testes em container)
 #   SKIP_PACKAGES=1       não roda apt (testes em container com pacotes já instalados)
+#   SKIP_DOCKER=1         não instala o Docker (já instalado, ou teste em container)
 set -euo pipefail
 
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
@@ -36,6 +37,21 @@ if [ "${SKIP_PACKAGES:-0}" != 1 ]; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
   apt-get install -y -qq ufw fail2ban unattended-upgrades chrony curl ca-certificates >/dev/null
+fi
+
+# 1b. Docker Engine e Compose, do repositório oficial da Docker (o do Ubuntu fica defasado) ----
+if [ "${SKIP_DOCKER:-0}" != 1 ] && [ "${SKIP_PACKAGES:-0}" != 1 ] && ! command -v docker >/dev/null 2>&1; then
+  log "instalando o Docker Engine"
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+  # shellcheck disable=SC1091
+  codename="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $codename stable" \
+    >/etc/apt/sources.list.d/docker.list
+  apt-get update -qq
+  apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null
+  if has_systemd; then systemctl enable --now docker >/dev/null 2>&1; fi
 fi
 
 # 2. Usuário de deploy: sem sudo; no grupo docker (necessário para operar o compose) ------
