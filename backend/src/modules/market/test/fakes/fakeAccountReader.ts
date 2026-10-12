@@ -4,6 +4,7 @@ import type {
   AccountReader,
   FixedIncomePositionRecord,
   ListAccountEventsQuery,
+  ListFixedIncomePositionsOptions,
   PositionRecord,
 } from '../../application/ports/accountReader'
 
@@ -11,6 +12,7 @@ export interface FakeAccountReader extends AccountReader {
   getAccountCalls: string[]
   listPositionsCalls: string[]
   listFixedIncomePositionsCalls: string[]
+  listFixedIncomePositionsOptions: Array<ListFixedIncomePositionsOptions | undefined>
   listAccountEventsCalls: Array<{ userId: string; query: ListAccountEventsQuery }>
   errorToThrow?: Error
 }
@@ -25,6 +27,7 @@ export function createFakeAccountReader(results: {
     getAccountCalls: [],
     listPositionsCalls: [],
     listFixedIncomePositionsCalls: [],
+    listFixedIncomePositionsOptions: [],
     listAccountEventsCalls: [],
     errorToThrow: undefined,
     async getAccount(userId) {
@@ -37,8 +40,9 @@ export function createFakeAccountReader(results: {
       if (fake.errorToThrow) throw fake.errorToThrow
       return results.positions ?? []
     },
-    async listFixedIncomePositions(userId) {
+    async listFixedIncomePositions(userId, options) {
       fake.listFixedIncomePositionsCalls.push(userId)
+      fake.listFixedIncomePositionsOptions.push(options)
       if (fake.errorToThrow) throw fake.errorToThrow
       return results.fixedIncomePositions ?? []
     },

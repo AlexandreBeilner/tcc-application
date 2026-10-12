@@ -19,9 +19,10 @@ export function createEngineAccountReader(engineUrl: string): AccountReader {
       )
     },
 
-    listFixedIncomePositions(userId) {
+    listFixedIncomePositions(userId, options) {
+      const valuation = options?.valuation ? '&valuation=true' : ''
       return engineFetch<FixedIncomePositionRecord[]>(
-        `${engineUrl}/fixed-income/positions?user_id=${encodeURIComponent(userId)}`,
+        `${engineUrl}/fixed-income/positions?user_id=${encodeURIComponent(userId)}${valuation}`,
       )
     },
 

@@ -27,6 +27,14 @@ export interface PositionRecord extends BasePositionRecord {
 
 export interface FixedIncomePositionRecord extends BasePositionRecord {
   average_rate: number
+  // Só com `valuation: true` e fora do sandbox (MO.8.1): valor BRUTO de hoje e líquido de IR (o que
+  // o resgate creditaria). Ausentes quando a avaliação dessa posição falhou no motor.
+  current_value?: number
+  net_value?: number
+}
+
+export interface ListFixedIncomePositionsOptions {
+  valuation?: boolean
 }
 
 export interface AccountEventRecord {
@@ -51,6 +59,9 @@ export interface ListAccountEventsQuery {
 export interface AccountReader {
   getAccount(userId: string): Promise<AccountBalance>
   listPositions(userId: string): Promise<PositionRecord[]>
-  listFixedIncomePositions(userId: string): Promise<FixedIncomePositionRecord[]>
+  listFixedIncomePositions(
+    userId: string,
+    options?: ListFixedIncomePositionsOptions,
+  ): Promise<FixedIncomePositionRecord[]>
   listAccountEvents(userId: string, query: ListAccountEventsQuery): Promise<AccountEventRecord[]>
 }
