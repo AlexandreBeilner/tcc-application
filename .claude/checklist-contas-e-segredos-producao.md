@@ -1,5 +1,7 @@
 # Checklist: contas, plataformas e segredos para produção (só web)
 
+> **Lista de execução, na ordem e com o jeito de provar cada item: `pendencias-externas-lancamento.md`** (2026-10-12). Este arquivo guarda o desenho, as contas e a lista de variáveis.
+
 Criado em **2026-10-10**. É a parte **fora do código** do lançamento (`backlog-lancamento-web-pwa.md`, LW.3.x e LW.4.x), para o autor ir
 organizando em paralelo ao desenvolvimento. Valores de preço são ordem de grandeza e **precisam ser conferidos nas páginas oficiais**
 na hora de contratar (preços de nuvem mudaram várias vezes em 2026).
@@ -29,12 +31,12 @@ Serviços externos: Resend (e-mail) · RevenueCat + Stripe (assinatura) · Googl
 | 2 | **Cloudflare** (gratuita) | DNS, proxy/WAF da API, Pages do frontend | R$ 0 | LW.3.2, LW.3.16 |
 | 3 | **Provedor do VPS** com datacenter em São Paulo (Vultr é o candidato; Magalu Cloud a comparar) | roda backend, motor, Postgres, Redis, Caddy | US$ 12 a 24 por mês (VPS de 2 vCPU/4 GB) | LW.3.1 |
 | 4 | **GitHub** (já existe) | repositório, Actions e **GHCR** (registro de imagens) | R$ 0 para o volume esperado | LW.3.13 |
-| 5 | **Backblaze B2** ou **Cloudflare R2** | cópia externa dos backups criptografados | centavos por mês nesse volume | LW.3.12 |
+| 5 | **Cloudflare R2** (decisão do autor, 2026-10-12; Backblaze B2 era a alternativa) | cópia externa dos backups criptografados | centavos por mês nesse volume | LW.3.12 |
 | 6 | **Resend** | e-mail transacional (recuperação de senha, verificação) | plano gratuito no início | LW.3.6 |
 | 7 | **Stripe** (Brasil) | cartão para a assinatura PRO, atrás do RevenueCat | taxa por transação, sem mensalidade | LW.4.1 |
 | 8 | **RevenueCat** | camada única de assinatura e webhook | gratuito até um teto de receita (conferir) | LW.4.1 |
 | 9 | **Google Cloud Console** (já existe o projeto OAuth) | login com Google em produção | R$ 0 | LW.3.2 |
-| 10 | **Monitoramento externo** (ex.: UptimeRobot/Better Stack) e **erros** (ex.: Sentry, plano gratuito) | alerta de queda, `/health`, erros do frontend e backend | R$ 0 no início | LW.3.5 |
+| 10 | **Monitoramento externo** gratuito (UptimeRobot ou healthchecks.io) | alerta de queda por `/health/ready` e dos backups. **Sem serviço de erros (Sentry) por enquanto**, decisão de custo de 2026-10-12 | R$ 0 | LW.3.5 |
 | 11 | **Contador** | nota fiscal e regime tributário (o Stripe não emite NF-e) | variável | LW.4.2 |
 
 Não precisa de: Apple Developer, Google Play Console, conta macOS/CI de iOS (app adiado).
@@ -72,7 +74,6 @@ Gerar **todos** com `openssl rand -base64 48` (ou gerenciador de senhas) e guard
 | `POSTGRES_PASSWORD` | gerada | superusuário só de administração e backup; 16+ caracteres |
 | `DB_OWNER_PASSWORD` | gerada | papel `selucra_owner`, dono dos dois bancos, usado só para migrar (LW.3.17); `openssl rand -hex 24`; só vale na primeira inicialização do volume |
 | `GAMIFICATION_APP_PASSWORD`, `MARKET_APP_PASSWORD` | geradas | papéis de runtime só com DML (LW.3.17); mesma regra |
-| senhas dos papéis `gamification_app`, `market_app` | geradas | LW.3.17 |
 | `REDIS_PASSWORD` | gerada | LW.3.7 |
 | `JWT_SECRET` | gerada, 32+ caracteres | girar invalida os logins ativos |
 | `EMAIL_UNSUBSCRIBE_SECRET` | gerada (ou vazio) | vazio reaproveita o `JWT_SECRET` |
