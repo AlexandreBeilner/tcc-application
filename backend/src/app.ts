@@ -3,6 +3,7 @@ import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
 import { readTrustedProxyHops } from './shared/http/trustProxy'
+import { apiSecurityHeaders, JSON_BODY_LIMIT } from './shared/http/securityHeaders'
 import { healthRouter } from './routes/health'
 import { jsonErrorHandler } from './shared/http/errorHandler'
 import { statusRouter } from './routes/status'
@@ -1061,9 +1062,10 @@ export function createApp(deps: AppDeps = {}): Express {
   // proxy e todo mundo viraria um cliente só; confiando demais, um `X-Forwarded-For` forjado
   // trocaria o balde. Em produção o Caddy entrega um único salto com o IP real (LW.3.9).
   app.set('trust proxy', readTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS))
+  app.use(apiSecurityHeaders())
   app.use(cors({ origin: frontendUrl }))
   if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
-  app.use(express.json())
+  app.use(express.json({ limit: JSON_BODY_LIMIT }))
   app.use(healthRouter)
   app.use(statusRouter)
   // Serve os arquivos salvos por `UploadAvatarUseCase`/`diskAvatarStorage`
