@@ -59,6 +59,10 @@ Nenhum segredo aqui. "Mora em" diz onde a credencial está.
 | **healthchecks.io** | Checks do backup (1 dia, tolerância 2 h) e do teste de restauração (7 dias); o do host (15 min) está em "a confirmar" | URLs de ping em `prod.env` e `/etc/selucra/host-health.env` |
 | **UptimeRobot** (gratuito) | 3 monitores a cada 5 min: `https://api.selucra.com.br/health/ready`, `https://app.selucra.com.br` e `https://selucra.com.br`; alerta por e-mail | conta UptimeRobot |
 
+### Proteção contra tentativa repetida de senha (duas camadas)
+- **Cloudflare**, regra de Rate Limiting (plano gratuito: janela curta, só barra rajadas) em `api.selucra.com.br` para `/auth/`; testada.
+- **Backend** (`loginRateLimit.ts`, 2026-10-12): login com 30 tentativas por IP e 10 por e-mail em 15 minutos, cadastro com 20 por hora por IP, Google por token com 30 em 15 minutos. Em memória (uma instância só). `AUTH_RATE_LIMIT=off` só em desenvolvimento; staging e produção recusam subir com ele. Sem isto o login não tinha limite no código, e o nginx que limitava só existe no desenvolvimento.
+
 ### DNS (zona `selucra.com.br`)
 - `api` e `api-staging`: registro **A** para o IP do VPS, **com proxy** (nuvem laranja). Durante a primeira emissão do certificado ficaram cinza, e depois foram ligados.
 - `app`, `staging`, raiz e `www`: criados pelo Pages ao adicionar o domínio personalizado em cada projeto.
@@ -138,7 +142,7 @@ Regra: depois de editar um `.env`, aplicar com `docker compose ... up -d backend
 3. **Cloudflare:** zona, nameservers no Registro.br, SSL Full (strict), registros de API, proxy ligado.
 4. **GHCR:** imagens publicadas pelo CI e token de leitura no servidor.
 5. **Staging no ar** (`selucra-staging` + `api-staging`), seeds, administrador, frontend no Pages, Cloudflare Access.
-6. **Resend** (domínios, chaves, webhook, envio testado e recebido). O encaminhamento de `suporte@` e `privacidade@` (usados nos Termos e no reply-to) está em "a confirmar".
+6. **Resend** (domínios, chaves, webhook, envio testado e recebido). O encaminhamento de `suporte@` e `privacidade@` (Cloudflare Email Routing) foi feito pelo autor.
 7. **Backup:** chaves `age`, R2, primeiro backup e **teste de restauração aprovado no servidor real**, monitores no healthchecks.io,
    timers do systemd.
 8. **Produção no ar** (`selucra-prod` + `api`), seeds, administrador, `selucra-app` no Pages, teste de cadastro com e-mail verificado.
@@ -186,9 +190,7 @@ contador**, a regularizar quando houver receita.
 ## 10. A confirmar (não consegui verificar daqui)
 
 Itens que o autor informou ou que dependem de painéis que não vejo; confirmar e riscar:
-- [ ] Regra de **Rate Limiting** da Cloudflare em `/auth/*` na `api.selucra.com.br` (o plano gratuito limita período e quantidade de regras).
 - [ ] `selucra.com.br` e `www` ativos no projeto `selucra-landing`, com `www` redirecionando para a raiz.
-- [ ] **Cloudflare Email Routing** encaminhando `suporte@` e `privacidade@` para o e-mail do autor (os Termos e o reply-to dependem disso).
 - [ ] Check do healthchecks.io do **host** e a `HOST_MONITOR_URL` em `/etc/selucra/host-health.env` (no console, como root).
 - [ ] A compra real aparece em `/admin/assinaturas` como **não sandbox**.
 - [ ] Domínio verificado no Stripe e no RevenueCat para o checkout web (LW.4.3).
