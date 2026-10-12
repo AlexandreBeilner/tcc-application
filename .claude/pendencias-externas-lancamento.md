@@ -9,6 +9,12 @@ o que só o autor pode fazer, em que ordem, e como **provar** que funcionou. Com
 **Regra de ouro:** nada aqui bloqueia o desenvolvimento. Tudo o que está "pronto no código" foi provado com imagens reais num
 ambiente descartável; o que falta provar é a mesma coisa no servidor e com os serviços de verdade.
 
+## Estado em 2026-10-12 (fim do dia)
+
+**Feito e provado no servidor real:** domínio e Cloudflare (DNS, SSL Full strict, proxy), VPS Vultr em São Paulo endurecido (`verify-hardening.sh` todo PASSOU), GHCR com as imagens por SHA, **staging** (`staging.selucra.com.br` atrás do Cloudflare Access, `api-staging`), **produção** (`app.selucra.com.br` e `api.selucra.com.br`, cadastro com e-mail verificado de ponta a ponta), Resend (envio testado), backup criptografado no R2 com teste de restauração aprovado no servidor real, monitores de backup no healthchecks.io e timers do systemd.
+
+**Falta (nesta ordem sugerida):** (1) landing em `selucra.com.br` e `www` (conferir domínio no projeto `selucra-landing`); (2) monitor de uptime externo (seção 8); (3) Google OAuth (seção 6); (4) Stripe e RevenueCat em sandbox e depois produção (seção 9), com o webhook em `https://api.selucra.com.br`; (5) contador, termos e política revisados (seção 10), **bloqueia cobrar**; (6) PWA em aparelho real (seção 11) e ensaio geral em staging (LW.5.3); (7) restauração cronometrada do zero (RTO) e ensaio do `deploy.sh` com o `pull` do GHCR.
+
 ## 0. Ordem sugerida (do que destrava mais para o que destrava menos)
 
 | # | Dependência | Destrava | Seção |
