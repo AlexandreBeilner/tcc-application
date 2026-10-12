@@ -223,5 +223,5 @@ roteiro manual em `backlog-lancamento-web-pwa.md` (LW.2.6, andamento de 2026-10-
 
 ## 13. Ainda por fazer em código (não depende de serviço externo)
 
-Para não confundir com a lista acima: LW.3.2, LW.3.4, LW.3.11 e LW.3.16 já estão feitas no código (o que falta de cada uma é conta, servidor
-ou aparelho, listado nas seções acima). Resta só **LW.5.1/5.2** (roteiro mobile, link de privacidade e inventário do que está parado para mesclar).
+Nada. LW.3.2, 3.4, 3.11, 3.16, 5.1 e 5.2 estão feitas no código (o que falta de cada uma é conta, servidor, aparelho ou o merge da `backlog-monetizacao`, listado
+nas seções acima e no LW.5.2 do backlog). Só sobra polimento opcional: alvos de toque abaixo de 44 px listados na LW.5.1.
