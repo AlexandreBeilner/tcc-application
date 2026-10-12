@@ -36,7 +36,7 @@ if [ "${SKIP_PACKAGES:-0}" != 1 ]; then
   log "instalando pacotes"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
-  apt-get install -y -qq ufw fail2ban unattended-upgrades chrony curl ca-certificates >/dev/null
+  apt-get install -y -qq ufw fail2ban unattended-upgrades chrony curl ca-certificates acl >/dev/null
 fi
 
 # 1b. Docker Engine e Compose, do repositório oficial da Docker (o do Ubuntu fica defasado) ----
