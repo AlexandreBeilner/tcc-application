@@ -365,6 +365,13 @@
       "when": 1794300000000,
       "tag": "0051_replace_agenda_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0052_add_pro_entry_funnel_sources",
+      "breakpoints": true
     }
   ]
 }

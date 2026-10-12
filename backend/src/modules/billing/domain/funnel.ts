@@ -16,14 +16,18 @@ export const CLIENT_FUNNEL_EVENTS = ['invite_viewed', 'plans_opened', 'purchase_
 export type ClientFunnelEvent = (typeof CLIENT_FUNNEL_EVENTS)[number]
 export type FunnelEventName = ClientFunnelEvent | 'subscribed' | 'cancelled'
 
-// Ponto do app de onde a pessoa chegou ao PRO: os quatro convites (cada um é uma âncora do plano) e
-// `direct` (abriu /planos sem passar por um convite, ex.: pelo menu de configurações).
+// Ponto do app de onde a pessoa chegou ao PRO: os cinco convites de âncora, as três entradas sempre
+// visíveis da MO.9.8 (`portfolio` = cartão do Portfólio, `menu` = menu do avatar, `header` = link do
+// cabeçalho) e `direct` (abriu /planos sem passar por nenhuma delas).
 export const FUNNEL_SOURCES = [
   'league',
   'duel',
   'cosmetics',
   'retrospective',
   'assembly',
+  'portfolio',
+  'menu',
+  'header',
   'direct',
 ] as const
 export type FunnelSource = (typeof FUNNEL_SOURCES)[number]
