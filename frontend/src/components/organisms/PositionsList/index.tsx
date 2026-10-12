@@ -6,6 +6,8 @@ import styles from './index.module.css'
 
 export type { PositionsListProps } from './types'
 
+const quantityFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 6 })
+
 function toPercent(ratio: number | null): number | null {
     return ratio === null ? null : ratio * 100
 }
@@ -72,7 +74,7 @@ export function PositionsList({ rows, onSelect }: PositionsListProps) {
                                 <span className={styles.name}>{row.name}</span>
                                 <FixedIncomeNote row={row} />
                             </td>
-                            <td className={`${styles.td} ${styles.num} tabular-nums`}>{row.quantity}</td>
+                            <td className={`${styles.td} ${styles.num} tabular-nums`}>{quantityFormatter.format(row.quantity)}</td>
                             <td className={`${styles.td} ${styles.num} tabular-nums`}>{formatCurrency(row.averagePrice)}</td>
                             <td className={`${styles.td} ${styles.num} tabular-nums`}>
                                 {row.valued ? formatCurrency(unitPrice(row)) : '—'}
@@ -108,7 +110,7 @@ export function PositionsList({ rows, onSelect }: PositionsListProps) {
                             <span className={`${styles.cardMeta} tabular-nums`}>
                                 {row.isFixedIncome
                                     ? `Aplicado ${formatCurrency(row.cost)}`
-                                    : `${row.quantity} un. · Preço médio ${formatCurrency(row.averagePrice)} · Atual ${formatCurrency(unitPrice(row))}`}
+                                    : `${quantityFormatter.format(row.quantity)} un. · Preço médio ${formatCurrency(row.averagePrice)} · Atual ${formatCurrency(unitPrice(row))}`}
                             </span>
                             <FixedIncomeNote row={row} />
                             {!row.isFixedIncome && row.dividendsReceived > 0 && (
