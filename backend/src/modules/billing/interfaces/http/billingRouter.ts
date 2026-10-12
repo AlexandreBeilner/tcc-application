@@ -74,6 +74,11 @@ export function createBillingRouter(deps: BillingRouterDeps): Router {
     }
     const parsed = funnelBodySchema.safeParse(req.body)
     if (!parsed.success) {
+      // Só os caminhos dos campos, nunca os valores (podem trazer id de usuário): basta para achar o contrato quebrado.
+      console.warn(
+        'cobrança: webhook recusado por corpo inválido, campos:',
+        parsed.error.issues.map((issue) => issue.path.join('.') || '(raiz)').join(', '),
+      )
       res.status(400).json({ error: 'corpo inválido' })
       return
     }

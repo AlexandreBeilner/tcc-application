@@ -44,7 +44,7 @@ O Docker publica portas por `iptables` e **passa por cima do `ufw`**: por isso o
 | Assinado | data e nome | |
 
 1. `docker network create selucra-edge`
-2. Copiar `docker-compose.*.yml` e `infra/` para `/opt/selucra/`; criar `prod.env` a partir de `infra/env/prod.env.example` (segredos com `openssl rand -hex 24` / `-base64 48`). **Guardar uma cópia do `prod.env` em local seguro** (o `SIMULATION_SEED` é imutável e some com o servidor).
+2. Copiar `docker-compose.*.yml` e `infra/` para `/opt/selucra/` (conferir com `sha256sum` dos dois lados: `docker-compose.edge.yml` e `docker-compose.prod.yml` são arquivos diferentes). Gerar os `.env` **no servidor**, com os segredos criados ali: `/opt/selucra/infra/server/init-env.sh staging <sha> --acme-email <email>` e o mesmo com `prod` (o Caddy lê o `ACME_EMAIL` do `prod.env`, então ele precisa existir mesmo antes de produção subir). O script comenta como `PENDENTE` o que depende de conta externa e liga `BILLING_PROVIDER=disabled` sem chave real. **Produção só sobe com `EMAIL_PROVIDER=resend`** (a guarda recusa o resto); o staging aceita `log`, por isso **o staging sobe primeiro**. **Guardar uma cópia dos `.env` em local seguro** (o `SIMULATION_SEED` é imutável e some com o servidor).
 3. `docker login ghcr.io` com o token de leitura (`read:packages`) do usuário de deploy.
 4. `$PROD up -d` e, depois, `docker compose -p selucra-edge --env-file /opt/selucra/prod.env -f /opt/selucra/docker-compose.edge.yml up -d`. As migrações rodam no boot do backend e do motor.
 5. **Seeds (uma vez, nesta ordem; todos idempotentes):**
@@ -71,6 +71,7 @@ Por execução, em `daily/<timestamp UTC>/`: `gamification.dump.age` e `market.d
 ### Chaves (decisão de desenho)
 - Backups são criptografados para **duas chaves públicas** `age`: a **principal**, cuja chave privada fica **fora do servidor** (gerenciador de senhas e uma cópia impressa/offline; sem ela não há restauração de desastre), e a de **teste**, cuja privada fica no servidor (`/opt/selucra/backup-test.agekey`, modo 600) só para o teste semanal automático. Quem invadir o servidor já alcança os dados vivos; quem invadir só o bucket R2 não consegue ler nada.
 - Gerar: `docker run --rm --entrypoint age-keygen ghcr.io/alexandrebeilner/selucra-backup:<sha>` (uma vez para cada chave). As chaves públicas vão em `BACKUP_AGE_RECIPIENTS`.
+- **Permissão de leitura (obrigatória):** o contêiner de backup roda como uid 10001, sem root e sem capabilities. Os dois arquivos montados nele, `prod.env` e `backup-test.agekey`, são modo 600 do usuário de deploy e o contêiner não os lê (`Permission denied` na linha do `app.env`). Libere só esse uid, sem afrouxar o modo: `setfacl -m u:10001:r /opt/selucra/prod.env /opt/selucra/backup-test.agekey` (o `init-env.sh` já faz o do `prod.env`). Refazer o `prod.env` com `--force` ou recriar a chave de teste exige repetir o comando. Conferir: `getfacl /opt/selucra/prod.env` mostra `user:10001:r--`.
 
 ### Agendamento
 `infra/systemd/` tem os dois timers: backup diário 03:30 e teste de restauração aos domingos 05:00 (horário de São Paulo). Instalar: copiar os quatro arquivos para `/etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now selucra-backup.timer selucra-restore-test.timer`. Ver: `systemctl list-timers 'selucra-*'`, `journalctl -u selucra-backup -n 50`.
@@ -99,6 +100,7 @@ Cada rotina avisa um monitor "dead man's switch" (healthchecks.io ou equivalente
 | Data | Backup | Onde | Tempo | Resultado |
 |---|---|---|---|---|
 | 2026-10-12 | 20261012T131201Z | máquina de desenvolvimento, stack descartável, "remoto" simulado em disco (rclone `:local:`) | segundos (dados de teste: 1 usuário, 1930 eventos) | OK: bancos, gatilho append-only, avatares e `.env`; backup corrompido recusado. **Falta o ensaio cronometrado num servidor limpo com o R2 de verdade.** |
+| 2026-10-12 | 20261012T182452Z | **VPS real (Vultr, São Paulo), produção, R2 de verdade**, chaves `age` principal e de teste | backup em 4 s, teste de restauração em 3 s (dados: 1 usuário, 1929 eventos) | OK: 4 arquivos `.age` íntegros, `users` 1 e `market_events` 1929 linhas conferidas, gatilho append-only ativo e recusando `UPDATE`, avatares e `.env` com `SIMULATION_SEED` legíveis. **Achado do ensaio:** o contêiner roda como uid 10001 e não lia o `prod.env` modo 600 (`Permission denied`), resolvido com ACL (`setfacl`, pacote `acl`). **Falta:** restauração real do zero, cronometrada (RTO), a partir só da chave principal. |
 
 ## 4. Deploy, rollback e migrações (LW.3.15)
 

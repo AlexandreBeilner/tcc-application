@@ -36,7 +36,7 @@ if [ "${SKIP_PACKAGES:-0}" != 1 ]; then
   log "instalando pacotes"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
-  apt-get install -y -qq ufw fail2ban unattended-upgrades chrony curl ca-certificates >/dev/null
+  apt-get install -y -qq ufw fail2ban unattended-upgrades chrony curl ca-certificates acl >/dev/null
 fi
 
 # 1b. Docker Engine e Compose, do repositório oficial da Docker (o do Ubuntu fica defasado) ----
@@ -168,6 +168,8 @@ fi
 
 # 8. Alerta de disco, memória e reinício pendente ----------------------------------------
 install -d -m 755 "$ROOT/opt/selucra" "$ROOT/etc/selucra"
+# O deploy copia os compose e `infra/` e grava os `.env` aqui sem sudo (o usuário de deploy já está no grupo docker).
+chown "$DEPLOY_USER:$DEPLOY_USER" "$ROOT/opt/selucra"
 install -m 755 "$HERE/host-health.sh" "$ROOT/opt/selucra/host-health.sh"
 install -m 755 "$HERE/verify.sh" "$ROOT/opt/selucra/verify-hardening.sh"
 if [ ! -f "$ROOT/etc/selucra/host-health.env" ]; then

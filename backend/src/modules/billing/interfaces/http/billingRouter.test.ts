@@ -202,6 +202,70 @@ describe('POST /billing/webhook', () => {
     expect(res.body.outcome).toBe('ignored')
   })
 
+  it('INVOICE_ISSUANCE com campos null (payload real do RevenueCat) responde 200 e é ignorado', async () => {
+    const { app } = buildApp()
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Authorization', SECRET)
+      .send({
+        api_version: '1.0',
+        event: {
+          aliases: null,
+          app_user_id: FREE_USER,
+          entitlement_id: null,
+          entitlement_ids: null,
+          environment: 'PRODUCTION',
+          event_timestamp_ms: NOW.getTime(),
+          id: '5A5E0971-8C7F-44F8-B02E-BFB74D424FAF',
+          original_app_user_id: FREE_USER,
+          original_transaction_id: null,
+          product_id: 'selucra_monthly',
+          store: 'RC_BILLING',
+          transaction_id: null,
+          type: 'INVOICE_ISSUANCE',
+        },
+      })
+    expect(res.status).toBe(200)
+    expect(res.body.outcome).toBe('ignored')
+  })
+
+  it('CANCELLATION com aliases e transferências null ainda reconsulta o provedor', async () => {
+    const { app, repo } = buildApp()
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Authorization', SECRET)
+      .send(
+        body({
+          id: 'evt-cancel-null',
+          type: 'CANCELLATION',
+          aliases: null,
+          transferred_from: null,
+          transferred_to: null,
+        }),
+      )
+    expect(res.status).toBe(200)
+    expect(res.body.outcome).toBe('synced')
+    expect(repo.rows.has(FREE_USER)).toBe(true)
+  })
+
+  it('campo auxiliar com tipo errado não derruba o aviso (só id e type são obrigatórios)', async () => {
+    const { app } = buildApp()
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Authorization', SECRET)
+      .send(body({ aliases: 'não é lista', event_timestamp_ms: 'ontem' }))
+    expect(res.status).toBe(200)
+  })
+
+  it('evento sem id ou sem type continua 400', async () => {
+    const { app } = buildApp()
+    const res = await request(app)
+      .post('/billing/webhook')
+      .set('Authorization', SECRET)
+      .send({ event: { type: 'CANCELLATION' } })
+    expect(res.status).toBe(400)
+  })
+
   it('corpo fora do formato: 400', async () => {
     const { app } = buildApp()
     const res = await request(app)

@@ -33,9 +33,9 @@ Backlog: `.claude/backlog-monetizacao.md` (Fase B, MO.2.x). A verdade sobre quem
 ### `POST /billing/webhook`
 
 - **Autenticação:** público; autenticado pelo cabeçalho `Authorization` configurado no webhook do RevenueCat (comparação em tempo constante)
-- **Payload:** corpo do webhook do RevenueCat (`event.id`, `event.type`, `event.app_user_id`, `original_app_user_id`, `aliases`, `transferred_from`, `transferred_to`, `event_timestamp_ms`); o resto é ignorado
+- **Payload:** corpo do webhook do RevenueCat (`event.id`, `event.type`, `event.app_user_id`, `original_app_user_id`, `aliases`, `transferred_from`, `transferred_to`, `event_timestamp_ms`); o resto é ignorado. **Só `event.id` e `event.type` são obrigatórios.** Os demais campos aceitam `null` (o RevenueCat manda `null`, por exemplo `aliases: null` em `INVOICE_ISSUANCE`) e, se vierem com tipo estranho, são descartados sem recusar o aviso
 - **Sucesso:** `200` `{ received: true, outcome }` com `outcome` = `synced` | `ignored` | `duplicate`
-- **Erros:** `401` cabeçalho ausente ou errado (nada é processado); `400` corpo fora do formato; `500` falha ao consultar o provedor ou gravar (o RevenueCat reenvia até 5 vezes); `503` cobrança desligada
+- **Erros:** `401` cabeçalho ausente ou errado (nada é processado); `400` corpo sem `event.id` ou `event.type` (o log traz só os caminhos dos campos inválidos, nunca os valores); `500` falha ao consultar o provedor ou gravar (o RevenueCat reenvia até 5 vezes); `503` cobrança desligada
 - **Regra:** o evento é só um **aviso**. Para os tipos que podem mudar o direito ao PRO (compra, renovação, cancelamento, expiração, problema de cobrança, troca de produto, transferência, reembolso revertido, etc.), o caso de uso reconsulta `GET /v1/subscribers/{app_user_id}` e regrava a projeção, o que é convergente (repetido ou fora de ordem dá o mesmo resultado). Ids que não são UUID (anônimos do RevenueCat) ou que não são usuários nossos são descartados; `TRANSFER` sincroniza origem e destino. O id do evento é gravado em `billing_webhook_events` só **depois** de processar, então uma falha no meio deixa o evento reprocessável. Eventos que não interessam (`TEST`, experimento, moeda virtual) respondem `200` e são registrados.
 
 ## Compra falsa para desenvolvimento (`BILLING_PROVIDER=dev`, MO.4.1)
