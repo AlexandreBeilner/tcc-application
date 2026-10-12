@@ -18,7 +18,7 @@ O servidor local comprime em gzip como o Cloudflare Pages, para o Lighthouse med
 ## Analytics (Cloudflare Web Analytics)
 
 A home e os guias carregam o beacon da Cloudflare (visitas, origem, país e Core Web Vitals, sem cookies) quando a variável
-`CF_ANALYTICS_TOKEN` existe no build. Sem ela, nada é carregado (é o caso do `npm run dev`). O token tem 32 caracteres, aparece no
+`CF_ANALYTICS_TOKEN` existe no build. Sem ela, o build não coloca nada no HTML (é o caso do `npm run dev`); o Web Analytics ainda pode ser ligado no modo automático da Cloudflare, sem token. O token tem 32 caracteres, aparece no
 HTML e não é segredo. A CSP em `src/static/_headers` libera só `static.cloudflareinsights.com` (script) e `cloudflareinsights.com`
 (envio). A política de privacidade do app cita essa medição. O Web Analytics não registra eventos de clique: o funil até o cadastro
 se vê pelas visitas ao `/login` do app.
@@ -36,7 +36,7 @@ no GitHub. Os botões da landing levam ao app em `https://app.selucra.com.br`, q
    funciona, mas não use "shallow" nem restrinja o checkout a `landing/`.
 3. **Variáveis** (Settings, Variables and secrets, Production):
     - `NODE_VERSION` = `22`
-    - `CF_ANALYTICS_TOKEN` = o token do Web Analytics (passo 6). Opcional: sem ele, nada é medido.
+    - `CF_ANALYTICS_TOKEN` = o token do Web Analytics (passo 6, só no modo manual). Opcional: sem ele, o build não coloca nenhum script.
     - `SITE_URL` e `APP_URL` só se forem diferentes de `https://selucra.com.br` e `https://app.selucra.com.br` (o padrão já é produção).
 4. **Build watch paths** (Settings, Build, Build watch paths): inclua `landing/*` e
    `backend/src/modules/lessons/domain/regulatoryFacts.ts`, para o Pages não rebuildar a cada commit do resto do monorepo.
@@ -44,9 +44,14 @@ no GitHub. Os botões da landing levam ao app em `https://app.selucra.com.br`, q
    os registros sozinha.
    Depois, para o `www` apontar para o domínio raiz: Rules, Redirect Rules, Create rule, "Single redirect". Quando o hostname for igual a
    `www.selucra.com.br`, redirecionar (301, mantendo a query string) para o URL dinâmico `concat("https://selucra.com.br", http.request.uri.path)`.
-6. **Web Analytics.** Cloudflare, Analytics & Logs, Web Analytics, Add a site, hostname `selucra.com.br`, opção "JavaScript snippet".
-   Copie só o `token` (32 caracteres) de `data-cf-beacon` e guarde na variável do passo 3. Não ative também a injeção automática
-   do Pages (contaria cada visita duas vezes). Faça um novo deploy depois de criar a variável.
+6. **Web Analytics.** Use **só um** dos dois modos (os dois juntos contam cada visita em dobro):
+    - **Automático (mais simples):** no projeto da landing, Metrics ou Web Analytics, Enable. Se não achar, Analytics & Logs, Web
+      Analytics, adicione `selucra.com.br` com a configuração automática. A Cloudflare injeta o script na entrega, sem token e sem
+      variável. Ative **só para a landing** (projeto ou hostname `selucra.com.br`), nunca para a zona inteira: senão o script também
+      iria para `app.selucra.com.br` e para a API, e a política de privacidade diz que o app não tem analytics.
+    - **Manual:** Analytics & Logs, Web Analytics, Add a site, hostname `selucra.com.br`, opção "JavaScript snippet". Copie só o
+      `token` (32 caracteres) de `data-cf-beacon`, guarde na variável `CF_ANALYTICS_TOKEN` do passo 3 e faça um novo deploy.
+      A CSP do `_headers` já libera `static.cloudflareinsights.com` e `cloudflareinsights.com` nos dois modos.
 7. **HTTPS.** SSL/TLS em Full (strict) e "Always Use HTTPS" ligado. O `_headers` já manda HSTS de 1 ano com `includeSubDomains`,
    então `app.` e `api.` precisam ter HTTPS válido antes do primeiro acesso.
 8. **Conferir depois do deploy:**

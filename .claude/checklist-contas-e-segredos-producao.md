@@ -48,7 +48,7 @@ tem consequência fiscal. Confirmar com o contador antes de ativar a cobrança (
 - **Cloudflare:** registros `selucra.com.br` e `www` para o Pages da landing (`www` redireciona para o domínio raiz) e `app` para o Pages do app; `api` apontando para o IP do VPS (com proxy ligado, LW7); SSL em
   "Full (strict)"; regras de WAF e limitação de taxa básicas; registros do Resend (SPF, DKIM, DMARC) **sem proxy**.
 - **VPS:** região São Paulo, Ubuntu LTS, IP fixo, backup/snapshot semanal do provedor ligado, chave SSH cadastrada (sem senha).
-- **Cloudflare Web Analytics (landing):** painel da Cloudflare, Web Analytics, adicionar o site `selucra.com.br` pela opção do snippet de JavaScript, copiar o `token` (32 caracteres) que aparece no `data-cf-beacon` e criar a variável `CF_ANALYTICS_TOKEN` (produção) no projeto `landing` do Pages. Não ligar também a injeção automática do Pages, para não contar visita em dobro. O token é público, não é segredo.
+- **Cloudflare Web Analytics (landing):** modo automático (ativar no projeto `landing` do Pages ou no hostname `selucra.com.br`, nunca na zona inteira, para o app e a API ficarem sem script) ou modo manual (copiar o `token` de 32 caracteres do snippet e criar `CF_ANALYTICS_TOKEN` no projeto). Usar só um dos dois, senão a visita conta em dobro. O token não é segredo.
 - **Google OAuth:** tela de consentimento em "Em produção", domínio autorizado `selucra.com.br`, URL da política de privacidade
   (`/privacidade`), origem `https://app.selucra.com.br` e redirecionamento `https://api.selucra.com.br/auth/google/callback`.
 - **Resend:** domínio verificado, chave de API de envio, webhook assinado apontando para `https://api.selucra.com.br/webhooks/...`
