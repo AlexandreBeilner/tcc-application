@@ -71,7 +71,27 @@ Cada rotina avisa um monitor "dead man's switch" (healthchecks.io ou equivalente
 | 2026-10-12 | 20261012T131201Z | máquina de desenvolvimento, stack descartável, "remoto" simulado em disco (rclone `:local:`) | segundos (dados de teste: 1 usuário, 1930 eventos) | OK: bancos, gatilho append-only, avatares e `.env`; backup corrompido recusado. **Falta o ensaio cronometrado num servidor limpo com o R2 de verdade.** |
 
 ## 4. Deploy, rollback e migrações (LW.3.15)
-A preencher com o `deploy.sh`.
+
+Script: `infra/deploy/deploy.sh` (copiado para `/opt/selucra/deploy.sh`). Fluxo: **versão = SHA de 40 caracteres** do commit (o CI de imagens, LW.3.13, publica `selucra-backend`, `-engine` e `-backup` com essa tag; nunca `latest`).
+
+```
+./deploy.sh staging <sha>                 # 1. valida no staging
+./deploy.sh prod <sha>                    # 2. promove a MESMA imagem (recusa se não for a do staging)
+./deploy.sh prod rollback                 # volta para a versão anterior (sem backup novo)
+./deploy.sh <prod|staging> status
+```
+Opções: `--allow-peak` (ignora a recusa do horário de pico, padrão 18h a 23h em São Paulo, `DEPLOY_AVOID_HOURS`), `--skip-staging-check` (emergência). `DEPLOY_NOTIFY_URL` opcional avisa um monitor (`/start`, ok, `/fail`).
+
+**O que o script faz, nesta ordem:** (1) recusa versão inválida, igual à atual, ou produção sem passar pelo staging; (2) **backup** com a imagem da versão atual (se falhar, aborta sem tocar em nada); (3) `pull` das imagens novas (se falhar, nada mudou); (4) `up -d` e espera `postgres`, `redis`, `engine` e `backend` saudáveis (falha cedo em laço de reinício ou `unhealthy`; tempo máximo 240 s); (5) sucesso: grava `IMAGE_TAG` no `.env`; (6) falha: **volta sozinho** a versão anterior e sai com código 1 (código 2 se o rollback também falhar).
+
+**Janela de deploy:** backend e motor são singletons (os agendadores rodam dentro do processo), então **não existe deploy sem interrupção**: o serviço cai por alguns segundos e depois leva o tempo do boot (migrações incluídas), na prática de 15 a 60 s. Faça de madrugada. A fila de e-mail, o ranking e o Temporizador retomam sozinhos (o Temporizador recupera os ticks perdidos até `TICK_MAX_CATCHUP`).
+
+**Migrações:** rodam no boot do backend (Drizzle) e do motor (golang-migrate). Elas **não se desfazem sozinhas**: o rollback troca só a imagem. Casos:
+- migração aditiva (coluna ou tabela nova): a imagem antiga costuma continuar funcionando; nada a fazer.
+- migração que quebrou o boot (o deploy já voltou a versão antiga, o banco ficou na metade ou à frente): olhar `docker compose logs backend`/`engine`; se for estado "dirty" do golang-migrate, seguir a nota em memória do projeto antes de forçar versão; **se o app antigo não sobe com o schema novo, restaurar do backup tirado no início do deploy** (seção 3) e só então corrigir a migração.
+- antes de qualquer migração que apague ou reescreva dado, confirmar que o backup do início do deploy existe (`docker compose ... run --rm backup ls` no volume, ou o log do `deploy.sh`).
+
+**Ensaiado em 2026-10-12** (máquina de desenvolvimento, imagens locais por SHA, `DEPLOY_PULL=0`): deploy bom (14 s, com backup); versão quebrada (volta sozinha em 21 s, saída 1, app saudável na versão antiga); rollback manual; backup que falha aborta sem mudar nada; versão `latest`, igual à atual, fora do staging e dentro do pico são recusadas. **Falta ensaiar no staging do VPS real**, com o `pull` do GHCR.
 
 ## 5. Outras rotinas (a preencher conforme as tarefas)
 - Girar segredos: LW.3.8/LW.3.11. Criar o admin com segurança: seção 2, passo 5.

@@ -9,15 +9,20 @@ source /usr/local/lib/backup/common.sh
 
 fail() {
   log "BACKUP FALHOU: $*"
+  # Nunca deixa um backup pela metade onde o restore e o teste procuram o "mais recente".
+  rm -rf "${incomplete:-/nonexistent}"
   ping_monitor "${HEALTHCHECK_URL:-}" /fail
   exit 1
 }
 trap 'fail "erro na linha $LINENO"' ERR
 
+[ -n "${AGE_RECIPIENTS:-}" ] || fail "AGE_RECIPIENTS não definido (BACKUP_AGE_RECIPIENTS no .env)"
 ping_monitor "${HEALTHCHECK_URL:-}" /start
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
 root="${BACKUP_DIR}/${BACKUP_ENV_NAME}"
-out="${root}/daily/${ts}"
+# Monta fora de `daily/`: só entra lá, por `mv`, depois de completo.
+incomplete="${root}/incomplete/${ts}"
+out="$incomplete"
 mkdir -p "$out"
 manifest="${out}/manifest.txt"
 { echo "timestamp_utc=${ts}"; echo "ambiente=${BACKUP_ENV_NAME}"; echo "pg_dump=$(pg_dump --version)"; } > "$manifest"
@@ -47,7 +52,11 @@ fi
 
 (cd "$out" && sha256sum -- *.age >> manifest.txt)
 
-# Domingo também vira cópia semanal.
+# Completo: sai de `incomplete/` e vira o mais recente. Domingo também vira cópia semanal.
+mkdir -p "${root}/daily"
+mv "$incomplete" "${root}/daily/${ts}"
+out="${root}/daily/${ts}"
+incomplete=""
 if [ "$(date -u +%u)" = "7" ]; then
   mkdir -p "${root}/weekly"
   cp -r "$out" "${root}/weekly/${ts}"
