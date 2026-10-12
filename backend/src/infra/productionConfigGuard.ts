@@ -6,26 +6,34 @@
 // `DEPLOY_ENV` é uma variável própria e não `NODE_ENV`: a imagem Docker roda com `NODE_ENV=production`
 // também no `docker compose up` local (mesma razão registrada em `loadEmailConfig` e na MO.4.1), então
 // `NODE_ENV` não separa desenvolvimento de produção. Quem diz `production` é o deploy, de propósito.
+//
+// `staging` (ambiente de validação no mesmo VPS) passa pelas mesmas exigências de segredo, URL e
+// banco, mas aceita `EMAIL_PROVIDER=log` (não manda e-mail a ninguém). `BILLING_PROVIDER=dev`
+// continua recusado: o staging valida a cobrança de verdade, com as chaves de sandbox.
 const DEV_SECRET = 'dev-secret-troque-em-producao'
 const MIN_SECRET_LENGTH = 32
 const MIN_DB_PASSWORD_LENGTH = 16
 const WEAK_DB_PASSWORDS = new Set(['tcc', 'postgres', 'password', 'senha', 'admin', 'root'])
 
-export type DeployEnv = 'development' | 'production'
+export type DeployEnv = 'development' | 'staging' | 'production'
 
 export function readDeployEnv(env: NodeJS.ProcessEnv): DeployEnv {
   const raw = env.DEPLOY_ENV?.trim()
   if (!raw || raw === 'development') return 'development'
   if (raw === 'production') return 'production'
+  if (raw === 'staging') return 'staging'
   // Valor desconhecido (ex: "prod", "Production") não pode cair em desenvolvimento em silêncio:
   // quem escreveu achava que estava ligando a guarda.
   throw new Error(
-    `DEPLOY_ENV inválido: "${raw}" (use "production" ou deixe vazio em desenvolvimento)`,
+    `DEPLOY_ENV inválido: "${raw}" (use "production", "staging" ou deixe vazio em desenvolvimento)`,
   )
 }
 
 // Devolve a lista de problemas (vazia = configuração aceitável para produção).
-export function findProductionConfigProblems(env: NodeJS.ProcessEnv): string[] {
+export function findProductionConfigProblems(
+  env: NodeJS.ProcessEnv,
+  deployEnv: DeployEnv = 'production',
+): string[] {
   const problems: string[] = []
   const read = (name: string) => env[name]?.trim() || undefined
 
@@ -33,7 +41,12 @@ export function findProductionConfigProblems(env: NodeJS.ProcessEnv): string[] {
   // Sem valor próprio o segredo de cancelar inscrição reaproveita o do JWT (já checado acima).
   checkSecret('EMAIL_UNSUBSCRIBE_SECRET', read('EMAIL_UNSUBSCRIBE_SECRET'), false, problems)
 
-  if (read('EMAIL_PROVIDER') !== 'resend') {
+  const emailProvider = read('EMAIL_PROVIDER')
+  if (deployEnv === 'staging') {
+    if (emailProvider !== 'resend' && emailProvider !== 'log') {
+      problems.push('EMAIL_PROVIDER deve ser "resend" ou "log" no staging')
+    }
+  } else if (emailProvider !== 'resend') {
     problems.push('EMAIL_PROVIDER deve ser "resend" em produção ("log" só imprime o e-mail no log)')
   }
   // A Assembleia nasce ligada: só "off" desliga (emergência). Um valor fora de on/off (ex: "false",
@@ -65,10 +78,12 @@ export function findProductionConfigProblems(env: NodeJS.ProcessEnv): string[] {
 // Chamada no arranque do `server.ts`: em desenvolvimento não faz nada; em produção derruba o
 // processo com a lista completa do que está errado.
 export function assertProductionConfig(env: NodeJS.ProcessEnv): void {
-  if (readDeployEnv(env) !== 'production') return
-  const problems = findProductionConfigProblems(env)
+  const deployEnv = readDeployEnv(env)
+  if (deployEnv === 'development') return
+  const problems = findProductionConfigProblems(env, deployEnv)
   if (problems.length > 0) {
-    throw new Error(`configuração inválida para produção: ${problems.join('; ')}`)
+    const label = deployEnv === 'staging' ? 'staging' : 'produção'
+    throw new Error(`configuração inválida para ${label}: ${problems.join('; ')}`)
   }
 }
 

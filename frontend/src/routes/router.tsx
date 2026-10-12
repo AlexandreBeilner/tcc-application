@@ -65,6 +65,8 @@ import { Portfolio } from '../pages/Portfolio'
 import { RedefinirSenha } from '../pages/RedefinirSenha'
 import { VerificarEmail } from '../pages/VerificarEmail'
 import { PoliticaPrivacidade } from '../pages/PoliticaPrivacidade'
+import { Reembolso } from '../pages/Reembolso'
+import { Termos } from '../pages/Termos'
 import { PrivacidadeLgpd } from '../pages/PrivacidadeLgpd'
 import { SolicitacoesAmizade } from '../pages/SolicitacoesAmizade'
 import { Statement } from '../pages/Statement'
@@ -118,6 +120,9 @@ export const router = createBrowserRouter([
         path: '/privacidade',
         element: <PoliticaPrivacidade />,
     },
+    // LW.4.2: termos de uso e da assinatura PRO e política de reembolso, públicos como a privacidade.
+    { path: '/termos', element: <Termos /> },
+    { path: '/reembolso', element: <Reembolso /> },
     {
         element: <ProtectedRoute />,
         children: [

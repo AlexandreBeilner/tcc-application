@@ -47,6 +47,21 @@ const DATA_ROWS = [
         basis: 'Execução do contrato (art. 7º, V)',
     },
     {
+        data: 'Plano PRO: plano contratado, datas de início e renovação, situação da assinatura e identificador da assinatura',
+        purpose: 'Liberar e encerrar as capacidades do PRO e cobrar corretamente.',
+        basis: 'Execução do contrato (art. 7º, V)',
+    },
+    {
+        data: 'Pagamento: valor e data de cada cobrança, final do cartão e bandeira (nunca o número completo)',
+        purpose: 'Mostrar o histórico, atender pedidos de reembolso e cumprir obrigações fiscais e contábeis.',
+        basis: 'Execução do contrato (art. 7º, V) e obrigação legal (art. 7º, II)',
+    },
+    {
+        data: 'E-mails que enviamos para você (recuperação de senha, verificação, avisos de segurança e da assinatura e, só se você ligar, avisos sociais e de engajamento)',
+        purpose: 'Operar a conta com segurança e, se você pedir, manter você informado. Você desliga os opcionais em Configurações.',
+        basis: 'Execução do contrato (art. 7º, V) e consentimento (art. 7º, I) para os opcionais',
+    },
+    {
         data: 'Passos de contato com o plano PRO (viu um convite, abriu a página de planos, iniciou a compra, assinou ou cancelou, com o ponto do app de onde veio)',
         purpose:
             'Entender quais convites ao PRO funcionam e melhorar a oferta. Medimos por conta própria, sem ferramenta de terceiro, e nenhum desses registros leva valor em reais nem patrimônio.',
@@ -125,8 +140,9 @@ export function PoliticaPrivacidade() {
                 <section className={styles.section}>
                     <h2>4. Dados que não coletamos</h2>
                     <p>
-                        Não pedimos CPF, documentos, dados bancários ou de cartão, localização, contatos do telefone, câmera ou microfone.
-                        Não coletamos dados pessoais sensíveis (art. 5º, II da LGPD).
+                        Não pedimos CPF, documentos, localização, contatos do telefone, câmera ou microfone. Os dados do cartão, quando você
+                        assina o PRO, são digitados direto no ambiente de pagamento do Stripe e nunca passam pelos nossos servidores. Não
+                        coletamos dados pessoais sensíveis (art. 5º, II da LGPD).
                     </p>
                 </section>
 
@@ -144,9 +160,31 @@ export function PoliticaPrivacidade() {
                             política de privacidade dele.
                         </li>
                         <li>
+                            <strong>Com o Stripe (pagamento):</strong> quando você assina o PRO, o pagamento é processado pelo Stripe, que
+                            recebe o e-mail e os dados do cartão que você informar na hora. O Stripe pode atuar também como controlador
+                            independente para prevenção a fraudes e cumprimento de suas obrigações legais, conforme a política de
+                            privacidade dele.
+                        </li>
+                        <li>
+                            <strong>Com o RevenueCat (gestão da assinatura):</strong> ele recebe um identificador da sua conta no Selucra,
+                            os dados do plano e os eventos da assinatura enviados pelo Stripe, para sabermos se o seu PRO está ativo.
+                        </li>
+                        <li>
+                            <strong>Com o Resend (e-mail):</strong> para enviar os e-mails da plataforma, ele recebe o seu endereço de
+                            e-mail e o conteúdo de cada mensagem, como operador.
+                        </li>
+                        <li>
+                            <strong>Com a Cloudflare (rede e proteção):</strong> o tráfego do site e da API passa pela Cloudflare, que
+                            entrega as páginas, filtra acessos abusivos e mede as visitas do site de apresentação, como operador.
+                        </li>
+                        <li>
                             <strong>Com o provedor de hospedagem ({c.hostingProvider}):</strong> ele guarda os dados nos servidores, em{' '}
-                            {c.hostingCountry}, como operador, seguindo nossas instruções. Se o servidor ficar fora do Brasil, a
-                            transferência internacional segue o art. 33 da LGPD.
+                            {c.hostingCountry}, como operador, seguindo nossas instruções.
+                        </li>
+                        <li>
+                            <strong>Transferência internacional:</strong> Stripe, RevenueCat, Resend e Cloudflare tratam dados também fora
+                            do Brasil, inclusive nos Estados Unidos. Essas transferências seguem o art. 33 da LGPD, com as garantias
+                            contratuais oferecidas por cada empresa.
                         </li>
                         <li>
                             <strong>Por obrigação legal:</strong> quando uma autoridade competente exigir por ordem judicial ou determinação
@@ -158,9 +196,13 @@ export function PoliticaPrivacidade() {
                 <section className={styles.section}>
                     <h2>6. Cookies e armazenamento no dispositivo</h2>
                     <p>
-                        Não usamos cookies de rastreamento nem ferramentas de analytics ou publicidade de terceiros. Guardamos no seu
-                        dispositivo apenas o necessário para manter você conectado (o token de sessão) e para lembrar preferências como o
-                        tema. No aplicativo Android e iOS, a sessão fica no armazenamento seguro do sistema (Keystore e Keychain).
+                        No aplicativo, não usamos cookies de rastreamento nem ferramentas de analytics ou publicidade de terceiros.
+                        Guardamos no seu dispositivo apenas o necessário para manter você conectado (o token de sessão) e para lembrar
+                        preferências como o tema.
+                    </p>
+                    <p>
+                        No site de apresentação (selucra.com.br), usamos o Cloudflare Web Analytics para contar visitas e medir o desempenho
+                        das páginas. Ele não usa cookies nem cria perfil de cada visitante.
                     </p>
                 </section>
 
@@ -171,7 +213,9 @@ export function PoliticaPrivacidade() {
                         usuário, senha, foto e vínculo com o Google) são anonimizados e você deixa de conseguir entrar. O histórico fictício
                         de operações e do ranking permanece sem identificar você, porque faz parte de um registro imutável do mercado. Os
                         registros de contato com o plano PRO são apagados depois de 12 meses e, se você excluir a conta antes, ficam sem
-                        nenhum dado que identifique você. Registros técnicos de acesso são mantidos pelo prazo mínimo exigido em lei.
+                        nenhum dado que identifique você. Dados de assinatura e de cobrança ficam guardados pelo prazo exigido pela lei
+                        fiscal e contábil, em geral 5 anos, mesmo depois de excluir a conta. Registros técnicos de acesso são mantidos pelo
+                        prazo mínimo exigido em lei.
                     </p>
                 </section>
 
@@ -206,9 +250,9 @@ export function PoliticaPrivacidade() {
                 <section className={styles.section}>
                     <h2>10. Crianças e adolescentes</h2>
                     <p>
-                        A plataforma é destinada a maiores de {c.minimumAge} anos. Menores de 18 anos só devem usar com consentimento de um
-                        responsável legal (LGPD, art. 14). Se soubermos que coletamos dados de alguém sem essa autorização, excluímos a
-                        conta.
+                        A plataforma é destinada a maiores de {c.minimumAge} anos e não coleta dados de menores de propósito. Se soubermos
+                        que uma conta pertence a alguém abaixo dessa idade, sem a autorização de um responsável legal (LGPD, art. 14),
+                        excluímos a conta.
                     </p>
                 </section>
 

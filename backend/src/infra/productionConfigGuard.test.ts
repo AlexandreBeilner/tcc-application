@@ -38,6 +38,10 @@ describe('readDeployEnv', () => {
     expect(readDeployEnv({ DEPLOY_ENV: 'production' })).toBe('production')
   })
 
+  it('"staging" também liga a guarda', () => {
+    expect(readDeployEnv({ DEPLOY_ENV: 'staging' })).toBe('staging')
+  })
+
   it('valor desconhecido derruba a subida em vez de cair em desenvolvimento', () => {
     expect(() => readDeployEnv({ DEPLOY_ENV: 'prod' })).toThrow(/DEPLOY_ENV inválido/)
     expect(() => readDeployEnv({ DEPLOY_ENV: 'Production' })).toThrow(/DEPLOY_ENV inválido/)
@@ -197,5 +201,33 @@ describe('assertProductionConfig', () => {
     expect(() =>
       assertProductionConfig(validEnv({ JWT_SECRET: 'curto', EMAIL_PROVIDER: 'log' })),
     ).toThrow(/configuração inválida para produção:.*JWT_SECRET.*EMAIL_PROVIDER/)
+  })
+})
+
+describe('staging', () => {
+  const stagingEnv = (overrides: Record<string, string | undefined> = {}) =>
+    validEnv({ DEPLOY_ENV: 'staging', ...overrides })
+
+  it('aceita e-mail em log, que produção recusa', () => {
+    expect(() => assertProductionConfig(stagingEnv({ EMAIL_PROVIDER: 'log' }))).not.toThrow()
+    expect(() => assertProductionConfig(validEnv({ EMAIL_PROVIDER: 'log' }))).toThrow(
+      /EMAIL_PROVIDER/,
+    )
+  })
+
+  it('recusa provedor de e-mail desconhecido', () => {
+    expect(() => assertProductionConfig(stagingEnv({ EMAIL_PROVIDER: 'smtp' }))).toThrow(
+      /configuração inválida para staging:.*EMAIL_PROVIDER/,
+    )
+  })
+
+  it('mantém as exigências de segredo, URL, banco e cobrança', () => {
+    expect(() => assertProductionConfig(stagingEnv({ JWT_SECRET: 'curto' }))).toThrow(/JWT_SECRET/)
+    expect(() => assertProductionConfig(stagingEnv({ BILLING_PROVIDER: 'dev' }))).toThrow(
+      /BILLING_PROVIDER/,
+    )
+    expect(() =>
+      assertProductionConfig(stagingEnv({ FRONTEND_URL: 'http://localhost:5173' })),
+    ).toThrow(/FRONTEND_URL/)
   })
 })

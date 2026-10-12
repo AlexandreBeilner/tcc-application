@@ -192,6 +192,11 @@ export function Planos() {
                             {plansQuery.data && plansQuery.data.length > 0 && (
                                 <PlanOptions plans={plansQuery.data} onChoose={choosePlan} busy={busy} />
                             )}
+                            <p className={styles.note}>
+                                A assinatura renova sozinha a cada período e você cancela quando quiser. Ao assinar, você concorda com os{' '}
+                                <Link to="/termos">Termos de Uso e da Assinatura PRO</Link>. Pode desistir em até 7 dias e receber o valor
+                                de volta: veja a <Link to="/reembolso">Política de Reembolso</Link>.
+                            </p>
                             {purchase.canRestore && (
                                 <div className={styles.restore}>
                                     <Button variant="secondary" onClick={purchase.restore} disabled={busy}>

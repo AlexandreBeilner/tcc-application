@@ -29,11 +29,12 @@ describe('PoliticaPrivacidade (tarefa 4.2)', () => {
         }
     })
 
-    it('declara que os dados de investimento são simulados e que não há analytics de terceiros', () => {
+    it('declara que os dados são simulados, que o app não tem analytics de terceiros e que o site de apresentação mede visitas sem cookies', () => {
         renderPage()
 
         expect(screen.getByText(/simulações com dinheiro fictício/)).toBeInTheDocument()
-        expect(screen.getByText(/Não usamos cookies de rastreamento/)).toBeInTheDocument()
+        expect(screen.getByText(/No aplicativo, não usamos cookies de rastreamento/)).toBeInTheDocument()
+        expect(screen.getByText(/Cloudflare Web Analytics.*Ele não usa cookies/)).toBeInTheDocument()
     })
 
     it('o link de voltar leva ao login', () => {

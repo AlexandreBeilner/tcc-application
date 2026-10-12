@@ -53,9 +53,11 @@ tem consequência fiscal. Confirmar com o contador antes de ativar a cobrança (
   (`/privacidade`), origem `https://app.selucra.com.br` e redirecionamento `https://api.selucra.com.br/auth/google/callback`.
 - **Resend:** domínio verificado, chave de API de envio, webhook assinado apontando para `https://api.selucra.com.br/webhooks/...`
   (conferir a rota em `.docs/backend/notifications.md`).
-- **Stripe + RevenueCat:** integração Stripe Billing conectada ao projeto do RevenueCat, produtos mensal e anual (R$ 19,90 e R$ 199,90),
+- **Stripe + RevenueCat:** integração Stripe Billing conectada ao projeto do RevenueCat, produtos mensal e anual (R$ 9,90 e R$ 89,90),
   Offering `default`, entitlement `pro`, webhook do RevenueCat com cabeçalho `Authorization` secreto apontando para o backend.
 - **GitHub:** pacote GHCR privado, secrets do Actions (chave SSH de deploy, se o deploy for automático), proteção da `main`.
+
+**Staging (LW.3.7b):** `staging.selucra.com.br` (frontend, branch `staging` do Pages) e `api-staging.selucra.com.br` (API, mesmo VPS, outro projeto do Compose). Registros DNS a mais na Cloudflare (`staging` e `api-staging`, este com proxy), Cloudflare Access fechando o acesso, segredos próprios (nada reaproveitado de produção), RevenueCat/Stripe em sandbox e cliente OAuth do Google com o redirecionamento do staging.
 
 ## 4. Segredos e variáveis (lista completa do que produção precisa)
 
@@ -77,7 +79,7 @@ Gerar **todos** com `openssl rand -base64 48` (ou gerenciador de senhas) e guard
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | Google Cloud Console | |
 | `EMAIL_PROVIDER=resend`, `RESEND_API_KEY_TRANSACTIONAL`, `RESEND_API_KEY_NEWS`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM_TRANSACTIONAL`, `EMAIL_FROM_NEWS`, `EMAIL_REPLY_TO` | Resend | duas chaves (subdomínios `send` e `news`); remetentes `no-reply@send.` e `no-reply@news.selucra.com.br`; reply-to `suporte@selucra.com.br` |
 | `BILLING_PROVIDER=revenuecat`, `REVENUECAT_SECRET_KEY` (sk_...), `REVENUECAT_WEBHOOK_AUTH`, `REVENUECAT_ENTITLEMENT_ID=pro` | RevenueCat | |
-| `BILLING_PRICE_MONTHLY_CENTS`, `BILLING_PRICE_ANNUAL_CENTS` | 1990 e 19990 | só exibição; o preço real vive na loja/Stripe |
+| `BILLING_PRICE_MONTHLY_CENTS`, `BILLING_PRICE_ANNUAL_CENTS` | 990 e 8990 | só exibição; o preço real vive na loja/Stripe |
 | `TICK_SCHEDULER_ENABLED`, `SCHEDULER_TIMEZONE` | motor | padrão `America/Sao_Paulo`; só definir se precisar mudar |
 | chave de criptografia dos backups (`age`) | gerada | **guardar a chave privada fora do servidor**: sem ela o backup não abre |
 | credenciais do armazenamento externo (B2/R2) | provedor | permissão só de escrita para o servidor, se possível |

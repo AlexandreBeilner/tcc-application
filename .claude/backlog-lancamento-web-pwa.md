@@ -156,6 +156,16 @@ Postgres próprio no VPS (decisão de 2026-10-10) torna estas tarefas **pré-req
 - **Aceite:** `docker compose -f docker-compose.prod.yml config` sem variável faltando; `nmap` externo no IP do servidor mostra só 22, 80 e 443; matar um container o faz voltar sozinho; reiniciar o servidor sobe tudo.
 - **Dependências:** LW.3.1.
 
+#### LW.3.7b · Ambiente de staging no mesmo VPS (decisão do autor em 2026-10-11)
+- **Decisão:** haverá um **staging** para validar a versão antes de produção. Mesmo VPS, **outro projeto do Compose** (`-p selucra-staging`), com Postgres, Redis, rede e `.env` próprios; nada compartilhado com produção (outro `JWT_SECRET`, outras senhas, outro `SIMULATION_SEED`). Pode ficar **desligado** fora das validações, para não dobrar o consumo de memória (medir com `docker stats` antes de fechar o tamanho do VPS na LW.3.1).
+- **URLs:** frontend `staging.selucra.com.br` (branch `staging` do Cloudflare Pages, com `VITE_GATEWAY_URL=https://api-staging.selucra.com.br` só no ambiente de preview); API `api-staging.selucra.com.br`. Hífen e não `api.staging.`: o certificado gratuito da Cloudflare cobre só um nível de subdomínio.
+- **Serviços externos em modo de teste:** RevenueCat e Stripe em sandbox (chave `rcb_sb_`, webhook de sandbox apontando para `https://api-staging.selucra.com.br/billing/webhook`); cliente OAuth do Google próprio ou redirecionamento `https://api-staging.selucra.com.br/auth/google/callback` adicionado; e-mail em `EMAIL_PROVIDER=log` (ou Resend restrito aos endereços do autor), nunca para usuário real.
+- **Acesso fechado:** Cloudflare Access (gratuito até 50 pessoas) liberando só o e-mail do autor, e `noindex`.
+- **Deploy:** o mesmo `deploy.sh` com o ambiente como argumento; a **mesma imagem (SHA)** sobe no staging, é validada e só então vai para produção. Caddy escolhe o destino pelo nome do host.
+- **Já feito no código:** `DEPLOY_ENV=staging` é aceito pela guarda de configuração (`productionConfigGuard.ts`): mesmas exigências de segredo, URL, banco e cobrança (`BILLING_PROVIDER=dev` continua recusado), mas `EMAIL_PROVIDER=log` é permitido. Testes novos em `productionConfigGuard.test.ts`.
+- **A fazer:** `docker-compose.staging.yml` ou parametrização do compose de produção (LW.3.7), Caddyfile com os dois hosts, registro DNS `staging` e `api-staging`, branch `staging` no Pages, regra do Cloudflare Access.
+- **Dependências:** LW.3.7, LW.3.1.
+
 #### LW.3.8 · Guardas de configuração (recusar subir errado) ✅ (2026-10-10)
 - **Entregável:** `backend/src/infra/productionConfigGuard.ts` (função pura sobre o `env`: `readDeployEnv`, `findProductionConfigProblems`, `assertProductionConfig`) chamada no começo do `main()` de `server.ts`, **antes das migrações**, então configuração errada nunca toca o banco. Com `DEPLOY_ENV=production` recusa: `JWT_SECRET` ausente, igual ao de dev ou com menos de 32 caracteres; `EMAIL_UNSUBSCRIBE_SECRET` (opcional) de dev ou curto; `EMAIL_PROVIDER` diferente de `resend`; `BILLING_PROVIDER=dev`; `FRONTEND_URL`/`PUBLIC_API_URL` ausentes, sem https ou em localhost; `GOOGLE_REDIRECT_URI` com as mesmas regras **só quando `GOOGLE_CLIENT_ID` está configurado**; `DATABASE_URL` sem senha, com senha padrão conhecida (`tcc`, `postgres`...) ou com menos de 16 caracteres; `REDIS_URL` e `ENGINE_URL` ausentes. Lista tudo de uma vez. `DEPLOY_ENV` com valor desconhecido (`prod`, `Production`) **derruba a subida** em vez de cair em desenvolvimento em silêncio. Em desenvolvimento (vazio ou `development`) não faz nada. `docker-compose.yml` repassa `DEPLOY_ENV` (padrão `development`) e `.env.example` ganhou a seção de produção. 17 testes novos; `npm run lint`, `build` e `npm test` (3746 passando) verdes; conferido subindo `node dist/server.js` com configuração de dev em produção (aborta listando 7 problemas) e com `DEPLOY_ENV=prod` (aborta). **Não coberto aqui (de propósito):** o motor em Go não tem guarda equivalente (a LW.3.7 tira os padrões do compose de produção, que é a barreira dele); o `docker-compose.prod.yml` com `${VAR:?}` é a LW.3.7. Sem rota HTTP nova, então sem `.docs/backend/` a atualizar.
 - **O que fazer:** no backend, uma checagem de arranque que **aborta** quando `DEPLOY_ENV=production` e houver: `JWT_SECRET` ausente, igual ao de dev ou com menos de 32 caracteres; `EMAIL_UNSUBSCRIBE_SECRET` caindo no segredo de dev; `EMAIL_PROVIDER=log`; `BILLING_PROVIDER=dev`; `FRONTEND_URL`/`PUBLIC_API_URL`/`GOOGLE_REDIRECT_URI` apontando para `localhost`. **Usar uma variável própria (`DEPLOY_ENV`), não `NODE_ENV`**: a imagem Docker sempre roda com `NODE_ENV=production` (lição da MO.4.1). Fica numa função pura em `shared/` ou `config/` com teste de cada recusa; só a composição lê `process.env`. Documentar em `.docs/backend/` se afetar contrato; atualizar `.env.example` com uma seção "produção".
@@ -217,10 +227,11 @@ Análise completa em `.claude/analise-ambiente-producao.md` (tabela dev x produ�
 ## Fase 4 — Fora do código (bloqueiam cobrar)
 
 ### LW.4.1 · Contas e produtos só da web (reescopo da MO.1.1)
-- Conta Stripe ativa no Brasil conectada ao RevenueCat, produtos mensal e anual (R$ 19,90 e R$ 199,90), Offering `default` com os dois pacotes. **Sem Apple e Google.** Referência: MO.1.1 em `backlog-monetizacao.md`.
+- Conta Stripe ativa no Brasil conectada ao RevenueCat, produtos mensal e anual (R$ 9,90 e R$ 89,90), Offering `default` com os dois pacotes. **Sem Apple e Google.** Referência: MO.1.1 em `backlog-monetizacao.md`.
 
 ### LW.4.2 · Termos, reembolso, fiscal e privacidade (MO.1.2)
 - Termos de assinatura, política de reembolso (direito de arrependimento de 7 dias do CDC), decisão fiscal com contador (o Stripe não emite NF-e), RevenueCat e Stripe como operadores na política de privacidade. **Preencher todos os `[PREENCHER ...]`** de `frontend/src` (hoje 10 ocorrências; lista em `.claude/politica-privacidade-placeholders.md`) antes de publicar `/privacidade`.
+- **Andamento (2026-10-11):** páginas públicas `/termos` (Termos de Uso e da Assinatura PRO, 15 seções) e `/reembolso` (6 seções) criadas a partir dos rascunhos, com `pages/Termos/termsConfig.ts`; links no Login e na tela de planos (aviso de renovação automática e arrependimento de 7 dias). Padrões adotados: 18 anos, arrependimento de 7 dias que **não recomeça na renovação**, reembolso integral mesmo com uso, aviso de reajuste com 30 dias, foro do domicílio do consumidor (CDC art. 101, I). Política de privacidade preenchida (controlador, encarregado, Brasil, 18, data). **Decisão do autor (2026-10-11): começa como pessoa física e ativa a cobrança já; migra para MEI se houver tração.** Os termos mostram nome, "pessoa física" e Chapecó, SC, sem CPF nem endereço residencial (o Decreto 7.962/2013 pede CPF/CNPJ e endereço; risco aceito pelo autor na fase de validação, rever ao abrir o CNPJ em `termsConfig.ts`). Sem contador nem advogado por enquanto. **Faltam:** provedor de hospedagem (`policyConfig.ts`), citar RevenueCat/Stripe/Cloudflare/Resend como operadores na privacidade (rascunho em `rascunho-privacidade-operadores-pro.md`), decisão fiscal com o contador e **revisão por advogado antes de cobrar**.
 - **Aceite:** `grep -rn "PREENCHER" frontend/src` vazio; textos publicados.
 
 ### LW.4.3 · Verificação de domínio e propriedade
@@ -240,17 +251,6 @@ Análise completa em `.claude/analise-ambiente-producao.md` (tabela dev x produ�
 - Jornada completa com conta nova: cadastro com e-mail verificado, lição, compra de ativo, assinatura PRO com cartão de teste, cancelamento e reativação, exportação e exclusão LGPD, no navegador e no PWA instalado. Registrar o resultado aqui.
 
 ---
-
-## Fica fora do lançamento (e por quê)
-
-| Item | Estado |
-|---|---|
-| Fase D da monetização (compra nativa), MO.4.4 | Congeladas junto do app; o código existente fica inerte |
-| Fase 4 do `backlog-app-mobile.md` (identidade, Play, iOS) | Adiada; retomar só quando o app voltar a ser prioridade |
-| Fase F da monetização (Assembleia de Acionistas, MO.6.3 em diante) | Só faz sentido com base de assinantes; depois de medir tração |
-| Fase G da monetização (MO.7.2 indicação, MO.7.3 teste de preço) | Depois do lançamento, com dado |
-
-## Sequência sugerida
 
 ## Fase 6 — Landing page e SEO (acrescentada em 2026-10-11)
 
@@ -285,7 +285,18 @@ Análise completa em `.claude/analise-ambiente-producao.md` (tabela dev x produ�
 
 ---
 
-`LW.1.3 → LW.3.8 → LW.2.1 → LW.2.2 → LW.2.3 → LW.2.5 → LW.2.4 → LW.1.2 → LW.3.14 → LW.3.1 → LW.3.7 → LW.3.17 → LW.3.13 → LW.3.9 → LW.3.2 → LW.3.10 → LW.3.11 → LW.3.12 → LW.3.15 → LW.3.16 → LW.3.4 → LW.3.5 → LW.4.1 → LW.4.2 → LW.3.6 → LW.4.3 → LW.2.6 → LW.5.1 → LW.5.2 → LW.5.3 → LW.2.8 → LW.6.1 → LW.6.2 → LW.6.3 → LW.6.4`
+## Fica fora do lançamento (e por quê)
+
+| Item | Estado |
+|---|---|
+| Fase D da monetização (compra nativa), MO.4.4 | Congeladas junto do app; o código existente fica inerte |
+| Fase 4 do `backlog-app-mobile.md` (identidade, Play, iOS) | Adiada; retomar só quando o app voltar a ser prioridade |
+| Fase F da monetização (Assembleia de Acionistas, MO.6.3 em diante) | Só faz sentido com base de assinantes; depois de medir tração |
+| Fase G da monetização (MO.7.2 indicação, MO.7.3 teste de preço) | Depois do lançamento, com dado |
+
+## Sequência sugerida
+
+`LW.1.3 → LW.3.8 → LW.2.1 → LW.2.2 → LW.2.3 → LW.2.5 → LW.2.4 → LW.1.2 → LW.3.14 → LW.3.1 → LW.3.7 → LW.3.7b → LW.3.17 → LW.3.13 → LW.3.9 → LW.3.2 → LW.3.10 → LW.3.11 → LW.3.12 → LW.3.15 → LW.3.16 → LW.3.4 → LW.3.5 → LW.4.1 → LW.4.2 → LW.3.6 → LW.4.3 → LW.2.6 → LW.5.1 → LW.5.2 → LW.5.3 → LW.2.8 → LW.6.1 → LW.6.2 → LW.6.3 → LW.6.4`
 
 (Revisada em 2026-10-10: a LW.3.8 sobe para o começo porque é código puro, independe de servidor e fecha o pior risco; o endurecimento LW.3.7 a LW.3.12 entra antes de qualquer servidor ficar acessível pela internet.)
 

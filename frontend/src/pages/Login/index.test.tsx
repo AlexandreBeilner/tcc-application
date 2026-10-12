@@ -167,7 +167,9 @@ describe('Login (tela 1.1)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
 
         await waitFor(() =>
-            expect(screen.getByRole('alert').textContent).toBe('Sua conta está suspensa. Fale com o suporte (suporte@selucra.com.br) para entender o motivo.'),
+            expect(screen.getByRole('alert').textContent).toBe(
+                'Sua conta está suspensa. Fale com o suporte (suporte@selucra.com.br) para entender o motivo.',
+            ),
         )
         expect(screen.queryByText('tela protegida')).not.toBeInTheDocument()
     })
@@ -362,8 +364,6 @@ describe('Login (tela 1.1)', () => {
             )
         })
 
-        it('código de formato inválido é ignorado e a tela abre em login', () => {
-            mockLoggedOutUser()
         it('`?modo=cadastro` (botão "Criar conta" da landing) abre direto no cadastro', () => {
             mockLoggedOutUser()
             renderLogin('/login?modo=cadastro')
@@ -377,6 +377,8 @@ describe('Login (tela 1.1)', () => {
             expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
         })
 
+        it('código de formato inválido é ignorado e a tela abre em login', () => {
+            mockLoggedOutUser()
             renderLogin('/login?ref=curto')
             expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
             expect(googleLoginUrl).toHaveBeenCalledWith(null)

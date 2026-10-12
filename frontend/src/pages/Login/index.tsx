@@ -271,7 +271,8 @@ export function Login() {
                 </button>
 
                 <p className={styles.terms}>
-                    Ao continuar, você concorda com a <Link to="/privacidade">Política de Privacidade</Link>.
+                    Ao continuar, você concorda com os <Link to="/termos">Termos de Uso</Link> e com a{' '}
+                    <Link to="/privacidade">Política de Privacidade</Link>.
                 </p>
             </div>
         </main>

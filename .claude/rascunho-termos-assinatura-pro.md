@@ -1,6 +1,6 @@
 # Rascunho — Termos de assinatura do plano PRO
 
-> **RASCUNHO PARA REVISÃO DO CONTADOR/ADVOGADO (MO.1.2, LW.4.2). Não publicar no app.**
+> **PUBLICADO COMO PÁGINA em 2026-10-11 (`frontend/src/pages/Termos`); este arquivo é só o histórico. RASCUNHO PARA REVISÃO DO CONTADOR/ADVOGADO (MO.1.2, LW.4.2). Não publicar no app.**
 > Escrito em 2026-10-11. Tudo que depende do autor está marcado com `[PREENCHER ...]`. Os valores de preço
 > e as regras de produto vêm de `backlog-monetizacao.md` (M4, M5, M6) e `estrategia-monetizacao.md`.
 > Texto sem travessão de propósito: quando for para o app, vale a regra de não usar "—" em texto exibido.
@@ -33,8 +33,8 @@ artificial, contagem regressiva ou escassez para forçar a assinatura.
 
 | Plano | Preço | Cobrança |
 |---|---|---|
-| Mensal | R$ 19,90 | a cada mês |
-| Anual | R$ 199,90 | a cada ano |
+| Mensal | R$ 9,90 | a cada mês |
+| Anual | R$ 89,90 | a cada ano |
 
 Preços em reais, com os tributos aplicáveis incluídos `[PREENCHER: confirmar com o contador se há acréscimo de
 tributo]`. **Não há período de teste gratuito.** Reajustes só valem para a renovação seguinte e serão avisados
@@ -99,7 +99,7 @@ Lei brasileira. Foro do domicílio do consumidor `[PREENCHER: confirmar com advo
 ## Pontos que o contador/advogado precisa decidir (não resolvidos aqui)
 
 1. **Nota fiscal:** o Stripe não emite NF-e. Definir regime (MEI/Simples/outro), código de serviço e quando emitir.
-2. **Tributo no preço:** os R$ 19,90 e R$ 199,90 já incluem tudo? Impacta o regime.
+2. **Tributo no preço:** os R$ 9,90 e R$ 89,90 já incluem tudo? Impacta o regime.
 3. **Reembolso proporcional** quando o serviço muda (item 11) e **cancelamento por fraude** (item 10).
 4. **Termos de Uso gerais** da conta gratuita: existe documento hoje? Este texto não os substitui.
 5. **Menores de idade:** a idade mínima da `/privacidade` é `[PREENCHER]`; contratar assinatura exige capacidade
