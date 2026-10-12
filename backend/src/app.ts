@@ -2,6 +2,7 @@ import cors from 'cors'
 import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
 import { createRedisClient } from './infra/redisClient'
+import { readTrustedProxyHops } from './shared/http/trustProxy'
 import { healthRouter } from './routes/health'
 import { jsonErrorHandler } from './shared/http/errorHandler'
 import { statusRouter } from './routes/status'
@@ -1056,9 +1057,10 @@ export function createApp(deps: AppDeps = {}): Express {
   // observável rodando só `npm run dev` — só em `vite build && vite preview`.
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173'
   const app = express()
-  // Atrás do gateway nginx (um salto): sem isso `req.ip` seria sempre o IP do
-  // gateway e o limitador de taxa (N.22) trataria todo mundo como um cliente só.
-  app.set('trust proxy', 1)
+  // `req.ip` alimenta o limitador de taxa (N.22). Sem confiar no proxy ele seria sempre o IP do
+  // proxy e todo mundo viraria um cliente só; confiando demais, um `X-Forwarded-For` forjado
+  // trocaria o balde. Em produção o Caddy entrega um único salto com o IP real (LW.3.9).
+  app.set('trust proxy', readTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS))
   app.use(cors({ origin: frontendUrl }))
   if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
   app.use(express.json())
