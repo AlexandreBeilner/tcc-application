@@ -5,8 +5,10 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	_ "time/tzdata" // fuso da agenda (America/Sao_Paulo) sem depender do tzdata da imagem
 
@@ -68,6 +70,11 @@ func newQuoteCache() engineQuoteCache {
 }
 
 func main() {
+	// SIGTERM (docker stop) e SIGINT cancelam ctx: o servidor HTTP drena as requisições, o
+	// Temporizador (e com ele os bots, que rodam dentro do tick) para, e só então o pool fecha.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	addr := os.Getenv("ENGINE_ADDR")
 	if addr == "" {
 		addr = ":8080"
@@ -82,7 +89,7 @@ func main() {
 		// (tarefa M.2) respondem 503 (ver internal/infra/httpserver/account.go,
 		// assets.go, admin.go, fixedincome.go, macroevents.go, positions.go e
 		// indicators.go).
-		if err := httpserver.Run(addr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
+		if err := httpserver.Run(ctx, addr, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil); err != nil {
 			log.Fatalf("motor de simulação encerrou com erro: %v", err)
 		}
 		return
@@ -240,7 +247,7 @@ func main() {
 	assetProvisionService := assetprovision.NewService(assetProvisionRepository, assetProvisionRepository, coverageRepository, coverage.NewEnsurer(coverageRepository, coverageRepository))
 	botAdminService := botadmin.NewService(botAdminRepository, botAdminRepository, coverageRepository, coverageRepository, adminOrderService)
 
-	if err := httpserver.Run(addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService), httpserver.WithIntegrity(integrity.NewService(db.NewIntegrityRepository(pool))), httpserver.WithAdminExport(db.NewAdminExportRepository(pool)), httpserver.WithGovernance(governanceService)); err != nil {
+	if err := httpserver.Run(ctx, addr, accountService, catalogRepository, tickService, orderExecutionService, fixedIncomeExecutionService, macroEventTriggerService, macroEventRepository, accountRepository, tickRepository, calendarAPI, httpserver.WithSchedulerAdmin(schedulerAdmin), httpserver.WithAdminReader(db.NewAdminReadRepository(pool)), httpserver.WithAdminOrderCanceller(adminOrderService), httpserver.WithBotAdmin(botAdminService), httpserver.WithMacroEventAdmin(macroeventadmin.NewService(macroEventRepository)), httpserver.WithSettings(&httpserver.SettingsAPI{Manager: settingsService, Seed: seed}), httpserver.WithTradingHalts(tradinghalt.NewService(db.NewTradingHaltRepository(pool))), httpserver.WithCatalogAdmin(catalogadmin.NewService(db.NewCatalogAdminRepository(pool))), httpserver.WithAssetProvision(assetProvisionService), httpserver.WithIntegrity(integrity.NewService(db.NewIntegrityRepository(pool))), httpserver.WithAdminExport(db.NewAdminExportRepository(pool)), httpserver.WithGovernance(governanceService)); err != nil {
 		log.Fatalf("motor de simulação encerrou com erro: %v", err)
 	}
 }

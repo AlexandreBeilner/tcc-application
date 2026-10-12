@@ -23,6 +23,8 @@ import { loadBillingConfig } from './modules/billing/infrastructure/config/billi
 import { startBillingReconciliationScheduler } from './modules/billing/infrastructure/scheduler/billingReconciliationScheduler'
 import { createRedisClient } from './infra/redisClient'
 import { assertProductionConfig } from './infra/productionConfigGuard'
+import { createGracefulShutdown } from './infra/gracefulShutdown'
+import { takeShutdownHooks } from './infra/shutdownRegistry'
 import type { GenerateMonthlyRetrospectivesUseCase } from './modules/retrospectives/application/useCases/generateMonthlyRetrospectives'
 import { startRetrospectiveScheduler } from './modules/retrospectives/infrastructure/scheduler/retrospectiveScheduler'
 import { startDuelScheduler } from './modules/duels/infrastructure/scheduler/duelScheduler'
@@ -53,6 +55,10 @@ const FUNNEL_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000
 // Cadência do ciclo das assembleias (MO.6.3): abrir, fechar e aplicar. Os prazos são de dias, então
 // checar de hora em hora basta; tudo é idempotente.
 const DEFAULT_ASSEMBLY_INTERVAL_MS = 60 * 60 * 1000
+
+// Teto de espera pelas requisições em andamento no encerramento (LW.3.14). O `docker stop` dá 10 s
+// antes do SIGKILL; 8 s deixa folga pra fechar o banco.
+const SHUTDOWN_TIMEOUT_MS = 8000
 
 async function main() {
   // LW.3.8: com DEPLOY_ENV=production, recusa subir com segredo/URL/provedor de desenvolvimento.
@@ -106,45 +112,65 @@ async function main() {
     enqueueEmail,
     emailSpacingMs: emailConfig.delayBetweenSendsMs,
   })
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`backend gamificado escutando na porta ${port}`)
   })
+
+  // Todo agendador devolve seu `setInterval`; o encerramento limpo (LW.3.14) os para antes de fechar o banco.
+  const timers: NodeJS.Timeout[] = []
+  const shutdown = createGracefulShutdown({
+    server,
+    timers: () => timers,
+    resources: takeShutdownHooks,
+    timeoutMs: SHUTDOWN_TIMEOUT_MS,
+    exit: (code) => process.exit(code),
+  })
+  process.once('SIGTERM', () => void shutdown('SIGTERM'))
+  process.once('SIGINT', () => void shutdown('SIGINT'))
 
   const engineUrl = process.env.ENGINE_URL ?? 'http://localhost:8080'
   const payrollCheckIntervalMs =
     Number(process.env.PAYROLL_CHECK_INTERVAL_MS || Number.NaN) || DEFAULT_PAYROLL_CHECK_INTERVAL_MS
   const { runPayrollCheck } = createPayrollComposition(db, engineUrl, enqueueEmail)
-  startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs)
+  timers.push(startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs))
 
-  startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails)
+  timers.push(
+    startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails),
+  )
   // O lembrete de sequência (EM.7.3) nasce ligado (ponto 045); `EMAIL_STREAK_REMINDER=off` desliga.
-  startEngagementScheduler(
-    [
-      { name: 'resumo semanal', execute: () => sendWeeklyDigest.execute() },
-      ...(emailConfig.streakReminderEnabled
-        ? [{ name: 'lembrete de sequência', execute: () => sendStreakReminders.execute() }]
-        : []),
-    ],
-    emailConfig.engagementIntervalMs,
+  timers.push(
+    startEngagementScheduler(
+      [
+        { name: 'resumo semanal', execute: () => sendWeeklyDigest.execute() },
+        ...(emailConfig.streakReminderEnabled
+          ? [{ name: 'lembrete de sequência', execute: () => sendStreakReminders.execute() }]
+          : []),
+      ],
+      emailConfig.engagementIntervalMs,
+    ),
   )
 
   const rankingSnapshotIntervalMs =
     Number(process.env.RANKING_SNAPSHOT_INTERVAL_MS || Number.NaN) ||
     DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS
   const { computeRankingSnapshot } = createRankingSnapshotComposition(db, engineUrl)
-  startRankingSnapshotScheduler(computeRankingSnapshot, rankingSnapshotIntervalMs)
+  timers.push(startRankingSnapshotScheduler(computeRankingSnapshot, rankingSnapshotIntervalMs))
 
   // Duelos (MO.5.3): encerra os vencidos, expira desafios sem resposta e credita o XP.
-  startDuelScheduler(
-    app.locals.settleDueDuels as SettleDueDuelsUseCase,
-    Number(process.env.DUEL_SETTLE_INTERVAL_MS || Number.NaN) || DEFAULT_DUEL_SETTLE_INTERVAL_MS,
+  timers.push(
+    startDuelScheduler(
+      app.locals.settleDueDuels as SettleDueDuelsUseCase,
+      Number(process.env.DUEL_SETTLE_INTERVAL_MS || Number.NaN) || DEFAULT_DUEL_SETTLE_INTERVAL_MS,
+    ),
   )
 
   // Retrospectivas (MO.5.4): gera e arquiva a do mês que acabou para quem ainda não tem.
-  startRetrospectiveScheduler(
-    app.locals.generateMonthlyRetrospectives as GenerateMonthlyRetrospectivesUseCase,
-    Number(process.env.RETROSPECTIVE_INTERVAL_MS || Number.NaN) ||
-      DEFAULT_RETROSPECTIVE_INTERVAL_MS,
+  timers.push(
+    startRetrospectiveScheduler(
+      app.locals.generateMonthlyRetrospectives as GenerateMonthlyRetrospectivesUseCase,
+      Number(process.env.RETROSPECTIVE_INTERVAL_MS || Number.NaN) ||
+        DEFAULT_RETROSPECTIVE_INTERVAL_MS,
+    ),
   )
 
   // Assembleia de Acionistas (MO.6.3): ligada por padrão; `ASSEMBLIES_ENABLED=off` desliga em
@@ -152,16 +178,20 @@ async function main() {
   const runAssemblyLifecycle = app.locals.runAssemblyLifecycle as
     RunAssemblyLifecycleUseCase | undefined
   if (runAssemblyLifecycle) {
-    startAssemblyScheduler(
-      runAssemblyLifecycle,
-      Number(process.env.ASSEMBLY_INTERVAL_MS || Number.NaN) || DEFAULT_ASSEMBLY_INTERVAL_MS,
+    timers.push(
+      startAssemblyScheduler(
+        runAssemblyLifecycle,
+        Number(process.env.ASSEMBLY_INTERVAL_MS || Number.NaN) || DEFAULT_ASSEMBLY_INTERVAL_MS,
+      ),
     )
     console.log('assembleias: ciclo ligado')
   } else {
     console.log('assembleias: ciclo desligado (ASSEMBLIES_ENABLED=off)')
   }
 
-  startFunnelRetentionScheduler(createFunnelRetentionPurge(db), FUNNEL_RETENTION_INTERVAL_MS)
+  timers.push(
+    startFunnelRetentionScheduler(createFunnelRetentionPurge(db), FUNNEL_RETENTION_INTERVAL_MS),
+  )
 
   // Cobrança (MO.2.5): só reconcilia com o provedor ligado; desligado, não há nada pra reconsultar.
   const billingConfig = loadBillingConfig(process.env)
@@ -173,10 +203,12 @@ async function main() {
       config: billingConfig,
       enqueueEmail,
     })
-    startBillingReconciliationScheduler(
-      reconcileSubscriptions,
-      Number(process.env.BILLING_RECONCILE_INTERVAL_MS || Number.NaN) ||
-        DEFAULT_BILLING_RECONCILE_INTERVAL_MS,
+    timers.push(
+      startBillingReconciliationScheduler(
+        reconcileSubscriptions,
+        Number(process.env.BILLING_RECONCILE_INTERVAL_MS || Number.NaN) ||
+          DEFAULT_BILLING_RECONCILE_INTERVAL_MS,
+      ),
     )
   }
 }
