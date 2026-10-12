@@ -43,13 +43,13 @@ Pré-requisitos: zona `selucra.com.br` ativa na Cloudflare e a API no ar em `api
    `https://api.selucra.com.br`, sem erro de CORS. Dê F5 numa rota interna (por exemplo `/mercado`): não pode dar 404.
 7. **Rollback.** Deployments, escolha o deploy anterior, Rollback to this deployment.
 
-### O que ainda falta no código (LW.3.16)
+### O que já existe e o que ainda falta no código (LW.3.16)
 
-- `frontend/public/_redirects` com o fallback da SPA (`/* /index.html 200`). Sem ele, F5 numa rota interna dá 404 no Pages.
-- `frontend/public/_headers` com CSP (Stripe e RevenueCat), cache longo só para arquivos com hash, `sw.js` sem cache longo e
-  `X-Robots-Tag: noindex, nofollow`. O app já tem `<meta name="robots" content="noindex">` e `robots.txt` com `Disallow: /`, mas o
-  cabeçalho é a garantia.
-- Atualizar na API os valores de produção (`FRONTEND_URL`, `PUBLIC_API_URL`) e a origem do Google OAuth (LW.3.2).
+- **Já existe** (entrou com o PWA, LW.2.2): `frontend/public/_redirects` com o fallback da SPA (`/* /index.html 200`; sem ele, F5 numa rota
+  interna dá 404 no Pages) e `frontend/public/_headers` com `no-cache` em `sw.js`, `manifest.webmanifest` e `offline.html`, cache longo
+  só em `/assets/*` (arquivos com hash) e `X-Robots-Tag: noindex, nofollow`.
+- **Falta:** a CSP no `_headers` (Stripe e RevenueCat; cuidado com o `connect-src` da API e do `worker-src 'self'` do service worker),
+  e atualizar na API os valores de produção (`FRONTEND_URL`, `PUBLIC_API_URL`) e a origem do Google OAuth (LW.3.2).
 
 ---
 

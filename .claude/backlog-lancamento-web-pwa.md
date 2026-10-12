@@ -33,17 +33,19 @@ Workbox/`vite-plugin-pwa`, do Chrome (instalabilidade) e do WebKit (PWA no iOS):
 ### LW.1.1 · Registrar o adiamento nos documentos ✅ (2026-10-10)
 - **Entregável:** avisos de "adiado" em `backlog-app-mobile.md`, `arquitetura-app-mobile-react-native-webview.md`, `backlog-monetizacao.md` (M2 revisada, Fase D e MO.4.4), `backlog-pendencias-consolidado.md` e `CLAUDE.md`; este backlog criado.
 
-### LW.1.2 · "App em breve" na web
+### LW.1.2 · "App em breve" na web ✅ (2026-10-12)
 - **Descrição:** comunicar que o app nativo vem depois, sem prometer data, e apontar o PWA como alternativa agora.
 - **O que fazer:** texto curto no rodapé/landing e em `/planos` ("App Android e iOS em breve. Por enquanto, instale a Selucra na tela inicial"). Opcional: campo "avise-me" que grava e-mail numa tabela nova (módulo próprio no backend, com Zod, teste e `.docs/backend/`), com consentimento explícito e descadastro (reaproveitar o fluxo da EM.6.1). Decidir antes com o autor se a captação entra.
 - **Aceite:** o aviso aparece nos três breakpoints, sem link quebrado para loja; sem o campo, nenhuma chamada nova ao backend.
 - **Dependências:** LW.2.4 (o texto aponta para a instalação do PWA).
+- **Entregável:** aviso no fim de `/planos` (`pages/Planos`): "App Android e iOS em breve", sem data e sem link de loja; quando o navegador permite instalar (`useInstallMode` diferente de `none`), acrescenta "Por enquanto, instale a Selucra na tela inicial" levando a `/configuracoes`, onde está o convite. Não aparece dentro do app nativo (`isNativeApp()`). **Sem campo "avise-me":** a captação de e-mail ficou fora, então nenhuma chamada nova ao backend (decisão a confirmar com o autor se quiser a captação). Landing não foi alterada. Testes na tela (2).
 
-### LW.1.3 · Garantir que o código de app não vaza na web
+### LW.1.3 · Garantir que o código de app não vaza na web ✅ (2026-10-12)
 - **Descrição:** `isNativeApp()` deve ser `false` no navegador e no PWA instalado (o PWA **não** é o app).
 - **O que fazer:** teste cobrindo `describePlan`, `useWebPurchases`, `Planos`, `PlanSection` e `ProInvite` no navegador e com `display-mode: standalone`; conferir que nenhum caminho oferece "Restaurar compras" nem link de loja na web.
 - **Aceite:** testes novos passando; nenhuma tela web menciona App Store ou Google Play, salvo o aviso da LW.1.2.
 - **Dependências:** nenhuma.
+- **Entregável:** `features/billing/isNativeApp/index.test.ts` (falso no navegador e no `display-mode: standalone`, verdadeiro só com `ReactNativeWebView`) e `pages/Planos/webOnly.test.tsx` (Planos para quem não assina, Planos para quem assina pela web e `PlanSection`, no navegador e com `standalone`, sem "App Store", "Google Play" nem "Restaurar compras"). Nenhum ajuste de código foi necessário: o caminho nativo já era isolado pela ponte do WebView.
 
 ---
 
@@ -52,37 +54,48 @@ Workbox/`vite-plugin-pwa`, do Chrome (instalabilidade) e do WebKit (PWA no iOS):
 Estado de partida (2026-10-10): existem `manifest.webmanifest` (nome, ícones 192/512 e maskable, `display: standalone`,
 cores) e `apple-touch-icon`. **Não existe** service worker, página offline nem fluxo de instalação.
 
-### LW.2.1 · Manifest completo e metadados de plataforma
+### LW.2.1 · Manifest completo e metadados de plataforma ✅ parcial (2026-10-12; faltam as capturas de tela)
 - **O que fazer:** `id`, `scope`, `description`, `categories`, `orientation`, `shortcuts` (Mapa da Trilha, Carteira, Ranking), `screenshots` (mobile e desktop, exigidos pelo painel de instalação rico do Android); metas do iOS (`apple-mobile-web-app-capable`, título, estilo da status bar). **Corrigir o `viewport`:** `maximum-scale=1, user-scalable=no` bloqueia o zoom e é problema de acessibilidade (WCAG 1.4.4); remover e conferir que nenhum input dá zoom automático no iOS (fonte >= 16 px nos campos). Ajustar áreas seguras (`env(safe-area-inset-*)`) na `TopBar` e na `TabBar` inferior.
 - **Aceite:** Lighthouse/DevTools "Installability" sem avisos; zoom por pinça funciona; barra inferior não é coberta pela barra de gestos do iOS.
 - **Dependências:** nenhuma.
+- **Entregável:** `manifest.webmanifest` com `id`, `scope`, `description`, `categories`, `orientation`, `launch_handler` (link de e-mail reaproveita a janela aberta) e 3 `shortcuts` (Trilha, Portfólio, Ranking, com `?source=` para distinguir a origem). `index.html`: metas do iOS (`apple-mobile-web-app-capable`, título, `status-bar-style: black`), `mobile-web-app-capable` e `viewport-fit=cover`; o viewport **já não tinha** `maximum-scale`/`user-scalable=no` (conferido). Áreas seguras: `TopBar` (topo, laterais), `TabBar` mobile (base) e `padding-bottom` do conteúdo; `100dvh` no shell e no `body`. Campos com `font-size` abaixo de 16 px passam a 16 px abaixo de 768 px (evita o zoom automático do iOS). `theme-color` acompanha o tema (`ThemeContext`). **Pendente:** `screenshots` do manifest (exigem o app logado com dados reais; capturar mobile e desktop em staging) e conferir o item "Installability" no DevTools com HTTPS real.
 
-### LW.2.2 · Service worker com cache seguro (`vite-plugin-pwa`/Workbox)
+### LW.2.2 · Service worker com cache seguro (`vite-plugin-pwa`/Workbox) ✅ (2026-10-12)
 - **O que fazer:** pré-cache do app shell (JS/CSS/ícones com hash); fontes em cache de runtime. **Regras invioláveis:** nunca guardar em cache respostas de `/auth`, `/me`, `/billing`, `/market`, `/ranking`, `/friendships`, `/admin` nem qualquer chamada de API (dado financeiro desatualizado é pior que erro; RNF09 e o gating do PRO dependem de resposta fresca); navegação cai no `index.html` com exceção das rotas de backend que colidem (`/auth/callback`, `/admin/*`, ver `vite.config.ts`). `sw.js` servido sem cache longo. **Atualização controlada:** ao detectar versão nova, mostrar aviso "Nova versão disponível, atualizar" em vez de recarregar no meio de uma lição ou de uma ordem; limpar caches antigos.
 - **Aceite:** após um deploy, quem tem o app aberto vê o aviso e atualiza com um toque; auditoria confirma que nenhuma resposta de API fica no cache; teste manual com rede cortada.
 - **Dependências:** LW.2.1.
+- **Entregável:** `vite-plugin-pwa@2.0.0` em modo `injectManifest` com `src/sw/sw.ts` próprio (workbox-precaching e workbox-routing). **Pré-cache** só do app shell: JS e CSS com hash (inclusive os chunks de rota), fonte latina, ícones e `offline.html`; ficam fora o `index.html`, o chunk do SDK do RevenueCat (932 KB, só em `/planos`), o painel admin e a fonte `latin-ext`. **Nenhuma rota de runtime**: nada de `/auth`, `/me`, `/billing`, `/market`, `/ranking`, `/friendships`, `/admin` nem da origem da API é guardado (verificado no Cache Storage de um Chrome real: só 11 arquivos do shell). **Atualização controlada:** `features/pwa/serviceWorker` (workbox-window) registra só em produção, procura versão nova a cada hora e ao voltar ao primeiro plano; a versão nova espera (`waiting`) e `UpdateNotice` mostra "Nova versão disponível" com o botão Atualizar, que manda `SKIP_WAITING` e só então recarrega (nunca no meio de lição ou ordem); caches antigos são limpos. `public/_headers` põe `Cache-Control: no-cache` em `sw.js`, `manifest.webmanifest` e `offline.html`, `immutable` em `/assets/*` e `X-Robots-Tag: noindex`; `public/_redirects` traz o fallback da SPA. `tsconfig.sw.json` tipa o worker. **Validado num Chrome real (Playwright) contra `vite preview`:** instalação e controle da página, 2º build publicado, aviso visível sem recarregar sozinho, clique em Atualizar troca o bundle e remove os arquivos da versão antiga do cache. Testes: store, registro (mock do workbox-window, inclusive "não recarrega na primeira instalação") e `UpdateNotice`.
 
-### LW.2.3 · Experiência offline
+### LW.2.3 · Experiência offline ✅ (2026-10-12)
 - **O que fazer:** página offline nativa da marca (substitui o erro do navegador): "Sem conexão. A Selucra precisa de internet para mostrar o mercado". O mercado é simulação viva, então **não há modo offline de dados** (decisão do arquivo do app, seção 1, vale aqui). Leitura de lição já aberta fica fora desta tarefa.
 - **Aceite:** abrir o app instalado sem rede mostra a página offline com botão "Tentar de novo"; ao voltar a rede, volta sozinho.
 - **Dependências:** LW.2.2.
+- **Entregável:** `public/offline.html` (marca, tema claro/escuro por `prefers-color-scheme`, "Tentar de novo" com alvo de 44 px, volta sozinha no evento `online`). A navegação do service worker vai sempre à rede primeiro e só cai nessa página se falhar. Validado no Chrome real com a rede cortada: "Sem conexão" no lugar do erro do navegador, e o botão volta ao app com a rede de volta. Observação: o evento `online` não é emitido pela emulação do DevTools/Playwright, então o recarregamento automático foi coberto só pelo botão; conferir num aparelho real.
 
-### LW.2.4 · Fluxo de instalação
+### LW.2.4 · Fluxo de instalação ✅ parcial (2026-10-12; falta o evento de funil)
 - **O que fazer:** Android/Chrome: capturar `beforeinstallprompt`, guardar o evento e oferecer "Instalar" num ponto natural (depois da primeira lição concluída, e em Configurações), nunca em popup na entrada. iOS/Safari: não existe o evento, então mostrar instrução ilustrada ("Compartilhar, Adicionar à Tela de Início") detectando iOS e navegador fora do modo instalado. Dispensar com memória local (`localStorage` com try/catch). Convite, nunca insistência (M6). Evento de funil "instalou" (`appinstalled`) no mesmo padrão do funil da MO.7.1, sem dado pessoal.
 - **Aceite:** instala e abre em janela própria no Android, no desktop (Chrome/Edge) e, manualmente, no iOS; o convite some depois de instalado.
 - **Dependências:** LW.2.1, LW.2.2.
+- **Entregável:** `features/pwa/install` (captura `beforeinstallprompt` e `appinstalled`, `isStandalone`, detecção do Safari do iPhone/iPad incluindo o iPadOS que se apresenta como Mac, convite dispensado por 30 dias em `localStorage` com try/catch) e `components/molecules/InstallInvite`: botão "Instalar" (diálogo do navegador) no Android e no desktop, passo a passo ilustrado em texto no Safari do iPhone, nada em outros navegadores e some depois de instalado. Aparece em Configurações (sempre, sem dispensar) e na Trilha depois da primeira lição concluída (dispensável, "Agora não"). Nunca em popup na entrada. Testes: detecção de plataforma, estado, dispensa e componente. **Pendente (decisão do autor):** o evento de funil "instalou" (`appinstalled`) exige mexer no módulo `billing` (constraint `funnel_events_name_chk`, migração, métricas do painel) para medir algo que não é do funil do PRO; ficou de fora e vale decidir se compensa ou se basta o Cloudflare Web Analytics.
 
-### LW.2.5 · Fontes locais (sem Google Fonts)
+### LW.2.5 · Fontes locais (sem Google Fonts) ✅ (2026-10-12)
 - **Descrição:** hoje `index.html` carrega Inter/Sora do Google Fonts. Sem rede de terceiros no caminho crítico o app fica offline-capaz e deixa de enviar o IP do usuário ao Google antes do consentimento (LGPD).
 - **O que fazer:** hospedar Inter e Sora no próprio build (subset latino), `font-display: swap`, pré-carregar só as variações usadas; remover os `preconnect` e atualizar a política de privacidade (cookies/armazenamento).
 - **Aceite:** nenhuma requisição a `fonts.googleapis.com`/`gstatic` na aba Rede; fontes funcionam offline pelo service worker.
 - **Dependências:** LW.2.2.
+- **Entregável:** Inter e Sora variáveis (subsets `latin` e `latin-ext`, OFL, licenças em `src/assets/fonts/`) em `src/fonts.css` com `font-display: swap` e os mesmos nomes de família dos tokens; `index.html` sem `preconnect` nem folha do Google. `latin-ext` só baixa quando um caractere raro aparece; a fonte latina entra no pré-cache. Conferido no Chrome real: **0 requisições** a `googleapis`/`gstatic`. Política de privacidade (seção 6) atualizada com as fontes próprias e o que o PWA guarda no aparelho; data de atualização passou para 12/10/2026.
 
 ### LW.2.6 · Fluxos críticos dentro do PWA instalado
 - **Descrição:** o modo `standalone` muda o comportamento de redirecionamentos externos, justo onde a Selucra depende deles.
 - **O que testar/ajustar:** login Google web (redirecionamento ao Google e volta por `/auth/callback`, que precisa cair dentro do escopo do PWA e não abrir o navegador); checkout do Stripe pelo RevenueCat e o retorno em `/planos`; links de e-mail (recuperação de senha, verificação) abrindo no PWA instalado no Android e **no Safari** no iOS (iOS não entrega link ao PWA); botão voltar do Android; compartilhamento da retrospectiva (Web Share API com fallback de copiar link/baixar imagem).
 - **Aceite:** roteiro executado no Android (Chrome), no iPhone (Safari, PWA instalado) e no desktop, com resultado registrado aqui; cada falha vira ajuste ou item em `pontos-em-aberto-decisao-produto.md`.
 - **Dependências:** LW.2.4.
+
+### LW.2.6 (andamento 2026-10-12) · O que já foi conferido no código e o roteiro manual
+- **Estado:** a tarefa continua aberta: ela exige HTTPS real e aparelhos (Android/Chrome, iPhone/Safari com o PWA instalado, desktop). O que dava para verificar sem aparelho foi feito.
+- **Conferido no código:** (1) o `/auth/callback` fica dentro do escopo do PWA (`scope: "/"`), e a API em `api.selucra.com.br` é outra origem, então o login Google sai do escopo e volta por redirecionamento do backend (`FRONTEND_URL/auth/callback#token=`), comportamento esperado no Chrome Android (aba personalizada que fecha ao voltar ao escopo), **a confirmar no aparelho**; (2) o compartilhamento da retrospectiva já usa `navigator.canShare({ files })` com fallback para baixar o PNG, e o convite usa `navigator.share` com cópia do link como alternativa; (3) `launch_handler: navigate-existing` faz o link de e-mail aberto no Android reaproveitar a janela do app; (4) o botão voltar do Android usa o histórico do React Router e sai do app na raiz.
+- **Limitações conhecidas do iOS (não têm correção no código):** o PWA instalado guarda o próprio `localStorage`, separado do Safari, então quem entra pelo Safari precisa entrar de novo no app instalado; links de e-mail (recuperação de senha, verificação) sempre abrem no Safari, e a pessoa volta ao app instalado manualmente; o redirecionamento do Google pode terminar numa tela de navegador em vez de voltar ao PWA. Se o roteiro confirmar o último ponto, o caminho é oferecer "Entrar com e-mail e senha" em destaque dentro do app instalado no iPhone.
+- **Roteiro (registrar o resultado aqui por aparelho):** instalar; abrir pelo ícone; entrar com e-mail e senha; entrar com Google (ida e volta); concluir uma lição; comprar um ativo; abrir `/planos`, iniciar e concluir o checkout com cartão de teste e conferir o retorno em `/planos`; abrir um link de recuperação de senha e um de verificação vindos do e-mail; compartilhar a retrospectiva e o convite; cortar a rede e abrir o app (página offline); publicar uma versão nova e ver o aviso "Atualizar"; botão voltar do Android; girar o aparelho; barra inferior sem ficar sob a barra de gestos.
 
 ### LW.2.7 · Web Push ⏸ ADIADO (decisão do autor, 2026-10-10: sem push notifications por agora)
 - **Estado:** fora do lançamento. Não abrir tarefa nem criar tabela de inscrições, chaves VAPID ou handler `push` no service worker. O e-mail (resumo semanal, lembrete de sequência, opt-in) continua sendo o único canal de reengajamento. Reabrir só com dado de retenção que justifique. O texto abaixo fica como referência.
@@ -91,10 +104,11 @@ cores) e `apple-touch-icon`. **Não existe** service worker, página offline nem
 - **Aceite:** só abrir tarefa executável depois da decisão.
 - **Dependências:** LW.2.2, LW.2.4.
 
-### LW.2.8 · Auditoria final do PWA
+### LW.2.8 · Auditoria final do PWA ✅ parcial (2026-10-12; falta medir em produção)
 - **O que fazer:** Lighthouse mobile (PWA, desempenho, acessibilidade, melhores práticas) e correções; tamanho do bundle inicial (carregar telas por rota com `lazy`); `theme-color` e splash coerentes com os tokens escuro/claro.
 - **Aceite:** metas registradas aqui (sugestão: instalável, acessibilidade >= 95, LCP < 2,5 s em 4G simulado).
 - **Dependências:** LW.2.1 a LW.2.6.
+- **Entregável:** **Rotas com `lazy`** (68 telas em `routes/router.tsx`; login, callback e 404 ficam eager): bundle inicial de **1,29 MB para 392 KB** (gzip de 366 para 122 KB). Logos reduzidos de 2400 para 800 px (62 KB para 37 KB, 37 KB para 19 KB) com `width`/`height` (sem salto de layout). Contraste do texto pequeno do Login corrigido (era `--color-text-muted`, 3,67:1). **Lighthouse mobile na tela de login contra o build local:** Acessibilidade **100**, Boas práticas **100**, Desempenho **93** (FCP 2,4 s, LCP 2,8 s, CLS 0,008, TBT 0 ms; simulação de 4G lento, sem CDN). SEO baixo é proposital (`noindex`). **Pendente:** (a) medir de novo em `app.selucra.com.br` com Brotli e CDN (a meta de LCP abaixo de 2,5 s não foi batida localmente por 0,3 s); (b) o Lighthouse não cobre as telas internas, que exigem login; (c) as duas versões do logo (claro e escuro) são baixadas, uma delas escondida: trocar por `<picture>` ou carregar só a do tema vale uns 20 KB. `theme-color` dos temas conferido; splash do Android vem do manifest (`background_color` e ícone 512).
 
 ---
 
