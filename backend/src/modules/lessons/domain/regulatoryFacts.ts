@@ -93,12 +93,12 @@ export const REGULATORY_FACTS = [
     id: 'tesouro-resgate-liquidez',
     label: 'Tesouro Direto: prazo de liquidação do resgate',
     value:
-      'O resgate de qualquer título pode ser creditado no mesmo dia útil, se pedido até cerca das 13h, ou no dia útil seguinte (D+1), se pedido depois disso. Só em dia útil.',
+      'O resgate pedido em dia útil, entre 9h30 e 13h, é feito a partir das 13h do mesmo dia. Pedido em outro horário, o resgate é feito a partir das 13h do dia útil seguinte.',
     data: { sameDayCutoffHour: 13 },
-    source: 'https://www.tesourodireto.com.br/en/regras-e-regulamento',
-    check: 'trecho-de-busca',
-    verifiedAt: '2026-10-04',
-    note: 'Resultado de busca no domínio do Tesouro Direto e do gov.br (notícia "Tesouro Direto passa a ter liquidação de resgate no mesmo dia"); as páginas retornaram 401/403 à leitura automática. A auditoria da RC.1.7 dizia só D+1: está desatualizada. Na lição, dizer "no mesmo dia útil ou no seguinte, conforme o horário" sem citar o horário exato; reabrir no navegador na RC.8.1.',
+    source: 'https://www.tesourodireto.com.br/en/sobre-o-tesouro/regras-e-regulamento',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+    note: 'Página de regras e regulamento aberta e lida em 2026-10-11 (seção de liquidação). Substitui a leitura anterior por trecho de busca e a auditoria da RC.1.7, que dizia só D+1.',
   },
   {
     id: 'tesouro-prefixado-regras',
@@ -609,6 +609,90 @@ export const REGULATORY_FACTS = [
     check: 'pagina-oficial',
     verifiedAt: '2026-10-06',
     note: 'Série CVM Comportamental, volume 1 "Vieses do Investidor" (PDF, 2015), texto lido: seções Ancoragem, Aversão a Perda e Autoconfiança Excessiva. Efeito manada/adesão aparece só como resultado de busca e não foi aberto, então a lição não o cita. O estudo de 2006 com gestores (74% acima da média) é citado pela CVM, mas a lição não usa o número.',
+  },
+  {
+    id: 'tesouro-investimento-minimo',
+    label: 'Tesouro Direto: investimento mínimo',
+    value:
+      'O site do Tesouro Direto informa investimento mínimo a partir de R$ 2. A compra é fracionada, em múltiplos de 0,01 título (1% do valor de um título), então o mínimo de cada título depende do preço dele.',
+    data: { fromBRL: 2, fractionPct: 1 },
+    source: 'https://www.tesourodireto.com.br/en/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+    note: 'Página inicial (R$ 2) e página de regras e regulamento (múltiplos de 0,01 título) lidas em 2026-10-11. Material educativo da B3 ainda cita R$ 30 para alguns títulos: está desatualizado, não usar.',
+  },
+  {
+    id: 'tesouro-tipos-titulos',
+    label: 'Tesouro Direto: tipos de título',
+    value:
+      'Tesouro Prefixado (LTN), Tesouro Prefixado com Juros Semestrais (NTN-F), Tesouro Selic (LFT), Tesouro IPCA+ (NTN-B Principal), Tesouro IPCA+ com Juros Semestrais (NTN-B), Tesouro Educa+ e Tesouro Renda+. Educa+ e Renda+ são IPCA mais uma taxa fixa, desenhados para gerar renda mensal por 5 e 20 anos depois da fase de acumulação, respectivamente.',
+    source: 'https://www.tesourodireto.com.br/en/sobre-o-tesouro/regras-e-regulamento',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+    note: 'Página de regras e regulamento lida em 2026-10-11. A leitura automática atribuiu o mesmo código (NTN-B1) ao Educa+ e ao Renda+: não citar código desses dois.',
+  },
+  {
+    id: 'tesouro-horario-negociacao',
+    label: 'Tesouro Direto: horário de negociação',
+    value:
+      'Em dias úteis, das 9h30 às 18h, as ordens são executadas aos preços do momento. Fora desse horário, em fins de semana e feriados, os preços exibidos são de referência e a ordem é executada aos preços de abertura do próximo dia útil. A negociação pode ser suspensa durante o dia.',
+    source: 'https://www.tesourodireto.com.br/en/sobre-o-tesouro/regras-e-regulamento',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+  },
+  {
+    id: 'etf-definicao-b3',
+    label: 'ETF de renda variável: definição (B3)',
+    value:
+      'ETFs de renda variável são fundos negociados em bolsa que reúnem recursos aplicados numa carteira de ativos. O objetivo é acompanhar, em geral, o desempenho (antes de taxas e despesas) de um índice de referência reconhecido pela CVM. As cotas são negociadas na B3 de forma semelhante às ações, e quem compra uma cota passa a deter, indiretamente, as ações da carteira teórica do índice.',
+    source:
+      'https://www.b3.com.br/pt_br/produtos-e-servicos/negociacao/renda-variavel/etf-de-renda-variavel.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+    note: 'Página de produto da B3 lida em 2026-10-11. A página não trata de tributação nem informa percentual de taxa.',
+  },
+  {
+    id: 'etf-liquidacao-b3',
+    label: 'ETF: prazo de liquidação',
+    value:
+      'A liquidação das negociações de cotas de ETF de renda variável é em D+2, a partir da data de negociação. Nos ETFs de renda fixa, é D+1.',
+    data: { equityDays: 2, fixedIncomeDays: 1 },
+    source:
+      'https://borainvestir.b3.com.br/tipos-de-investimentos/renda-variavel/etfs/etf-tudo-o-que-voce-precisa-saber-antes-de-investir/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+    note: 'D+2 também consta na página de produto da B3 (ETF de renda variável); D+1 para renda fixa vem do Bora Investir (B3), lido em 2026-10-11.',
+  },
+  {
+    id: 'etf-formador-mercado',
+    label: 'ETF: formadores de mercado e liquidez',
+    value:
+      'Os ETFs contam com formadores de mercado, instituições que mantêm ofertas de compra e venda de forma regular e contínua durante o pregão. A compra pode ser de uma única cota, com corretagem e emolumentos como numa ação.',
+    source:
+      'https://borainvestir.b3.com.br/tipos-de-investimentos/renda-variavel/etfs/etf-tudo-o-que-voce-precisa-saber-antes-de-investir/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+  },
+  {
+    id: 'etf-codigo-lote',
+    label: 'ETF: código de negociação e lote',
+    value:
+      'O código de negociação tem quatro letras seguidas de 11 (por exemplo, BOVA11). No mercado secundário, o lote padrão é de 1 cota, cotada em reais com duas casas decimais.',
+    source:
+      'https://www.b3.com.br/pt_br/produtos-e-servicos/negociacao/renda-variavel/etf-de-renda-variavel.htm',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+  },
+  {
+    id: 'etf-ir-b3',
+    label: 'ETF de renda variável: alíquotas (B3 Bora Investir)',
+    value: 'O imposto sobre o lucro líquido é de 15% em operações normais e de 20% em day trade.',
+    data: { capitalGainPct: 15, dayTradePct: 20 },
+    source:
+      'https://borainvestir.b3.com.br/tipos-de-investimentos/renda-variavel/etfs/etf-tudo-o-que-voce-precisa-saber-antes-de-investir/',
+    check: 'pagina-oficial',
+    verifiedAt: '2026-10-11',
+    note: 'Página do Bora Investir (B3) lida em 2026-10-11. Não trata de isenção de R$ 20 mil nem de come-cotas: não afirmar nada sobre os dois. O fato etf-ir (IN RFB 1.585) segue como trecho-de-busca.',
   },
 ] as const satisfies readonly RegulatoryFact[]
 
