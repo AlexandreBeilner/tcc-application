@@ -38,12 +38,24 @@ no GitHub. Os botões da landing levam ao app em `https://app.selucra.com.br`, q
     - `NODE_VERSION` = `22`
     - `CF_ANALYTICS_TOKEN` = o token do Web Analytics (passo 6, só no modo manual). Opcional: sem ele, o build não coloca nenhum script.
     - `SITE_URL` e `APP_URL` só se forem diferentes de `https://selucra.com.br` e `https://app.selucra.com.br` (o padrão já é produção).
-4. **Build watch paths** (Settings, Build, Build watch paths): inclua `landing/*` e
-   `backend/src/modules/lessons/domain/regulatoryFacts.ts`, para o Pages não rebuildar a cada commit do resto do monorepo.
-5. **Domínios** (aba Custom domains): adicione `selucra.com.br` e `www.selucra.com.br`. Como a zona está na mesma conta, a Cloudflare cria
-   os registros sozinha.
-   Depois, para o `www` apontar para o domínio raiz: Rules, Redirect Rules, Create rule, "Single redirect". Quando o hostname for igual a
-   `www.selucra.com.br`, redirecionar (301, mantendo a query string) para o URL dinâmico `concat("https://selucra.com.br", http.request.uri.path)`.
+4. **Build watch paths** (projeto, Settings, Build, Build watch paths). Em monorepo o Pages rebuilda a cada commit em qualquer pasta;
+   o filtro evita isso. Em **Include paths**, duas linhas: `landing/*` e
+   `backend/src/modules/lessons/domain/regulatoryFacts.ts`. Deixe **Exclude paths** vazio.
+    - Commit só em `frontend/`, `engine/` ou no resto do `backend/` não gera deploy da landing.
+    - Commit que muda um fato regulatório gera deploy, porque os guias usam os números dele.
+    - Para publicar sem mudar esses arquivos: Deployments, Retry deployment (ou Create deployment).
+    - O Pages não percebe sozinho um fato que passou de 12 meses; quem avisa é o `landing-ci.yml`, que roda toda segunda-feira.
+5. **Domínios.**
+    - **Ligar ao projeto:** aba Custom domains, Set up a custom domain, `selucra.com.br`, Continue, Activate domain. A Cloudflare cria o
+      CNAME do `@` para `selucra-landing.pages.dev`, com proxy ligado. Repita com `www.selucra.com.br` e espere os dois ficarem
+      Active (alguns minutos, enquanto o certificado é emitido). Se der erro de registro DNS já existente, apague o registro antigo do
+      `@` ou do `www` (por exemplo, um estacionamento do Registro.br) na aba DNS da zona e tente de novo.
+    - **Redirecionar o www para o domínio raiz** (na zona `selucra.com.br`, não no projeto): Rules, Redirect Rules, Create rule. Se
+      houver o modelo "Redirect from WWW to root", use-o. Senão: nome `www para raiz`; When incoming requests match, Custom filter
+      expression, Hostname equals `www.selucra.com.br`; Then, Type Dynamic, Expression
+      `concat("https://selucra.com.br", http.request.uri.path)`, Status code 301, marque Preserve query string; Deploy.
+    - **Conferir:** `curl -I https://www.selucra.com.br/aprender/` deve devolver `301` e `location: https://selucra.com.br/aprender/`.
+      O registro do `www` precisa estar com a nuvem laranja (proxy ligado), o que o passo de ligar o domínio já faz.
 6. **Web Analytics.** Use **só um** dos dois modos (os dois juntos contam cada visita em dobro):
     - **Automático (mais simples):** no projeto da landing, Metrics ou Web Analytics, Enable. Se não achar, Analytics & Logs, Web
       Analytics, adicione `selucra.com.br` com a configuração automática. A Cloudflare injeta o script na entrega, sem token e sem
