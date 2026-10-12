@@ -20,7 +20,7 @@ describe('loadBillingConfig', () => {
       provider: 'revenuecat',
       secretKey: 'sk_test',
       webhookAuthorization: 'Bearer segredo',
-      entitlementId: 'selucra_pro',
+      entitlementId: 'pro',
       apiBaseUrl: 'https://api.revenuecat.com/v1',
       requestTimeoutMs: 10_000,
     })

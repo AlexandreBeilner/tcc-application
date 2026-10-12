@@ -4,7 +4,7 @@ import { createRevenueCatPromotionalGranter } from './revenueCatPromotionalGrant
 
 const base = {
   secretKey: 'sk_test',
-  entitlementId: 'selucra_pro',
+  entitlementId: 'pro',
   apiBaseUrl: 'https://api.revenuecat.com/v1',
   requestTimeoutMs: 1000,
 }
@@ -24,7 +24,7 @@ describe('createRevenueCatPromotionalGranter', () => {
 
     const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe(
-      'https://api.revenuecat.com/v1/subscribers/user-1/entitlements/selucra_pro/promotional',
+      'https://api.revenuecat.com/v1/subscribers/user-1/entitlements/pro/promotional',
     )
     expect(init.method).toBe('POST')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk_test')

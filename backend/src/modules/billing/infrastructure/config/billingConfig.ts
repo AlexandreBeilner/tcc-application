@@ -30,7 +30,7 @@ export interface RevenueCatBillingConfig {
   requestTimeoutMs: number
 }
 
-const DEFAULT_ENTITLEMENT_ID = 'selucra_pro'
+const DEFAULT_ENTITLEMENT_ID = 'pro'
 const DEFAULT_API_BASE_URL = 'https://api.revenuecat.com/v1'
 const DEFAULT_TIMEOUT_MS = 10_000
 

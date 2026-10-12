@@ -42,7 +42,16 @@ const detail = (over: Partial<AssemblyDetail> = {}): AssemblyDetail => ({
             effects: [{ metric: 'growth', direction: 1, intensity: 0.8 }],
             position: 0,
         },
-        { id: 'o2', key: 'distribuir', label: 'Distribuir', gain: 'Mais dividendo', loss: 'Menos crescimento', effect: null, effects: [], position: 1 },
+        {
+            id: 'o2',
+            key: 'distribuir',
+            label: 'Distribuir',
+            gain: 'Mais dividendo',
+            loss: 'Menos crescimento',
+            effect: null,
+            effects: [],
+            position: 1,
+        },
     ],
     scoreboard: {
         voters: 3,

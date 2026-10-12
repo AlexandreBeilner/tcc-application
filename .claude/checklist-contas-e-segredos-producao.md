@@ -85,7 +85,7 @@ Gerar **todos** com `openssl rand -base64 48` (ou gerenciador de senhas) e guard
 | `BILLING_PRICE_MONTHLY_CENTS`, `BILLING_PRICE_ANNUAL_CENTS` | 990 e 8990 | só exibição; o preço real vive na loja/Stripe |
 | `TICK_SCHEDULER_ENABLED`, `SCHEDULER_TIMEZONE` | motor | padrão `America/Sao_Paulo`; só definir se precisar mudar |
 | chave de criptografia dos backups (`age`) | gerada | **guardar a chave privada fora do servidor**: sem ela o backup não abre |
-| credenciais do armazenamento externo (B2/R2) | provedor | permissão só de escrita para o servidor, se possível |
+| credenciais do armazenamento externo (B2/R2) | provedor | token só do bucket de backup, com **Object Read & Write** (o script apaga cópias antigas, então só escrita quebra a retenção) |
 
 **Frontend (Cloudflare Pages, embutidas no build)**
 
