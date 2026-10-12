@@ -28,6 +28,24 @@ Workbox/`vite-plugin-pwa`, do Chrome (instalabilidade) e do WebKit (PWA no iOS):
 
 ---
 
+## Auditoria de prontidão (2026-10-12)
+
+Releitura de todos os backlogs, do arquivo de pontos em aberto e do código de produção. Conclusão: **o produto está completo para o lançamento; o que falta é produção, validação com serviços reais e burocracia**, com **três lacunas de código** que não estavam em nenhuma tarefa viva e uma de documentação.
+
+**Falta de código (ainda não feito, pequeno):**
+1. **LW.3.4 · CI do frontend:** só existem `backend-ci`, `engine-ci`, `landing-ci` e `images`. Não há workflow de lint, `tsc`, teste e build do `frontend/`.
+2. **LW.3.5 · Observabilidade:** nada de monitoramento de erros nem de alerta (queda do motor, do worker de e-mail, do job de ranking, do Temporizador). Se entrar Sentry ou similar, a seção 6 da `/privacidade` (diz "sem analytics de terceiros no app") precisa mudar.
+3. **LW.3.16 · CSP do app:** o `_headers` do Pages tem cache e `noindex`, mas **não tem CSP** (precisa liberar Stripe e RevenueCat) nem os cabeçalhos de segurança do app.
+4. **LW.3.17 · Papéis de banco:** `infra/postgres/init` só cria os dois bancos; o app ainda usaria o superusuário. Falta criar `gamification_app` e `market_app` sem privilégio de superusuário e conferir migrações e o gatilho de `market_events` com eles.
+
+**Falta de validação (precisa do servidor, das contas ou de aparelho):** LW.3.1 (fechar provedor e tamanho do VPS: Vultr escolhido na política), LW.3.2, LW.3.6 (Resend em produção, SPF/DKIM/DMARC), LW.3.11 (hardening do servidor), `nmap` externo e reinício (LW.3.7), R2 real e ensaio de restauração (LW.3.12), primeira execução do CI de imagens (LW.3.13), ensaio do `deploy.sh` no staging (LW.3.15), roteiro do PWA no Android, iPhone e desktop (LW.2.6), medir o PWA em produção (LW.2.8), capturas do manifest (LW.2.1), evento de funil da instalação (LW.2.4), landing no ar (LW.6.x) e o ensaio geral com cartão de teste e as contas reais de RevenueCat e Stripe (LW.5.3, MO.2.5 em produção, chave `rcb_sb_` no staging).
+
+**Falta de burocracia (só o autor):** parecer do contador (nota fiscal, regime), revisão jurídica dos Termos, reembolso e privacidade, e o domínio nas contas de pagamento e no Search Console (LW.4.3).
+
+**Antes de tudo (LW.5.2):** a `backlog-monetizacao` está **148 commits à frente da `main`** e ainda há a cadeia da Fase N, `backlog-gateway-email` e duas branches de mobile sem mesclar. Nada disso está em produção até mesclar e rodar os e2e na `main`.
+
+**Fora do lançamento por decisão (não é esquecimento):** bloqueio e denúncia entre usuários (spec: fase futura; a suspensão de conta pelo admin existe), perfil privado, Web Push, app nativo, Semana 8 do backlog principal (calibração, demonstração e alinhamento com a monografia: é entrega do TCC, não do lançamento), D.0 e D.2 do engajamento, reservas R.13 e S.14 do motor. O arquivo de pontos em aberto está vazio.
+
 ## Fase 1 — Congelar o mobile e deixar a web autossuficiente
 
 ### LW.1.1 · Registrar o adiamento nos documentos ✅ (2026-10-10)
@@ -314,7 +332,7 @@ Análise completa em `.claude/analise-ambiente-producao.md` (tabela dev x produ�
 |---|---|
 | Fase D da monetização (compra nativa), MO.4.4 | Congeladas junto do app; o código existente fica inerte |
 | Fase 4 do `backlog-app-mobile.md` (identidade, Play, iOS) | Adiada; retomar só quando o app voltar a ser prioridade |
-| Fase F da monetização (Assembleia de Acionistas, MO.6.3 em diante) | Só faz sentido com base de assinantes; depois de medir tração |
+| Fase F da monetização (Assembleia de Acionistas) | **Deixou de ser adiada**: nasce ligada (decisão do autor de 2026-10-11, MO.9.6); só `ASSEMBLIES_ENABLED=off` desliga, em emergência |
 | Fase G da monetização (MO.7.2 indicação, MO.7.3 teste de preço) | Depois do lançamento, com dado |
 
 ## Sequência sugerida
