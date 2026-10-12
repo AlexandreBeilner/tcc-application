@@ -24,6 +24,7 @@ import { startBillingReconciliationScheduler } from './modules/billing/infrastru
 import { createRedisClient } from './infra/redisClient'
 import { assertProductionConfig } from './infra/productionConfigGuard'
 import { createGracefulShutdown } from './infra/gracefulShutdown'
+import { installJsonConsole } from './shared/logging/jsonConsole'
 import { takeShutdownHooks } from './infra/shutdownRegistry'
 import type { GenerateMonthlyRetrospectivesUseCase } from './modules/retrospectives/application/useCases/generateMonthlyRetrospectives'
 import { startRetrospectiveScheduler } from './modules/retrospectives/infrastructure/scheduler/retrospectiveScheduler'
@@ -61,6 +62,9 @@ const DEFAULT_ASSEMBLY_INTERVAL_MS = 60 * 60 * 1000
 const SHUTDOWN_TIMEOUT_MS = 8000
 
 async function main() {
+  // Logs em JSON (uma linha por evento) em produção e staging; `LOG_FORMAT=json` no compose (LW.3.5).
+  if (process.env.LOG_FORMAT === 'json') installJsonConsole()
+
   // LW.3.8: com DEPLOY_ENV=production, recusa subir com segredo/URL/provedor de desenvolvimento.
   // Vem antes de tudo, inclusive das migrações, pra uma configuração errada nunca tocar o banco.
   assertProductionConfig(process.env)

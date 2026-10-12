@@ -1,3 +1,4 @@
+import { recordJobFailure, recordJobSuccess, registerJob } from '../../../../infra/jobHealth'
 import type { DeliverPendingEmailsUseCase } from '../../application/useCases/deliverPendingEmails'
 import type { PurgeOldEmailsUseCase } from '../../application/useCases/purgeOldEmails'
 
@@ -14,6 +15,7 @@ export function startEmailOutboxScheduler(
   intervalMs: number,
   purgeOldEmails?: PurgeOldEmailsUseCase,
 ): NodeJS.Timeout {
+  registerJob('email-outbox', intervalMs)
   let running = false
   let lastPurgeAt = Number.NEGATIVE_INFINITY
   const attempt = async () => {
@@ -26,7 +28,9 @@ export function startEmailOutboxScheduler(
           `e-mail: ${result.sent} enviado(s), ${result.retried} reagendado(s), ${result.failed} falha(s), ${result.suppressed} suprimido(s), ${result.recovered} recuperado(s)`,
         )
       }
+      recordJobSuccess('email-outbox')
     } catch (err) {
+      recordJobFailure('email-outbox')
       console.error('e-mail: erro ao processar o outbox', err)
     }
     // Falha da limpeza nunca atrapalha a entrega (e vice-versa): cada uma tem o seu try.

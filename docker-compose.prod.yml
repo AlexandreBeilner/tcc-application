@@ -140,6 +140,12 @@ services:
       ENGINE_URL: http://engine:8080
       # O Caddy é o único proxy que o backend enxerga e entrega o IP real (LW.3.9).
       TRUSTED_PROXY_HOPS: "1"
+      # Logs em JSON, uma linha por evento e por requisição (LW.3.5); o Docker coleta e rotaciona.
+      LOG_FORMAT: json
+      # Com o motor fora, o nome `engine` deixa de resolver e, na rede interna (sem DNS externo), cada consulta
+      # segura uma das 4 threads de DNS do Node por vários segundos: banco e Redis ficavam sem thread para
+      # resolver os próprios nomes e a API inteira travava. 16 threads isolam a falha de um serviço.
+      UV_THREADPOOL_SIZE: "16"
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (openssl rand -base64 48)}
       FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL}
       PUBLIC_API_URL: ${PUBLIC_API_URL:?defina PUBLIC_API_URL}

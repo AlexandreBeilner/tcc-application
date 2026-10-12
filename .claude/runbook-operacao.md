@@ -96,7 +96,17 @@ Opções: `--allow-peak` (ignora a recusa do horário de pico, padrão 18h a 23h
 
 **Ensaiado em 2026-10-12** (máquina de desenvolvimento, imagens locais por SHA, `DEPLOY_PULL=0`): deploy bom (14 s, com backup); versão quebrada (volta sozinha em 21 s, saída 1, app saudável na versão antiga); rollback manual; backup que falha aborta sem mudar nada; versão `latest`, igual à atual, fora do staging e dentro do pico são recusadas. **Falta ensaiar no staging do VPS real**, com o `pull` do GHCR.
 
-## 5. Outras rotinas (a preencher conforme as tarefas)
+## 5. Observabilidade (LW.3.5)
+
+Princípio: o mínimo útil e sem custo. **Logs em JSON** no stdout + **um endpoint de saúde** consultado de fora por um monitor gratuito. Nada de agente de métricas nem serviço pago por enquanto.
+- **Logs:** `docker compose -p selucra-prod ... logs --tail 200 backend` (uma linha JSON por evento e por requisição: `ts`, `level`, `msg`, `data`, `err`). O Docker rotaciona (10 MB x 3 por serviço). Filtrar: `... logs backend | grep '"level":"error"'`; achar o rastro de um erro 500 pelo `requestId` (também vai no cabeçalho `X-Request-Id` da resposta). **Nunca entram nos logs:** senha, token, chave de API, cabeçalho `Authorization`, e-mail, patrimônio, IP, corpo da requisição, query string e ids nos caminhos (filtro em `shared/logging/jsonConsole.ts`, com testes). Para investigar um bug use o `requestId` e o caminho, não dados do usuário.
+- **Saúde:** `GET https://api.selucra.com.br/health/ready` (200 ou 503; contrato em `.docs/backend/system.md`). Falha quando: motor, bancos ou Redis fora; fila de e-mail parada; algum agendador do backend sem sucesso há 3 intervalos ou com 3 falhas seguidas (nome em `job:<nome>`); Temporizador do mercado sem tick há mais de 2 intervalos. O detalhe de cada falha fica no log (`readiness: falhando (...)` com `details`).
+- **Alerta (a configurar na hora de criar a conta do monitor):** monitor de uptime gratuito (UptimeRobot, 50 monitores a cada 5 min, ou o próprio healthchecks.io) apontado para `/health/ready`, alertando por e-mail. Um segundo apontado para `https://app.selucra.com.br`. Os pings do backup e do deploy já usam o mesmo tipo de serviço (seção 3 e 4).
+- **Quando o `/health/ready` estiver vermelho:** (1) abrir o log do backend e achar a linha `readiness: falhando` para ver quem falhou e por quê; (2) `job:*` atrasado = olhar os logs desse job (`ranking`, `e-mail`, `folha de pagamento`...); (3) `market_tick` = ver o motor (`logs engine`, painel admin em Temporizador); (4) componente `fora` = ver o contêiner (`ps`).
+- **Healthcheck do Docker** continua em `/health` (leve): um job atrasado nunca pode reiniciar o contêiner.
+- **Erros do frontend e do backend em serviço dedicado (tipo Sentry):** não há por enquanto (decisão de custo, 2026-10-12). Os erros 5xx do backend estão nos logs com pilha e `requestId`; os do navegador não são coletados. Revisitar quando houver usuários reais.
+
+## 6. Outras rotinas (a preencher conforme as tarefas)
 - Girar segredos: LW.3.8/LW.3.11. Criar o admin com segurança: seção 2, passo 5.
 - Se o motor ou o Temporizador parar: `$PROD ps`, `$PROD logs --tail 100 engine`; o `restart: unless-stopped` reinicia sozinho e o Temporizador recupera os ticks perdidos até `TICK_MAX_CATCHUP`.
 - Estado "dirty" de migração (golang-migrate): ver a nota em memória do projeto antes de forçar versão; restaurar do backup é o caminho seguro quando uma migração destrutiva falhou.

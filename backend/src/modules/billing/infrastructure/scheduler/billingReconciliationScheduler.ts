@@ -1,3 +1,4 @@
+import { recordJobFailure, recordJobSuccess, registerJob } from '../../../../infra/jobHealth'
 import type { ReconcileSubscriptionsUseCase } from '../../application/useCases/reconcileSubscriptions'
 
 // Agendamento da reconciliação: infra de tempo, a regra é `ReconcileSubscriptionsUseCase`. Mesmo
@@ -7,6 +8,7 @@ export function startBillingReconciliationScheduler(
   reconcile: ReconcileSubscriptionsUseCase,
   intervalMs: number,
 ): NodeJS.Timeout {
+  registerJob('billing-reconciliation', intervalMs)
   let running = false
   const attempt = async () => {
     if (running) return
@@ -16,7 +18,9 @@ export function startBillingReconciliationScheduler(
       if (checked > 0) {
         console.log(`cobrança: reconciliação conferiu ${checked} assinatura(s), ${failed} falha(s)`)
       }
+      recordJobSuccess('billing-reconciliation')
     } catch (err) {
+      recordJobFailure('billing-reconciliation')
       console.error('cobrança: erro na reconciliação', err)
     } finally {
       running = false

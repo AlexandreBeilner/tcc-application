@@ -46,6 +46,7 @@ export const jsonErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     return
   }
 
-  console.error(err)
+  // O requestId (middleware de log) liga este erro à linha da requisição.
+  console.error('erro não tratado', err, { requestId: res.locals.requestId })
   res.status(500).json({ error: 'erro interno' })
 }

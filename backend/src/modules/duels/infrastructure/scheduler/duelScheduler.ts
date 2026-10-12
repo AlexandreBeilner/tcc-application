@@ -1,3 +1,4 @@
+import { recordJobFailure, recordJobSuccess, registerJob } from '../../../../infra/jobHealth'
 import type { SettleDueDuelsUseCase } from '../../application/useCases/settleDueDuels'
 
 // Agendamento do job dos duelos: infra de tempo, nunca a regra (isso é `SettleDueDuelsUseCase`).
@@ -7,6 +8,7 @@ export function startDuelScheduler(
   settle: Pick<SettleDueDuelsUseCase, 'execute'>,
   intervalMs: number,
 ): NodeJS.Timeout {
+  registerJob('duels', intervalMs)
   let running = false
   const attempt = async () => {
     if (running) return
@@ -18,7 +20,9 @@ export function startDuelScheduler(
           `duelos: ${result.finished} encerrado(s), ${result.expired} desafio(s) expirado(s), XP para ${result.xpGranted}, ${result.failed} falha(s)`,
         )
       }
+      recordJobSuccess('duels')
     } catch (err) {
+      recordJobFailure('duels')
       console.error('duelos: erro ao encerrar duelos', err)
     } finally {
       running = false

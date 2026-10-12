@@ -1,3 +1,4 @@
+import { recordJobFailure, recordJobSuccess, registerJob } from '../../../../infra/jobHealth'
 import type { ComputeRankingSnapshotUseCase } from '../../application/useCases/computeRankingSnapshot'
 
 // Agendamento do job do ranking: infra de tempo, nunca a regra em si (isso é
@@ -9,6 +10,7 @@ export function startRankingSnapshotScheduler(
   computeSnapshot: ComputeRankingSnapshotUseCase,
   intervalMs: number,
 ): NodeJS.Timeout {
+  registerJob('ranking', intervalMs)
   let running = false
   const attempt = async () => {
     if (running) return
@@ -18,7 +20,9 @@ export function startRankingSnapshotScheduler(
       console.log(
         `ranking: snapshot calculado (${result.users} usuário(s), ${result.groups} grupo(s))`,
       )
+      recordJobSuccess('ranking')
     } catch (err) {
+      recordJobFailure('ranking')
       console.error('ranking: erro ao calcular o snapshot', err)
     } finally {
       running = false

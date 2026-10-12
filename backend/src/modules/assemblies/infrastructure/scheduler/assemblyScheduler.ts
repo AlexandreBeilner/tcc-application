@@ -1,3 +1,4 @@
+import { recordJobFailure, recordJobSuccess, registerJob } from '../../../../infra/jobHealth'
 import type { RunAssemblyLifecycleUseCase } from '../../application/useCases/runAssemblyLifecycle'
 
 // Agendamento do ciclo das assembleias: infra de tempo, nunca a regra (isso é
@@ -7,6 +8,7 @@ export function startAssemblyScheduler(
   run: Pick<RunAssemblyLifecycleUseCase, 'execute'>,
   intervalMs: number,
 ): NodeJS.Timeout {
+  registerJob('assemblies', intervalMs)
   let running = false
   const attempt = async () => {
     if (running) return
@@ -21,7 +23,9 @@ export function startAssemblyScheduler(
           `assembleias: ${open.opened} aberta(s), ${close.closed} fechada(s) (${close.approved} aprovada(s)), ${apply.applied} efeito(s) aplicado(s), ${open.failed + close.failed + apply.failed} falha(s)`,
         )
       }
+      recordJobSuccess('assemblies')
     } catch (err) {
+      recordJobFailure('assemblies')
       console.error('assembleias: erro no ciclo', err)
     }
     running = false

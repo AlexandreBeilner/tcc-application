@@ -1,3 +1,4 @@
+import { recordJobFailure, recordJobSuccess, registerJob } from '../../../../infra/jobHealth'
 import type { RunPayrollCheckUseCase } from '../../application/useCases/runPayrollCheck'
 
 // Agendamento em tempo real do job de folha de pagamento (T.5) — infra de
@@ -12,6 +13,7 @@ export function startPayrollScheduler(
   runPayrollCheck: RunPayrollCheckUseCase,
   intervalMs: number,
 ): NodeJS.Timeout {
+  registerJob('payroll', intervalMs)
   const attempt = async () => {
     try {
       const result = await runPayrollCheck.execute()
@@ -20,7 +22,9 @@ export function startPayrollScheduler(
           `folha de pagamento: ${result.usersPaid}/${result.usersChecked} usuário(s) creditado(s), ${result.monthsPaidTotal} mês(es) pago(s)`,
         )
       }
+      recordJobSuccess('payroll')
     } catch (err) {
+      recordJobFailure('payroll')
       console.error('folha de pagamento: erro no check periódico', err)
     }
   }

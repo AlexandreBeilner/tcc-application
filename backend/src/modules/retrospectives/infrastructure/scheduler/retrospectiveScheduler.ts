@@ -1,3 +1,4 @@
+import { recordJobFailure, recordJobSuccess, registerJob } from '../../../../infra/jobHealth'
 import type { GenerateMonthlyRetrospectivesUseCase } from '../../application/useCases/generateMonthlyRetrospectives'
 
 // Agendamento do job mensal da retrospectiva: infra de tempo, nunca a regra. Roda uma vez na
@@ -7,6 +8,7 @@ export function startRetrospectiveScheduler(
   job: Pick<GenerateMonthlyRetrospectivesUseCase, 'execute'>,
   intervalMs: number,
 ): NodeJS.Timeout {
+  registerJob('retrospectives', intervalMs)
   let running = false
   const attempt = async () => {
     if (running) return
@@ -18,7 +20,9 @@ export function startRetrospectiveScheduler(
           `retrospectivas ${result.month}: ${result.generated} gerada(s), ${result.skipped} já existente(s), ${result.failed} falha(s)`,
         )
       }
+      recordJobSuccess('retrospectives')
     } catch (err) {
+      recordJobFailure('retrospectives')
       console.error('retrospectivas: erro ao gerar as retrospectivas do mês', err)
     } finally {
       running = false

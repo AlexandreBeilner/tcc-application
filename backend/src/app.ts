@@ -5,6 +5,8 @@ import { createRedisClient } from './infra/redisClient'
 import { readTrustedProxyHops } from './shared/http/trustProxy'
 import { apiSecurityHeaders, JSON_BODY_LIMIT } from './shared/http/securityHeaders'
 import { healthRouter } from './routes/health'
+import { createReadinessRouter } from './routes/readiness'
+import { requestLogger } from './shared/http/requestLogger'
 import { jsonErrorHandler } from './shared/http/errorHandler'
 import { statusRouter } from './routes/status'
 import { createEngineMacroEventTrigger } from './modules/admin/infrastructure/engine/engineMacroEventTrigger'
@@ -1062,11 +1064,14 @@ export function createApp(deps: AppDeps = {}): Express {
   // proxy e todo mundo viraria um cliente só; confiando demais, um `X-Forwarded-For` forjado
   // trocaria o balde. Em produção o Caddy entrega um único salto com o IP real (LW.3.9).
   app.set('trust proxy', readTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS))
+  // Um log por requisição, só com logs estruturados ligados (LW.3.5); em desenvolvimento ficaria ruído.
+  if (process.env.LOG_FORMAT === 'json') app.use(requestLogger())
   app.use(apiSecurityHeaders())
   app.use(cors({ origin: frontendUrl }))
   if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
   app.use(express.json({ limit: JSON_BODY_LIMIT }))
   app.use(healthRouter)
+  app.use(createReadinessRouter({ getSystemHealth, getSchedulerStatus }))
   app.use(statusRouter)
   // Serve os arquivos salvos por `UploadAvatarUseCase`/`diskAvatarStorage`
   // (tarefa 6.10.8) — mesma pasta do volume Docker, montado na raiz do
