@@ -46,7 +46,9 @@ export function Login() {
     // acompanha a pessoa até o envio (ou até o login com Google, que o leva na URL).
     const { search } = useLocation()
     const [referralCode] = useState(() => captureReferralCode(search))
-    const [mode, setMode] = useState<Mode>(referralCode ? 'register' : 'login')
+    // A landing (selucra.com.br) chama `/login?modo=cadastro` no botão "Criar conta".
+    const opensSignup = new URLSearchParams(search).get('modo') === 'cadastro'
+    const [mode, setMode] = useState<Mode>(referralCode || opensSignup ? 'register' : 'login')
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [username, setUsername] = useState('')

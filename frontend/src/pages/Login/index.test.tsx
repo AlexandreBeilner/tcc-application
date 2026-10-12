@@ -364,6 +364,19 @@ describe('Login (tela 1.1)', () => {
 
         it('código de formato inválido é ignorado e a tela abre em login', () => {
             mockLoggedOutUser()
+        it('`?modo=cadastro` (botão "Criar conta" da landing) abre direto no cadastro', () => {
+            mockLoggedOutUser()
+            renderLogin('/login?modo=cadastro')
+            expect(screen.getByRole('button', { name: 'Criar conta' })).toBeInTheDocument()
+            expect(screen.getByLabelText('Confirmar senha')).toBeInTheDocument()
+        })
+
+        it('outro valor de `modo` é ignorado e a tela abre em login', () => {
+            mockLoggedOutUser()
+            renderLogin('/login?modo=outro')
+            expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
+        })
+
             renderLogin('/login?ref=curto')
             expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
             expect(googleLoginUrl).toHaveBeenCalledWith(null)
