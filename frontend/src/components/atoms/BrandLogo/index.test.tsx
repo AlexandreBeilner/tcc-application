@@ -9,9 +9,8 @@ describe('BrandLogo', () => {
         expect(screen.getByRole('img', { name: 'Selucra' })).toBeInTheDocument()
     })
 
-    it('compactOnMobile acrescenta o ícone e o selo fica no canto da logo', () => {
-        render(<BrandLogo compactOnMobile badge={<span>PRO</span>} />)
+    it('compactOnMobile acrescenta o ícone, sem repetir o nome da marca para leitor de tela quando escondido por CSS', () => {
+        render(<BrandLogo compactOnMobile />)
         expect(screen.getAllByRole('img', { name: 'Selucra' })).toHaveLength(2)
-        expect(screen.getByText('PRO')).toBeInTheDocument()
     })
 })

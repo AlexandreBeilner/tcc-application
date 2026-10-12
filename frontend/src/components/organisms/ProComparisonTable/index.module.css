@@ -63,6 +63,12 @@
     font-size: var(--font-size-sm);
 }
 
+/* O cabeçalho escondido do mobile é `position: absolute`: sem um ancestral posicionado ele ancora no
+   documento e, no fim da página, cria uma segunda barra de rolagem (a do documento, além da do conteúdo). */
+.table {
+    position: relative;
+}
+
 /* Mobile: cada linha vira um bloco (recurso, depois "Gratuito: ..." e "PRO: ..."), sem rolagem lateral. */
 @media (max-width: 767px) {
     .table thead {

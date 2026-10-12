@@ -1,5 +1,4 @@
 .logo {
-    position: relative;
     display: inline-flex;
     line-height: 0;
 }
@@ -21,33 +20,32 @@
     display: none;
 }
 
-.mark {
+/* O ícone (`compactOnMobile`) só aparece abaixo de 768px. Esta regra tem a mesma especificidade
+   das de tema acima e vem depois, então vence nos dois temas em qualquer largura (antes, no tema
+   claro, o ícone aparecia junto da logo completa). */
+.mark,
+:global(:root[data-theme]) .mark,
+:global(:root[data-theme='light']) .mark.onLight {
     display: none;
 }
 
-.badge {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    display: inline-flex;
-    line-height: 1;
-    transform: translate(35%, 35%);
-}
-
-/* Cabeçalho apertado: abaixo de 768px a logo vira só o ícone. Os seletores de tema vêm depois
-   para vencer o `display: none` base dos modificadores `.onLight`. */
+/* Cabeçalho apertado: abaixo de 768px a logo vira só o ícone, e a logo completa some. As regras
+   vêm depois das de tema e das de ocultar o ícone para vencerem por ordem. */
 @media (max-width: 767px) {
     .compact .full,
     .compact .full.onLight,
-    .compact .full.onDark {
+    .compact .full.onDark,
+    :global(:root[data-theme='light']) .compact .full.onLight,
+    :global(:root[data-theme='light']) .compact .full.onDark {
         display: none;
     }
 
-    .compact .mark.onDark {
+    .compact .mark.onDark,
+    :global(:root[data-theme]) .compact .mark.onDark {
         display: block;
     }
 
-    .compact .mark.onLight {
+    :global(:root[data-theme]) .compact .mark.onLight {
         display: none;
     }
 

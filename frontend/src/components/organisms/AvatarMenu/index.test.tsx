@@ -62,6 +62,7 @@ describe('AvatarMenu (MO.9.6)', () => {
         renderMenu(['calculator'])
         expect(screen.getByRole('menuitem', { name: 'Plano PRO' })).toHaveAttribute('href', '/planos')
         expect(screen.queryByRole('menuitem', { name: 'Gerenciar plano' })).toBeNull()
+        expect(screen.queryByRole('img', { name: 'Assinante PRO' })).toBeNull()
     })
 
     it('assinante vê "Gerenciar plano" em Configurações e não o convite', () => {
@@ -69,6 +70,7 @@ describe('AvatarMenu (MO.9.6)', () => {
         renderMenu(['calculator'])
         expect(screen.getByRole('menuitem', { name: 'Gerenciar plano' })).toHaveAttribute('href', '/configuracoes')
         expect(screen.queryByRole('menuitem', { name: 'Plano PRO' })).toBeNull()
+        expect(screen.getByRole('img', { name: 'Assinante PRO' })).toBeInTheDocument()
     })
 
     it('sem entrada (carregando ou cobrança desligada) não mostra nenhum dos dois', () => {

@@ -7,6 +7,7 @@ import { useUnlockedKeys } from '../../../features/lessons/useUnlockedKeys'
 import { useProgressionQuery } from '../../../features/portfolio/useProgressionQuery'
 import { computeLevelProgress } from '../../../features/portfolio/levelProgress'
 import { resolveMediaUrl } from '../../../services/client'
+import { ProMark } from '../../atoms/ProMark'
 import styles from './index.module.css'
 
 // Menu suspenso do avatar (inventário 0.2): Meu Perfil · Amigos ·
@@ -75,6 +76,11 @@ export function AvatarMenu() {
                     {avatarUrl ? <img className={styles.avatarImage} src={avatarUrl} alt="" /> : initial}
                 </button>
             </div>
+            {proEntry === 'subscriber' && (
+                <span className={styles.proMark}>
+                    <ProMark />
+                </span>
+            )}
 
             {open && (
                 <div className={styles.menu} role="menu">

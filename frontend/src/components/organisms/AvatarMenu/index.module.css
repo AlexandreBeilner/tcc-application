@@ -2,6 +2,16 @@
     position: relative;
 }
 
+/* Selo dourado "PRO" no canto inferior direito do avatar (MO.9.8). Não recebe clique: o toque vai ao avatar. */
+.proMark {
+    position: absolute;
+    right: -4px;
+    bottom: -2px;
+    display: inline-flex;
+    line-height: 1;
+    pointer-events: none;
+}
+
 /* Anel de XP (identidade-visual-padroes.md) — conic-gradient dourado
    proporcional ao progresso real até o próximo nível, não decoração. */
 .ring {

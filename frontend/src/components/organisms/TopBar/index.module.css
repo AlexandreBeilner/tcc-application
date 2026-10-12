@@ -40,8 +40,9 @@
             calc(var(--space-4) + env(safe-area-inset-left, 0px));
     }
 
+    /* MO.9.10: no mobile a logo é só o ícone (`compactOnMobile`), que merece mais que os 22 px da logo horizontal. */
     .logoImage {
-        height: 22px;
+        height: 28px;
     }
 
     .actions {
