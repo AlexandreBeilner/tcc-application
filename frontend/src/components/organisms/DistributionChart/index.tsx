@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { ChevronRight } from 'lucide-react'
 import type { AssetCategory } from '../../../features/portfolio/distribution'
 import { formatCurrency, formatPercentage } from '../../../features/portfolio/format'
 import type { DistributionChartProps } from './types'
@@ -47,7 +48,7 @@ function buildArcs(slices: DistributionChartProps['slices']): Arc[] {
 // R$ e % no furo. Nenhuma informação vive só no hover: a legenda sempre traz
 // R$ e %, e o furo mostra o total quando nada está selecionado. Esc limpa a
 // seleção; setas movem o foco entre as categorias da legenda.
-export function DistributionChart({ slices }: DistributionChartProps) {
+export function DistributionChart({ slices, onSelect }: DistributionChartProps) {
     const [pinned, setPinned] = useState<AssetCategory | null>(null)
     const [hovered, setHovered] = useState<AssetCategory | null>(null)
     const legendRef = useRef<HTMLUListElement>(null)
@@ -57,7 +58,11 @@ export function DistributionChart({ slices }: DistributionChartProps) {
     const activeCategory = hovered ?? pinned
     const active = slices.find((slice) => slice.category === activeCategory) ?? null
 
-    function togglePinned(category: AssetCategory) {
+    function activate(category: AssetCategory) {
+        if (onSelect) {
+            onSelect(category)
+            return
+        }
         setPinned((current) => (current === category ? null : category))
     }
 
@@ -99,7 +104,7 @@ export function DistributionChart({ slices }: DistributionChartProps) {
                                 transform="rotate(-90 50 50)"
                                 onMouseEnter={() => setHovered(arc.category)}
                                 onMouseLeave={() => setHovered(null)}
-                                onClick={() => togglePinned(arc.category)}
+                                onClick={() => activate(arc.category)}
                             />
                         ))}
                     </svg>
@@ -115,11 +120,13 @@ export function DistributionChart({ slices }: DistributionChartProps) {
                             <button
                                 type="button"
                                 className={`${styles.legendItem} ${activeCategory === slice.category ? styles.legendItemActive : ''}`}
-                                aria-pressed={pinned === slice.category}
+                                aria-pressed={onSelect ? undefined : pinned === slice.category}
                                 aria-label={`${slice.label}: ${formatCurrency(slice.value)}, ${formatPercentage(slice.percentage)} da carteira`}
                                 onMouseEnter={() => setHovered(slice.category)}
                                 onMouseLeave={() => setHovered(null)}
-                                onClick={() => togglePinned(slice.category)}
+                                onClick={() => activate(slice.category)}
+                                onFocus={() => setHovered(slice.category)}
+                                onBlur={() => setHovered(null)}
                             >
                                 <span
                                     className={styles.swatch}
@@ -129,6 +136,7 @@ export function DistributionChart({ slices }: DistributionChartProps) {
                                 <span className={styles.legendLabel}>{slice.label}</span>
                                 <span className={`${styles.legendValue} tabular-nums`}>{formatCurrency(slice.value)}</span>
                                 <span className={`${styles.legendPercent} tabular-nums`}>{formatPercentage(slice.percentage)}</span>
+                                {onSelect && <ChevronRight size={16} strokeWidth={2} aria-hidden="true" className={styles.chevron} />}
                             </button>
                         </li>
                     ))}

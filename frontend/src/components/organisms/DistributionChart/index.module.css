@@ -138,3 +138,8 @@
     min-width: 3.5em;
     text-align: right;
 }
+
+.chevron {
+    flex: none;
+    color: var(--color-text-muted);
+}

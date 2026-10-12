@@ -31,7 +31,7 @@ export function NetWorthCards({ account }: NetWorthCardsProps) {
     return (
         <div className={styles.cards}>
             <div className={styles.livePanel}>
-                <Card className={styles.cardLayout} onClick={() => navigate('/extrato')} aria-label="Ver extrato do mercado ao vivo">
+                <Card className={styles.cardLayout} onClick={() => navigate('/ativos')} aria-label="Ver meus ativos do mercado ao vivo">
                     <div className={styles.cardHeader}>
                         <span className={styles.headerLeft}>
                             <span className={styles.iconBadge} aria-hidden="true">
@@ -62,8 +62,8 @@ export function NetWorthCards({ account }: NetWorthCardsProps) {
                 <button
                     type="button"
                     className={styles.sandboxStrip}
-                    onClick={() => navigate('/extrato?escopo=aprendizado')}
-                    aria-label="Ver extrato do modo aprendizado"
+                    onClick={() => navigate('/ativos?aba=aprendizado')}
+                    aria-label="Ver meus ativos do modo aprendizado"
                 >
                     <span className={styles.iconBadge} aria-hidden="true">
                         <FlaskConical size={15} strokeWidth={2} />

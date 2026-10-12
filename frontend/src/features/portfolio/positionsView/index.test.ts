@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PositionReturn } from '../positionReturns'
-import { filterAndSortPositions, parsePositionFilter, parsePositionSort, positionDetailPath } from '.'
+import { filterAndSortPositions, filterForCategory, parsePositionFilter, parsePositionSort, positionDetailPath } from '.'
 
 function row(over: Partial<PositionReturn>): PositionReturn {
     return {
@@ -54,6 +54,15 @@ describe('positionsView', () => {
         expect(parsePositionFilter(null)).toBe('todas')
         expect(parsePositionFilter('fiis')).toBe('fiis')
         expect(parsePositionSort('xyz')).toBe('valor')
+    })
+
+    it('categoria da rosca vira filtro da tela', () => {
+        expect(filterForCategory('acao')).toBe('acoes')
+        expect(filterForCategory('fii')).toBe('fiis')
+        expect(filterForCategory('etf')).toBe('etfs')
+        expect(filterForCategory('tesouro')).toBe('rendaFixa')
+        expect(filterForCategory('cdbLcaLci')).toBe('rendaFixa')
+        expect(filterForCategory('criCra')).toBe('rendaFixa')
     })
 
     it('rota do ativo: renda fixa tem tela própria', () => {

@@ -30,27 +30,27 @@ describe('NetWorthCards', () => {
         renderCards([position(false)])
 
         expect(screen.getByText(/Modo Aprendizado: pratique/)).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Ver extrato do modo aprendizado' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ver meus ativos do modo aprendizado' })).not.toBeInTheDocument()
     })
 
     it('posição Sandbox zerada também não abre a faixa', () => {
         renderCards([position(true, 0)])
 
-        expect(screen.queryByRole('button', { name: 'Ver extrato do modo aprendizado' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Ver meus ativos do modo aprendizado' })).not.toBeInTheDocument()
     })
 
     it('com posição Sandbox mostra a faixa e cada card vai para um destino diferente', () => {
         renderCards([position(false), position(true, 2)])
 
         expect(screen.getByText('Não conta pro ranking')).toBeInTheDocument()
-        fireEvent.click(screen.getByRole('button', { name: 'Ver extrato do modo aprendizado' }))
-        expect(screen.getByTestId('where')).toHaveTextContent('/extrato?escopo=aprendizado')
+        fireEvent.click(screen.getByRole('button', { name: 'Ver meus ativos do modo aprendizado' }))
+        expect(screen.getByTestId('where')).toHaveTextContent('/ativos?aba=aprendizado')
     })
 
-    it('o card Mercado Ao Vivo leva ao extrato sem filtro', () => {
+    it('o card Mercado Ao Vivo leva a Meus ativos', () => {
         renderCards([position(false)])
 
-        fireEvent.click(screen.getByLabelText('Ver extrato do mercado ao vivo'))
-        expect(screen.getByTestId('where')).toHaveTextContent(/^\/extrato$/)
+        fireEvent.click(screen.getByLabelText('Ver meus ativos do mercado ao vivo'))
+        expect(screen.getByTestId('where')).toHaveTextContent(/^\/ativos$/)
     })
 })

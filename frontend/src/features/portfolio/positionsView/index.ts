@@ -1,3 +1,4 @@
+import type { AssetCategory } from '../distribution/types'
 import type { PositionReturn } from '../positionReturns'
 
 export type PositionFilter = 'todas' | 'acoes' | 'fiis' | 'etfs' | 'rendaFixa'
@@ -16,6 +17,20 @@ export const POSITION_SORTS: { key: PositionSort; label: string }[] = [
     { key: 'resultado', label: 'Resultado %' },
     { key: 'ticker', label: 'Ticker' },
 ]
+
+// Categoria da rosca -> filtro de "Meus ativos". As três de renda fixa caem no mesmo filtro.
+const FILTER_BY_CATEGORY: Record<AssetCategory, PositionFilter> = {
+    tesouro: 'rendaFixa',
+    cdbLcaLci: 'rendaFixa',
+    criCra: 'rendaFixa',
+    acao: 'acoes',
+    fii: 'fiis',
+    etf: 'etfs',
+}
+
+export function filterForCategory(category: AssetCategory): PositionFilter {
+    return FILTER_BY_CATEGORY[category]
+}
 
 export function parsePositionFilter(value: string | null): PositionFilter {
     return POSITION_FILTERS.some((filter) => filter.key === value) ? (value as PositionFilter) : 'todas'

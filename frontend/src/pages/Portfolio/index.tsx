@@ -7,6 +7,7 @@ import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useMissionsQuery } from '../../features/missions/useMissionsQuery'
 import { useNextSalaryPayment } from '../../features/market/useNextSalaryPayment'
+import { filterForCategory } from '../../features/portfolio/positionsView'
 import { groupPositionsByCategory } from '../../features/portfolio/distribution'
 import { NetWorthCards } from '../../components/organisms/NetWorthCards'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
@@ -92,7 +93,10 @@ export function Portfolio() {
                                 <PieChart size={18} strokeWidth={2} aria-hidden="true" />
                                 Distribuição
                             </h2>
-                            <DistributionChart slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)} />
+                            <DistributionChart
+                                slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)}
+                                onSelect={(category) => navigate(`/ativos?categoria=${filterForCategory(category)}`)}
+                            />
                         </section>
                     )}
                 </div>

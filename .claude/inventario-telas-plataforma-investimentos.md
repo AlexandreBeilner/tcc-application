@@ -141,7 +141,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Ações:**
   - "Investir" → **5.1 Navegação de Mercado**.
   - "Retomar lição" → **4.2 Lição** (estado atual do usuário).
-  - Clique no card de patrimônio → **5.8 Extrato/Histórico** (ver o que compõe aquele número).
+  - Clique no card de patrimônio → **2.2 Meus ativos** (MO.8.4); clique numa fatia ou linha da rosca → **2.2** já filtrado pela categoria (`?categoria=`); faixa do Modo Aprendizado → **2.2** na aba de aprendizado. O extrato (5.8) segue pelo link "Ver extrato completo" da 2.2.
 - **Estados especiais:** usuário sem nenhuma posição ainda (estado vazio, oferecendo a Trilha; o "Investir" do card já leva ao Mercado); carregamento com placeholders de altura próxima da final. **Composição por breakpoint (RC.7.5):** coluna única em mobile e tablet; a partir de 1024px, 2 colunas (patrimônio e Distribuição à esquerda; missões, retomar lição e ações à direita).
 - **Dados envolvidos:** `accounts`, `positions`, `assets` (join pro gráfico de distribuição).
 
