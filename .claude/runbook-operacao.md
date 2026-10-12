@@ -133,6 +133,20 @@ Não passa pelo `deploy.sh`. O Pages publica pela integração Git: merge na `ma
 
 **Ensaiado em 2026-10-12** (máquina de desenvolvimento, imagens locais por SHA, `DEPLOY_PULL=0`): deploy bom (14 s, com backup); versão quebrada (volta sozinha em 21 s, saída 1, app saudável na versão antiga); rollback manual; backup que falha aborta sem mudar nada; versão `latest`, igual à atual, fora do staging e dentro do pico são recusadas. **Falta ensaiar no staging do VPS real**, com o `pull` do GHCR.
 
+## Suporte: cancelamento e reembolso de assinatura (aprendido na primeira compra real, 2026-10-12)
+
+São três coisas diferentes, e o app só segue o que o RevenueCat informa:
+
+| Ação | Onde | Efeito no app |
+|---|---|---|
+| **Cancelar** a assinatura (a pessoa ou o painel do RevenueCat) | RevenueCat, Customers, a assinatura | Desliga a renovação. O PRO **continua até o fim do período já pago** (evento `CANCELLATION`; o app mostra "termina em ..."). Não cobra de novo. |
+| **Reembolsar direto no Stripe** | Stripe | Devolve o dinheiro, mas a assinatura **continua ativa** e **renova**; o RevenueCat não revoga o acesso. **Não use para clientes.** |
+| **Reembolsar pelo RevenueCat** | RevenueCat, Customers, a transação | Devolve o dinheiro pelo Stripe e **revoga o acesso na hora**, e o backend remove o PRO (`refunded_at`). É o caminho certo para pedido de reembolso. |
+
+Regra do suporte: pedido de reembolso, reembolsar **pelo RevenueCat** e conferir depois, no log do webhook, uma resposta 200 e, no app da pessoa, o plano gratuito. Se algo não bater com o provedor, a reconciliação (a cada 6 h, e na subida do backend) conserta sozinha o que for dado velho. Para forçar já: `update subscriptions set updated_at = now() - interval '13 hours'` e `restart backend`.
+
+O webhook do RevenueCat manda `null` em campos que não se aplicam ao evento; o contrato aceita (só `event.id` e `event.type` são obrigatórios). Um 400 no log (`webhook recusado por corpo inválido, campos: ...`) significa um evento sem id ou tipo.
+
 ## 5. Observabilidade (LW.3.5)
 
 Princípio: o mínimo útil e sem custo. **Logs em JSON** no stdout + **um endpoint de saúde** consultado de fora por um monitor gratuito. Nada de agente de métricas nem serviço pago por enquanto.
