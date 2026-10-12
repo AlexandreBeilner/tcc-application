@@ -71,7 +71,12 @@ export class DevSubscriptionUseCase {
         dedupeKey: `dev-cancelled:${userId}:${at.getTime()}`,
         at,
       })
-      await this.subscriptions.upsert({ ...existing, expiresAt: at, graceExpiresAt: null, updatedAt: at })
+      await this.subscriptions.upsert({
+        ...existing,
+        expiresAt: at,
+        graceExpiresAt: null,
+        updatedAt: at,
+      })
     }
     await this.cache.invalidate(userId)
   }

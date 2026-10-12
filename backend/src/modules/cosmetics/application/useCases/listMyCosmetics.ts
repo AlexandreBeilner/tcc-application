@@ -34,6 +34,12 @@ export class ListMyCosmeticsUseCase {
       this.referrals?.qualifiedCount(userId) ?? 0,
     ])
     const isPro = proIds.has(userId)
-    return { isPro, catalog: items, referralCount, selection, display: resolveDisplay(isPro, selection, items) }
+    return {
+      isPro,
+      catalog: items,
+      referralCount,
+      selection,
+      display: resolveDisplay(isPro, selection, items),
+    }
   }
 }

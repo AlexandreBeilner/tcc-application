@@ -119,10 +119,8 @@ export function createInProcessAssemblyAdmin(deps: InProcessAssemblyAdminDeps): 
     setSetting: (adminId, key, value) => guarded(() => deps.settings.set(key, value, adminId)),
     resetSetting: (_adminId, key) => guarded(() => deps.settings.reset(key)),
     listTemplates: () => guarded(() => deps.listTemplates.execute()),
-    createTemplate: (key, content) =>
-      guarded(() => deps.createTemplate.execute(key, content)),
-    updateTemplate: (key, content) =>
-      guarded(() => deps.updateTemplate.execute(key, content)),
+    createTemplate: (key, content) => guarded(() => deps.createTemplate.execute(key, content)),
+    updateTemplate: (key, content) => guarded(() => deps.updateTemplate.execute(key, content)),
     setTemplateActive: (key, active) => guarded(() => deps.setTemplateActive.execute(key, active)),
   }
 }

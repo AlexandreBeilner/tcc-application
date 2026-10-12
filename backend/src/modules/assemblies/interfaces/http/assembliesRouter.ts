@@ -25,12 +25,10 @@ function mapDomainError(err: unknown, res: Response): boolean {
   if (err instanceof AssemblyNotFoundError) {
     res.status(404).json({ error: 'assembleia não encontrada' })
   } else if (err instanceof GovernanceEngineUnavailableError) {
-    res
-      .status(503)
-      .json({
-        error: 'o mercado está indisponível agora, tente de novo em instantes',
-        reason: 'engine_unavailable',
-      })
+    res.status(503).json({
+      error: 'o mercado está indisponível agora, tente de novo em instantes',
+      reason: 'engine_unavailable',
+    })
   } else if (err instanceof InvalidAssemblyOptionError) {
     res.status(400).json({ error: 'a opção não pertence a esta assembleia' })
   } else if (err instanceof VoteDeniedError) {

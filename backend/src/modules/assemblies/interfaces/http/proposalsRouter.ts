@@ -36,12 +36,10 @@ function mapDomainError(err: unknown, res: Response): boolean {
   if (err instanceof ProposalNotFoundError) {
     res.status(404).json({ error: 'proposta não encontrada' })
   } else if (err instanceof GovernanceEngineUnavailableError) {
-    res
-      .status(503)
-      .json({
-        error: 'o mercado está indisponível agora, tente de novo em instantes',
-        reason: 'engine_unavailable',
-      })
+    res.status(503).json({
+      error: 'o mercado está indisponível agora, tente de novo em instantes',
+      reason: 'engine_unavailable',
+    })
   } else if (err instanceof CompanyNotFoundError) {
     res.status(404).json({ error: 'empresa não encontrada' })
   } else if (err instanceof ProposalDeniedError) {

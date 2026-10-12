@@ -32,15 +32,15 @@ describe('loadEmailConfig', () => {
     expect(() => loadEmailConfig({ EMAIL_PROVIDER: 'resend' })).toThrow(
       /RESEND_API_KEY_TRANSACTIONAL.*RESEND_API_KEY_NEWS.*EMAIL_FROM_TRANSACTIONAL.*EMAIL_FROM_NEWS/,
     )
-    expect(() =>
-      loadEmailConfig({ ...RESEND_ENV, RESEND_API_KEY_NEWS: '   ' }),
-    ).toThrow(/RESEND_API_KEY_NEWS/)
+    expect(() => loadEmailConfig({ ...RESEND_ENV, RESEND_API_KEY_NEWS: '   ' })).toThrow(
+      /RESEND_API_KEY_NEWS/,
+    )
   })
 
   it('recusa a mesma chave nos dois fluxos', () => {
-    expect(() =>
-      loadEmailConfig({ ...RESEND_ENV, RESEND_API_KEY_NEWS: 're_send' }),
-    ).toThrow(/não podem ser a mesma chave/)
+    expect(() => loadEmailConfig({ ...RESEND_ENV, RESEND_API_KEY_NEWS: 're_send' })).toThrow(
+      /não podem ser a mesma chave/,
+    )
   })
 
   it('resend completo', () => {

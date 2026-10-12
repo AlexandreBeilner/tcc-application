@@ -60,7 +60,9 @@ export function createBillingRouter(deps: BillingRouterDeps): Router {
       return
     }
     const status = await deps.getSubscriptionStatus.execute(req.auth.userId)
-    res.status(200).json({ ...status, billingEnabled: deps.webhook !== undefined || deps.dev !== undefined })
+    res
+      .status(200)
+      .json({ ...status, billingEnabled: deps.webhook !== undefined || deps.dev !== undefined })
   })
 
   // Evento do funil de conversão (MO.7.1), reportado pelo app: viu convite, abriu /planos, iniciou
@@ -138,14 +140,18 @@ export function createBillingRouter(deps: BillingRouterDeps): Router {
       res.status(204).end()
     })
 
-    router.delete('/billing/dev/subscription', deps.authMiddleware.authenticate, async (req, res) => {
-      if (!req.auth) {
-        res.status(401).json({ error: 'token ausente' })
-        return
-      }
-      await dev.cancel(req.auth.userId)
-      res.status(204).end()
-    })
+    router.delete(
+      '/billing/dev/subscription',
+      deps.authMiddleware.authenticate,
+      async (req, res) => {
+        if (!req.auth) {
+          res.status(401).json({ error: 'token ausente' })
+          return
+        }
+        await dev.cancel(req.auth.userId)
+        res.status(204).end()
+      },
+    )
   }
 
   return router

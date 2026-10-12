@@ -3,10 +3,7 @@
 // checagem de vocabulário fechado que existe no código; um tipo novo
 // entra aqui antes de qualquer use case emitir/ler ele.
 export type SocialFeedEventType =
-  | 'track_completed'
-  | 'duel_won'
-  | 'duel_draw'
-  | 'assembly_participated'
+  'track_completed' | 'duel_won' | 'duel_draw' | 'assembly_participated'
 
 // Dados extras de um duelo (MO.5.3), gravados no momento do resultado. Só nomes e o tipo de
 // desfecho: nunca valor financeiro (RNF09). `opponentName` fica denormalizado de propósito: o

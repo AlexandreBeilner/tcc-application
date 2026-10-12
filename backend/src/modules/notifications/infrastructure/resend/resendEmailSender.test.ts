@@ -40,7 +40,10 @@ describe('createResendEmailSender', () => {
     const sender = createResendEmailSender({
       streams: {
         transactional: { client, from: 'Plataforma <no-reply@send.exemplo.com>' },
-        news: { client: clientReturning({ data: { id: 'x' }, error: null }).client, from: 'a@b.com' },
+        news: {
+          client: clientReturning({ data: { id: 'x' }, error: null }).client,
+          from: 'a@b.com',
+        },
       },
       replyTo: 'ajuda@exemplo.com',
     })
@@ -117,7 +120,10 @@ describe('createResendEmailSender', () => {
     const news = clientReturning({ data: { id: 'n1' }, error: null })
     const sender = createResendEmailSender({
       streams: {
-        transactional: { client: transactional.client, from: 'Selucra <no-reply@send.exemplo.com>' },
+        transactional: {
+          client: transactional.client,
+          from: 'Selucra <no-reply@send.exemplo.com>',
+        },
         news: { client: news.client, from: 'Selucra <no-reply@news.exemplo.com>' },
       },
       replyTo: 'suporte@exemplo.com',

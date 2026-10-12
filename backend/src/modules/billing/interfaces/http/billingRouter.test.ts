@@ -250,14 +250,23 @@ describe('rotas de compra falsa (/billing/dev/*)', () => {
 
   it('401 sem token', async () => {
     const { app } = buildApp({ devEnabled: true, webhookEnabled: false })
-    const res = await request(app).post('/billing/dev/purchase').send({ plan: 'monthly', store: 'play_store' })
+    const res = await request(app)
+      .post('/billing/dev/purchase')
+      .send({ plan: 'monthly', store: 'play_store' })
     expect(res.status).toBe(401)
   })
 
   it('400 com plano ou loja fora do contrato', async () => {
     const { app, tokenIssuer } = buildApp({ devEnabled: true, webhookEnabled: false })
-    for (const body of [{ plan: 'weekly', store: 'play_store' }, { plan: 'monthly', store: 'stripe' }, {}]) {
-      const res = await request(app).post('/billing/dev/purchase').set('Authorization', auth(tokenIssuer)).send(body)
+    for (const body of [
+      { plan: 'weekly', store: 'play_store' },
+      { plan: 'monthly', store: 'stripe' },
+      {},
+    ]) {
+      const res = await request(app)
+        .post('/billing/dev/purchase')
+        .set('Authorization', auth(tokenIssuer))
+        .send(body)
       expect(res.status).toBe(400)
     }
   })
@@ -266,12 +275,22 @@ describe('rotas de compra falsa (/billing/dev/*)', () => {
     const { app, tokenIssuer } = buildApp({ devEnabled: true, webhookEnabled: false })
     const header = auth(tokenIssuer)
 
-    const bought = await request(app).post('/billing/dev/purchase').set('Authorization', header).send({ plan: 'annual', store: 'app_store' })
+    const bought = await request(app)
+      .post('/billing/dev/purchase')
+      .set('Authorization', header)
+      .send({ plan: 'annual', store: 'app_store' })
     expect(bought.status).toBe(204)
     const pro = await request(app).get('/billing/status').set('Authorization', header)
-    expect(pro.body).toMatchObject({ isPro: true, plan: 'annual', store: 'app_store', billingEnabled: true })
+    expect(pro.body).toMatchObject({
+      isPro: true,
+      plan: 'annual',
+      store: 'app_store',
+      billingEnabled: true,
+    })
 
-    const cancelled = await request(app).delete('/billing/dev/subscription').set('Authorization', header)
+    const cancelled = await request(app)
+      .delete('/billing/dev/subscription')
+      .set('Authorization', header)
     expect(cancelled.status).toBe(204)
   })
 })
@@ -284,7 +303,9 @@ describe('POST /billing/funnel', () => {
     `Bearer ${tokenIssuer.issue({ sub: FREE_USER, role: 'user' })}`
 
   it('401 sem token', async () => {
-    const res = await request(buildApp().app).post('/billing/funnel').send({ event: 'plans_opened' })
+    const res = await request(buildApp().app)
+      .post('/billing/funnel')
+      .send({ event: 'plans_opened' })
     expect(res.status).toBe(401)
   })
 
@@ -296,13 +317,23 @@ describe('POST /billing/funnel', () => {
       .send({ event: 'invite_viewed', source: 'duel' })
 
     expect(res.status).toBe(204)
-    expect(funnel.events).toMatchObject([{ userId: FREE_USER, name: 'invite_viewed', source: 'duel' }])
+    expect(funnel.events).toMatchObject([
+      { userId: FREE_USER, name: 'invite_viewed', source: 'duel' },
+    ])
   })
 
   it('400 para evento que só o servidor grava, origem ou plano desconhecidos', async () => {
     const { app, tokenIssuer, funnel } = buildApp()
-    for (const body of [{ event: 'subscribed' }, { event: 'plans_opened', source: 'x' }, { event: 'purchase_started', plan: 'weekly' }, {}]) {
-      const res = await request(app).post('/billing/funnel').set('Authorization', auth(tokenIssuer)).send(body)
+    for (const body of [
+      { event: 'subscribed' },
+      { event: 'plans_opened', source: 'x' },
+      { event: 'purchase_started', plan: 'weekly' },
+      {},
+    ]) {
+      const res = await request(app)
+        .post('/billing/funnel')
+        .set('Authorization', auth(tokenIssuer))
+        .send(body)
       expect(res.status).toBe(400)
     }
     expect(funnel.events).toHaveLength(0)
@@ -318,7 +349,9 @@ describe('GET /admin/billing/conversion', () => {
     const { app, tokenIssuer } = buildApp()
     expect((await request(app).get('/admin/billing/conversion')).status).toBe(401)
     const user = tokenIssuer.issue({ sub: FREE_USER, role: 'user' })
-    const res = await request(app).get('/admin/billing/conversion').set('Authorization', `Bearer ${user}`)
+    const res = await request(app)
+      .get('/admin/billing/conversion')
+      .set('Authorization', `Bearer ${user}`)
     expect(res.status).toBe(403)
   })
 
@@ -326,7 +359,9 @@ describe('GET /admin/billing/conversion', () => {
     const { app, tokenIssuer } = buildApp()
     const admin = tokenIssuer.issue({ sub: FREE_USER, role: 'admin' })
 
-    const res = await request(app).get('/admin/billing/conversion').set('Authorization', `Bearer ${admin}`)
+    const res = await request(app)
+      .get('/admin/billing/conversion')
+      .set('Authorization', `Bearer ${admin}`)
 
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({
@@ -339,9 +374,13 @@ describe('GET /admin/billing/conversion', () => {
   it('400 para janela fora de 7, 30 ou 90', async () => {
     const { app, tokenIssuer } = buildApp()
     const admin = tokenIssuer.issue({ sub: FREE_USER, role: 'admin' })
-    const res = await request(app).get('/admin/billing/conversion?days=5').set('Authorization', `Bearer ${admin}`)
+    const res = await request(app)
+      .get('/admin/billing/conversion?days=5')
+      .set('Authorization', `Bearer ${admin}`)
     expect(res.status).toBe(400)
-    const ok = await request(app).get('/admin/billing/conversion?days=7').set('Authorization', `Bearer ${admin}`)
+    const ok = await request(app)
+      .get('/admin/billing/conversion?days=7')
+      .set('Authorization', `Bearer ${admin}`)
     expect(ok.body.windowDays).toBe(7)
   })
 })

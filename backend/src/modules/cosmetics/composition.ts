@@ -30,10 +30,20 @@ export function createCosmeticsModule(deps: CosmeticsCompositionDeps) {
   const membership = createInProcessProMembershipReader(deps.listActiveProUserIds)
 
   const getCosmeticDisplays = new GetCosmeticDisplaysUseCase(catalog, selections, membership)
-  const listMyCosmetics = new ListMyCosmeticsUseCase(catalog, selections, membership, deps.referralUnlocks)
+  const listMyCosmetics = new ListMyCosmeticsUseCase(
+    catalog,
+    selections,
+    membership,
+    deps.referralUnlocks,
+  )
   const router = createCosmeticsRouter({
     listMyCosmetics,
-    equipCosmetic: new EquipCosmeticUseCase(deps.proAccess, catalog, selections, deps.referralUnlocks),
+    equipCosmetic: new EquipCosmeticUseCase(
+      deps.proAccess,
+      catalog,
+      selections,
+      deps.referralUnlocks,
+    ),
     unequipCosmetic: new UnequipCosmeticUseCase(selections),
     authMiddleware: deps.authMiddleware,
   })

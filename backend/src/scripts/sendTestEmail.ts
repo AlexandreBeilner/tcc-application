@@ -28,7 +28,9 @@ async function main() {
     ...rendered,
     idempotencyKey: `email-test-${Date.now()}`,
   })
-  console.log(`e-mail de teste (${stream}) enviado via ${config.provider}: ${result.providerMessageId}`)
+  console.log(
+    `e-mail de teste (${stream}) enviado via ${config.provider}: ${result.providerMessageId}`,
+  )
 }
 
 main().catch((err) => {

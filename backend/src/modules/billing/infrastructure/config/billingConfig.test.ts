@@ -51,12 +51,18 @@ describe('loadBillingConfig', () => {
   it('dev liga a compra falsa, sem credenciais', () => {
     expect(loadBillingConfig({ BILLING_PROVIDER: 'dev' })).toEqual({ provider: 'dev' })
     // NODE_ENV=production é o valor da imagem Docker até no desenvolvimento local: não conta.
-    expect(loadBillingConfig({ BILLING_PROVIDER: 'dev', NODE_ENV: 'production' })).toEqual({ provider: 'dev' })
+    expect(loadBillingConfig({ BILLING_PROVIDER: 'dev', NODE_ENV: 'production' })).toEqual({
+      provider: 'dev',
+    })
   })
 
   it('dev é recusado quando há credencial de um deploy real', () => {
-    expect(() => loadBillingConfig({ BILLING_PROVIDER: 'dev', REVENUECAT_SECRET_KEY: 'sk_live' })).toThrow(/só para desenvolvimento/)
-    expect(() => loadBillingConfig({ BILLING_PROVIDER: 'dev', EMAIL_PROVIDER: 'resend' })).toThrow(/só para desenvolvimento/)
+    expect(() =>
+      loadBillingConfig({ BILLING_PROVIDER: 'dev', REVENUECAT_SECRET_KEY: 'sk_live' }),
+    ).toThrow(/só para desenvolvimento/)
+    expect(() => loadBillingConfig({ BILLING_PROVIDER: 'dev', EMAIL_PROVIDER: 'resend' })).toThrow(
+      /só para desenvolvimento/,
+    )
   })
 
   it('provedor desconhecido derruba a subida', () => {
@@ -81,7 +87,12 @@ describe('loadBillingPrices', () => {
   })
 
   it('lê os dois preços em centavos', () => {
-    expect(loadBillingPrices({ BILLING_PRICE_MONTHLY_CENTS: '1990', BILLING_PRICE_ANNUAL_CENTS: '19990' })).toEqual({
+    expect(
+      loadBillingPrices({
+        BILLING_PRICE_MONTHLY_CENTS: '1990',
+        BILLING_PRICE_ANNUAL_CENTS: '19990',
+      }),
+    ).toEqual({
       monthlyCents: 1990,
       annualCents: 19990,
     })
@@ -89,7 +100,9 @@ describe('loadBillingPrices', () => {
 
   it('recusa valor que não é inteiro positivo', () => {
     for (const bad of ['19,90', '-1', '0', 'abc', '19.9']) {
-      expect(() => loadBillingPrices({ BILLING_PRICE_MONTHLY_CENTS: bad })).toThrow(/BILLING_PRICE_MONTHLY_CENTS/)
+      expect(() => loadBillingPrices({ BILLING_PRICE_MONTHLY_CENTS: bad })).toThrow(
+        /BILLING_PRICE_MONTHLY_CENTS/,
+      )
     }
   })
 })

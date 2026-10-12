@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createFakeFunnelRecorder, createFakeSubscriptionCache, createFakeSubscriptionRepository } from '../../test/fakes/fakes'
+import {
+  createFakeFunnelRecorder,
+  createFakeSubscriptionCache,
+  createFakeSubscriptionRepository,
+} from '../../test/fakes/fakes'
 import { NOW } from '../../test/fixtures'
 import { toStatus } from '../../domain/subscription'
 import { DEV_PRODUCT_PREFIX, DevSubscriptionUseCase } from './devSubscription'
@@ -8,7 +12,12 @@ function setup() {
   const repo = createFakeSubscriptionRepository([])
   const cache = createFakeSubscriptionCache()
   const funnel = createFakeFunnelRecorder()
-  return { repo, cache, funnel, useCase: new DevSubscriptionUseCase(repo, cache, funnel, () => NOW) }
+  return {
+    repo,
+    cache,
+    funnel,
+    useCase: new DevSubscriptionUseCase(repo, cache, funnel, () => NOW),
+  }
 }
 
 describe('DevSubscriptionUseCase', () => {
@@ -18,13 +27,21 @@ describe('DevSubscriptionUseCase', () => {
 
     const row = repo.rows.get('u1')
     expect(row?.productId).toBe(`${DEV_PRODUCT_PREFIX}monthly`)
-    expect(toStatus(row ?? null, NOW)).toMatchObject({ isPro: true, plan: 'monthly', store: 'play_store', willRenew: true })
+    expect(toStatus(row ?? null, NOW)).toMatchObject({
+      isPro: true,
+      plan: 'monthly',
+      store: 'play_store',
+      willRenew: true,
+    })
   })
 
   it('compra anual vira plano anual', async () => {
     const { repo, useCase } = setup()
     await useCase.purchase('u1', 'annual', 'app_store')
-    expect(toStatus(repo.rows.get('u1') ?? null, NOW)).toMatchObject({ plan: 'annual', store: 'app_store' })
+    expect(toStatus(repo.rows.get('u1') ?? null, NOW)).toMatchObject({
+      plan: 'annual',
+      store: 'app_store',
+    })
   })
 
   it('invalida o cache, para a próxima leitura enxergar a compra', async () => {

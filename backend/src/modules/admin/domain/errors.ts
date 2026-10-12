@@ -183,4 +183,3 @@ export class ProGrantUnavailableError extends Error {}
 
 // O provedor (RevenueCat) falhou ao conceder: nada foi concedido, dá para tentar de novo.
 export class ProGrantProviderError extends Error {}
-

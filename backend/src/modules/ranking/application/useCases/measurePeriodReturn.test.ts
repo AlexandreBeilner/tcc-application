@@ -43,10 +43,7 @@ describe('MeasurePeriodReturnUseCase', () => {
     const { useCase, calls } = build(
       new Map([
         [T0.getTime(), snap({ investedCost: 1000, variableIncomeValue: 1000, tradesExecuted: 1 })],
-        [
-          T1.getTime(),
-          snap({ investedCost: 1000, variableIncomeValue: 1100, tradesExecuted: 3 }),
-        ],
+        [T1.getTime(), snap({ investedCost: 1000, variableIncomeValue: 1100, tradesExecuted: 3 })],
       ]),
     )
     const result = await useCase.execute({ userId: 'u', from: T0, to: T1 })

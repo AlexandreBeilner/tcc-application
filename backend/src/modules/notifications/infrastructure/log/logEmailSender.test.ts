@@ -5,7 +5,10 @@ describe('createLogEmailSender', () => {
   it('imprime destinatário, assunto e o texto, e devolve um id derivado da chave', async () => {
     const lines: string[] = []
     const sender = createLogEmailSender(
-      { transactional: 'Plataforma <no-reply@send.localhost>', news: 'Plataforma <no-reply@news.localhost>' },
+      {
+        transactional: 'Plataforma <no-reply@send.localhost>',
+        news: 'Plataforma <no-reply@news.localhost>',
+      },
       (l) => lines.push(l),
     )
 

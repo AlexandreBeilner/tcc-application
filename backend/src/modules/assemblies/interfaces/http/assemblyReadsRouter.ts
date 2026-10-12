@@ -17,12 +17,10 @@ export interface AssemblyReadsRouterDeps {
 
 function mapDomainError(err: unknown, res: Response): boolean {
   if (err instanceof GovernanceEngineUnavailableError) {
-    res
-      .status(503)
-      .json({
-        error: 'o mercado está indisponível agora, tente de novo em instantes',
-        reason: 'engine_unavailable',
-      })
+    res.status(503).json({
+      error: 'o mercado está indisponível agora, tente de novo em instantes',
+      reason: 'engine_unavailable',
+    })
     return true
   }
   if (!(err instanceof AssemblyNotFoundError)) return false

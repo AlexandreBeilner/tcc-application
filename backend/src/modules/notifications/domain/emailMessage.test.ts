@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { isOptionalCategory, isUndeliverableAddress, normalizeAddress, streamFor } from './emailMessage'
+import {
+  isOptionalCategory,
+  isUndeliverableAddress,
+  normalizeAddress,
+  streamFor,
+} from './emailMessage'
 
 describe('emailMessage', () => {
   it.each([
