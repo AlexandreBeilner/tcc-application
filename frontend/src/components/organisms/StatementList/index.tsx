@@ -1,3 +1,4 @@
+import { cashDirection, eventTotalValue } from '../../../features/market/cashFlow'
 import { Delta } from '../../atoms/Delta'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { MarketEvent } from '../../../services/market'
@@ -26,34 +27,21 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
     fixed_income_purchase: 'Aporte em renda fixa',
     fixed_income_redemption: 'Resgate de renda fixa',
     dividend_payment: 'Provento recebido',
+    salary_payment: 'Salário',
+    admin_credit: 'Crédito do administrador',
 }
 
 function eventLabel(event: MarketEvent): string {
     return EVENT_TYPE_LABELS[event.event_type] ?? event.event_type
 }
 
-// `unit_value` é preço por unidade para buy/sell_order_executed e
-// dividend_payment (que sempre trazem `quantity` junto) — nesses casos o
-// valor total transacionado é unit_value × quantity. Para initial_deposit e
-// os eventos de renda fixa, `quantity` nunca é gravado (engine,
-// fixed_income_execution_repository.go) e unit_value já é o total.
-function eventTotalValue(event: MarketEvent): number | undefined {
-    if (event.unit_value === undefined) {
-        return undefined
-    }
-    return event.quantity !== undefined ? event.unit_value * event.quantity : event.unit_value
-}
-
-// Dinheiro que entra na conta e dinheiro que sai (MO.9.4): colore o valor do extrato com sinal e seta.
-// Tipo fora das duas listas aparece sem sinal, em vez de adivinhar a direção.
-const INFLOW_TYPES = new Set(['initial_deposit', 'sell_order_executed', 'fixed_income_redemption', 'dividend_payment'])
-const OUTFLOW_TYPES = new Set(['buy_order_executed', 'fixed_income_purchase'])
-
+// Colore o valor do extrato com sinal e seta (MO.9.4). Tipo sem direção de dinheiro aparece sem
+// sinal, em vez de adivinhar.
 function amountCell(event: MarketEvent, totalValue: number | undefined) {
     if (totalValue === undefined) return '—'
-    if (INFLOW_TYPES.has(event.event_type)) return <Delta amount={totalValue} kind="flow" variant="text" />
-    if (OUTFLOW_TYPES.has(event.event_type)) return <Delta amount={-totalValue} kind="flow" variant="text" />
-    return formatCurrency(totalValue)
+    const direction = cashDirection(event.event_type)
+    if (direction === null) return formatCurrency(totalValue)
+    return <Delta amount={direction === 'in' ? totalValue : -totalValue} kind="flow" variant="text" />
 }
 
 export function StatementList({ events, assetLabels = {} }: StatementListProps) {

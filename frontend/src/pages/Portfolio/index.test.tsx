@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { getMyAccount } from '../../services/market'
+import { getMyAccount, listAssets, listMyEvents } from '../../services/market'
 import type { MyAccount } from '../../services/market'
 import { getProgression, getStreak } from '../../services/gamification'
 import { listLessons } from '../../services/lessons'
@@ -12,7 +12,7 @@ import { listMissions } from '../../services/missions'
 import { Portfolio } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/market', () => ({ getMyAccount: vi.fn() }))
+vi.mock('../../services/market', () => ({ getMyAccount: vi.fn(), listAssets: vi.fn(), listMyEvents: vi.fn() }))
 vi.mock('../../services/gamification', () => ({ getProgression: vi.fn(), getStreak: vi.fn() }))
 vi.mock('../../services/lessons', () => ({ listLessons: vi.fn() }))
 vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
@@ -212,6 +212,64 @@ describe('Portfolio (tela 2.1)', () => {
         expect(screen.queryByRole('button', { name: 'Conquistas' })).not.toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Investir' }))
         await waitFor(() => expect(screen.getByText('tela de mercado')).toBeInTheDocument())
+    })
+
+    it('mostra as últimas movimentações do ao vivo, sem o sandbox, e o link do extrato', async () => {
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getProgression).mockResolvedValue(progression)
+        vi.mocked(getStreak).mockResolvedValue(streak)
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+        vi.mocked(listAssets).mockResolvedValue({
+            assets: [
+                { id: 'a1', ticker: 'VALE3', name: 'Vale', type: 'acao', is_sandbox: false },
+                { id: 's1', ticker: 'TREINO3', name: 'Treino', type: 'acao', is_sandbox: true },
+            ],
+        } as Awaited<ReturnType<typeof listAssets>>)
+        const today = new Date().toISOString()
+        vi.mocked(listMyEvents).mockResolvedValue({
+            events: [
+                { id: 'e1', event_type: 'buy_order_executed', asset_id: 'a1', quantity: 2, unit_value: 50, timestamp: today },
+                { id: 'e2', event_type: 'salary_payment', unit_value: 200, timestamp: today },
+                { id: 'e3', event_type: 'buy_order_executed', asset_id: 's1', quantity: 1, unit_value: 9, timestamp: today },
+                { id: 'e4', event_type: 'bot_initial_cash', unit_value: 1, timestamp: today },
+            ],
+        })
+
+        renderPortfolio()
+
+        expect(await screen.findByText('Compra de VALE3')).toBeInTheDocument()
+        expect(screen.getByText('Salário')).toBeInTheDocument()
+        expect(screen.queryByText(/TREINO3/)).not.toBeInTheDocument()
+        expect(screen.getByLabelText(/^saída de R\$ 100,00/)).toBeInTheDocument()
+        expect(screen.getByLabelText(/^entrada de R\$ 200,00/)).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: 'Ver extrato completo' })).toHaveAttribute('href', '/extrato')
+    })
+
+    it('sem movimentações mostra o vazio', async () => {
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getProgression).mockResolvedValue(progression)
+        vi.mocked(getStreak).mockResolvedValue(streak)
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+        vi.mocked(listAssets).mockResolvedValue({ assets: [] })
+        vi.mocked(listMyEvents).mockResolvedValue({ events: [] })
+
+        renderPortfolio()
+
+        expect(await screen.findByText('Suas movimentações aparecem aqui.')).toBeInTheDocument()
+    })
+
+    it('falha ao carregar movimentações mostra erro sem derrubar a tela', async () => {
+        vi.mocked(getMyAccount).mockResolvedValue(emptyAccount)
+        vi.mocked(getProgression).mockResolvedValue(progression)
+        vi.mocked(getStreak).mockResolvedValue(streak)
+        vi.mocked(listLessons).mockResolvedValue({ lessons: [] })
+        vi.mocked(listAssets).mockResolvedValue({ assets: [] })
+        vi.mocked(listMyEvents).mockRejectedValue(new Error('x'))
+
+        renderPortfolio()
+
+        expect(await screen.findByText('Não foi possível carregar suas movimentações agora.')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Investir' })).toBeInTheDocument()
     })
 
     it('clique no card de patrimônio leva pra Meus ativos', async () => {

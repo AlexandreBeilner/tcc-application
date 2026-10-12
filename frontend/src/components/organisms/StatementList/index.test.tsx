@@ -81,4 +81,19 @@ describe('StatementList', () => {
         )
         expect(screen.getByText('a1')).toBeInTheDocument()
     })
+
+    it('salário e crédito do administrador têm rótulo em português e entram como entrada', () => {
+        render(
+            <StatementList
+                events={[
+                    { id: 's', event_type: 'salary_payment', unit_value: 200, timestamp: '2026-01-01T12:00:00Z' },
+                    { id: 'c', event_type: 'admin_credit', unit_value: 500, timestamp: '2026-01-02T12:00:00Z' },
+                ]}
+            />,
+        )
+        expect(screen.getByText('Salário')).toBeInTheDocument()
+        expect(screen.getByText('Crédito do administrador')).toBeInTheDocument()
+        expect(screen.queryByText('salary_payment')).not.toBeInTheDocument()
+        expect(screen.getByLabelText('entrada de R$ 200,00')).toBeInTheDocument()
+    })
 })

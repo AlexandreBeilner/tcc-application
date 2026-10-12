@@ -1,5 +1,6 @@
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Compass, PieChart, Target } from 'lucide-react'
+import { ArrowLeftRight, Compass, PieChart, Target } from 'lucide-react'
 import { useMyAccountQuery } from '../../features/portfolio/useMyAccountQuery'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
@@ -8,7 +9,12 @@ import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useMissionsQuery } from '../../features/missions/useMissionsQuery'
 import { useNextSalaryPayment } from '../../features/market/useNextSalaryPayment'
 import { filterForCategory } from '../../features/portfolio/positionsView'
+import { buildMovements } from '../../features/market/movements'
+import { useAssetLabels } from '../../features/market/useAssetLabels'
+import { useAssetsQuery } from '../../features/market/useAssetsQuery'
+import { useRecentMovementsQuery } from '../../features/market/useRecentMovementsQuery'
 import { groupPositionsByCategory } from '../../features/portfolio/distribution'
+import { RecentMovements } from '../../components/organisms/RecentMovements'
 import { NetWorthCards } from '../../components/organisms/NetWorthCards'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { DistributionChart } from '../../components/organisms/DistributionChart'
@@ -35,6 +41,19 @@ export function Portfolio() {
     const lessonsQuery = useLessonsQuery()
     const missionsQuery = useMissionsQuery()
     const daysUntilNextSalary = useNextSalaryPayment()
+    const movementsQuery = useRecentMovementsQuery()
+    // Catálogo com sandbox só para rotular (ticker) e separar o Modo Aprendizado do feed.
+    const assetsQuery = useAssetsQuery(undefined, { includeSandbox: true })
+    const assetLabels = useAssetLabels(assetsQuery.data?.assets)
+    const [now] = useState(() => new Date())
+    const movements = useMemo(
+        () =>
+            buildMovements(movementsQuery.data?.events ?? [], {
+                assetLabels,
+                sandboxAssetIds: new Set((assetsQuery.data?.assets ?? []).filter((asset) => asset.is_sandbox).map((asset) => asset.id)),
+            }),
+        [movementsQuery.data, assetsQuery.data, assetLabels],
+    )
 
     const account = accountQuery.data
     const hasNoPositions = account && account.positions.length === 0 && account.fixedIncomePositions.length === 0
@@ -96,6 +115,21 @@ export function Portfolio() {
                             <DistributionChart
                                 slices={groupPositionsByCategory(account.positions, account.fixedIncomePositions)}
                                 onSelect={(category) => navigate(`/ativos?categoria=${filterForCategory(category)}`)}
+                            />
+                        </section>
+                    )}
+
+                    {account && (
+                        <section className={styles.section}>
+                            <h2 className={styles.sectionTitle}>
+                                <ArrowLeftRight size={18} strokeWidth={2} aria-hidden="true" />
+                                Últimas movimentações
+                            </h2>
+                            <RecentMovements
+                                movements={movements}
+                                isLoading={movementsQuery.isLoading || assetsQuery.isLoading}
+                                isError={movementsQuery.isError}
+                                now={now}
                             />
                         </section>
                     )}
