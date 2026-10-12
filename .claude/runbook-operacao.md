@@ -100,6 +100,7 @@ Cada rotina avisa um monitor "dead man's switch" (healthchecks.io ou equivalente
 | Data | Backup | Onde | Tempo | Resultado |
 |---|---|---|---|---|
 | 2026-10-12 | 20261012T131201Z | máquina de desenvolvimento, stack descartável, "remoto" simulado em disco (rclone `:local:`) | segundos (dados de teste: 1 usuário, 1930 eventos) | OK: bancos, gatilho append-only, avatares e `.env`; backup corrompido recusado. **Falta o ensaio cronometrado num servidor limpo com o R2 de verdade.** |
+| 2026-10-12 | 20261012T182452Z | **VPS real (Vultr, São Paulo), produção, R2 de verdade**, chaves `age` principal e de teste | backup em 4 s, teste de restauração em 3 s (dados: 1 usuário, 1929 eventos) | OK: 4 arquivos `.age` íntegros, `users` 1 e `market_events` 1929 linhas conferidas, gatilho append-only ativo e recusando `UPDATE`, avatares e `.env` com `SIMULATION_SEED` legíveis. **Achado do ensaio:** o contêiner roda como uid 10001 e não lia o `prod.env` modo 600 (`Permission denied`), resolvido com ACL (`setfacl`, pacote `acl`). **Falta:** restauração real do zero, cronometrada (RTO), a partir só da chave principal. |
 
 ## 4. Deploy, rollback e migrações (LW.3.15)
 
