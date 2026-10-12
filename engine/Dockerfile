@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.22.12-alpine3.21 AS builder
 WORKDIR /app
 COPY go.mod go.sum* ./
 RUN go mod download
@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /out/engine ./cmd/api
 # para um servidor novo ser semeado só com comandos de dentro da imagem.
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/seed ./cmd/seed
 
-FROM alpine:3.19
+FROM alpine:3.21.8
 RUN adduser -D -g '' appuser
 COPY --from=builder /out/engine /usr/local/bin/engine
 COPY --from=builder /out/seed /usr/local/bin/seed
