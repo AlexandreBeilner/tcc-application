@@ -89,6 +89,15 @@ if [ "$target" = prod ] && printf '%s\n' "${pending[@]:-}" | grep -qE '^(EMAIL_F
 fi
 
 install -m 600 "$tmp" "$out"
+# O contêiner de backup roda como uid 10001 (sem root, sem capabilities) e precisa ler o `.env` de produção
+# para incluí-lo, criptografado, no backup. Uma ACL libera a leitura só para esse uid; o modo continua 600.
+if [ "$target" = prod ]; then
+  if command -v setfacl >/dev/null 2>&1; then
+    setfacl -m u:10001:r "$out" || log "aviso: não consegui aplicar a ACL; rode: setfacl -m u:10001:r ${out}"
+  else
+    log "aviso: setfacl não instalado (pacote acl); o backup não conseguirá ler ${out}"
+  fi
+fi
 log "gerado ${out} (modo 600) para a versão ${sha:0:12}"
 if [ "${#pending[@]}" -gt 0 ]; then
   log "pendente (depende de conta externa; linhas comentadas com PENDENTE): ${pending[*]}"
