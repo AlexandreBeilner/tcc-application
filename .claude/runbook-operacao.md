@@ -16,6 +16,31 @@ Desenho do servidor e o porquê das escolhas: `analise-ambiente-producao.md`. Co
 
 ## 2. Servidor novo, do zero
 
+### Endurecimento do servidor (LW.3.11)
+
+Antes do passo 1, como root no VPS recém-criado, com a chave pública do autor em um arquivo:
+
+```
+SSH_PUBLIC_KEY_FILE=/root/minha-chave.pub DEPLOY_USER=deploy /opt/selucra/infra/server/bootstrap.sh
+```
+O script (idempotente) cria o usuário `deploy` (sem `sudo`, no grupo `docker`), desliga senha e login de root no SSH (`/etc/ssh/sshd_config.d/00-selucra-hardening.conf`, lido antes do `50-cloud-init.conf`), configura `ufw` (22 com limite de tentativas, 80, 443/tcp e 443/udp), `fail2ban` na cela `sshd` (4 erros em 10 min, ban de 1 h), `unattended-upgrades` **sem reinício automático**, `chrony` (relógio, UTC) e o alerta `selucra-host-health` a cada 15 min (disco acima de 85%, memória disponível abaixo de 10%, reinício pendente) que avisa o monitor externo (`HOST_MONITOR_URL` em `/etc/selucra/host-health.env`). **Trava anti-trancamento:** recusa rodar se o `deploy` não tiver chave. **Mantenha a sessão aberta, entre por chave em outra janela como `deploy`, e só então feche a primeira.** SSH fica na porta 22 (decisão do autor, 2026-10-12), protegida por `ufw limit` e `fail2ban`.
+
+O Docker publica portas por `iptables` e **passa por cima do `ufw`**: por isso os compose de produção só publicam 80/443 do Caddy. O `verify.sh` falha se qualquer contêiner expuser outra porta em `0.0.0.0`. Reinício por atualização de kernel é feito à mão, de madrugada (o alerta avisa); depois dele, `docker ps` e `/health/ready`.
+
+**Checklist assinável** (rodar `/opt/selucra/verify-hardening.sh` como root e colar a saída; de fora, o `nmap` e a tentativa por senha):
+
+| Item | Como provar | Resultado |
+|---|---|---|
+| `verify-hardening.sh` sem nenhum FALHOU | saída do script | |
+| De fora, só 22, 80 e 443 | `nmap -Pn -p- <ip>` | |
+| SSH por senha recusado | `ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password deploy@<ip>` deve dar `Permission denied (publickey)` | |
+| SSH como root recusado | `ssh root@<ip>` com a chave deve ser negado | |
+| `fail2ban` bane | 5 tentativas erradas de outro IP e `fail2ban-client status sshd` lista o IP | |
+| Alerta de disco chega | `DISK_MAX_PERCENT=1 /opt/selucra/host-health.sh` gera `/fail` no monitor | |
+| Senha do admin da aplicação | gerada longa e digitada só no terminal interativo (seed, passo 5 abaixo) | |
+| Reinício do servidor | `reboot` e tudo volta sozinho (`restart: unless-stopped`) | |
+| Assinado | data e nome | |
+
 1. `docker network create selucra-edge`
 2. Copiar `docker-compose.*.yml` e `infra/` para `/opt/selucra/`; criar `prod.env` a partir de `infra/env/prod.env.example` (segredos com `openssl rand -hex 24` / `-base64 48`). **Guardar uma cópia do `prod.env` em local seguro** (o `SIMULATION_SEED` é imutável e some com o servidor).
 3. `docker login ghcr.io` com o token de leitura (`read:packages`) do usuário de deploy.

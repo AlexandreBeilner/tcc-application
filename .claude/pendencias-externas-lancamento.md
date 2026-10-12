@@ -62,8 +62,8 @@ produção com a maior parte dos recursos e staging com pouco (tetos em `staging
    a partir dos modelos (segredos com `openssl rand -hex 24` e `-base64 48`; **guardar uma cópia fora do servidor**, o
    `SIMULATION_SEED` nunca pode ser perdido).
 3. `docker network create selucra-edge` e seguir o runbook seção 2 até os seeds.
-4. **Endurecimento do servidor (LW.3.11, ainda por escrever em código):** firewall `ufw` só 22/80/443, SSH só por chave sem root,
-   `fail2ban`, `unattended-upgrades`, relógio sincronizado, alerta de disco e memória.
+4. **Endurecimento do servidor (LW.3.11, script pronto):** rodar `infra/server/bootstrap.sh` como root com `SSH_PUBLIC_KEY_FILE` (runbook seção 2),
+   entrar por chave em outra janela, rodar `verify-hardening.sh`, preencher `HOST_MONITOR_URL` e assinar o checklist do runbook.
 
 **Como provar (aceites que só existem no servidor real):**
 - `nmap -p- <ip>` de fora mostra só 22, 80 e 443 (LW.3.7);
@@ -224,5 +224,5 @@ roteiro manual em `backlog-lancamento-web-pwa.md` (LW.2.6, andamento de 2026-10-
 ## 13. Ainda por fazer em código (não depende de serviço externo)
 
 Para não confundir com a lista acima: **LW.3.2** (exemplos e teste da guarda com os domínios reais), **LW.3.4** (CI do frontend e
-workflows de deploy, validados com `actionlint`), **LW.3.11** (script de endurecimento do servidor), **LW.3.16** (CSP do
+workflows de deploy, validados com `actionlint`), **LW.3.16** (CSP do
 `_headers`, depende de checar o `git status` do frontend por haver outra sessão trabalhando nele) e **LW.5.1/5.2**.
