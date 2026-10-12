@@ -94,6 +94,12 @@ Opções: `--allow-peak` (ignora a recusa do horário de pico, padrão 18h a 23h
 - migração que quebrou o boot (o deploy já voltou a versão antiga, o banco ficou na metade ou à frente): olhar `docker compose logs backend`/`engine`; se for estado "dirty" do golang-migrate, seguir a nota em memória do projeto antes de forçar versão; **se o app antigo não sobe com o schema novo, restaurar do backup tirado no início do deploy** (seção 3) e só então corrigir a migração.
 - antes de qualquer migração que apague ou reescreva dado, confirmar que o backup do início do deploy existe (`docker compose ... run --rm backup ls` no volume, ou o log do `deploy.sh`).
 
+### Frontend (Cloudflare Pages, LW.3.4)
+
+Não passa pelo `deploy.sh`. O Pages publica pela integração Git: merge na `main` gera `app.selucra.com.br`; a branch `staging` gera `staging.selucra.com.br` (preview, com `VITE_GATEWAY_URL=https://api-staging.selucra.com.br`). O `frontend-ci.yml` (oxlint, prettier, vitest, `tsc` e `vite build`) precisa estar verde antes do merge. **Rollback do frontend:** no painel do Pages, Deployments, "Rollback to this deployment" na versão anterior (instantâneo, sem build). Como o service worker avisa a nova versão e nunca guarda API, o usuário recebe o aviso de atualização normalmente. Ordem em mudança de contrato: backend primeiro (compatível com o frontend antigo), frontend depois.
+
+**Decisão do autor (2026-10-12):** o deploy do backend e do motor é **manual**, rodando `deploy.sh` no VPS; nenhuma chave SSH de deploy fica no GitHub. O CI só constrói, valida e publica as imagens por SHA.
+
 **Ensaiado em 2026-10-12** (máquina de desenvolvimento, imagens locais por SHA, `DEPLOY_PULL=0`): deploy bom (14 s, com backup); versão quebrada (volta sozinha em 21 s, saída 1, app saudável na versão antiga); rollback manual; backup que falha aborta sem mudar nada; versão `latest`, igual à atual, fora do staging e dentro do pico são recusadas. **Falta ensaiar no staging do VPS real**, com o `pull` do GHCR.
 
 ## 5. Observabilidade (LW.3.5)

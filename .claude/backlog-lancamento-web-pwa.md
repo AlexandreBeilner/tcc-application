@@ -153,8 +153,9 @@ decidido ainda; **a primeira tarefa é escolher a hospedagem** (decisão do auto
 - **Aceite:** restauração a partir do backup numa instância limpa, registrada.
 - **Dependências:** LW.3.1.
 
-### LW.3.4 · CI/CD do frontend e do deploy
+### LW.3.4 · CI/CD do frontend e do deploy ✅ parcial (2026-10-12; falta ligar o Pages)
 - **O que fazer:** workflow do frontend (lint, `tsc`, teste, build) no mesmo padrão dos de backend/engine; deploy automático para `staging` e promoção manual para produção; migrações do banco aplicadas no deploy; `docker compose` de produção separado do de desenvolvimento.
+- **Entregável (2026-10-12):** `.github/workflows/frontend-ci.yml` (oxlint, prettier, vitest, `tsc -b` e `vite build` com `VITE_GATEWAY_URL` de produção, Node 22, mesmo padrão dos de backend e motor), validado com `actionlint` 1.7.7 (sem erros) e os mesmos passos rodados localmente (2362 testes, build com 232 entradas no precache). **Decisão do autor:** deploy do backend e do motor **manual** (`deploy.sh` no VPS, sem chave SSH no GitHub), então não há workflow de deploy; staging e produção do frontend vêm da integração Git do Pages (branch `staging` e `main`); rollback do Pages e ordem backend-antes-do-frontend no runbook, seção 4. Migrações já rodam no boot e o compose de produção já é separado (LW.3.7). **Pendente (contas):** projeto Pages e proteção da `main` exigindo os CIs verdes.
 - **Aceite:** merge na `main` gera `staging`; promoção gera produção, com rollback documentado.
 - **Dependências:** LW.3.1.
 
