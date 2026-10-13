@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
 import { captureReferralCode, clearReferralCode } from '../../features/referral/referralCode'
@@ -60,7 +60,7 @@ export function Login() {
     // E-mail do cadastro recém-feito (aviso "enviamos um link") ou do login recusado por e-mail não verificado.
     const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null)
     const [registered, setRegistered] = useState(false)
-    const { login } = useAuth()
+    const { login, token } = useAuth()
     const navigate = useNavigate()
     const passwordStrength = mode === 'register' ? computePasswordStrength(password) : null
 
@@ -111,6 +111,12 @@ export function Login() {
             }
             setIsSubmitting(false)
         }
+    }
+
+    // Sessão já salva (ex: veio da landing pelo "Entrar"): não mostra o login de novo, segue pro app.
+    // Um token expirado cai no 401 da checagem inicial, que desloga e deixa o login aparecer.
+    if (token) {
+        return <Navigate to="/" replace />
     }
 
     if (registered) {
