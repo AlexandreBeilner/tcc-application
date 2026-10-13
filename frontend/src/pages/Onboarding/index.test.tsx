@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { completeOnboarding } from '../../services/auth'
 import { updateEmailPreferences } from '../../services/emailPreferences'
@@ -18,11 +18,17 @@ vi.mock('../../features/auth/AuthContext', () => ({
     useAuth: vi.fn(),
 }))
 
+// Mostra o `state` com que a trilha foi aberta, para provar que o onboarding avisa o InstallPrompt.
+function TrailProbe() {
+    const location = useLocation()
+    return <div>mapa da trilha {JSON.stringify(location.state)}</div>
+}
+
 function renderOnboarding() {
     const router = createMemoryRouter(
         [
             { path: '/onboarding', element: <Onboarding /> },
-            { path: '/trilha', element: <div>mapa da trilha</div> },
+            { path: '/trilha', element: <TrailProbe /> },
             { path: '/', element: <div>portfolio</div> },
         ],
         { initialEntries: ['/onboarding'] },
@@ -138,7 +144,18 @@ describe('Onboarding (tela 1.2)', () => {
         await waitFor(() => expect(completeOnboarding).toHaveBeenCalledWith('token-valido'))
         expect(updateEmailPreferences).not.toHaveBeenCalled()
         expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ onboardingCompleted: true }))
-        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText(/mapa da trilha/)).toBeInTheDocument())
+    })
+
+    it('ao concluir, abre a trilha com fromOnboarding para o popup de instalação aparecer uma vez', async () => {
+        mockAuth(false)
+        vi.mocked(completeOnboarding).mockResolvedValue({ user: completedUser })
+
+        renderOnboarding()
+        advanceToEmailStep()
+        fireEvent.click(screen.getByRole('button', { name: 'Começar' }))
+
+        expect(await screen.findByText(/mapa da trilha/)).toHaveTextContent('{"fromOnboarding":true}')
     })
 
     it('"Começar" com categorias marcadas grava a escolha antes de concluir', async () => {
@@ -152,7 +169,7 @@ describe('Onboarding (tela 1.2)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Começar' }))
 
         await waitFor(() => expect(updateEmailPreferences).toHaveBeenCalledWith('token-valido', { social: false, engagement: true }))
-        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText(/mapa da trilha/)).toBeInTheDocument())
     })
 
     it('falhar ao gravar a escolha de e-mail não trava o onboarding (o padrão é desligado)', async () => {
@@ -165,7 +182,7 @@ describe('Onboarding (tela 1.2)', () => {
         fireEvent.click(screen.getByRole('checkbox', { name: /Amigos/ }))
         fireEvent.click(screen.getByRole('button', { name: 'Começar' }))
 
-        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText(/mapa da trilha/)).toBeInTheDocument())
     })
 
     it('"Pular" no passo de e-mail nunca liga nada, mesmo com caixa marcada', async () => {
@@ -177,7 +194,7 @@ describe('Onboarding (tela 1.2)', () => {
         fireEvent.click(screen.getByRole('checkbox', { name: /Amigos/ }))
         fireEvent.click(screen.getByRole('button', { name: 'Pular' }))
 
-        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText(/mapa da trilha/)).toBeInTheDocument())
         expect(updateEmailPreferences).not.toHaveBeenCalled()
     })
 
@@ -200,7 +217,7 @@ describe('Onboarding (tela 1.2)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Pular' }))
 
         await waitFor(() => expect(completeOnboarding).toHaveBeenCalledWith('token-valido'))
-        await waitFor(() => expect(screen.getByText('mapa da trilha')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByText(/mapa da trilha/)).toBeInTheDocument())
     })
 
     it('onboarding já concluído redireciona pra "/" sem mostrar o carrossel', () => {
