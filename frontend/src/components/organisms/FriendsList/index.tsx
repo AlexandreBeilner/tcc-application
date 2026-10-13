@@ -19,7 +19,9 @@ const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 
 // dado — quem quiser comparar rentabilidade entra no perfil (8.4) ou usa a
 // Classificação com escopo Amigos (7.1), que já é a fonte real desse
 // número (RF19). Paginação (6.9.1) reaproveita `Pagination`, mesmo padrão
-// de `RankingBoard`. "Desfazer amizade" (6.9.3) fica fora do
+// de `RankingBoard`. "Desfazer amizade" (6.9.3) mostra só "Desfazer" no botão (o contexto já é a
+// lista de amigos, e o texto longo empurrava o nome para cima do botão no celular); o nome acessível
+// continua "Desfazer amizade com <nome>" e a linha corta nome e @usuário com reticências. Fica fora do
 // `.profileLink` — dois elementos interativos irmãos na `<li>`, não um
 // botão aninhado dentro do outro; confirmação leve em duas etapas
 // (clicar de novo confirma), sem `window.confirm` nativo (sem precedente
@@ -75,8 +77,13 @@ export function FriendsList({ friends, page, totalPages, onPageChange }: Friends
                                     </Button>
                                 </div>
                             ) : (
-                                <Button variant="secondary" onClick={() => setConfirmingId(friend.friendshipId)}>
-                                    Desfazer amizade
+                                <Button
+                                    variant="secondary"
+                                    className={styles.removeButton}
+                                    aria-label={`Desfazer amizade com ${friend.name}`}
+                                    onClick={() => setConfirmingId(friend.friendshipId)}
+                                >
+                                    Desfazer
                                 </Button>
                             )}
                         </li>
