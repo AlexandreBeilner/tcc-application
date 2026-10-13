@@ -164,7 +164,8 @@ export function Onboarding() {
             }
             const result = await completeOnboarding(token)
             setUser(result.user)
-            navigate('/trilha', { replace: true })
+            // `fromOnboarding`: a trilha abre o popup de instalação do app uma única vez (InstallPrompt).
+            navigate('/trilha', { replace: true, state: { fromOnboarding: true } })
         } catch (err) {
             setError(formatApiError(err, 'Não foi possível continuar. Tente novamente.'))
             setIsSubmitting(false)

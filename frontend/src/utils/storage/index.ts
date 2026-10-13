@@ -15,6 +15,8 @@ export const STORAGE_KEYS = {
     // (o tipo exige o par); a leitura dela é inofensiva.
     // Convite para instalar o app (LW.2.4): timestamp de quando foi dispensado.
     installInviteDismissed: { current: 'app.installInvite.dismissed', legacy: 'tcc.installInvite.dismissed' },
+    // Popup de instalação mostrado uma única vez, logo depois do onboarding: só a marca de que já apareceu.
+    installPromptSeen: { current: 'app.installPrompt.seen', legacy: 'tcc.installPrompt.seen' },
     proInviteDismissed: { current: 'app.proInvite.dismissed', legacy: 'tcc.proInvite.dismissed' },
 } as const
 

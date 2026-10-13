@@ -73,7 +73,7 @@ describe('FriendsList (tela 8.1)', () => {
         expect(screen.getByText('Bia Souza')).toBeInTheDocument()
         expect(screen.getByText('@bia')).toBeInTheDocument()
 
-        fireEvent.click(screen.getByRole('button', { name: /Bia Souza/ }))
+        fireEvent.click(screen.getByText('Bia Souza').closest('button') as HTMLElement)
         expect(screen.getByText('perfil público')).toBeInTheDocument()
     })
 
@@ -90,18 +90,25 @@ describe('FriendsList (tela 8.1)', () => {
         expect(onPageChange).toHaveBeenCalledWith(2)
     })
 
+    it('o botão mostra só "Desfazer", com nome acessível que diz de quem é a amizade', () => {
+        renderList([bia])
+
+        const button = screen.getByRole('button', { name: `Desfazer amizade com ${bia.name}` })
+        expect(button).toHaveTextContent(/^Desfazer$/)
+    })
+
     it('desfazer amizade exige confirmação em duas etapas e chama a mutation (6.9.3)', async () => {
         vi.mocked(removeFriendship).mockResolvedValue(undefined)
         renderList([bia])
 
-        fireEvent.click(screen.getByRole('button', { name: 'Desfazer amizade' }))
+        fireEvent.click(screen.getByRole('button', { name: /^Desfazer amizade/ }))
         expect(screen.getByRole('button', { name: 'Confirmar' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-        expect(screen.getByRole('button', { name: 'Desfazer amizade' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /^Desfazer amizade/ })).toBeInTheDocument()
 
-        fireEvent.click(screen.getByRole('button', { name: 'Desfazer amizade' }))
+        fireEvent.click(screen.getByRole('button', { name: /^Desfazer amizade/ }))
         fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
         await waitFor(() => expect(removeFriendship).toHaveBeenCalledWith('token', 'f1'))
     })

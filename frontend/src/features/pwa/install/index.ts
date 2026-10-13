@@ -125,6 +125,24 @@ export function dismissInstallInvite(now: number = Date.now()): void {
     }
 }
 
+// Popup de instalação logo depois do onboarding: aparece uma vez só. Quem recusou encontra o convite
+// em Configurações (sempre visível) e, depois da primeira lição, na trilha.
+export function hasSeenInstallPrompt(): boolean {
+    try {
+        return readStored(STORAGE_KEYS.installPromptSeen) !== null
+    } catch {
+        return false
+    }
+}
+
+export function markInstallPromptSeen(now: number = Date.now()): void {
+    try {
+        writeStored(STORAGE_KEYS.installPromptSeen, String(now))
+    } catch {
+        // armazenamento indisponível: pode reaparecer na próxima abertura, sem prejuízo
+    }
+}
+
 export function useInstallMode(): InstallMode {
     return useSyncExternalStore(subscribe, getMode, () => 'none')
 }

@@ -9,6 +9,7 @@ import { ProgressionSummary } from '../../components/organisms/ProgressionSummar
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
 import { TrackCard } from '../../components/organisms/TrackCard'
 import { InstallInvite } from '../../components/molecules/InstallInvite'
+import { InstallPrompt } from '../../components/organisms/InstallPrompt'
 import { SalaryIndicator } from '../../components/molecules/SalaryIndicator'
 import styles from './index.module.css'
 
@@ -39,6 +40,8 @@ export function TrilhasHub() {
 
     return (
         <main className={styles.page}>
+            {/* Popup de instalação do app, uma vez só, logo depois do onboarding (state.fromOnboarding). */}
+            <InstallPrompt />
             <div className={styles.layout}>
                 <div className={styles.main}>
                     <header className={styles.header}>
