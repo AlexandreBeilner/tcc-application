@@ -406,4 +406,20 @@ describe('Login (tela 1.1)', () => {
             expect(googleLoginUrl).toHaveBeenCalledWith(null)
         })
     })
+
+    it('com sessão salva, vai direto pro app sem mostrar o login', () => {
+        vi.mocked(useAuth).mockReturnValue({
+            token: 'jwt',
+            user: null,
+            isLoading: true,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+
+        renderLogin('/login?modo=cadastro')
+
+        expect(screen.getByText('tela protegida')).toBeInTheDocument()
+        expect(screen.queryByLabelText('E-mail')).not.toBeInTheDocument()
+    })
 })
