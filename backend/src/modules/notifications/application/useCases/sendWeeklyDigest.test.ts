@@ -20,6 +20,7 @@ function candidate(n: number, overrides: Partial<DigestCandidate> = {}): DigestC
     weeklyReturnPct: 1.5,
     pendingMissions: 1,
     pendingMissionTitle: 'Conclua uma lição',
+    dailyPlayedDays: 4,
     ...overrides,
   }
 }
@@ -81,6 +82,7 @@ describe('SendWeeklyDigestUseCase', () => {
     expect(outbox.rows[0].idempotencyKey).toBe('weekly-digest:u001:2026-10-12')
     expect(Object.keys(outbox.rows[0].payload).sort()).toEqual(
       [
+        'dailyPlayedDays',
         'level',
         'missionTitle',
         'name',
@@ -90,6 +92,19 @@ describe('SendWeeklyDigestUseCase', () => {
       ].sort(),
     )
     expect(outbox.rows[1].payload).not.toHaveProperty('weeklyReturnPct')
+    expect(outbox.rows[0].payload.dailyPlayedDays).toBe(4)
+  })
+
+  it('quem não tem dado do Diário recebe o resumo sem o campo; quem jogou 0 dias leva o 0', async () => {
+    const { outbox, useCase } = setup(
+      [candidate(1, { dailyPlayedDays: null }), candidate(2, { dailyPlayedDays: 0 })],
+      MONDAY_10H,
+    )
+
+    await useCase.execute()
+
+    expect(outbox.rows[0].payload).not.toHaveProperty('dailyPlayedDays')
+    expect(outbox.rows[1].payload.dailyPlayedDays).toBe(0)
   })
 
   it('rodar de novo na mesma semana não duplica (o job roda várias vezes na janela)', async () => {
