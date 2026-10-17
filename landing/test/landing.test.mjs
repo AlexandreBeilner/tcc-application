@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
@@ -240,7 +240,7 @@ describe('analytics (Cloudflare Web Analytics)', () => {
         assert.equal(analyticsSnippet(''), '')
         const headers = await readFile('src/static/_headers', 'utf8')
         assert.match(headers, /script-src 'self' https:\/\/static\.cloudflareinsights\.com;/)
-        assert.match(headers, /connect-src 'self' https:\/\/cloudflareinsights\.com;/)
+        assert.match(headers, /connect-src 'self' https:\/\/cloudflareinsights\.com {{API_URL}};/)
     })
 })
 
@@ -304,6 +304,39 @@ describe('página do Diário Selucra (/diario/)', () => {
         assert.match(home, /<li><a href="\/diario\/">Diário<\/a><\/li>/)
         assert.match(html, /<li><a href="\/diario\/">Diário<\/a><\/li>/)
         assert.match(await readFile(join(dir, 'sitemap.xml'), 'utf8'), new RegExp(`<loc>${SITE}/diario/</loc>`))
+    })
+
+    it('SEO: title, description, canonical, Open Graph com imagem própria e Twitter card', async () => {
+        const title = html.match(/<title>(.*?)<\/title>/)[1]
+        const desc = html.match(/name="description"\s+content="([^"]*)"/)[1]
+        assert.ok(title.length <= 65, `title com ${title.length} caracteres`)
+        assert.ok(desc.length >= 100 && desc.length <= 160, `description com ${desc.length} caracteres`)
+        assert.match(html, new RegExp(`og:url" content="${SITE}/diario/"`))
+        assert.match(html, new RegExp(`og:image" content="${SITE}/og-diario.png"`))
+        assert.match(html, new RegExp(`twitter:image" content="${SITE}/og-diario.png"`))
+        assert.ok((await stat(join(dir, 'og-diario.png'))).size > 1000)
+        const home = await readFile(join(dir, 'index.html'), 'utf8')
+        assert.match(home, new RegExp(`og:image" content="${SITE}/og-image.png"`))
+    })
+
+    it('JSON-LD: WebApplication e FAQPage espelhando as perguntas visíveis', () => {
+        const graph = JSON.parse(html.match(LD)[1])['@graph']
+        assert.deepEqual(
+            graph.map((n) => n['@type']),
+            ['WebApplication', 'FAQPage'],
+        )
+        const visible = (html.match(/<summary>/g) ?? []).length
+        const faq = graph.find((n) => n['@type'] === 'FAQPage')
+        assert.equal(faq.mainEntity.length, visible)
+        assert.deepEqual(faq.mainEntity, faqFromHtml(html))
+        assert.equal(graph[0].url, `${SITE}/diario/`)
+    })
+
+    it('CSP libera só a origem da API do Diário e a página não é cacheada por muito tempo', async () => {
+        const headers = await readFile(join(dir, '_headers'), 'utf8')
+        assert.ok(headers.includes(`connect-src 'self' https://cloudflareinsights.com ${API};`), headers)
+        assert.doesNotMatch(headers, /\{\{/)
+        assert.match(headers, /\/diario\/\*\s+Cache-Control: public, max-age=0, must-revalidate/)
     })
 
     it('sem preço, PRO, "grátis", travessão nem placeholder', () => {

@@ -143,7 +143,7 @@ export async function buildLanding({
         await mkdir(`${outDir}/${path}`, { recursive: true })
         await writeFile(`${outDir}/${path}/index.html`, page)
     }
-    const article = (meta, body, ld, ogType, pageJs = '') =>
+    const article = (meta, body, ld, ogType, pageJs = '', ogImage = 'og-image.png') =>
         fill(articleTpl)
             .replace('{{PAGE_JS}}', pageJs)
             .replace('{{HEADER}}', fill(header))
@@ -152,6 +152,7 @@ export async function buildLanding({
             .replaceAll('{{PAGE_DESC}}', esc(meta.description))
             .replaceAll('{{PAGE_URL}}', meta.url)
             .replace('{{OG_TYPE}}', ogType)
+            .replaceAll('{{OG_IMAGE}}', ogImage)
             .replace('{{JSONLD}}', ld)
             .replace('{{BODY}}', body)
     for (const p of pages) {
@@ -191,14 +192,26 @@ export async function buildLanding({
         .replace('{{GUIDE_SLUGS}}', pages.map((p) => p.slug).join(','))
     const diarioLd = JSON.stringify({
         '@context': 'https://schema.org',
-        '@type': 'WebPage',
-        name: 'Diário Selucra',
-        url: diarioUrl,
-        inLanguage: 'pt-BR',
+        '@graph': [
+            {
+                '@type': 'WebApplication',
+                '@id': `${diarioUrl}#app`,
+                name: 'Diário Selucra',
+                url: diarioUrl,
+                description: diarioMeta.description,
+                applicationCategory: 'GameApplication',
+                genre: 'Educação financeira',
+                operatingSystem: 'Web',
+                browserRequirements: 'Requer JavaScript',
+                inLanguage: 'pt-BR',
+                publisher: { '@type': 'Organization', name: 'Selucra', url: `${siteUrl}/` },
+            },
+            { '@type': 'FAQPage', mainEntity: faqFromHtml(diarioBody) },
+        ],
     })
     await writePage(
         'diario',
-        article(diarioMeta, diarioBody, diarioLd, 'website', `<script type="module" src="${rel(diarioJs)}"></script>`),
+        article(diarioMeta, diarioBody, diarioLd, 'website', `<script type="module" src="${rel(diarioJs)}"></script>`, 'og-diario.png'),
     )
     urls.splice(2, 0, { loc: diarioUrl, priority: '0.9' })
 
@@ -213,6 +226,9 @@ export async function buildLanding({
             .join('\n') +
         '\n</urlset>\n'
     await writeFile(`${outDir}/sitemap.xml`, sitemap)
+    // A CSP libera só a origem da API do Diário (a mesma que a página chama).
+    const headers = (await readFile(`${outDir}/_headers`, 'utf8')).replaceAll('{{API_URL}}', apiUrl)
+    await writeFile(`${outDir}/_headers`, headers)
     const robots = (await readFile(`${outDir}/robots.txt`, 'utf8')).replaceAll('{{SITE_URL}}', siteUrl)
     await writeFile(`${outDir}/robots.txt`, robots)
     return { outDir, pages }
