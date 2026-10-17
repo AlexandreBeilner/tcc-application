@@ -38,7 +38,7 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 | DI3 | Sem IA em nenhuma parte (conteúdo, dica, correção). |
 | DI4 | **Jogar o Diário conta como atividade do dia para o streak principal.** |
 | DI5 | **O dia do Diário segue o mesmo fuso do streak** (hoje UTC, `todayUtc` em `gamification/domain/streak`). Consequência: o jogo novo aparece às **21h de Brasília**. O texto da tela diz isso ("novo Diário todo dia às 21h"), em vez de esconder. Se um dia o streak mudar de fuso, o Diário muda junto. |
-| DI6 | **XP: 50 se acertar todos os cartões, menos se errar algum.** Fórmula proposta (ajustável): 10 por concluir o Diário + 10 por cartão acertado, de 10 a 50. No Termo, "acertou" = descobriu a palavra nas 6 tentativas. |
+| DI6 | **XP: 50 se acertar todos os cartões, menos se errar algum.** Fórmula (decidida em 2026-10-17): **20 por concluir o Diário + 10 por cartão acertado, de 20 a 50** (3 cartões). No Termo, "acertou" = descobriu a palavra nas 6 tentativas. |
 | DI7 | **Página pública, sem login e com SEO**, junto da landing (`selucra.com.br/diario`). **E o mesmo jogo dentro do app**, onde ele vale XP e streak. |
 | DI8 | **Quem joga fora do app não ganha XP por aquele jogo**, nem depois de entrar. Nada jogado sem login é importado. |
 | DI9 | **Ao terminar o Diário fora do app, a pessoa é convidada a entrar no app** (criar conta ou fazer login). |
@@ -48,12 +48,12 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 | DI13 | **Conteúdo variado, centrado no mercado brasileiro**, ou em fatos de fora que afetaram o mercado brasileiro (seção 3.3). |
 | DI14 | **Só o dia atual e os anteriores são acessíveis.** Nenhuma rota entrega um jogo do futuro (seção 3.6). |
 | DI15 | **Quem volta no mesmo dia vê o que já respondeu**, como no Termo: o jogo não reinicia ao recarregar a página (seção 3.4). |
+| DI16 | **Três cartões por dia** (decidido em 2026-10-17): **Palavra do dia**, **Neste dia na história** e **Linha do tempo**. O cartão "Mais ou menos" (pergunta de número sobre séries históricas) foi cogitado e ficou de fora: perguntas numéricas já tinham saído dos checkpoints das lições, e tirá-lo dispensa a importação de séries do Banco Central. |
 
 ### Propostas e aceitas em linhas gerais (confirmar ao abrir a tarefa que depende delas)
 
 | # | Decisão | Onde pesa |
 |---|---|---|
-| DP1 | Quatro cartões por dia: **Palavra do dia**, **Neste dia na história**, **Linha do tempo**, **Mais ou menos** (seção 3). | DI.1.1 |
 | DP2 | **Mesmo jogo para todo mundo** no mesmo dia, com número sequencial (`#47`). | DI.1.1 |
 | DP3 | **Gabarito nunca vai ao navegador antes da resposta.** O servidor avalia cada palpite (inclusive as cores do Termo). | DI.2.1 |
 | DP4 | Conteúdo no banco, editado por um painel admin com auditoria (mesmo modelo das lições, N.23), nunca só em arquivo de seed. | DI.1.2, DI.5.1 |
@@ -66,14 +66,13 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 |---|---|---|
 | DA1 | Nome do jogo ("Diário" é provisório). Aparece no título da página, na URL se mudar, e no cartão compartilhado. | DI.3.2 |
 
-## 3. Os quatro cartões e de onde vem o conteúdo
+## 3. Os três cartões e de onde vem o conteúdo
 
 | Cartão | Exemplo (ilustrativo, conferir fonte antes de usar) | Fonte do conteúdo | Curadoria |
 |---|---|---|---|
 | **Palavra do dia** | `JUROS` em 6 tentativas, letras verde/amarelo/cinza. O tamanho muda por dia (`IPCA`, `SELIC`, `SPREAD`, `LIQUIDEZ`). Acento ignorado na digitação, mostrado na revelação (`ACOES` => `AÇÕES`). Ao acertar, mostra a definição. | Banco de palavras-resposta, cada uma com definição curta e link opcional para lição, glossário ou guia. Os 83 termos de `frontend/src/features/lessons/glossary/index.ts` são ponto de partida, mas o banco vive no backend. | Lista única, ~300 palavras (~10 meses) |
 | **Neste dia na história** | "Em 1º de julho de 1994 entrou em circulação a moeda que usamos até hoje. De qual plano ela veio?" 4 alternativas. | Banco de fatos datados (dia/mês/ano, enunciado, alternativas, explicação, **fonte primária**). | A parte manual. Um fato pode repetir no mesmo dia em outro ano. |
 | **Linha do tempo** | Ordenar: Plano Collor, Plano Real, crise de 2008, Joesley Day. | **Gerado** sorteando 4 eventos do mesmo banco de fatos, com anos distintos. | Nenhuma |
-| **Mais ou menos** | "A Selic em março de 1999 era maior ou menor que 40%?" | **Gerado** a partir de séries históricas oficiais (Selic, IPCA, dólar; Banco Central, SGS) importadas uma vez como dado estático, com a fonte. | Nenhuma |
 
 Gerador determinístico = função pura de (data, banco) com semente derivada da data: rodar duas vezes para o mesmo dia dá o mesmo jogo. Mesmo assim, o jogo do dia é **materializado** numa agenda (tabela) com antecedência, para o admin ver e corrigir antes de ir ao ar.
 
@@ -82,7 +81,7 @@ Cartão compartilhável (texto, sem spoiler, sem patrimônio):
 ```
 Diário Selucra #47
 🟩🟩🟨⬜⬜ palavra em 3
-📅 ✅  ⏳ ✅  📊 ❌
+📅 ✅  ⏳ ❌
 selucra.com.br/diario
 ```
 
@@ -163,12 +162,12 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 ## Fase A, conteúdo e domínio (backend)
 
 ### DI.1.1 · Domínio do Diário
-- **Descrição:** módulo `backend/src/modules/daily/` (DDD lite). `domain/`: estado do Diário (desligado, agendado, no ar) e número do jogo a partir da data de estreia (seção 3.5: #1 = dia da estreia; DI5: mesma regra de dia do streak, com o relógio entrando por parâmetro); regra de acesso (seção 3.6: número maior que o de hoje = inexistente; só o jogo do dia vale XP); regras da data de estreia (muda livre enquanto futura, trava depois do início, exige 30 dias de conteúdo à frente); tipos de cartão (`word`, `on_this_day`, `timeline`, `higher_lower`); avaliação do palpite do Termo (verde/amarelo/cinza com letra repetida tratada como no Termo, acento ignorado na comparação); avaliação dos outros cartões; fórmula de XP (DI6); geradores determinísticos de Linha do tempo e Mais ou menos a partir de (data, banco).
-- **Dependências:** confirmar DP1 e DP2.
-- **Aceite:** testes table-driven da avaliação do Termo (letra repetida no palpite e na resposta, acento, tamanho variável), da virada de dia (teste que prova que o dia do Diário e o do streak são o mesmo para o mesmo instante, inclusive às 20h59 e 21h00 de Brasília), da fórmula de XP (0 a 4 acertos => 10 a 50), da numeração e do acesso (antes da estreia nada é acessível; no dia da estreia só o #1; número futuro sempre recusado; mudar a estreia depois do início recusado) e dos geradores (mesma data => mesmo jogo; datas diferentes => jogos diferentes; Linha do tempo nunca sorteia dois eventos do mesmo ano).
+- **Descrição:** módulo `backend/src/modules/daily/` (DDD lite). `domain/`: estado do Diário (desligado, agendado, no ar) e número do jogo a partir da data de estreia (seção 3.5: #1 = dia da estreia; DI5: mesma regra de dia do streak, com o relógio entrando por parâmetro); regra de acesso (seção 3.6: número maior que o de hoje = inexistente; só o jogo do dia vale XP); regras da data de estreia (muda livre enquanto futura, trava depois do início, exige 30 dias de conteúdo à frente); tipos de cartão (`word`, `on_this_day`, `timeline`); avaliação do palpite do Termo (verde/amarelo/cinza com letra repetida tratada como no Termo, acento ignorado na comparação); avaliação dos outros cartões; fórmula de XP (DI6); gerador determinístico da Linha do tempo a partir de (data, banco).
+- **Dependências:** confirmar DP2.
+- **Aceite:** testes table-driven da avaliação do Termo (letra repetida no palpite e na resposta, acento, tamanho variável), da virada de dia (teste que prova que o dia do Diário e o do streak são o mesmo para o mesmo instante, inclusive às 20h59 e 21h00 de Brasília), da fórmula de XP (0 a 3 acertos => 20 a 50), da numeração e do acesso (antes da estreia nada é acessível; no dia da estreia só o #1; número futuro sempre recusado; mudar a estreia depois do início recusado) e dos geradores (mesma data => mesmo jogo; datas diferentes => jogos diferentes; Linha do tempo nunca sorteia dois eventos do mesmo ano).
 
 ### DI.1.2 · Tabelas e repositórios
-- **Descrição:** migration com `daily_settings` (estado do Diário e data de estreia, uma linha; quem e quando alterou), `daily_words` (resposta, definição, link opcional, categoria, marcador Brasil/fora, ativo), `daily_accepted_words` (forma normalizada, origem `vero` ou `extra`), `daily_facts` (data, enunciado, alternativas, resposta, explicação, fonte primária obrigatória, categoria, marcador Brasil/fora, revisado por e quando, ativo), `daily_series_points` (série, mês, valor, fonte), `daily_puzzles` (número, data, conteúdo materializado de cada cartão, origem de cada item, revisado, publicado), `daily_results` (usuário, número, por cartão: acertou, tentativas, **os palpites do Termo e as respostas dadas**, para redesenhar o jogo em qualquer aparelho, seção 3.4; XP concedido; marca `played_outside` para DP6; uma linha por usuário e jogo). Ports + adapters Drizzle.
+- **Descrição:** migration com `daily_settings` (estado do Diário e data de estreia, uma linha; quem e quando alterou), `daily_words` (resposta, definição, link opcional, categoria, marcador Brasil/fora, ativo), `daily_accepted_words` (forma normalizada, origem `vero` ou `extra`), `daily_facts` (data, enunciado, alternativas, resposta, explicação, fonte primária obrigatória, categoria, marcador Brasil/fora, revisado por e quando, ativo), `daily_puzzles` (número, data, conteúdo materializado de cada cartão, origem de cada item, revisado, publicado), `daily_results` (usuário, número, por cartão: acertou, tentativas, **os palpites do Termo e as respostas dadas**, para redesenhar o jogo em qualquer aparelho, seção 3.4; XP concedido; marca `played_outside` para DP6; uma linha por usuário e jogo). Ports + adapters Drizzle.
 - **Dependências:** DI.1.1.
 - **Aceite:** teste de integração dos repositórios em banco descartável; UNIQUE (usuário, número) em `daily_results`; `when` do journal acima da última migration.
 
@@ -178,7 +177,7 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 - **Aceite:** testes com fakes: idempotência, janela de não repetição, regra de variedade, banco insuficiente gera aviso (não jogo quebrado), jogo publicado intocado, troca da data de estreia.
 
 ### DI.1.4 · Lista de palavras e conteúdo inicial
-- **Descrição:** script que gera a lista aceita a partir do VERO (seção 3.1), com o arquivo gerado, a lista extra e o `NOTICE` versionados. Seed que importa só o que falta (por chave estável, nunca sobrescreve o que o painel editou, mesma regra do seed de lições): lista aceita, ~300 palavras-resposta, fatos suficientes para **pelo menos 30 dias** de jogo (DI11; o ideal é sobrar folga para a regra de variedade e para a Linha do tempo sortear de um conjunto maior), séries do Banco Central com fonte. Conteúdo segundo a linha editorial da seção 3.3 (Brasil no centro, fatos de fora só com o efeito no Brasil explicado, categorias variadas).
+- **Descrição:** script que gera a lista aceita a partir do VERO (seção 3.1), com o arquivo gerado, a lista extra e o `NOTICE` versionados. Seed que importa só o que falta (por chave estável, nunca sobrescreve o que o painel editou, mesma regra do seed de lições): lista aceita, ~300 palavras-resposta, fatos suficientes para **pelo menos 30 dias** de jogo (DI11; o ideal é sobrar folga para a regra de variedade e para a Linha do tempo sortear de um conjunto maior). Conteúdo segundo a linha editorial da seção 3.3 (Brasil no centro, fatos de fora só com o efeito no Brasil explicado, categorias variadas).
 - **Dependências:** DI.1.2.
 - **Aceite:** script reproduzível (rodar de novo gera o mesmo arquivo para o mesmo commit do VERO); toda palavra-resposta está na lista aceita; nenhum nome próprio nem palavra da lista de ofensivas na lista aceita; todo fato tem fonte primária, categoria e marcador; os primeiros 30 dias materializados passam no checklist da seção 3.3 e na revisão do autor; tabela registrada aqui com a contagem por categoria e por marcador; texto sem "—".
 
@@ -197,7 +196,7 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 ## Fase C, o jogo e a página pública (landing)
 
 ### DI.3.1 · Módulo do jogo, sem framework
-- **Descrição:** o módulo da seção 3.2: grade do Termo (teclado físico e na tela, acento ignorado, animação de revelação, aviso de palavra não aceita sem gastar tentativa), os três cartões de pergunta (alternativas, ordenar a linha do tempo por arrastar e por botões, maior/menor), tela de resultado (cartão de texto pela Web Share API, cópia para a área de transferência como fallback, contagem até o próximo jogo às 21h). Recebe o cliente da API, o modo (`publico`/`app`) e um "guardador de estado" por parâmetro: no modo `publico`, o `localStorage` com as regras da seção 3.4; no modo `app`, o servidor (`GET /daily/:number/me`). Ao abrir, redesenha o jogo do dia se já houver estado salvo, em vez de reiniciar. Aviso "Novo Diário disponível" na virada do dia sem apagar o jogo da tela. Lista de dias anteriores para jogar (sem XP). **Acessível:** a informação nunca depende só de cor (símbolo ou borda por estado, leitor de tela por letra, ordenação da linha do tempo sem precisar arrastar).
+- **Descrição:** o módulo da seção 3.2: grade do Termo (teclado físico e na tela, acento ignorado, animação de revelação, aviso de palavra não aceita sem gastar tentativa), os dois cartões de pergunta (alternativas do Neste dia; ordenar a Linha do tempo por arrastar e por botões), tela de resultado (cartão de texto pela Web Share API, cópia para a área de transferência como fallback, contagem até o próximo jogo às 21h). Recebe o cliente da API, o modo (`publico`/`app`) e um "guardador de estado" por parâmetro: no modo `publico`, o `localStorage` com as regras da seção 3.4; no modo `app`, o servidor (`GET /daily/:number/me`). Ao abrir, redesenha o jogo do dia se já houver estado salvo, em vez de reiniciar. Aviso "Novo Diário disponível" na virada do dia sem apagar o jogo da tela. Lista de dias anteriores para jogar (sem XP). **Acessível:** a informação nunca depende só de cor (símbolo ou borda por estado, leitor de tela por letra, ordenação da linha do tempo sem precisar arrastar).
 - **Dependências:** DI.2.1; confirmar DP5 (local do módulo).
 - **Aceite:** testes do módulo (letra repetida, palavra recusada, resultado compartilhado sem resposta e sem valor em R$; recarregar a página no mesmo dia mostra o jogo como estava, com o tabuleiro e as respostas; dia seguinte começa limpo e mantém as estatísticas; estado com número futuro, corrompido ou de versão desconhecida é ignorado sem erro; sem `localStorage` o jogo funciona); modo claro e escuro pelas variáveis de cor; funciona em 320, 390, 768 e 1280 px.
 
@@ -231,7 +230,7 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 ## Fase E, painel admin
 
 ### DI.5.1 · `/admin/diario`
-- **Descrição:** **controle da estreia** (seção 3.5): ver o estado (desligado, agendado, no ar), agendar e mudar a data de estreia enquanto futura, ver quantos dias revisados existem à frente, desligar em emergência. Listar, criar, editar e desativar palavras-resposta, termos da lista extra, fatos e pontos de série (ações auditadas, como as do painel de conteúdo); **prévia de qualquer dia futuro** como o jogador vai ver, marcar como revisado e corrigir antes de publicar; contagem por categoria e marcador Brasil/fora dos próximos 30 dias (seção 3.3); alerta quando o conteúdo revisado cobre menos de 14 dias à frente.
+- **Descrição:** **controle da estreia** (seção 3.5): ver o estado (desligado, agendado, no ar), agendar e mudar a data de estreia enquanto futura, ver quantos dias revisados existem à frente, desligar em emergência. Listar, criar, editar e desativar palavras-resposta, termos da lista extra, e fatos (ações auditadas, como as do painel de conteúdo); **prévia de qualquer dia futuro** como o jogador vai ver, marcar como revisado e corrigir antes de publicar; contagem por categoria e marcador Brasil/fora dos próximos 30 dias (seção 3.3); alerta quando o conteúdo revisado cobre menos de 14 dias à frente.
 - **Dependências:** DI.1.3. **Precisa estar pronta antes da estreia** (é por ela que o autor agenda a data).
 - **Aceite:** toda alteração gera linha de auditoria; agendar a estreia sem 30 dias revisados à frente é recusado; mudar a data depois do início é recusado; prévia de dia futuro só para `role = admin`; fato sem fonte recusado; palavra-resposta fora da lista aceita recusada; jogo já publicado não editável sem confirmação explícita.
 
