@@ -1210,3 +1210,174 @@ export const referralRewards = pgTable(
     check('referral_rewards_status_chk', sql`${table.status} IN ('pending', 'granted')`),
   ],
 )
+
+// Diário Selucra (DI.1.2). Conteúdo e resultados do jogo diário; as regras vivem em
+// `modules/daily/domain`.
+
+// Uma linha só (`id = 1`). `start_date` nulo = Diário desligado; o estado agendado/no ar sai da
+// comparação com o dia de hoje (DI12), então não há coluna de estado que possa contradizer o relógio.
+export const dailySettings = pgTable(
+  'daily_settings',
+  {
+    id: smallint('id').primaryKey().default(1),
+    startDate: date('start_date'),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('daily_settings_singleton_chk', sql`${table.id} = 1`)],
+)
+
+// Palavra do dia. `answer` na forma normalizada (maiúsculas, sem acento: a mesma da comparação do
+// Termo); `display` é como aparece na revelação (`AÇÕES`). `scope`: Brasil ou fora (com efeito no
+// Brasil), para a regra de variedade da agenda (seção 3.3). `learn_more_*`: lição, glossário ou guia.
+export const dailyWords = pgTable(
+  'daily_words',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
+    answer: varchar('answer', { length: 9 }).notNull().unique(),
+    display: varchar('display', { length: 20 }).notNull(),
+    definition: text('definition').notNull(),
+    learnMoreKind: text('learn_more_kind'),
+    learnMoreRef: text('learn_more_ref'),
+    category: varchar('category', { length: 40 }).notNull(),
+    scope: text('scope').notNull(),
+    active: boolean('active').notNull().default(true),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_words_answer_chk', sql`${table.answer} ~ '^[A-Z]{4,9}$'`),
+    check('daily_words_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
+    check(
+      'daily_words_learn_more_chk',
+      sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
+    ),
+  ],
+)
+
+// Palavras aceitas como palpite (seção 3.1). Chave primária na forma normalizada: a consulta por
+// palpite é uma busca por chave, sem carregar a lista na memória.
+export const dailyAcceptedWords = pgTable(
+  'daily_accepted_words',
+  {
+    word: varchar('word', { length: 9 }).primaryKey(),
+    source: text('source').notNull(),
+  },
+  (table) => [
+    check('daily_accepted_words_word_chk', sql`${table.word} ~ '^[A-Z]{4,9}$'`),
+    check('daily_accepted_words_source_chk', sql`${table.source} IN ('vero', 'extra')`),
+  ],
+)
+
+// Banco de fatos datados: alimenta o "Neste dia na história" e, sorteado por ano distinto, a Linha
+// do tempo. `timeline_label` é o nome curto que aparece na ordenação ("Plano Real"); fato sem ele
+// não entra na Linha do tempo. `source_ref` (fonte primária) é obrigatório (checklist 3.3).
+export const dailyFacts = pgTable(
+  'daily_facts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
+    eventDate: date('event_date').notNull(),
+    question: text('question').notNull(),
+    options: jsonb('options').$type<string[]>().notNull(),
+    correctIndex: smallint('correct_index').notNull(),
+    explanation: text('explanation').notNull(),
+    timelineLabel: varchar('timeline_label', { length: 80 }),
+    sourceRef: text('source_ref').notNull(),
+    learnMoreKind: text('learn_more_kind'),
+    learnMoreRef: text('learn_more_ref'),
+    category: varchar('category', { length: 40 }).notNull(),
+    scope: text('scope').notNull(),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    active: boolean('active').notNull().default(true),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_facts_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
+    check('daily_facts_source_chk', sql`length(btrim(${table.sourceRef})) > 0`),
+    check(
+      'daily_facts_options_chk',
+      sql`jsonb_typeof(${table.options}) = 'array' AND jsonb_array_length(${table.options}) BETWEEN 2 AND 6 AND ${table.correctIndex} >= 0 AND ${table.correctIndex} < jsonb_array_length(${table.options})`,
+    ),
+    check(
+      'daily_facts_learn_more_chk',
+      sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
+    ),
+  ],
+)
+
+// Jogo materializado de um dia (seção 3: a agenda). Referencia os itens dos bancos (corrigir um
+// texto no banco corrige o jogo), e guarda a origem de cada cartão: `generated` pela agenda,
+// `manual` quando o admin trocou. `timeline_fact_ids` é a ordem de exibição (4 ids). Materializar
+// não é publicar: `reviewed_*` e `published_at` são passos do admin.
+export const dailyPuzzles = pgTable(
+  'daily_puzzles',
+  {
+    number: integer('number').primaryKey(),
+    gameDate: date('game_date').notNull().unique(),
+    wordId: uuid('word_id')
+      .notNull()
+      .references(() => dailyWords.id),
+    factId: uuid('fact_id')
+      .notNull()
+      .references(() => dailyFacts.id),
+    timelineFactIds: jsonb('timeline_fact_ids').$type<string[]>().notNull(),
+    wordOrigin: text('word_origin').notNull().default('generated'),
+    factOrigin: text('fact_origin').notNull().default('generated'),
+    timelineOrigin: text('timeline_origin').notNull().default('generated'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_puzzles_number_chk', sql`${table.number} >= 1`),
+    check(
+      'daily_puzzles_origin_chk',
+      sql`${table.wordOrigin} IN ('generated', 'manual') AND ${table.factOrigin} IN ('generated', 'manual') AND ${table.timelineOrigin} IN ('generated', 'manual')`,
+    ),
+    check(
+      'daily_puzzles_timeline_chk',
+      sql`jsonb_typeof(${table.timelineFactIds}) = 'array' AND jsonb_array_length(${table.timelineFactIds}) = 4`,
+    ),
+  ],
+)
+
+// Resultado de uma pessoa num jogo (uma linha por usuário e jogo). Guarda o que foi dado (palpites
+// do Termo, alternativa, ordem) para redesenhar o jogo em qualquer aparelho (seção 3.4); o
+// gabarito nunca fica aqui. Cada `*_correct` nulo = cartão ainda não respondido. `xp_awarded` 0 em
+// dia anterior ou concluído depois da virada.
+export const dailyResults = pgTable(
+  'daily_results',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    puzzleNumber: integer('puzzle_number')
+      .notNull()
+      .references(() => dailyPuzzles.number),
+    wordGuesses: jsonb('word_guesses')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    wordCorrect: boolean('word_correct'),
+    factChoice: smallint('fact_choice'),
+    factCorrect: boolean('fact_correct'),
+    timelineOrder: jsonb('timeline_order').$type<string[]>(),
+    timelineCorrect: boolean('timeline_correct'),
+    xpAwarded: integer('xp_awarded').notNull().default(0),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('daily_results_user_puzzle_unique').on(table.userId, table.puzzleNumber),
+    index('daily_results_puzzle_idx').on(table.puzzleNumber),
+    check('daily_results_xp_chk', sql`${table.xpAwarded} >= 0`),
+  ],
+)
