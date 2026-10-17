@@ -10,6 +10,9 @@ const UNIT_LABEL: Record<Exclude<Achievement['criteriaType'], 'net_worth'>, (val
     lesson_reviewed: (value) => `${value === 1 ? 'lição revisada' : 'lições revisadas'}`,
     assemblies_participated: (value) => `${value === 1 ? 'assembleia votada' : 'assembleias votadas'}`,
     referrals_qualified: (value) => `${value === 1 ? 'amigo convidado' : 'amigos convidados'}`,
+    daily_word_first_try: (value) => `${value === 1 ? 'palavra de primeira' : 'palavras de primeira'}`,
+    daily_perfect_days: (value) => `${value === 1 ? 'dia perfeito' : 'dias perfeitos'}`,
+    daily_timeline_streak: (value) => `${value === 1 ? 'dia seguido' : 'dias seguidos'}`,
 }
 
 // Tela 7.2 — "clique numa conquista bloqueada mostra progresso atual em
