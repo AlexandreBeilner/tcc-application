@@ -32,14 +32,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Em aberto
 
-### 059 · Desligar o Diário em emergência depois de no ar (DI.5.1), achado em 2026-10-17
-
-- **Local:** `backend/src/modules/daily/domain/launchSchedule.ts` (`validateStartDateChange`).
-- **Origem:** a DI.5.1 pede "desligar em emergência", mas a seção 3.5 trava a data depois do início e o domínio recusa qualquer mudança, inclusive desligar (`already_started`). A data é a única coluna de estado: `null` desliga e perderia a data.
-- **Hoje:** desligar só funciona enquanto agendado. No ar, a única saída é despublicar por fora do painel.
-- **Opções:** (a) manter assim, emergência é intervenção no banco; (b) coluna `paused` em `daily_settings`: as rotas respondem como desligado sem perder a data nem a numeração, e voltar é só despausar; (c) permitir `null` no ar e exigir a mesma data ao religar.
-- **Status:** aberto. Recomendação: (b), por não renumerar nada.
-
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
@@ -1099,3 +1091,11 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Por que não foi corrigido:** exigir `published_at` agora deixaria o Diário fora do ar até a DI.5.1, e não dá para testar de ponta a ponta nem estrear sem o painel; é uma escolha de comportamento do autor.
 - **Opções:** (a) manter como está até a DI.5.1 e, nela, o painel só deixa a estreia ser agendada com 30 dias revisados (já previsto), aceitando o risco para dias além deles; (b) servir só jogo com `published_at` (a filtragem é uma linha no loader) e fazer a DI.5.1 publicar em lote ao agendar a estreia; (c) servir só jogo revisado (`reviewed_at`), sem o conceito de publicação para as rotas públicas.
 - **Status:** resolvido em 2026-10-17 na DI.5.1: opção (b). As rotas públicas servem só jogo publicado, e agendar a estreia publica os revisados em lote.
+
+### 059 · Desligar o Diário em emergência depois de no ar (DI.5.1), achado em 2026-10-17
+
+- **Local:** `backend/src/modules/daily/domain/launchSchedule.ts` (`validateStartDateChange`).
+- **Origem:** a DI.5.1 pede "desligar em emergência", mas a seção 3.5 trava a data depois do início e o domínio recusa qualquer mudança, inclusive desligar (`already_started`). A data é a única coluna de estado: `null` desliga e perderia a data.
+- **Hoje:** desligar só funciona enquanto agendado. No ar, a única saída é despublicar por fora do painel.
+- **Opções:** (a) manter assim, emergência é intervenção no banco; (b) coluna `paused` em `daily_settings`: as rotas respondem como desligado sem perder a data nem a numeração, e voltar é só despausar; (c) permitir `null` no ar e exigir a mesma data ao religar.
+- **Status:** adiado, provavelmente fechado (2026-10-17). O autor decidiu não implementar: o painel já corrige o que está errado com o jogo no ar (editar texto, alternativas, gabarito, ano; trocar o cartão do dia), com confirmação explícita para jogo publicado. Isso cobre erro de conteúdo. Limite conhecido: quem já jogou o dia foi avaliado contra o gabarito antigo, e o XP concedido não é recalculado. Só reabrir se surgir um problema que correção não resolva (ex: bug que quebra o jogo inteiro); aí a recomendação é a opção (b), coluna `paused`.
