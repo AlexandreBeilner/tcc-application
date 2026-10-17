@@ -1,3 +1,8 @@
+import type { DailyResult } from '../../domain/content'
+import { newResult } from '../../domain/resultState'
+import type { DailyResultRepository } from '../../application/ports/dailyResultRepository'
+import type { StreakTouchResult, StreakTracker } from '../../application/ports/streakTracker'
+import type { XpAwardResult, XpAwarder } from '../../application/ports/xpAwarder'
 import type { AcceptedWordRepository } from '../../application/ports/acceptedWordRepository'
 import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
 import type { DailyEventRepository } from '../../application/ports/dailyEventRepository'
@@ -154,4 +159,87 @@ export function createFakeAcceptedWordRepository(
       return added
     },
   }
+}
+
+export interface FakeDailyResultRepository extends DailyResultRepository {
+  items: DailyResult[]
+}
+
+export function createFakeDailyResultRepository(
+  initial: DailyResult[] = [],
+): FakeDailyResultRepository {
+  const items = [...initial]
+  const index = (userId: string, n: number) =>
+    items.findIndex((r) => r.userId === userId && r.puzzleNumber === n)
+  return {
+    items,
+    async find(userId, n) {
+      return items[index(userId, n)] ?? null
+    },
+    async save(result) {
+      const i = index(result.userId, result.puzzleNumber)
+      if (i >= 0) items[i] = result
+      else items.push(result)
+    },
+    async listByUser(userId) {
+      return items
+        .filter((r) => r.userId === userId)
+        .sort((a, b) => a.puzzleNumber - b.puzzleNumber)
+    },
+    // Como o repositório real, `apply` que lança não grava nada. O JS é de thread única e `apply`
+    // é síncrono, então não há intercalação a simular aqui; a trava de linha é testada no banco.
+    async update(userId, n, now, apply) {
+      const current = items[index(userId, n)] ?? newResult(userId, n, now)
+      const { next, value } = apply(current)
+      const i = index(userId, n)
+      if (i >= 0) items[i] = next
+      else items.push(next)
+      return { result: next, value }
+    },
+  }
+}
+
+export interface FakeXpAwarder extends XpAwarder {
+  awarded: { userId: string; amount: number; reason: string }[]
+  nextResult: XpAwardResult
+}
+
+export function createFakeXpAwarder(
+  nextResult: XpAwardResult = { xp: 0, level: 1, leveledUp: false, unlockedAchievements: [] },
+): FakeXpAwarder {
+  const awarded: FakeXpAwarder['awarded'] = []
+  const fake: FakeXpAwarder = {
+    awarded,
+    nextResult,
+    async award(userId, amount, reason) {
+      awarded.push({ userId, amount, reason })
+      return fake.nextResult
+    },
+  }
+  return fake
+}
+
+export interface FakeStreakTracker extends StreakTracker {
+  touchedUserIds: string[]
+  nextResult: StreakTouchResult
+}
+
+export function createFakeStreakTracker(
+  nextResult: StreakTouchResult = {
+    currentStreak: 1,
+    longestStreak: 1,
+    milestoneReached: null,
+    unlockedAchievements: [],
+  },
+): FakeStreakTracker {
+  const touchedUserIds: string[] = []
+  const fake: FakeStreakTracker = {
+    touchedUserIds,
+    nextResult,
+    async touch(userId) {
+      touchedUserIds.push(userId)
+      return fake.nextResult
+    },
+  }
+  return fake
 }

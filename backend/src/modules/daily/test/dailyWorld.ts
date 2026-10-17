@@ -1,3 +1,8 @@
+import { createFakeTokenIssuer } from '../../auth/test/fakes/fakeTokenIssuer'
+import { createAuthMiddleware } from '../../../shared/http/authMiddleware'
+import { DailyProgressRecorder } from '../application/dailyProgressRecorder'
+import { GetMyGameStateUseCase } from '../application/useCases/getMyGameState'
+import { GetMyStatsUseCase } from '../application/useCases/getMyStats'
 import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../domain/content'
 import { addDays } from '../domain/gameDay'
 import { AnswerTimelineUseCase } from '../application/useCases/answerTimeline'
@@ -9,6 +14,9 @@ import { GetTodayUseCase } from '../application/useCases/getToday'
 import {
   createFakeAcceptedWordRepository,
   createFakeDailyEventRepository,
+  createFakeDailyResultRepository,
+  createFakeStreakTracker,
+  createFakeXpAwarder,
   createFakeDailyPuzzleRepository,
   createFakeDailyQuestionRepository,
   createFakeDailySettingsRepository,
@@ -101,15 +109,33 @@ export function buildDailyWorld(options: WorldOptions) {
     : []
   const puzzleRepo = createFakeDailyPuzzleRepository(puzzles)
   const loader = new DailyGameLoader(settings, puzzleRepo, words, questions, events)
+  const results = createFakeDailyResultRepository()
+  const xpAwarder = createFakeXpAwarder({
+    xp: 50,
+    level: 2,
+    leveledUp: true,
+    unlockedAchievements: [{ id: 'a1', name: 'Primeiro Diário', description: null }],
+  })
+  const streakTracker = createFakeStreakTracker()
+  const recorder = new DailyProgressRecorder(results, xpAwarder, streakTracker)
+  const tokenIssuer = createFakeTokenIssuer()
+  const authMiddleware = createAuthMiddleware(tokenIssuer)
   return {
     settings,
     puzzleRepo,
     acceptedWords,
     loader,
+    results,
+    xpAwarder,
+    streakTracker,
+    authMiddleware,
+    tokenFor: (userId: string) => tokenIssuer.issue({ sub: userId, role: 'user' }),
     getToday: new GetTodayUseCase(settings, loader),
     getGame: new GetGameUseCase(loader),
-    evaluateWordGuess: new EvaluateWordGuessUseCase(loader, acceptedWords),
-    answerTrivia: new AnswerTriviaUseCase(loader),
-    answerTimeline: new AnswerTimelineUseCase(loader),
+    evaluateWordGuess: new EvaluateWordGuessUseCase(loader, acceptedWords, recorder),
+    answerTrivia: new AnswerTriviaUseCase(loader, recorder),
+    answerTimeline: new AnswerTimelineUseCase(loader, recorder),
+    getMyGameState: new GetMyGameStateUseCase(loader, results),
+    getMyStats: new GetMyStatsUseCase(settings, results),
   }
 }

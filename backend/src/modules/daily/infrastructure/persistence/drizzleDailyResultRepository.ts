@@ -52,6 +52,36 @@ export function createDrizzleDailyResultRepository(db: Database): DailyResultRep
         })
     },
 
+    async update(userId, puzzleNumber, now, apply) {
+      return db.transaction(async (tx) => {
+        await tx
+          .insert(dailyResults)
+          .values({ userId, puzzleNumber, startedAt: now })
+          .onConflictDoNothing({ target: [dailyResults.userId, dailyResults.puzzleNumber] })
+        // Trava a linha até o fim da transação: a segunda aba espera e já enxerga o que a primeira gravou.
+        const [row] = await tx
+          .select()
+          .from(dailyResults)
+          .where(and(eq(dailyResults.userId, userId), eq(dailyResults.puzzleNumber, puzzleNumber)))
+          .for('update')
+        const { next, value } = apply(toResult(row))
+        await tx
+          .update(dailyResults)
+          .set({
+            wordGuesses: next.wordGuesses,
+            wordCorrect: next.wordCorrect,
+            questionChoice: next.questionChoice,
+            questionCorrect: next.questionCorrect,
+            timelineOrder: next.timelineOrder,
+            timelineCorrect: next.timelineCorrect,
+            xpAwarded: next.xpAwarded,
+            completedAt: next.completedAt,
+          })
+          .where(eq(dailyResults.id, row.id))
+        return { result: next, value }
+      })
+    },
+
     async listByUser(userId) {
       const rows = await db
         .select()

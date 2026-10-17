@@ -1420,7 +1420,7 @@ export function createApp(deps: AppDeps = {}): Express {
   app.locals.settleDueDuels = duels.settleDueDuels
   // Diário (DI.2.1): rotas do jogo sem login, com teto por IP.
   app.use('/daily', createDailyRateLimiter())
-  app.use(createDailyComposition(db).router)
+  app.use(createDailyComposition(db, { authMiddleware, awardXp, touchStreak }).router)
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))

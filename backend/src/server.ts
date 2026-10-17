@@ -34,7 +34,7 @@ import type { RunAssemblyLifecycleUseCase } from './modules/assemblies/applicati
 import { startAssemblyScheduler } from './modules/assemblies/infrastructure/scheduler/assemblyScheduler'
 import { createPayrollComposition } from './modules/payroll/composition'
 import { startPayrollScheduler } from './modules/payroll/infrastructure/scheduler/payrollScheduler'
-import { createDailyComposition } from './modules/daily/composition'
+import { createDailyAgendaComposition } from './modules/daily/composition'
 import { startDailyAgendaScheduler } from './modules/daily/infrastructure/scheduler/dailyAgendaScheduler'
 
 const port = Number(process.env.PORT) || 3000
@@ -144,7 +144,7 @@ async function main() {
   const { runPayrollCheck } = createPayrollComposition(db, engineUrl, enqueueEmail)
   timers.push(startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs))
 
-  const { materializeUpcomingPuzzles } = createDailyComposition(db)
+  const { materializeUpcomingPuzzles } = createDailyAgendaComposition(db)
   timers.push(
     startDailyAgendaScheduler(
       materializeUpcomingPuzzles,

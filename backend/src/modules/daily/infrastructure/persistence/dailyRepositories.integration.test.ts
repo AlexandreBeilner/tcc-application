@@ -12,6 +12,14 @@ import { createDrizzleAcceptedWordRepository } from './drizzleAcceptedWordReposi
 import { createDrizzleDailyEventRepository } from './drizzleDailyEventRepository'
 import { createDrizzleDailyQuestionRepository } from './drizzleDailyQuestionRepository'
 import { createDrizzleDailyPuzzleRepository } from './drizzleDailyPuzzleRepository'
+import { DailyProgressRecorder } from '../../application/dailyProgressRecorder'
+import type { LoadedGame } from '../../application/dailyGameLoader'
+import { CardAlreadyAnsweredError } from '../../domain/errors'
+import { recordTimeline } from '../../domain/resultState'
+import {
+  createFakeStreakTracker,
+  createFakeXpAwarder,
+} from '../../test/fakes/fakeDailyRepositories'
 import { createDrizzleDailyResultRepository } from './drizzleDailyResultRepository'
 import { createDrizzleDailySettingsRepository } from './drizzleDailySettingsRepository'
 import { createDrizzleDailyWordRepository } from './drizzleDailyWordRepository'
@@ -406,6 +414,71 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
 
     it('find devolve null quando a pessoa não jogou', async () => {
       expect(await results().find(userId, 1)).toBeNull()
+    })
+
+    it('update cria a linha, grava o que o apply devolve e devolve o valor', async () => {
+      await seedPuzzle(1, '2026-11-03')
+      const { result, value } = await results().update(userId, 1, NOW, (current) => ({
+        next: { ...current, wordGuesses: ['JUROS'] },
+        value: 'ok',
+      }))
+      expect(value).toBe('ok')
+      expect(result.wordGuesses).toEqual(['JUROS'])
+      expect(result.startedAt).toEqual(NOW)
+      expect(await results().find(userId, 1)).toEqual(result)
+    })
+
+    it('update cuja função lança não grava nem cria a linha', async () => {
+      await seedPuzzle(1, '2026-11-03')
+      await expect(
+        results().update(userId, 1, NOW, () => {
+          throw new Error('recusado')
+        }),
+      ).rejects.toThrow('recusado')
+      expect(await results().find(userId, 1)).toBeNull()
+    })
+
+    it('updates simultâneos da mesma linha se enfileiram: nenhuma gravação se perde', async () => {
+      await seedPuzzle(1, '2026-11-03')
+      const addGuess = (guess: string) =>
+        results().update(userId, 1, NOW, (current) => ({
+          next: { ...current, wordGuesses: [...current.wordGuesses, guess] },
+          value: null,
+        }))
+      await Promise.all(['A', 'B', 'C', 'D', 'E'].map(addGuess))
+      const saved = await results().find(userId, 1)
+      expect(saved?.wordGuesses).toHaveLength(5)
+      expect([...(saved?.wordGuesses ?? [])].sort()).toEqual(['A', 'B', 'C', 'D', 'E'])
+    })
+
+    it('duas abas enviando o último cartão: um só fecha o jogo e um só credita XP', async () => {
+      await seedPuzzle(1, '2026-11-03')
+      await results().save({
+        ...base(),
+        wordGuesses: ['JUROS'],
+        wordCorrect: true,
+        questionChoice: 1,
+        questionCorrect: true,
+      })
+      const xp = createFakeXpAwarder()
+      const streak = createFakeStreakTracker()
+      const recorder = new DailyProgressRecorder(results(), xp, streak)
+      const game = { number: 1, awardsXp: true } as LoadedGame
+      const submit = () =>
+        recorder.record(userId, game, NOW, (current) => ({
+          next: recordTimeline(current, ['a', 'b', 'c', 'd'], true),
+          value: null,
+        }))
+
+      const outcomes = await Promise.allSettled(Array.from({ length: 4 }, submit))
+      expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1)
+      const rejected = outcomes.filter((o) => o.status === 'rejected')
+      expect(rejected).toHaveLength(3)
+      for (const r of rejected)
+        expect((r as PromiseRejectedResult).reason).toBeInstanceOf(CardAlreadyAnsweredError)
+      expect(xp.awarded).toEqual([{ userId, amount: 50, reason: 'diario:1' }])
+      expect(streak.touchedUserIds).toEqual([userId])
+      expect((await results().find(userId, 1))?.xpAwarded).toBe(50)
     })
   })
 })

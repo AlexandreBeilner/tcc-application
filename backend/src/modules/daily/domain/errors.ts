@@ -30,3 +30,9 @@ export class WordNotAcceptedError extends Error {}
 export class InvalidChoiceError extends Error {}
 
 export class InvalidOrderError extends Error {}
+
+// Logado, cada cartão tem uma única tentativa válida por jogo (DI.2.2).
+export class CardAlreadyAnsweredError extends Error {}
+
+// Sem login o servidor não sabe em que tentativa o Termo está; o cliente precisa informar.
+export class AttemptRequiredError extends Error {}

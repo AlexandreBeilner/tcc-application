@@ -1,48 +1,35 @@
-import type { LearnMore } from '../../domain/content'
 import { InvalidOrderError } from '../../domain/errors'
 import { evaluateTimelineOrder } from '../../domain/cardAnswers'
+import { recordTimeline } from '../../domain/resultState'
+import { timelineAnswerView, type TimelineAnswerView } from '../cardReveals'
 import type { DailyGameLoader } from '../dailyGameLoader'
+import type { DailyCompletion, DailyProgressRecorder } from '../dailyProgressRecorder'
 
-export interface TimelineAnswerResult {
-  correct: boolean
-  // Posição a posição da ordem enviada.
-  positionHits: boolean[]
-  // A ordem certa, já com ano e explicação (só agora o ano deixa de ser gabarito).
-  events: {
-    id: string
-    label: string
-    year: number
-    explanation: string
-    sourceRef: string
-    learnMore: LearnMore | null
-  }[]
-}
+export type TimelineAnswerResult = TimelineAnswerView & { completion?: DailyCompletion }
 
 // `POST /daily/:number/cards/timeline/answer`.
 export class AnswerTimelineUseCase {
-  constructor(private readonly loader: DailyGameLoader) {}
+  constructor(
+    private readonly loader: DailyGameLoader,
+    private readonly recorder: DailyProgressRecorder,
+  ) {}
 
   async execute(input: {
     number: number
     order: string[]
+    userId?: string
     now: Date
   }): Promise<TimelineAnswerResult> {
-    const { events } = await this.loader.load(input.number, input.now)
-    const evaluation = evaluateTimelineOrder(input.order, events)
+    const game = await this.loader.load(input.number, input.now)
+    const evaluation = evaluateTimelineOrder(input.order, game.events)
     if (!evaluation.ok) throw new InvalidOrderError()
-    return {
-      correct: evaluation.correct,
-      positionHits: evaluation.positionHits,
-      events: [...events]
-        .sort((a, b) => a.year - b.year)
-        .map((e) => ({
-          id: e.id,
-          label: e.label,
-          year: e.year,
-          explanation: e.explanation,
-          sourceRef: e.sourceRef,
-          learnMore: e.learnMore,
-        })),
-    }
+    const view = timelineAnswerView(game.events, evaluation.correct, evaluation.positionHits)
+    if (input.userId === undefined) return view
+
+    const recorded = await this.recorder.record(input.userId, game, input.now, (current) => ({
+      next: recordTimeline(current, input.order, evaluation.correct),
+      value: null,
+    }))
+    return recorded.completion ? { ...view, completion: recorded.completion } : view
   }
 }
