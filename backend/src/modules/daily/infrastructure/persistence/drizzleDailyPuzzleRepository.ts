@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull } from 'drizzle-orm'
+import { asc, eq, gte, isNull } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { dailyPuzzles } from '../../../../db/schema'
 import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
@@ -77,12 +77,12 @@ export function createDrizzleDailyPuzzleRepository(db: Database): DailyPuzzleRep
       await db.update(dailyPuzzles).set({ publishedAt: now }).where(eq(dailyPuzzles.number, number))
     },
 
-    async deleteUnpublishedFromDate(fromDate) {
-      const deleted = await db
-        .delete(dailyPuzzles)
-        .where(and(gte(dailyPuzzles.gameDate, fromDate), isNull(dailyPuzzles.publishedAt)))
-        .returning({ number: dailyPuzzles.number })
-      return deleted.length
+    async replaceUnpublished(puzzles) {
+      await db.transaction(async (tx) => {
+        await tx.delete(dailyPuzzles).where(isNull(dailyPuzzles.publishedAt))
+        if (puzzles.length === 0) return
+        await tx.insert(dailyPuzzles).values(puzzles.map((p) => ({ ...p, publishedAt: null })))
+      })
     },
   }
 }

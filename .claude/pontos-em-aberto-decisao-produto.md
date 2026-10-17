@@ -1076,3 +1076,11 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Opções:** (a) ficar só com o retorno por ativo e o resultado agregado contra o custo (decisão proposta na Fase I); (b) gravar um instantâneo diário de patrimônio por usuário e desenhar a curva, com custo de armazenamento e um job novo; (c) calcular a curva sob demanda por replay, mais barato de manter e mais caro por consulta.
 - **Status:** aberto. Recomendação: (a) agora, e reavaliar (b) quando houver pedido real de gráfico de evolução.
 
+
+### 057 · "Neste dia na história" quando não há fato do dia e mês exatos (DI.1.3), achado em 2026-10-17
+
+- **Local:** `backend/src/modules/daily/domain/agenda.ts` (`planDay`), cartão `on_this_day` do `backlog-diario.md`.
+- **Origem:** o cartão se chama "Neste dia", mas o backlog não diz o que fazer quando o banco não tem um fato do dia e mês exatos da data do jogo. Exigir sempre o dia exato deixaria buracos na numeração (um dia sem jogo) e obrigaria a curadoria a cobrir cada dia do calendário; o conteúdo de 30 dias da estreia (DI.1.4) depende da data que o autor escolher.
+- **O que a agenda faz hoje (escolha provisória):** usa o fato do dia exato quando existe; senão, o de data mais próxima no calendário (distância circular, ignorando o ano) e registra o aviso `on_this_day_not_exact` para o admin ver na revisão. Nunca deixa um dia sem jogo por causa disso.
+- **Opções:** (a) manter o fallback e o texto do cartão passa a mostrar a data real do fato ("Em 3 de julho de 1994..."), sem dizer "hoje"; (b) exigir o dia exato e bloquear a agenda/estreia enquanto houver dia sem fato (curadoria cobre os 30 dias da estreia, e depois cada novo dia); (c) tolerância máxima (ex: até 7 dias de distância) e, além dela, o dia fica sem jogo com aviso.
+- **Status:** aberto. Recomendação: (a), com o aviso visível na prévia do painel (DI.5.1).

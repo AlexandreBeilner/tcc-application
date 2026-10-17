@@ -9,6 +9,7 @@ export interface DailyPuzzleRepository {
   listFromDate(fromDate: string, limit: number): Promise<DailyPuzzle[]>
   markReviewed(number: number, reviewedBy: string, now: Date): Promise<void>
   markPublished(number: number, now: Date): Promise<void>
-  // Só jogos ainda não publicados (a agenda refaz a partir da nova estreia). Devolve quantos saíram.
-  deleteUnpublishedFromDate(fromDate: string): Promise<number>
+  // Troca, numa transação, TODOS os jogos ainda não publicados pelos informados (a agenda refaz
+  // números e descarta datas antes da estreia sem perder a revisão). Jogo publicado nunca é tocado.
+  replaceUnpublished(puzzles: readonly DailyPuzzle[]): Promise<void>
 }

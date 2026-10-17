@@ -6,6 +6,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { MaterializeUpcomingPuzzlesUseCase } from '../../application/useCases/materializeUpcomingPuzzles'
 import type { DailyResult } from '../../domain/content'
 import { createDrizzleAcceptedWordRepository } from './drizzleAcceptedWordRepository'
 import { createDrizzleDailyFactRepository } from './drizzleDailyFactRepository'
@@ -234,12 +235,67 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       })
     })
 
-    it('apagar a partir de uma data nunca toca jogo publicado', async () => {
+    it('replaceUnpublished troca só os não publicados, com a revisão que vier', async () => {
       await seedPuzzle(1, '2026-11-03', NOW)
       await seedPuzzle(2, '2026-11-04')
       await seedPuzzle(3, '2026-11-05')
-      expect(await puzzles().deleteUnpublishedFromDate('2026-11-03')).toBe(2)
+      const [second] = await puzzles().listFromDate('2026-11-04', 1)
+
+      await puzzles().replaceUnpublished([
+        { ...second, number: 9, reviewedBy: userId, reviewedAt: NOW },
+      ])
+
+      const all = await puzzles().listFromDate('2026-11-01', 10)
+      expect(all.map((p) => [p.number, p.gameDate])).toEqual([
+        [1, '2026-11-03'],
+        [9, '2026-11-04'],
+      ])
+      expect(all[1]).toMatchObject({ reviewedBy: userId, reviewedAt: NOW, publishedAt: null })
+      expect(all[0].publishedAt).toEqual(NOW)
+    })
+
+    it('replaceUnpublished é atômico: se um insert falha, nada muda', async () => {
+      await seedPuzzle(1, '2026-11-03')
+      const [first] = await puzzles().listFromDate('2026-11-03', 1)
+      await expect(
+        puzzles().replaceUnpublished([first, { ...first, gameDate: '2026-11-09' }]),
+      ).rejects.toThrow()
       expect((await puzzles().listFromDate('2026-11-01', 10)).map((p) => p.number)).toEqual([1])
+    })
+  })
+
+  describe('agenda de ponta a ponta', () => {
+    it('materializa de verdade, é idempotente e realinha ao mudar a estreia', async () => {
+      for (let i = 0; i < 12; i++) {
+        await words().create(
+          wordInput(`PALAV${String.fromCharCode(65 + i)}`, { category: `c${i % 3}` }),
+        )
+      }
+      for (let i = 0; i < 30; i++)
+        await facts().create(factInput(`fato-${i}`, 1950 + i * 2, { category: `c${i % 4}` }))
+      const settings = createDrizzleDailySettingsRepository(db)
+      await settings.setStartDate('2026-11-10', userId, NOW)
+      const build = () =>
+        new MaterializeUpcomingPuzzlesUseCase(settings, words(), facts(), puzzles(), () => NOW, {
+          horizonDays: 4,
+        })
+
+      const first = await build().execute()
+      expect(first.created).toEqual([1, 2, 3, 4])
+      expect((await build().execute()).created).toEqual([])
+      await puzzles().markReviewed(2, userId, NOW)
+
+      await settings.setStartDate('2026-11-11', userId, NOW)
+      const moved = await build().execute()
+      expect(moved).toMatchObject({ removed: 1, renumbered: 3 })
+      const list = await puzzles().listFromDate('2026-11-01', 10)
+      expect(list.map((p) => [p.number, p.gameDate])).toEqual([
+        [1, '2026-11-11'],
+        [2, '2026-11-12'],
+        [3, '2026-11-13'],
+        [4, '2026-11-14'],
+      ])
+      expect(list[0].reviewedBy).toBe(userId)
     })
   })
 
