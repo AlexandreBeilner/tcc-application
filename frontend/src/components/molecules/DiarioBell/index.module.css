@@ -1,0 +1,28 @@
+.bell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+}
+
+.bell:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface-elevated);
+}
+
+.dot {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    width: 9px;
+    height: 9px;
+    border-radius: var(--radius-full);
+    background: var(--color-gamify-500);
+    border: 2px solid var(--color-bg-surface);
+    box-sizing: content-box;
+}

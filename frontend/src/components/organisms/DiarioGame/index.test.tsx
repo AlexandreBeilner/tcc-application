@@ -1,11 +1,16 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
+import { useLessonsQuery } from '../../../features/lessons/useLessonsQuery'
 import { RewardRevealProvider } from '../../../features/shell/RewardRevealProvider'
 import { DiarioGame } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../../features/lessons/useLessonsQuery', () => ({ useLessonsQuery: vi.fn() }))
+
+const lessonsData = (lessons: object[]) => ({ data: { lessons } }) as unknown as ReturnType<typeof useLessonsQuery>
 
 const game = {
     number: 4,
@@ -85,9 +90,14 @@ function renderGame() {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     render(
         <QueryClientProvider client={client}>
-            <RewardRevealProvider>
-                <DiarioGame />
-            </RewardRevealProvider>
+            <MemoryRouter initialEntries={['/diario']}>
+                <RewardRevealProvider>
+                    <Routes>
+                        <Route path="/diario" element={<DiarioGame />} />
+                        <Route path="/glossario" element={<p>pagina do glossario</p>} />
+                    </Routes>
+                </RewardRevealProvider>
+            </MemoryRouter>
         </QueryClientProvider>,
     )
     return { invalidate }
@@ -96,6 +106,7 @@ function renderGame() {
 describe('DiarioGame (DI.4.1)', () => {
     const logout = vi.fn()
     beforeEach(() => {
+        vi.mocked(useLessonsQuery).mockReturnValue(lessonsData([]))
         vi.mocked(useAuth).mockReturnValue({ token: 'tok-123', user: { id: 'u1' }, logout } as unknown as ReturnType<typeof useAuth>)
         window.matchMedia = ((q: string) => ({
             matches: q.includes('reduce'),
@@ -151,7 +162,7 @@ describe('DiarioGame (DI.4.1)', () => {
         await waitFor(() => expect(document.querySelector('.dg-result')?.childElementCount).toBeGreaterThan(0), { timeout: 4000 })
         await act(async () => {})
         expect(screen.queryByText(/\+\d+ XP/, { selector: 'p' })).toBeNull()
-        expect(invalidate).not.toHaveBeenCalled()
+        expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['gamification'] })
     })
 
     it('token inválido (401) sai da sessão', async () => {
@@ -160,5 +171,43 @@ describe('DiarioGame (DI.4.1)', () => {
         )
         renderGame()
         await waitFor(() => expect(logout).toHaveBeenCalled())
+    })
+    it('próximo passo: depois do último cartão oferece a próxima lição disponível, nunca uma bloqueada', async () => {
+        vi.mocked(useLessonsQuery).mockReturnValue(
+            lessonsData([
+                { id: 'l0', status: 'completed', currentStep: 0, title: 'Feita', code: '1.1' },
+                { id: 'l1', status: 'available', currentStep: 2, title: 'Juros compostos', code: '1.2' },
+                { id: 'l2', status: 'locked', currentStep: 0, title: 'Bloqueada', code: '1.3' },
+            ]),
+        )
+        stubFetch({ correctCards: 3, xpAwarded: 50 })
+        renderGame()
+        expect(screen.queryByLabelText('Próximo passo')).toBeNull()
+        await playAll()
+        const next = await screen.findByLabelText('Próximo passo', {}, { timeout: 4000 })
+        expect(next.querySelector('a')?.getAttribute('href')).toBe('/trilha/l1')
+        expect(next.textContent).toContain('Retomar a lição: Juros compostos')
+    })
+
+    it('próximo passo sem lição disponível leva ao mercado', async () => {
+        stubFetch({ correctCards: 3, xpAwarded: 50 })
+        renderGame()
+        await playAll()
+        const next = await screen.findByLabelText('Próximo passo', {}, { timeout: 4000 })
+        expect(next.querySelector('a')?.getAttribute('href')).toBe('/mercado')
+    })
+
+    it('"Saiba mais" do glossário navega pelo roteador, sem recarregar a página', async () => {
+        stubFetch({ correctCards: 3, xpAwarded: 50 })
+        renderGame()
+        await playAll()
+        await waitFor(() => expect(document.querySelector('.dg-result')?.childElementCount).toBeGreaterThan(0), { timeout: 4000 })
+        const host = document.querySelector('.dg') as HTMLElement
+        const a = document.createElement('a')
+        a.href = '/glossario?termo=Selic'
+        a.setAttribute('href', '/glossario?termo=Selic')
+        host.appendChild(a)
+        fireEvent.click(a)
+        expect(await screen.findByText('pagina do glossario')).toBeTruthy()
     })
 })

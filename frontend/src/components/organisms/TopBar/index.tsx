@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { BrandLogo } from '../../atoms/BrandLogo'
+import { DiarioBell } from '../../molecules/DiarioBell'
 import { FriendsBell } from '../../molecules/FriendsBell'
 import { MarketClockChip } from '../../molecules/MarketClockChip'
 import { NewsBell } from '../../molecules/NewsBell'
@@ -30,6 +31,7 @@ export function TopBar({ calendarOpen, onToggleCalendar }: TopBarProps) {
             <MarketClockChip open={calendarOpen} onToggle={onToggleCalendar} panelId={MARKET_CALENDAR_PANEL_ID} />
             <div className={styles.actions}>
                 <ProHeaderLink />
+                <DiarioBell />
                 <FriendsBell />
                 <NewsBell />
                 <AvatarMenu />

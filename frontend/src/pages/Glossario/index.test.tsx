@@ -8,10 +8,10 @@ vi.mock('../../features/lessons/useLessonsQuery', () => ({
     useLessonsQuery: () => ({ data: { lessons: [{ id: 'abc', code: '1.8', title: 'Tesouro Prefixado' }] } }),
 }))
 
-function renderPage() {
+function renderPage(entry = '/') {
     return render(
         <QueryClientProvider client={new QueryClient()}>
-            <MemoryRouter>
+            <MemoryRouter initialEntries={[entry]}>
                 <Glossario />
             </MemoryRouter>
         </QueryClientProvider>,
@@ -19,6 +19,13 @@ function renderPage() {
 }
 
 describe('Glossario', () => {
+    it('?termo= (vindo do Diário) abre o glossário já filtrado nesse termo', () => {
+        renderPage('/glossario?termo=Selic')
+        expect(screen.getByLabelText('Buscar termo')).toHaveValue('Selic')
+        expect(screen.getAllByRole('term').map((el) => el.textContent)).toContain('Selic')
+        expect(screen.queryByText('deságio')).not.toBeInTheDocument()
+    })
+
     it('lista os termos em ordem alfabética', () => {
         renderPage()
         const terms = screen.getAllByRole('term').map((el) => el.textContent ?? '')

@@ -1,0 +1,25 @@
+/* Complemento ao `components/atoms/Card` (mesmo desenho do `ResumeLessonCard`). */
+.card {
+    gap: 2px;
+    width: 100%;
+}
+
+.eyebrow {
+    color: var(--color-gamify-500);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.title {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.sub {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
