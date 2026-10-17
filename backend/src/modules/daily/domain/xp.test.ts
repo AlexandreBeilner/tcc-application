@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest'
+import { CARDS_PER_GAME, CARD_TYPES, isCardType } from './cards'
+import { calculateDailyXp } from './xp'
+
+describe('calculateDailyXp', () => {
+  it.each([
+    [0, 20],
+    [1, 30],
+    [2, 40],
+    [3, 50],
+  ])('%s cartões certos => %s XP', (correct, xp) => {
+    expect(calculateDailyXp(correct)).toBe(xp)
+  })
+
+  it.each([-1, 4, 1.5, Number.NaN])('recusa %s', (n) => {
+    expect(() => calculateDailyXp(n)).toThrow(RangeError)
+  })
+})
+
+describe('cartões', () => {
+  it('são três (DI16)', () => {
+    expect(CARD_TYPES).toEqual(['word', 'on_this_day', 'timeline'])
+    expect(CARDS_PER_GAME).toBe(3)
+  })
+
+  it('isCardType', () => {
+    expect(isCardType('word')).toBe(true)
+    expect(isCardType('mais_ou_menos')).toBe(false)
+    expect(isCardType(null)).toBe(false)
+  })
+})
