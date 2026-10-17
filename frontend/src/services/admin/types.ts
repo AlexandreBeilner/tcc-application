@@ -129,6 +129,19 @@ export type AuditAction =
     | 'admin.reauth'
     | 'admin.reauth_failed'
     | 'admin.password_reset_denied'
+    | 'daily.start_date'
+    | 'daily.draft'
+    | 'daily.puzzle_review'
+    | 'daily.puzzle_publish'
+    | 'daily.puzzle_card'
+    | 'daily.word_create'
+    | 'daily.word_update'
+    | 'daily.question_create'
+    | 'daily.question_update'
+    | 'daily.event_create'
+    | 'daily.event_update'
+    | 'daily.accepted_word_add'
+    | 'daily.accepted_word_remove'
     | 'assembly.pause'
     | 'assembly.resume'
     | 'assembly.setting_update'
@@ -1327,4 +1340,159 @@ export interface AgendaTemplate extends AgendaTemplateContent {
     active: boolean
     created_at: string
     usage: { assemblies: number; active_proposals: number }
+}
+
+// Painel do Diário (DI.5.1), como a API devolve e recebe (`.docs/backend/daily.md`).
+export type DailyScope = 'brasil' | 'fora'
+export type DailyStatus = 'off' | 'scheduled' | 'live'
+export type DailyCardOrigin = 'generated' | 'manual'
+export type DailyAlertCode = 'low_reviewed_cover' | 'scheduled_below_minimum' | 'today_not_published'
+export type DailyLearnMoreKind = 'lesson' | 'glossary' | 'guide'
+
+export interface DailyLearnMore {
+    kind: DailyLearnMoreKind
+    ref: string
+}
+
+export interface DailyAgendaDay {
+    number: number
+    date: string
+    reviewed: boolean
+    published: boolean
+    origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
+    word: { display: string; category: string; scope: DailyScope } | null
+    question: { text: string; category: string; scope: DailyScope } | null
+    events: { label: string; year: number; category: string; scope: DailyScope }[]
+}
+
+export interface DailyTally {
+    total: number
+    brasil: number
+    fora: number
+    by_category: Record<string, number>
+}
+
+export interface DailyOverview {
+    status: DailyStatus
+    start_date: string | null
+    today: string
+    can_change_start: boolean
+    agenda_from: string
+    reviewed_days_ahead: number
+    published_days_ahead: number
+    min_days_to_schedule: number
+    low_cover_threshold: number
+    alerts: DailyAlertCode[]
+    days: DailyAgendaDay[]
+    coverage: { window_days: number; word: DailyTally; trivia: DailyTally; timeline: DailyTally }
+    bank: { words: number; questions: number; events: number; accepted_extra: number }
+}
+
+export interface DailyWord {
+    id: string
+    stable_key: string
+    answer: string
+    display: string
+    definition: string
+    learn_more: DailyLearnMore | null
+    category: string
+    scope: DailyScope
+    active: boolean
+}
+
+export interface DailyQuestion {
+    id: string
+    stable_key: string
+    question: string
+    options: string[]
+    correct_index: number
+    explanation: string
+    source_ref: string
+    learn_more: DailyLearnMore | null
+    category: string
+    scope: DailyScope
+    reviewed_at: string | null
+    active: boolean
+}
+
+export interface DailyEvent {
+    id: string
+    stable_key: string
+    year: number
+    label: string
+    explanation: string
+    source_ref: string
+    learn_more: DailyLearnMore | null
+    category: string
+    scope: DailyScope
+    reviewed_at: string | null
+    active: boolean
+}
+
+export interface DailyPuzzleDetail {
+    number: number
+    date: string
+    is_today_or_past: boolean
+    reviewed_at: string | null
+    published_at: string | null
+    origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
+    word: DailyWord
+    question: DailyQuestion
+    // Na ordem de exibição do jogador.
+    events: DailyEvent[]
+    correct_order: string[]
+    warnings: string[]
+}
+
+export interface DailyDraftResult {
+    start_date: string
+    created: number
+    warnings: { date: string; code: string }[]
+}
+
+export interface DailyStartDateResult {
+    start_date: string | null
+    status: DailyStatus
+    published: number[]
+}
+
+export type DailyReplaceCardInput =
+    | { card: 'word'; word_id: string; confirm_published?: boolean }
+    | { card: 'question'; question_id: string; confirm_published?: boolean }
+    | { card: 'timeline'; event_ids: string[]; confirm_published?: boolean }
+
+export interface DailyWordInput {
+    display: string
+    definition: string
+    category: string
+    scope: DailyScope
+    learn_more: DailyLearnMore | null
+}
+
+export interface DailyQuestionInput {
+    question: string
+    options: string[]
+    correct_index: number
+    explanation: string
+    source_ref: string
+    category: string
+    scope: DailyScope
+    learn_more: DailyLearnMore | null
+}
+
+export interface DailyEventInput {
+    year: number
+    label: string
+    explanation: string
+    source_ref: string
+    category: string
+    scope: DailyScope
+    learn_more: DailyLearnMore | null
+}
+
+export type DailyPatch<T> = Partial<T> & { active?: boolean; confirm_published?: boolean }
+
+export interface DailyChangeImpact {
+    affected_puzzles: number[]
+    cleared_reviews: number[]
 }

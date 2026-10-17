@@ -156,6 +156,7 @@ describe('estreia', () => {
       reviewed_days_ahead: 30,
       published_days_ahead: 30,
       alerts: [],
+      bank: { words: 60, questions: 60, events: 200, accepted_extra: 1 },
     })
 
     const actions = auditLog.entries.map((e) => `${e.action}:${e.result}`)

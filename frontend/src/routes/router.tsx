@@ -252,6 +252,20 @@ export const router = createBrowserRouter([
                                         lazy: async () => ({ Component: (await import('../pages/AdminConteudoLicao')).AdminConteudoLicao }),
                                     },
                                     {
+                                        path: '/admin/diario',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminDiario')).AdminDiario }),
+                                    },
+                                    {
+                                        path: '/admin/diario/conteudo',
+                                        lazy: async () => ({
+                                            Component: (await import('../pages/AdminDiarioConteudo')).AdminDiarioConteudo,
+                                        }),
+                                    },
+                                    {
+                                        path: '/admin/diario/jogo/:number',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminDiarioJogo')).AdminDiarioJogo }),
+                                    },
+                                    {
                                         path: '/admin/gamificacao',
                                         lazy: async () => ({ Component: (await import('../pages/AdminGamificacao')).AdminGamificacao }),
                                     },

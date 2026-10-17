@@ -1,0 +1,114 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-100);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+/* Desligado: borda tracejada, convenção sólido/tracejado (nunca só cor). */
+.dashed {
+    border: 1px dashed var(--color-border-strong);
+    background: transparent;
+    color: var(--color-text-secondary);
+}
+
+.line {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    margin: 0;
+}
+
+.metrics dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.metrics dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+}
+
+.of {
+    color: var(--color-text-muted);
+    font-family: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 400;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.hint {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.notice {
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+.error p {
+    margin: 0;
+}
+
+.error ul {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-4);
+}

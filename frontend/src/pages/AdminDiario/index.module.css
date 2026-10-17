@@ -1,0 +1,97 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1280px;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: var(--space-1) 0 0;
+    max-width: 64ch;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.contentLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.muted {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    margin: 0;
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+/* Alerta: tracejado, convenção sólido/tracejado (nunca só cor). */
+.alerts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.alert {
+    padding: var(--space-3);
+    border: 1px dashed var(--color-feedback-error-500);
+    border-radius: var(--radius-md);
+    background: var(--color-feedback-error-100);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.layout {
+    display: grid;
+    gap: var(--space-4);
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* Desktop: composição própria, agenda larga e estreia fixa ao lado (não é o mobile esticado). */
+@media (min-width: 1200px) {
+    .layout {
+        grid-template-columns: minmax(0, 1fr) 340px;
+        align-items: start;
+    }
+
+    .main {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .side {
+        grid-column: 2;
+        grid-row: 1;
+        position: sticky;
+        top: var(--space-4);
+    }
+}

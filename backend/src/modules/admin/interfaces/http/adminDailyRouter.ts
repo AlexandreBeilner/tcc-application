@@ -126,7 +126,12 @@ function serializeOverview(o: AdminOverview) {
       trivia: serializeTally(o.coverage.trivia),
       timeline: serializeTally(o.coverage.timeline),
     },
-    bank: o.bank,
+    bank: {
+      words: o.bank.words,
+      questions: o.bank.questions,
+      events: o.bank.events,
+      accepted_extra: o.bank.acceptedExtra,
+    },
   }
 }
 
