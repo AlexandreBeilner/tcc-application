@@ -19,7 +19,7 @@ describe('calculateDailyXp', () => {
 
 describe('cartões', () => {
   it('são três (DI16)', () => {
-    expect(CARD_TYPES).toEqual(['word', 'on_this_day', 'timeline'])
+    expect(CARD_TYPES).toEqual(['word', 'trivia', 'timeline'])
     expect(CARDS_PER_GAME).toBe(3)
   })
 

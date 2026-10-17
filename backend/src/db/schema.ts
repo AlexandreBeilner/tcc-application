@@ -1271,20 +1271,17 @@ export const dailyAcceptedWords = pgTable(
   ],
 )
 
-// Banco de fatos datados: alimenta o "Neste dia na história" e, sorteado por ano distinto, a Linha
-// do tempo. `timeline_label` é o nome curto que aparece na ordenação ("Plano Real"); fato sem ele
-// não entra na Linha do tempo. `source_ref` (fonte primária) é obrigatório (checklist 3.3).
-export const dailyFacts = pgTable(
-  'daily_facts',
+// Pergunta de conhecimentos gerais de economia e finanças (cartão `trivia`), sem data. `source_ref`
+// (fonte primária) é obrigatório (checklist 3.3).
+export const dailyQuestions = pgTable(
+  'daily_questions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
-    eventDate: date('event_date').notNull(),
     question: text('question').notNull(),
     options: jsonb('options').$type<string[]>().notNull(),
     correctIndex: smallint('correct_index').notNull(),
     explanation: text('explanation').notNull(),
-    timelineLabel: varchar('timeline_label', { length: 80 }),
     sourceRef: text('source_ref').notNull(),
     learnMoreKind: text('learn_more_kind'),
     learnMoreRef: text('learn_more_ref'),
@@ -1298,14 +1295,47 @@ export const dailyFacts = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    check('daily_facts_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
-    check('daily_facts_source_chk', sql`length(btrim(${table.sourceRef})) > 0`),
+    check('daily_questions_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
+    check('daily_questions_source_chk', sql`length(btrim(${table.sourceRef})) > 0`),
     check(
-      'daily_facts_options_chk',
+      'daily_questions_options_chk',
       sql`jsonb_typeof(${table.options}) = 'array' AND jsonb_array_length(${table.options}) BETWEEN 2 AND 6 AND ${table.correctIndex} >= 0 AND ${table.correctIndex} < jsonb_array_length(${table.options})`,
     ),
     check(
-      'daily_facts_learn_more_chk',
+      'daily_questions_learn_more_chk',
+      sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
+    ),
+  ],
+)
+
+// Evento datado da Linha do tempo. A Linha do tempo sorteia 4 eventos com anos distintos; só o ano
+// ordena. `label` é o nome curto mostrado ("Plano Real"). Mesma exigência de fonte primária.
+export const dailyEvents = pgTable(
+  'daily_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
+    year: smallint('year').notNull(),
+    label: varchar('label', { length: 80 }).notNull(),
+    explanation: text('explanation').notNull(),
+    sourceRef: text('source_ref').notNull(),
+    learnMoreKind: text('learn_more_kind'),
+    learnMoreRef: text('learn_more_ref'),
+    category: varchar('category', { length: 40 }).notNull(),
+    scope: text('scope').notNull(),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    active: boolean('active').notNull().default(true),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_events_year_chk', sql`${table.year} BETWEEN 1500 AND 2200`),
+    check('daily_events_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
+    check('daily_events_source_chk', sql`length(btrim(${table.sourceRef})) > 0`),
+    check(
+      'daily_events_learn_more_chk',
       sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
     ),
   ],
@@ -1313,7 +1343,7 @@ export const dailyFacts = pgTable(
 
 // Jogo materializado de um dia (seção 3: a agenda). Referencia os itens dos bancos (corrigir um
 // texto no banco corrige o jogo), e guarda a origem de cada cartão: `generated` pela agenda,
-// `manual` quando o admin trocou. `timeline_fact_ids` é a ordem de exibição (4 ids). Materializar
+// `manual` quando o admin trocou. `timeline_event_ids` é a ordem de exibição (4 ids). Materializar
 // não é publicar: `reviewed_*` e `published_at` são passos do admin.
 export const dailyPuzzles = pgTable(
   'daily_puzzles',
@@ -1323,12 +1353,12 @@ export const dailyPuzzles = pgTable(
     wordId: uuid('word_id')
       .notNull()
       .references(() => dailyWords.id),
-    factId: uuid('fact_id')
+    questionId: uuid('question_id')
       .notNull()
-      .references(() => dailyFacts.id),
-    timelineFactIds: jsonb('timeline_fact_ids').$type<string[]>().notNull(),
+      .references(() => dailyQuestions.id),
+    timelineEventIds: jsonb('timeline_event_ids').$type<string[]>().notNull(),
     wordOrigin: text('word_origin').notNull().default('generated'),
-    factOrigin: text('fact_origin').notNull().default('generated'),
+    questionOrigin: text('question_origin').notNull().default('generated'),
     timelineOrigin: text('timeline_origin').notNull().default('generated'),
     reviewedBy: uuid('reviewed_by').references(() => users.id),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
@@ -1339,11 +1369,11 @@ export const dailyPuzzles = pgTable(
     check('daily_puzzles_number_chk', sql`${table.number} >= 1`),
     check(
       'daily_puzzles_origin_chk',
-      sql`${table.wordOrigin} IN ('generated', 'manual') AND ${table.factOrigin} IN ('generated', 'manual') AND ${table.timelineOrigin} IN ('generated', 'manual')`,
+      sql`${table.wordOrigin} IN ('generated', 'manual') AND ${table.questionOrigin} IN ('generated', 'manual') AND ${table.timelineOrigin} IN ('generated', 'manual')`,
     ),
     check(
       'daily_puzzles_timeline_chk',
-      sql`jsonb_typeof(${table.timelineFactIds}) = 'array' AND jsonb_array_length(${table.timelineFactIds}) = 4`,
+      sql`jsonb_typeof(${table.timelineEventIds}) = 'array' AND jsonb_array_length(${table.timelineEventIds}) = 4`,
     ),
   ],
 )
@@ -1367,8 +1397,8 @@ export const dailyResults = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     wordCorrect: boolean('word_correct'),
-    factChoice: smallint('fact_choice'),
-    factCorrect: boolean('fact_correct'),
+    questionChoice: smallint('question_choice'),
+    questionCorrect: boolean('question_correct'),
     timelineOrder: jsonb('timeline_order').$type<string[]>(),
     timelineCorrect: boolean('timeline_correct'),
     xpAwarded: integer('xp_awarded').notNull().default(0),

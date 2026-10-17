@@ -1,5 +1,5 @@
 // Os três cartões do Diário (DI16). "Mais ou menos" foi descartado.
-export const CARD_TYPES = ['word', 'on_this_day', 'timeline'] as const
+export const CARD_TYPES = ['word', 'trivia', 'timeline'] as const
 
 export type CardType = (typeof CARD_TYPES)[number]
 

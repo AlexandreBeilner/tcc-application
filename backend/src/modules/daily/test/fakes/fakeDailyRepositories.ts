@@ -1,6 +1,7 @@
-import type { DailyFact, DailyPuzzle, DailyWord } from '../../domain/content'
-import type { DailyFactRepository } from '../../application/ports/dailyFactRepository'
+import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
+import type { DailyEventRepository } from '../../application/ports/dailyEventRepository'
 import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
+import type { DailyQuestionRepository } from '../../application/ports/dailyQuestionRepository'
 import type { DailySettingsRepository } from '../../application/ports/dailySettingsRepository'
 import type { DailyWordRepository } from '../../application/ports/dailyWordRepository'
 
@@ -43,25 +44,48 @@ export function createFakeDailyWordRepository(
   }
 }
 
-export function createFakeDailyFactRepository(
-  initial: DailyFact[] = [],
-): DailyFactRepository & { items: DailyFact[] } {
+export function createFakeDailyQuestionRepository(
+  initial: DailyQuestion[] = [],
+): DailyQuestionRepository & { items: DailyQuestion[] } {
   const items = [...initial]
   return {
     items,
-    async create(fact) {
-      const created = { ...fact, id: `f${items.length + 1}` }
+    async create(item) {
+      const created = { ...item, id: `q${items.length + 1}` }
       items.push(created)
       return created
     },
     async findById(id) {
-      return items.find((f) => f.id === id) ?? null
+      return items.find((x) => x.id === id) ?? null
     },
     async findManyByIds(ids) {
-      return items.filter((f) => ids.includes(f.id))
+      return items.filter((x) => ids.includes(x.id))
     },
     async listActive() {
-      return items.filter((f) => f.active)
+      return items.filter((x) => x.active)
+    },
+  }
+}
+
+export function createFakeDailyEventRepository(
+  initial: DailyEvent[] = [],
+): DailyEventRepository & { items: DailyEvent[] } {
+  const items = [...initial]
+  return {
+    items,
+    async create(item) {
+      const created = { ...item, id: `e${items.length + 1}` }
+      items.push(created)
+      return created
+    },
+    async findById(id) {
+      return items.find((x) => x.id === id) ?? null
+    },
+    async findManyByIds(ids) {
+      return items.filter((x) => ids.includes(x.id))
+    },
+    async listActive() {
+      return items.filter((x) => x.active)
     },
   }
 }

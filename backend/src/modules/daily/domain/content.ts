@@ -26,17 +26,31 @@ export interface DailyWord {
   active: boolean
 }
 
-export interface DailyFact {
+// Pergunta de conhecimentos gerais de economia e finanças (cartão `trivia`). Sem data: o banco não
+// precisa cobrir o calendário, só o tema e a variedade (seção 3.3).
+export interface DailyQuestion {
   id: string
   stableKey: string
-  // YYYY-MM-DD
-  eventDate: string
   question: string
   options: string[]
   correctIndex: number
   explanation: string
-  // Nome curto na Linha do tempo; nulo = o fato não entra nela.
-  timelineLabel: string | null
+  sourceRef: string
+  learnMore: LearnMore | null
+  category: string
+  scope: ContentScope
+  reviewedAt: Date | null
+  active: boolean
+}
+
+// Evento datado da Linha do tempo. Só o ano importa para ordenar; `label` é o nome curto mostrado
+// ("Plano Real") e `explanation` aparece depois da resposta, com o porquê de o evento importar.
+export interface DailyEvent {
+  id: string
+  stableKey: string
+  year: number
+  label: string
+  explanation: string
   sourceRef: string
   learnMore: LearnMore | null
   category: string
@@ -52,11 +66,11 @@ export interface DailyPuzzle {
   // YYYY-MM-DD
   gameDate: string
   wordId: string
-  factId: string
-  // Ordem de exibição da Linha do tempo (4 ids de `DailyFact`).
-  timelineFactIds: string[]
+  questionId: string
+  // Ordem de exibição da Linha do tempo (4 ids de `DailyEvent`).
+  timelineEventIds: string[]
   wordOrigin: CardOrigin
-  factOrigin: CardOrigin
+  questionOrigin: CardOrigin
   timelineOrigin: CardOrigin
   reviewedBy: string | null
   reviewedAt: Date | null
@@ -69,8 +83,8 @@ export interface DailyResult {
   puzzleNumber: number
   wordGuesses: string[]
   wordCorrect: boolean | null
-  factChoice: number | null
-  factCorrect: boolean | null
+  questionChoice: number | null
+  questionCorrect: boolean | null
   timelineOrder: string[] | null
   timelineCorrect: boolean | null
   xpAwarded: number

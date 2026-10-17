@@ -1,4 +1,4 @@
-import type { DailyFact, DailyPuzzle, DailyWord } from '../../domain/content'
+import type { DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
 import {
   DEFAULT_WINDOWS,
   planDay,
@@ -8,8 +8,9 @@ import {
   type ScheduledDay,
 } from '../../domain/agenda'
 import { addDays, dailyDay, gameNumberFor, resolveStatus } from '../../domain/gameDay'
-import type { DailyFactRepository } from '../ports/dailyFactRepository'
+import type { DailyEventRepository } from '../ports/dailyEventRepository'
 import type { DailyPuzzleRepository } from '../ports/dailyPuzzleRepository'
+import type { DailyQuestionRepository } from '../ports/dailyQuestionRepository'
 import type { DailySettingsRepository } from '../ports/dailySettingsRepository'
 import type { DailyWordRepository } from '../ports/dailyWordRepository'
 
@@ -47,7 +48,8 @@ export class MaterializeUpcomingPuzzlesUseCase {
   constructor(
     private readonly settings: DailySettingsRepository,
     private readonly words: DailyWordRepository,
-    private readonly facts: DailyFactRepository,
+    private readonly questions: DailyQuestionRepository,
+    private readonly events: DailyEventRepository,
     private readonly puzzles: DailyPuzzleRepository,
     private readonly now: () => Date = () => new Date(),
     private readonly options: MaterializeOptions = {},
@@ -71,17 +73,18 @@ export class MaterializeUpcomingPuzzlesUseCase {
     const windowStart = state.status === 'scheduled' ? state.startDate : today
     const historyFrom = addDays(
       windowStart < today ? windowStart : today,
-      -(Math.max(windows.wordDays, windows.onThisDayDays) + 1),
+      -(Math.max(windows.wordDays, windows.questionDays) + 1),
     )
 
     const existing = await this.puzzles.listFromDate(historyFrom, HISTORY_LIMIT)
     const kept = await this.realign(existing, state.startDate, result)
 
-    const [activeWords, activeFacts] = await Promise.all([
+    const [activeWords, activeQuestions, activeEvents] = await Promise.all([
       this.words.listActive(),
-      this.facts.listActive(),
+      this.questions.listActive(),
+      this.events.listActive(),
     ])
-    const history = await this.buildHistory(kept, activeWords, activeFacts)
+    const history = await this.buildHistory(kept, activeWords, activeQuestions)
     const takenDates = new Set(kept.map((p) => p.gameDate))
     const takenNumbers = new Set(kept.map((p) => p.number))
 
@@ -95,7 +98,8 @@ export class MaterializeUpcomingPuzzlesUseCase {
       const { plan, warnings } = planDay({
         date,
         words: activeWords,
-        facts: activeFacts,
+        questions: activeQuestions,
+        events: activeEvents,
         history,
         windows,
       })
@@ -108,7 +112,7 @@ export class MaterializeUpcomingPuzzlesUseCase {
         gameDate: date,
         ...plan,
         wordOrigin: 'generated',
-        factOrigin: 'generated',
+        questionOrigin: 'generated',
         timelineOrigin: 'generated',
         reviewedBy: null,
         reviewedAt: null,
@@ -116,16 +120,16 @@ export class MaterializeUpcomingPuzzlesUseCase {
       })
       result.created.push(number)
       const word = activeWords.find((w) => w.id === plan.wordId)
-      const fact = activeFacts.find((f) => f.id === plan.factId)
+      const question = activeQuestions.find((q) => q.id === plan.questionId)
       history.push({
         date,
         wordId: plan.wordId,
         wordCategory: word?.category ?? null,
         wordScope: word?.scope ?? null,
-        factId: plan.factId,
-        factCategory: fact?.category ?? null,
-        factScope: fact?.scope ?? null,
-        timelineFactIds: plan.timelineFactIds,
+        questionId: plan.questionId,
+        questionCategory: question?.category ?? null,
+        questionScope: question?.scope ?? null,
+        timelineEventIds: plan.timelineEventIds,
       })
     }
     return result
@@ -164,22 +168,26 @@ export class MaterializeUpcomingPuzzlesUseCase {
   private async buildHistory(
     puzzles: DailyPuzzle[],
     words: DailyWord[],
-    facts: DailyFact[],
+    questions: DailyQuestion[],
   ): Promise<ScheduledDay[]> {
     const wordById = new Map(words.map((w) => [w.id, w]))
-    const factById = new Map(facts.map((f) => [f.id, f]))
-    const missing = [...new Set(puzzles.map((p) => p.factId))].filter((id) => !factById.has(id))
-    for (const fact of await this.facts.findManyByIds(missing)) factById.set(fact.id, fact)
+    const questionById = new Map(questions.map((q) => [q.id, q]))
+    const missing = [...new Set(puzzles.map((p) => p.questionId))].filter(
+      (id) => !questionById.has(id),
+    )
+    for (const question of await this.questions.findManyByIds(missing)) {
+      questionById.set(question.id, question)
+    }
 
     return puzzles.map((p) => ({
       date: p.gameDate,
       wordId: p.wordId,
       wordCategory: wordById.get(p.wordId)?.category ?? null,
       wordScope: wordById.get(p.wordId)?.scope ?? null,
-      factId: p.factId,
-      factCategory: factById.get(p.factId)?.category ?? null,
-      factScope: factById.get(p.factId)?.scope ?? null,
-      timelineFactIds: p.timelineFactIds,
+      questionId: p.questionId,
+      questionCategory: questionById.get(p.questionId)?.category ?? null,
+      questionScope: questionById.get(p.questionId)?.scope ?? null,
+      timelineEventIds: p.timelineEventIds,
     }))
   }
 }

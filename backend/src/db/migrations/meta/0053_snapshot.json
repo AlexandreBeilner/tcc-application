@@ -1,5 +1,5 @@
 {
-  "id": "02f0f405-7653-4126-8a9d-be0e9cfcd523",
+  "id": "a8086b3b-78e8-4b72-a71d-cb28cfd02320",
   "prevId": "03583b2b-e865-4bfe-9e66-e29a51c58743",
   "version": "7",
   "dialect": "postgresql",
@@ -1675,8 +1675,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.daily_facts": {
-      "name": "daily_facts",
+    "public.daily_events": {
+      "name": "daily_events",
       "schema": "",
       "columns": {
         "id": {
@@ -1692,27 +1692,15 @@
           "primaryKey": false,
           "notNull": true
         },
-        "event_date": {
-          "name": "event_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "question": {
-          "name": "question",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "options": {
-          "name": "options",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "correct_index": {
-          "name": "correct_index",
+        "year": {
+          "name": "year",
           "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(80)",
           "primaryKey": false,
           "notNull": true
         },
@@ -1721,12 +1709,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "timeline_label": {
-          "name": "timeline_label",
-          "type": "varchar(80)",
-          "primaryKey": false,
-          "notNull": false
         },
         "source_ref": {
           "name": "source_ref",
@@ -1800,9 +1782,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "daily_facts_reviewed_by_users_id_fk": {
-          "name": "daily_facts_reviewed_by_users_id_fk",
-          "tableFrom": "daily_facts",
+        "daily_events_reviewed_by_users_id_fk": {
+          "name": "daily_events_reviewed_by_users_id_fk",
+          "tableFrom": "daily_events",
           "tableTo": "users",
           "columnsFrom": [
             "reviewed_by"
@@ -1813,9 +1795,9 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "daily_facts_updated_by_users_id_fk": {
-          "name": "daily_facts_updated_by_users_id_fk",
-          "tableFrom": "daily_facts",
+        "daily_events_updated_by_users_id_fk": {
+          "name": "daily_events_updated_by_users_id_fk",
+          "tableFrom": "daily_events",
           "tableTo": "users",
           "columnsFrom": [
             "updated_by"
@@ -1829,8 +1811,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "daily_facts_stable_key_unique": {
-          "name": "daily_facts_stable_key_unique",
+        "daily_events_stable_key_unique": {
+          "name": "daily_events_stable_key_unique",
           "nullsNotDistinct": false,
           "columns": [
             "stable_key"
@@ -1839,21 +1821,21 @@
       },
       "policies": {},
       "checkConstraints": {
-        "daily_facts_scope_chk": {
-          "name": "daily_facts_scope_chk",
-          "value": "\"daily_facts\".\"scope\" IN ('brasil', 'fora')"
+        "daily_events_year_chk": {
+          "name": "daily_events_year_chk",
+          "value": "\"daily_events\".\"year\" BETWEEN 1500 AND 2200"
         },
-        "daily_facts_source_chk": {
-          "name": "daily_facts_source_chk",
-          "value": "length(btrim(\"daily_facts\".\"source_ref\")) > 0"
+        "daily_events_scope_chk": {
+          "name": "daily_events_scope_chk",
+          "value": "\"daily_events\".\"scope\" IN ('brasil', 'fora')"
         },
-        "daily_facts_options_chk": {
-          "name": "daily_facts_options_chk",
-          "value": "jsonb_typeof(\"daily_facts\".\"options\") = 'array' AND jsonb_array_length(\"daily_facts\".\"options\") BETWEEN 2 AND 6 AND \"daily_facts\".\"correct_index\" >= 0 AND \"daily_facts\".\"correct_index\" < jsonb_array_length(\"daily_facts\".\"options\")"
+        "daily_events_source_chk": {
+          "name": "daily_events_source_chk",
+          "value": "length(btrim(\"daily_events\".\"source_ref\")) > 0"
         },
-        "daily_facts_learn_more_chk": {
-          "name": "daily_facts_learn_more_chk",
-          "value": "(\"daily_facts\".\"learn_more_kind\" IS NULL) = (\"daily_facts\".\"learn_more_ref\" IS NULL) AND (\"daily_facts\".\"learn_more_kind\" IS NULL OR \"daily_facts\".\"learn_more_kind\" IN ('lesson', 'glossary', 'guide'))"
+        "daily_events_learn_more_chk": {
+          "name": "daily_events_learn_more_chk",
+          "value": "(\"daily_events\".\"learn_more_kind\" IS NULL) = (\"daily_events\".\"learn_more_ref\" IS NULL) AND (\"daily_events\".\"learn_more_kind\" IS NULL OR \"daily_events\".\"learn_more_kind\" IN ('lesson', 'glossary', 'guide'))"
         }
       },
       "isRLSEnabled": false
@@ -1959,14 +1941,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "fact_id": {
-          "name": "fact_id",
+        "question_id": {
+          "name": "question_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "timeline_fact_ids": {
-          "name": "timeline_fact_ids",
+        "timeline_event_ids": {
+          "name": "timeline_event_ids",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
@@ -1978,8 +1960,8 @@
           "notNull": true,
           "default": "'generated'"
         },
-        "fact_origin": {
-          "name": "fact_origin",
+        "question_origin": {
+          "name": "question_origin",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -2033,12 +2015,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "daily_puzzles_fact_id_daily_facts_id_fk": {
-          "name": "daily_puzzles_fact_id_daily_facts_id_fk",
+        "daily_puzzles_question_id_daily_questions_id_fk": {
+          "name": "daily_puzzles_question_id_daily_questions_id_fk",
           "tableFrom": "daily_puzzles",
-          "tableTo": "daily_facts",
+          "tableTo": "daily_questions",
           "columnsFrom": [
-            "fact_id"
+            "question_id"
           ],
           "columnsTo": [
             "id"
@@ -2078,11 +2060,182 @@
         },
         "daily_puzzles_origin_chk": {
           "name": "daily_puzzles_origin_chk",
-          "value": "\"daily_puzzles\".\"word_origin\" IN ('generated', 'manual') AND \"daily_puzzles\".\"fact_origin\" IN ('generated', 'manual') AND \"daily_puzzles\".\"timeline_origin\" IN ('generated', 'manual')"
+          "value": "\"daily_puzzles\".\"word_origin\" IN ('generated', 'manual') AND \"daily_puzzles\".\"question_origin\" IN ('generated', 'manual') AND \"daily_puzzles\".\"timeline_origin\" IN ('generated', 'manual')"
         },
         "daily_puzzles_timeline_chk": {
           "name": "daily_puzzles_timeline_chk",
-          "value": "jsonb_typeof(\"daily_puzzles\".\"timeline_fact_ids\") = 'array' AND jsonb_array_length(\"daily_puzzles\".\"timeline_fact_ids\") = 4"
+          "value": "jsonb_typeof(\"daily_puzzles\".\"timeline_event_ids\") = 'array' AND jsonb_array_length(\"daily_puzzles\".\"timeline_event_ids\") = 4"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.daily_questions": {
+      "name": "daily_questions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "stable_key": {
+          "name": "stable_key",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "question": {
+          "name": "question",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "options": {
+          "name": "options",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "correct_index": {
+          "name": "correct_index",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "explanation": {
+          "name": "explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_ref": {
+          "name": "source_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "learn_more_kind": {
+          "name": "learn_more_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "learn_more_ref": {
+          "name": "learn_more_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reviewed_by": {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "daily_questions_reviewed_by_users_id_fk": {
+          "name": "daily_questions_reviewed_by_users_id_fk",
+          "tableFrom": "daily_questions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reviewed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "daily_questions_updated_by_users_id_fk": {
+          "name": "daily_questions_updated_by_users_id_fk",
+          "tableFrom": "daily_questions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "daily_questions_stable_key_unique": {
+          "name": "daily_questions_stable_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "stable_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "daily_questions_scope_chk": {
+          "name": "daily_questions_scope_chk",
+          "value": "\"daily_questions\".\"scope\" IN ('brasil', 'fora')"
+        },
+        "daily_questions_source_chk": {
+          "name": "daily_questions_source_chk",
+          "value": "length(btrim(\"daily_questions\".\"source_ref\")) > 0"
+        },
+        "daily_questions_options_chk": {
+          "name": "daily_questions_options_chk",
+          "value": "jsonb_typeof(\"daily_questions\".\"options\") = 'array' AND jsonb_array_length(\"daily_questions\".\"options\") BETWEEN 2 AND 6 AND \"daily_questions\".\"correct_index\" >= 0 AND \"daily_questions\".\"correct_index\" < jsonb_array_length(\"daily_questions\".\"options\")"
+        },
+        "daily_questions_learn_more_chk": {
+          "name": "daily_questions_learn_more_chk",
+          "value": "(\"daily_questions\".\"learn_more_kind\" IS NULL) = (\"daily_questions\".\"learn_more_ref\" IS NULL) AND (\"daily_questions\".\"learn_more_kind\" IS NULL OR \"daily_questions\".\"learn_more_kind\" IN ('lesson', 'glossary', 'guide'))"
         }
       },
       "isRLSEnabled": false
@@ -2123,14 +2276,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "fact_choice": {
-          "name": "fact_choice",
+        "question_choice": {
+          "name": "question_choice",
           "type": "smallint",
           "primaryKey": false,
           "notNull": false
         },
-        "fact_correct": {
-          "name": "fact_correct",
+        "question_correct": {
+          "name": "question_correct",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false

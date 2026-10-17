@@ -9,7 +9,8 @@ import * as schema from '../../../../db/schema'
 import { MaterializeUpcomingPuzzlesUseCase } from '../../application/useCases/materializeUpcomingPuzzles'
 import type { DailyResult } from '../../domain/content'
 import { createDrizzleAcceptedWordRepository } from './drizzleAcceptedWordRepository'
-import { createDrizzleDailyFactRepository } from './drizzleDailyFactRepository'
+import { createDrizzleDailyEventRepository } from './drizzleDailyEventRepository'
+import { createDrizzleDailyQuestionRepository } from './drizzleDailyQuestionRepository'
 import { createDrizzleDailyPuzzleRepository } from './drizzleDailyPuzzleRepository'
 import { createDrizzleDailyResultRepository } from './drizzleDailyResultRepository'
 import { createDrizzleDailySettingsRepository } from './drizzleDailySettingsRepository'
@@ -36,16 +37,28 @@ const wordInput = (
   ...extra,
 })
 
-const factInput = (key: string, year: number, extra: Record<string, unknown> = {}) => ({
+const questionInput = (key: string, extra: Record<string, unknown> = {}) => ({
   stableKey: key,
-  eventDate: `${year}-07-01`,
-  question: 'Pergunta?',
-  options: ['A', 'B', 'C', 'D'],
-  correctIndex: 2,
-  explanation: 'Porque sim.',
-  timelineLabel: key,
+  question: 'Qual índice mede a inflação oficial do Brasil?',
+  options: ['IPCA', 'IGP-M', 'CDI', 'Selic'],
+  correctIndex: 0,
+  explanation: 'O IPCA, do IBGE, é a referência da meta de inflação.',
+  sourceRef: 'IBGE',
+  learnMore: { kind: 'glossary' as const, ref: 'ipca' },
+  category: 'inflacao',
+  scope: 'brasil' as const,
+  reviewedAt: null,
+  active: true,
+  ...extra,
+})
+
+const eventInput = (key: string, year: number, extra: Record<string, unknown> = {}) => ({
+  stableKey: key,
+  year,
+  label: key,
+  explanation: 'Por que importou.',
   sourceRef: 'Banco Central do Brasil',
-  learnMore: { kind: 'glossary' as const, ref: 'selic' },
+  learnMore: null,
   category: 'moeda',
   scope: 'brasil' as const,
   reviewedAt: null,
@@ -59,14 +72,16 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
   let userId: string
 
   const words = () => createDrizzleDailyWordRepository(db)
-  const facts = () => createDrizzleDailyFactRepository(db)
+  const questions = () => createDrizzleDailyQuestionRepository(db)
+  const events = () => createDrizzleDailyEventRepository(db)
   const puzzles = () => createDrizzleDailyPuzzleRepository(db)
   const results = () => createDrizzleDailyResultRepository(db)
 
   async function clean() {
     await db.delete(schema.dailyResults)
     await db.delete(schema.dailyPuzzles)
-    await db.delete(schema.dailyFacts)
+    await db.delete(schema.dailyQuestions)
+    await db.delete(schema.dailyEvents)
     await db.delete(schema.dailyWords)
     await db.delete(schema.dailyAcceptedWords)
     await db.update(schema.dailySettings).set({ startDate: null, updatedBy: null })
@@ -104,17 +119,18 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
 
   async function seedPuzzle(number: number, gameDate: string, publishedAt: Date | null = null) {
     const word = await words().create(wordInput(`PALAVRA${String.fromCharCode(64 + number)}`))
+    const question = await questions().create(questionInput(`pergunta-${number}`))
     const created = [] as string[]
     for (let i = 0; i < 4; i++)
-      created.push((await facts().create(factInput(`fato-${number}-${i}`, 1980 + i * 10))).id)
+      created.push((await events().create(eventInput(`evento-${number}-${i}`, 1980 + i * 10))).id)
     await puzzles().create({
       number,
       gameDate,
       wordId: word.id,
-      factId: created[0],
-      timelineFactIds: created,
+      questionId: question.id,
+      timelineEventIds: created,
       wordOrigin: 'generated',
-      factOrigin: 'generated',
+      questionOrigin: 'generated',
       timelineOrigin: 'generated',
       reviewedBy: null,
       reviewedAt: null,
@@ -181,27 +197,55 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
     })
   })
 
-  describe('fatos', () => {
-    it('cria e lê, inclusive por lista de ids', async () => {
-      const a = await facts().create(factInput('plano-real', 1994))
-      const b = await facts().create(
-        factInput('plano-collor', 1990, { timelineLabel: null, learnMore: null }),
-      )
-      expect(await facts().findById(a.id)).toEqual(a)
-      expect(b.timelineLabel).toBeNull()
-      expect((await facts().findManyByIds([a.id, b.id])).map((f) => f.id).sort()).toEqual(
-        [a.id, b.id].sort(),
-      )
-      expect(await facts().findManyByIds([])).toEqual([])
+  describe('perguntas', () => {
+    it('cria, lê e lista só as ativas', async () => {
+      const a = await questions().create(questionInput('ipca'))
+      await questions().create(questionInput('cdi', { active: false, learnMore: null }))
+      expect(await questions().findById(a.id)).toEqual(a)
+      expect(a.learnMore).toEqual({ kind: 'glossary', ref: 'ipca' })
+      expect((await questions().listActive()).map((q) => q.id)).toEqual([a.id])
+      expect(await questions().findManyByIds([a.id])).toEqual([a])
+      expect(await questions().findManyByIds([])).toEqual([])
     })
 
-    it('exige fonte primária, alternativa certa dentro das opções e vínculo "saiba mais" completo', async () => {
-      await expect(facts().create(factInput('k1', 1990, { sourceRef: '   ' }))).rejects.toThrow()
-      await expect(facts().create(factInput('k2', 1990, { correctIndex: 4 }))).rejects.toThrow()
+    it('exige fonte primária, alternativa certa dentro das opções, marcador válido e vínculo "saiba mais" completo', async () => {
+      await expect(questions().create(questionInput('k1', { sourceRef: '   ' }))).rejects.toThrow()
+      await expect(questions().create(questionInput('k2', { correctIndex: 4 }))).rejects.toThrow()
       await expect(
-        facts().create(factInput('k3', 1990, { options: ['só uma'], correctIndex: 0 })),
+        questions().create(questionInput('k3', { options: ['só uma'], correctIndex: 0 })),
       ).rejects.toThrow()
-      await expect(facts().create(factInput('k4', 1990, { scope: 'mundo' }))).rejects.toThrow()
+      await expect(questions().create(questionInput('k4', { scope: 'mundo' }))).rejects.toThrow()
+      await expect(
+        db.insert(schema.dailyQuestions).values({
+          ...questionInput('k5'),
+          learnMoreKind: 'guide',
+          learnMoreRef: null,
+        } as never),
+      ).rejects.toThrow()
+    })
+
+    it('recusa chave repetida', async () => {
+      await questions().create(questionInput('ipca'))
+      await expect(questions().create(questionInput('ipca'))).rejects.toThrow()
+    })
+  })
+
+  describe('eventos da Linha do tempo', () => {
+    it('cria e lê, inclusive por lista de ids', async () => {
+      const a = await events().create(eventInput('plano-real', 1994))
+      const b = await events().create(eventInput('plano-collor', 1990))
+      expect(await events().findById(a.id)).toEqual(a)
+      expect((await events().findManyByIds([a.id, b.id])).map((e) => e.id).sort()).toEqual(
+        [a.id, b.id].sort(),
+      )
+      expect(await events().findManyByIds([])).toEqual([])
+      expect((await events().listActive()).map((e) => e.year)).toEqual([1990, 1994])
+    })
+
+    it('exige fonte primária, ano plausível e marcador válido', async () => {
+      await expect(events().create(eventInput('k1', 1990, { sourceRef: ' ' }))).rejects.toThrow()
+      await expect(events().create(eventInput('k2', 900))).rejects.toThrow()
+      await expect(events().create(eventInput('k3', 1990, { scope: 'mundo' }))).rejects.toThrow()
     })
   })
 
@@ -271,14 +315,24 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
           wordInput(`PALAV${String.fromCharCode(65 + i)}`, { category: `c${i % 3}` }),
         )
       }
+      for (let i = 0; i < 12; i++)
+        await questions().create(questionInput(`pergunta-${i}`, { category: `c${i % 4}` }))
       for (let i = 0; i < 30; i++)
-        await facts().create(factInput(`fato-${i}`, 1950 + i * 2, { category: `c${i % 4}` }))
+        await events().create(eventInput(`evento-${i}`, 1950 + i * 2, { category: `c${i % 4}` }))
       const settings = createDrizzleDailySettingsRepository(db)
       await settings.setStartDate('2026-11-10', userId, NOW)
       const build = () =>
-        new MaterializeUpcomingPuzzlesUseCase(settings, words(), facts(), puzzles(), () => NOW, {
-          horizonDays: 4,
-        })
+        new MaterializeUpcomingPuzzlesUseCase(
+          settings,
+          words(),
+          questions(),
+          events(),
+          puzzles(),
+          () => NOW,
+          {
+            horizonDays: 4,
+          },
+        )
 
       const first = await build().execute()
       expect(first.created).toEqual([1, 2, 3, 4])
@@ -305,8 +359,8 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       puzzleNumber: 1,
       wordGuesses: ['JUROS'],
       wordCorrect: null,
-      factChoice: null,
-      factCorrect: null,
+      questionChoice: null,
+      questionCorrect: null,
       timelineOrder: null,
       timelineCorrect: null,
       xpAwarded: 0,
@@ -324,8 +378,8 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
         ...base(),
         wordGuesses: ['JUROS', 'SELIC'],
         wordCorrect: true,
-        factChoice: 2,
-        factCorrect: true,
+        questionChoice: 2,
+        questionCorrect: true,
         timelineOrder: ['a', 'b', 'c', 'd'],
         timelineCorrect: false,
         xpAwarded: 40,

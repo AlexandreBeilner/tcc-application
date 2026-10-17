@@ -1,7 +1,8 @@
 import type { Database } from '../../db/client'
 import { MaterializeUpcomingPuzzlesUseCase } from './application/useCases/materializeUpcomingPuzzles'
-import { createDrizzleDailyFactRepository } from './infrastructure/persistence/drizzleDailyFactRepository'
+import { createDrizzleDailyEventRepository } from './infrastructure/persistence/drizzleDailyEventRepository'
 import { createDrizzleDailyPuzzleRepository } from './infrastructure/persistence/drizzleDailyPuzzleRepository'
+import { createDrizzleDailyQuestionRepository } from './infrastructure/persistence/drizzleDailyQuestionRepository'
 import { createDrizzleDailySettingsRepository } from './infrastructure/persistence/drizzleDailySettingsRepository'
 import { createDrizzleDailyWordRepository } from './infrastructure/persistence/drizzleDailyWordRepository'
 
@@ -10,13 +11,15 @@ import { createDrizzleDailyWordRepository } from './infrastructure/persistence/d
 export function createDailyComposition(db: Database) {
   const settings = createDrizzleDailySettingsRepository(db)
   const words = createDrizzleDailyWordRepository(db)
-  const facts = createDrizzleDailyFactRepository(db)
+  const questions = createDrizzleDailyQuestionRepository(db)
+  const events = createDrizzleDailyEventRepository(db)
   const puzzles = createDrizzleDailyPuzzleRepository(db)
 
   const materializeUpcomingPuzzles = new MaterializeUpcomingPuzzlesUseCase(
     settings,
     words,
-    facts,
+    questions,
+    events,
     puzzles,
   )
   return { materializeUpcomingPuzzles }

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { DailyFact, DailyPuzzle, DailyWord } from '../../domain/content'
+import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
 import {
-  createFakeDailyFactRepository,
+  createFakeDailyEventRepository,
   createFakeDailyPuzzleRepository,
+  createFakeDailyQuestionRepository,
   createFakeDailySettingsRepository,
   createFakeDailyWordRepository,
 } from '../../test/fakes/fakeDailyRepositories'
@@ -20,15 +21,27 @@ const word = (i: number, scope: 'brasil' | 'fora' = 'brasil'): DailyWord => ({
   active: true,
 })
 
-const fact = (i: number): DailyFact => ({
-  id: `f${i}`,
-  stableKey: `f${i}`,
-  eventDate: `${1900 + i}-${String((i % 12) + 1).padStart(2, '0')}-${String((i % 27) + 1).padStart(2, '0')}`,
+const questionItem = (i: number): DailyQuestion => ({
+  id: `q${i}`,
+  stableKey: `q${i}`,
   question: 'q',
   options: ['a', 'b'],
   correctIndex: 0,
   explanation: 'e',
-  timelineLabel: `evento ${i}`,
+  sourceRef: 'BCB',
+  learnMore: null,
+  category: `cat${i % 4}`,
+  scope: 'brasil',
+  reviewedAt: null,
+  active: true,
+})
+
+const eventItem = (i: number): DailyEvent => ({
+  id: `e${i}`,
+  stableKey: `e${i}`,
+  year: 1900 + i,
+  label: `evento ${i}`,
+  explanation: 'e',
   sourceRef: 'BCB',
   learnMore: null,
   category: `cat${i % 4}`,
@@ -38,31 +51,35 @@ const fact = (i: number): DailyFact => ({
 })
 
 const manyWords = (n: number) => Array.from({ length: n }, (_, i) => word(i))
-const manyFacts = (n: number) => Array.from({ length: n }, (_, i) => fact(i))
+const manyQuestions = (n: number) => Array.from({ length: n }, (_, i) => questionItem(i))
+const manyEvents = (n: number) => Array.from({ length: n }, (_, i) => eventItem(i))
 
 function setup(opts: {
   start: string | null
   now: string
   words?: DailyWord[]
-  facts?: DailyFact[]
+  questions?: DailyQuestion[]
+  events?: DailyEvent[]
   puzzles?: DailyPuzzle[]
   horizon?: number
 }) {
   const settings = createFakeDailySettingsRepository(opts.start)
   const words = createFakeDailyWordRepository(opts.words ?? manyWords(60))
-  const facts = createFakeDailyFactRepository(opts.facts ?? manyFacts(200))
+  const questions = createFakeDailyQuestionRepository(opts.questions ?? manyQuestions(60))
+  const events = createFakeDailyEventRepository(opts.events ?? manyEvents(200))
   const puzzles = createFakeDailyPuzzleRepository(opts.puzzles)
   const useCase = new MaterializeUpcomingPuzzlesUseCase(
     settings,
     words,
-    facts,
+    questions,
+    events,
     puzzles,
     () => new Date(opts.now),
     {
       horizonDays: opts.horizon ?? 30,
     },
   )
-  return { settings, words, facts, puzzles, useCase }
+  return { settings, words, questions, events, puzzles, useCase }
 }
 
 const puzzleAt = (
@@ -73,10 +90,10 @@ const puzzleAt = (
   number,
   gameDate,
   wordId: `w${number + 100}`,
-  factId: `f${number + 100}`,
-  timelineFactIds: ['f1', 'f2', 'f3', 'f4'],
+  questionId: `q${number + 100}`,
+  timelineEventIds: ['e1', 'e2', 'e3', 'e4'],
   wordOrigin: 'generated',
-  factOrigin: 'generated',
+  questionOrigin: 'generated',
   timelineOrigin: 'generated',
   reviewedBy: null,
   reviewedAt: null,
@@ -103,7 +120,7 @@ describe('MaterializeUpcomingPuzzlesUseCase', () => {
       publishedAt: null,
     })
     expect(puzzles.items.at(-1)).toMatchObject({ number: 30, gameDate: '2026-12-09' })
-    expect(result.warnings.filter((w) => w.code !== 'on_this_day_not_exact')).toEqual([])
+    expect(result.warnings).toEqual([])
   })
 
   it('no ar: materializa a partir de hoje, com a numeração da estreia', async () => {
@@ -134,11 +151,11 @@ describe('MaterializeUpcomingPuzzlesUseCase', () => {
     expect(JSON.stringify(puzzles.items)).toBe(snapshot)
   })
 
-  it('ao longo da agenda, palavra e fato do dia não repetem', async () => {
+  it('ao longo da agenda, palavra e pergunta do dia não repetem', async () => {
     const { useCase, puzzles } = setup({ start: '2026-11-10', now: '2026-11-01T12:00:00Z' })
     await useCase.execute()
     expect(new Set(puzzles.items.map((p) => p.wordId)).size).toBe(30)
-    expect(new Set(puzzles.items.map((p) => p.factId)).size).toBe(30)
+    expect(new Set(puzzles.items.map((p) => p.questionId)).size).toBe(30)
   })
 
   it('a regra de variedade vale na agenda inteira: nunca a mesma categoria em dias seguidos', async () => {
@@ -168,17 +185,18 @@ describe('MaterializeUpcomingPuzzlesUseCase', () => {
       start: '2026-11-10',
       now: '2026-11-01T12:00:00Z',
       words: [],
-      facts: [],
+      questions: [],
+      events: [],
       horizon: 2,
     })
     const result = await useCase.execute()
     expect(puzzles.items).toHaveLength(0)
     expect(result.warnings.map((w) => w.code)).toEqual([
       'no_word_available',
-      'no_fact_available',
+      'no_question_available',
       'no_timeline_available',
       'no_word_available',
-      'no_fact_available',
+      'no_question_available',
       'no_timeline_available',
     ])
   })
@@ -268,26 +286,22 @@ describe('MaterializeUpcomingPuzzlesUseCase', () => {
     })
   })
 
-  it('usa o fato de um jogo antigo já desativado na janela de repetição', async () => {
-    const facts = manyFacts(200)
+  it('conta na janela de repetição o que já está agendado, mesmo se o item foi desativado', async () => {
     const past = puzzleAt(1, '2026-11-01', {
-      factId: 'f77',
+      questionId: 'q7',
       wordId: 'w5',
       publishedAt: new Date('2026-11-01T00:00:00Z'),
     })
-    const {
-      useCase,
-      puzzles,
-      facts: factRepo,
-    } = setup({
+    const { useCase, puzzles, questions } = setup({
       start: '2026-11-01',
       now: '2026-11-02T12:00:00Z',
-      facts,
       puzzles: [past],
       horizon: 5,
     })
-    factRepo.items.find((f) => f.id === 'f77')!.active = false
+    questions.items.find((q) => q.id === 'q7')!.active = false
     await useCase.execute()
-    expect(puzzles.items.slice(1).every((p) => p.factId !== 'f77' && p.wordId !== 'w5')).toBe(true)
+    expect(puzzles.items.slice(1).every((p) => p.questionId !== 'q7' && p.wordId !== 'w5')).toBe(
+      true,
+    )
   })
 })
