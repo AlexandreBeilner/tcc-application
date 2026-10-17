@@ -16,6 +16,9 @@ const snapshot: ProgressSnapshot = {
   lessonsReviewed: 2,
   assembliesParticipated: 3,
   referralsQualified: 3,
+  dailyWordFirstTry: 6,
+  dailyPerfectDays: 4,
+  dailyTimelineStreak: 2,
 }
 
 describe('progressValueFor', () => {
@@ -29,6 +32,9 @@ describe('progressValueFor', () => {
     ['lesson_reviewed', 2],
     ['assemblies_participated', 3],
     ['referrals_qualified', 3],
+    ['daily_word_first_try', 6],
+    ['daily_perfect_days', 4],
+    ['daily_timeline_streak', 2],
   ] as const)('lê o número certo do snapshot pra %s', (criteriaType, expected) => {
     expect(progressValueFor(criteriaType, snapshot)).toBe(expected)
   })
@@ -55,6 +61,12 @@ describe('isSatisfied', () => {
     ['assemblies_participated', 4, false],
     ['referrals_qualified', 3, true],
     ['referrals_qualified', 4, false],
+    ['daily_word_first_try', 6, true],
+    ['daily_word_first_try', 7, false],
+    ['daily_perfect_days', 4, true],
+    ['daily_perfect_days', 5, false],
+    ['daily_timeline_streak', 2, true],
+    ['daily_timeline_streak', 7, false],
   ] as const)('%s >= %d ? %s', (criteriaType, criteriaValue, expected) => {
     expect(isSatisfied(criteriaType, criteriaValue, snapshot)).toBe(expected)
   })

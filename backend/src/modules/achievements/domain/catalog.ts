@@ -22,6 +22,15 @@ export const ACHIEVEMENT_CRITERIA: Record<
     label: 'Amigos indicados que concluíram a 1ª lição',
     valueKind: 'integer',
   },
+  daily_word_first_try: {
+    label: 'Diários com a Palavra acertada de primeira',
+    valueKind: 'integer',
+  },
+  daily_perfect_days: { label: 'Diários com os três cartões certos', valueKind: 'integer' },
+  daily_timeline_streak: {
+    label: 'Melhor sequência de Diários com a Linha do tempo certa',
+    valueKind: 'integer',
+  },
 }
 
 export const ACHIEVEMENT_CRITERIA_TYPES = Object.keys(

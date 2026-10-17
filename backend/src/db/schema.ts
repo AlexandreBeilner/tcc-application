@@ -45,6 +45,10 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'assemblies_participated',
   // Indicações que viraram válidas (MO.7.2): a pessoa indicada concluiu a primeira lição.
   'referrals_qualified',
+  // Qualidade no Diário (DI.6.1): só conta jogo concluído dentro do próprio dia.
+  'daily_word_first_try',
+  'daily_perfect_days',
+  'daily_timeline_streak',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
 // padrão (sem widget embutido); os outros três embutem um componente já

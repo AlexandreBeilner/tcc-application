@@ -12,6 +12,10 @@ export type AchievementCriteriaType =
   | 'assemblies_participated'
   // Indicações que viraram válidas (MO.7.2): a pessoa indicada concluiu a primeira lição.
   | 'referrals_qualified'
+  // Qualidade no Diário (DI.6.1): só conta jogo concluído dentro do próprio dia.
+  | 'daily_word_first_try'
+  | 'daily_perfect_days'
+  | 'daily_timeline_streak'
 
 export interface Achievement {
   id: string
@@ -40,6 +44,9 @@ export interface ProgressSnapshot {
   lessonsReviewed: number
   assembliesParticipated: number
   referralsQualified: number
+  dailyWordFirstTry: number
+  dailyPerfectDays: number
+  dailyTimelineStreak: number
 }
 
 export function progressValueFor(
@@ -65,6 +72,12 @@ export function progressValueFor(
       return snapshot.assembliesParticipated
     case 'referrals_qualified':
       return snapshot.referralsQualified
+    case 'daily_word_first_try':
+      return snapshot.dailyWordFirstTry
+    case 'daily_perfect_days':
+      return snapshot.dailyPerfectDays
+    case 'daily_timeline_streak':
+      return snapshot.dailyTimelineStreak
   }
 }
 

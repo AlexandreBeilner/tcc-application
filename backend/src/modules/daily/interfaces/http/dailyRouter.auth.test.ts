@@ -2,6 +2,7 @@ import express from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { createDailyRouter } from './dailyRouter'
+import { GetDailyQualityUseCase } from '../../application/useCases/getDailyQuality'
 import { CORRECT_ORDER, DISPLAY_ORDER, START, buildDailyWorld } from '../../test/dailyWorld'
 
 // Hoje = jogo #2 (UTC 2026-11-02). A virada para o #3 é 00:00 UTC (21h de Brasília).
@@ -247,6 +248,34 @@ describe('sem XP: dia anterior e depois da virada', () => {
     const ctx = setup(DAY2_LAST_MINUTE)
     const last = await playAll(ctx, 2)
     expect(last.body.completion.xpAwarded).toBe(50)
+  })
+
+  it('jogo perfeito de dia anterior ou fechado depois da virada não conta para as conquistas (DI.6.1)', async () => {
+    const ctx = setup()
+    const quality = new GetDailyQualityUseCase(ctx.world.results)
+    // Jogo #1 é dia anterior; o #2 é aberto no último minuto e fechado depois da virada.
+    await playAll(ctx, 1)
+    ctx.clock.now = DAY2_LAST_MINUTE
+    await guess(ctx, 2, 'acoes')
+    await trivia(ctx, 2, 1)
+    ctx.clock.now = DAY3_FIRST_MINUTE
+    await timeline(ctx, 2, CORRECT_ORDER)
+    expect(ctx.world.results.items.every((r) => r.completedAt !== null)).toBe(true)
+    expect(await quality.execute({ userId: 'u1' })).toEqual({
+      wordFirstTryGames: 0,
+      perfectDays: 0,
+      bestTimelineRun: 0,
+    })
+  })
+
+  it('o jogo do dia concluído a tempo conta para as conquistas', async () => {
+    const ctx = setup()
+    await playAll(ctx, 2)
+    expect(await new GetDailyQualityUseCase(ctx.world.results).execute({ userId: 'u1' })).toEqual({
+      wordFirstTryGames: 1,
+      perfectDays: 1,
+      bestTimelineRun: 1,
+    })
   })
 
   it('o dia seguinte continua 404 para quem está logado', async () => {

@@ -379,6 +379,13 @@
       "when": 1794500000000,
       "tag": "0053_add_daily_diary",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794600000000,
+      "tag": "0054_add_daily_achievement_criteria",
+      "breakpoints": true
     }
   ]
 }

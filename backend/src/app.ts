@@ -1,6 +1,10 @@
 import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
-import { createDailyAdminUseCases, createDailyComposition } from './modules/daily/composition'
+import {
+  createDailyAdminUseCases,
+  createDailyComposition,
+  createDailyQualityReader,
+} from './modules/daily/composition'
 import { createAdminDailyRouter } from './modules/admin/interfaces/http/adminDailyRouter'
 import {
   DailyAdminReadsUseCase,
@@ -808,6 +812,7 @@ export function createApp(deps: AppDeps = {}): Express {
       count: (userId) => createDrizzleAssemblyRepository(db).countVotedAssemblies(userId),
     },
     countReferralsQualified: { count: referralsCore.countQualified },
+    getDailyQuality: createDailyQualityReader(db),
     getNetWorth,
     sandboxAssetReader,
   })
