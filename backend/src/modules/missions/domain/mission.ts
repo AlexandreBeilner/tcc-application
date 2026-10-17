@@ -29,6 +29,10 @@ export const REVIEW_OLD_LESSON_MISSION_KEY = 'review_old_lesson'
 // mesmo tratamento por `key` de `REVIEW_OLD_LESSON_MISSION_KEY` acima.
 export const MICRO_DECISION_STREAK_MISSION_KEY = 'micro_decision_streak_today'
 
+// Quarta missão com verificação cruzada real (DI.6.1, ponto 060), mesmo tratamento por `key`:
+// conferida contra `daily_results` (jogo do dia concluído antes da virada, com XP).
+export const PLAY_DAILY_MISSION_KEY = 'play_daily'
+
 export interface MissionProgressSnapshot {
   status: MissionStatus
 }

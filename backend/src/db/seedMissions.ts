@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   MICRO_DECISION_STREAK_MISSION_KEY,
+  PLAY_DAILY_MISSION_KEY,
   REVIEW_OLD_LESSON_MISSION_KEY,
 } from '../modules/missions/domain/mission'
 import { createDb } from './client'
@@ -71,6 +72,16 @@ export const MISSION_SEEDS: MissionSeed[] = [
     description: 'Acerte 3 escolhas seguidas no passo Micro-decisão das suas lições hoje.',
     completionCriteria: '3 acertos seguidos hoje na Micro-decisão, sem erro no meio',
     xpReward: 30,
+    requiresLessonCompletion: false,
+  },
+  // Quarta missão com verificação cruzada real (DI.6.1, ponto 060): o Diário do dia, concluído antes
+  // da virada. 20 XP (e não 30 como as outras) para um dia perfeito somar 70, abaixo de lição + missão (80).
+  {
+    key: PLAY_DAILY_MISSION_KEY,
+    title: 'Jogue o Diário de hoje',
+    description: 'Termine os três cartões do Diário Selucra de hoje.',
+    completionCriteria: 'Fechar hoje o Diário do dia, antes da virada (00:00 UTC)',
+    xpReward: 20,
     requiresLessonCompletion: false,
   },
 ]

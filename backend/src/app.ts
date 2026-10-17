@@ -2,6 +2,7 @@ import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
 import {
   createDailyAdminUseCases,
+  createDailyCompletionReader,
   createDailyComposition,
   createDailyQualityReader,
 } from './modules/daily/composition'
@@ -295,6 +296,7 @@ import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions
 import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
 import { createInProcessLessonCompletionChecker } from './modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker'
 import { createInProcessLessonReviewChecker } from './modules/missions/infrastructure/lessons/inProcessLessonReviewChecker'
+import { createInProcessDailyCompletionChecker } from './modules/missions/infrastructure/daily/inProcessDailyCompletionChecker'
 import { createInProcessMicroDecisionStreakChecker } from './modules/missions/infrastructure/lessons/inProcessMicroDecisionStreakChecker'
 import { createDrizzleMissionRepository } from './modules/missions/infrastructure/persistence/drizzleMissionRepository'
 import { createMissionsRouter } from './modules/missions/interfaces/http/missionsRouter'
@@ -899,6 +901,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessLessonCompletionChecker(hasCompletedLessonToday),
     createInProcessLessonReviewChecker(hasReviewedOldLessonToday),
     createInProcessMicroDecisionStreakChecker(hasMicroDecisionStreakToday),
+    createInProcessDailyCompletionChecker(createDailyCompletionReader(db)),
     createInProcessXpAwarderForMissions(awardXp),
     createInProcessStreakTrackerForMissions(touchStreak),
   )

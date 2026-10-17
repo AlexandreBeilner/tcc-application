@@ -13,6 +13,7 @@ import { AnswerTimelineUseCase } from './application/useCases/answerTimeline'
 import { AnswerTriviaUseCase } from './application/useCases/answerTrivia'
 import { EvaluateWordGuessUseCase } from './application/useCases/evaluateWordGuess'
 import { GetDailyQualityUseCase } from './application/useCases/getDailyQuality'
+import { HasCompletedDailyTodayUseCase } from './application/useCases/hasCompletedDailyToday'
 import { GetGameUseCase } from './application/useCases/getGame'
 import { GetTodayUseCase } from './application/useCases/getToday'
 import { MaterializeUpcomingPuzzlesUseCase } from './application/useCases/materializeUpcomingPuzzles'
@@ -109,6 +110,11 @@ export function createDailyAdminUseCases(db: Database) {
 // Leitura das conquistas por qualidade (DI.6.1), consumida pelo agregador de `achievements`.
 export function createDailyQualityReader(db: Database) {
   return new GetDailyQualityUseCase(createDrizzleDailyResultRepository(db))
+}
+
+// Leitura da missão "Jogue o Diário" (DI.6.1), consumida pelo módulo `missions`.
+export function createDailyCompletionReader(db: Database) {
+  return new HasCompletedDailyTodayUseCase(createDrizzleDailyResultRepository(db))
 }
 
 export interface DailyRouterComposition {

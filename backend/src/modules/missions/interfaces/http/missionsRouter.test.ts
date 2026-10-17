@@ -7,10 +7,12 @@ import { CompleteMissionUseCase } from '../../application/useCases/completeMissi
 import { ListDailyMissionsUseCase } from '../../application/useCases/listDailyMissions'
 import {
   MICRO_DECISION_STREAK_MISSION_KEY,
+  PLAY_DAILY_MISSION_KEY,
   REVIEW_OLD_LESSON_MISSION_KEY,
 } from '../../domain/mission'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
 import { createFakeLessonReviewChecker } from '../../test/fakes/fakeLessonReviewChecker'
+import { createFakeDailyCompletionChecker } from '../../test/fakes/fakeDailyCompletionChecker'
 import { createFakeMicroDecisionStreakChecker } from '../../test/fakes/fakeMicroDecisionStreakChecker'
 import { createFakeMissionRepository } from '../../test/fakes/fakeMissionRepository'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -58,12 +60,23 @@ const catalog = [
     requiresLessonCompletion: false,
     isActive: true,
   },
+  {
+    id: 'm5',
+    key: PLAY_DAILY_MISSION_KEY,
+    title: 'Jogue o Diário de hoje',
+    description: null,
+    completionCriteria: 'Fechar hoje o Diário do dia',
+    xpReward: 20,
+    requiresLessonCompletion: false,
+    isActive: true,
+  },
 ]
 
 function buildApp(
   hasCompletedLesson = false,
   hasReviewedOldLesson = false,
   hasMicroDecisionStreak = false,
+  hasCompletedDaily = false,
 ) {
   const missionRepository = createFakeMissionRepository(catalog)
   const tokenIssuer = createFakeTokenIssuer()
@@ -74,6 +87,7 @@ function buildApp(
     createFakeLessonCompletionChecker(hasCompletedLesson),
     createFakeLessonReviewChecker(hasReviewedOldLesson),
     createFakeMicroDecisionStreakChecker(hasMicroDecisionStreak),
+    createFakeDailyCompletionChecker(hasCompletedDaily),
     createFakeXpAwarder(),
     createFakeStreakTracker(),
   )
@@ -104,7 +118,7 @@ describe('missions routes', () => {
     const res = await request(app).get('/missions').set('Authorization', `Bearer ${token}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.missions).toHaveLength(4)
+    expect(res.body.missions).toHaveLength(5)
   })
 
   it('POST /missions/:id/complete retorna 404 pra missão inexistente', async () => {
@@ -146,6 +160,29 @@ describe('missions routes', () => {
       streakMilestone: null,
       unlockedAchievements: [],
     })
+  })
+
+  it('POST /missions/:id/complete retorna 422 pra missão do Diário sem o Diário de hoje', async () => {
+    const { app, tokenIssuer } = buildApp(false, false, false, false)
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .post('/missions/m5/complete')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(422)
+  })
+
+  it('POST /missions/:id/complete credita 20 XP na missão do Diário concluída', async () => {
+    const { app, tokenIssuer } = buildApp(false, false, false, true)
+    const token = tokenIssuer.issue({ sub: 'u1', role: 'user' })
+
+    const res = await request(app)
+      .post('/missions/m5/complete')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.xpAwarded).toBe(20)
   })
 
   it('POST /missions/:id/complete retorna 422 pra missão de revisão sem revisão elegível hoje', async () => {
