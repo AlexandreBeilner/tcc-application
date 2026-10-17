@@ -42,6 +42,8 @@ const BACKEND_ROUTE_NAMESPACES = [
     'leagues',
     // MO.5.3 — API dos duelos (`/duels`); as páginas são `/duelos`, sem colisão.
     'duels',
+    // DI.4.1 — API do jogo diário (`/daily`); a página é `/diario`, sem colisão.
+    'daily',
     // MO.5.4 — API da retrospectiva (`/retrospectives`); a página é `/retrospectiva`, sem colisão.
     'retrospectives',
     // MO.6.6 — API das assembleias de acionistas (`/assemblies`); as páginas são `/assembleias`, sem colisão.

@@ -88,6 +88,8 @@ export const router = createBrowserRouter([
                     // inválido/fora do currículo redireciona pro Hub.
                     { path: '/trilha', lazy: async () => ({ Component: (await import('../pages/TrilhasHub')).TrilhasHub }) },
                     // Consulta do glossário das lições (RC.3.5): sempre aberta, não é produto travado.
+                    // Jogo diário (DI.4.1): sempre aberto, não é produto travado pela trilha.
+                    { path: '/diario', lazy: async () => ({ Component: (await import('../pages/Diario')).Diario }) },
                     { path: '/glossario', lazy: async () => ({ Component: (await import('../pages/Glossario')).Glossario }) },
                     { path: '/trilha/mapa/:trackNumber', lazy: async () => ({ Component: (await import('../pages/TrackMap')).TrackMap }) },
                     { path: '/trilha/:id', lazy: async () => ({ Component: (await import('../pages/Lesson')).Lesson }) },
