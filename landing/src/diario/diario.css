@@ -1,0 +1,755 @@
+/* Estilo do módulo do Diário. A landing e o app guardam os tokens com nomes diferentes (`--bg` / `--color-bg-base`),
+   então o módulo lê uma variável própria (`--dg-*`) que aponta para o token de quem hospeda e cai no tema escuro padrão.
+   Tema claro e escuro seguem o do hospedeiro. Estado nunca só por cor: cada um tem borda e símbolo próprios. */
+.dg {
+    --dg-bg: var(--bg, var(--color-bg-base, #0e0f13));
+    --dg-surface: var(--surface, var(--color-bg-surface, #16181d));
+    --dg-elev: var(--elev, var(--color-bg-surface-elevated, #1e2129));
+    --dg-border: var(--border, var(--color-border, #2a2e38));
+    --dg-border-strong: var(--border-strong, var(--color-border-strong, #3a3f4c));
+    --dg-text: var(--text, var(--color-text-primary, #f5f6f8));
+    --dg-text2: var(--text2, var(--color-text-secondary, #9ba1ae));
+    --dg-muted: var(--muted, var(--color-text-muted, #868c98));
+    --dg-brand: var(--brand, var(--color-brand-500, #2f6fed));
+    --dg-link: var(--brand-300, var(--color-link, #93b4ff));
+    --dg-gain: var(--gain, var(--color-gain-500, #34c77b));
+    --dg-gain-bg: var(--gain-100, var(--color-gain-100, #0f2b1e));
+    --dg-loss: var(--loss, var(--color-loss-500, #e5484d));
+    --dg-loss-bg: var(--loss-100, var(--color-loss-100, #2e1416));
+    --dg-gamify: var(--gamify, var(--color-gamify-500, #f0a202));
+    --dg-gamify-bg: var(--gamify-100, var(--color-gamify-100, #332405));
+    --dg-font: var(--font-body, var(--font-family-body, system-ui, sans-serif));
+    --dg-font-display: var(--font-display, var(--font-family-heading, system-ui, sans-serif));
+
+    display: grid;
+    gap: 16px;
+    max-width: 560px;
+    margin-inline: auto;
+    color: var(--dg-text);
+    font-family: var(--dg-font);
+    font-size: 1rem;
+    line-height: 1.45;
+    box-sizing: border-box;
+}
+.dg *,
+.dg *::before,
+.dg *::after {
+    box-sizing: border-box;
+}
+.dg [hidden] {
+    display: none !important;
+}
+.dg button {
+    font: inherit;
+    color: inherit;
+}
+.dg :focus-visible {
+    outline: 3px solid var(--dg-link);
+    outline-offset: 2px;
+}
+.dg-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* ---- cabeçalho, abas, mensagens ---- */
+.dg-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+}
+.dg-title {
+    margin: 0;
+    font-family: var(--dg-font-display);
+    font-size: 1.375rem;
+    line-height: 1.2;
+}
+.dg-sub {
+    margin: 0;
+    color: var(--dg-text2);
+    font-size: 0.875rem;
+}
+.dg-badge {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border: 1px dashed var(--dg-gamify);
+    border-radius: 999px;
+    background: var(--dg-gamify-bg);
+    color: var(--dg-text);
+    font-size: 0.75rem;
+}
+.dg-game {
+    display: grid;
+    gap: 12px;
+}
+.dg-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--dg-border);
+    border-radius: 12px;
+    background: var(--dg-surface);
+}
+.dg-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px 4px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+.dg-tab[aria-selected='true'] {
+    border-color: var(--dg-border-strong);
+    background: var(--dg-elev);
+    font-weight: 600;
+}
+.dg-tab-glyph {
+    margin-right: 4px;
+    font-weight: 700;
+}
+.dg-tab[data-state='certo'] .dg-tab-glyph {
+    color: var(--dg-gain);
+}
+.dg-tab[data-state='errado'] .dg-tab-glyph {
+    color: var(--dg-loss);
+}
+.dg-msg {
+    min-height: 1.45em;
+    margin: 0;
+    color: var(--dg-text2);
+    font-size: 0.875rem;
+}
+.dg-warn {
+    margin: 0;
+    padding: 8px 12px;
+    border: 1px dashed var(--dg-gamify);
+    border-radius: 8px;
+    background: var(--dg-gamify-bg);
+    font-size: 0.875rem;
+}
+.dg-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--dg-brand);
+    border-radius: 12px;
+    background: var(--dg-surface);
+}
+.dg-state {
+    display: grid;
+    justify-items: start;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--dg-border);
+    border-radius: 12px;
+    background: var(--dg-surface);
+}
+.dg-state p {
+    margin: 0;
+}
+.dg-panel {
+    padding: 16px;
+    border: 1px solid var(--dg-border);
+    border-radius: 16px;
+    background: var(--dg-surface);
+}
+
+/* ---- botões e links ---- */
+.dg-btn {
+    min-height: 44px;
+    padding: 8px 16px;
+    border: 1px solid var(--dg-border-strong);
+    border-radius: 10px;
+    background: var(--dg-elev);
+    font-weight: 600;
+    cursor: pointer;
+}
+.dg-btn-primary {
+    border-color: var(--dg-brand);
+    background: var(--dg-brand);
+    color: #fff;
+}
+.dg-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.dg-link-btn {
+    justify-self: start;
+    min-height: 36px;
+    padding: 4px 12px;
+    font-weight: 500;
+}
+.dg-link {
+    color: var(--dg-link);
+    text-decoration: underline;
+}
+.dg-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ---- Palavra do dia ---- */
+.dg-word {
+    display: grid;
+    gap: 14px;
+    justify-items: center;
+}
+.dg-grid {
+    --gap: 6px;
+    container-type: inline-size;
+    display: grid;
+    gap: var(--gap);
+    width: min(100%, calc(var(--len) * 64px));
+}
+.dg-row {
+    display: grid;
+    grid-template-columns: repeat(var(--len), minmax(0, 1fr));
+    gap: var(--gap);
+}
+.dg-tile {
+    --tile-bg: var(--dg-surface);
+    --tile-bd: var(--dg-border-strong);
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border: 2px solid var(--tile-bd);
+    border-radius: 8px;
+    background: var(--tile-bg);
+    font-family: var(--dg-font-display);
+    font-size: clamp(0.9rem, calc(62cqw / var(--len)), 1.9rem);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.dg-tile[data-state='typing'] {
+    --tile-bd: var(--dg-text2);
+}
+/* certo: borda sólida grossa e ✓; lugar errado: borda tracejada e ●; fora da palavra: borda pontilhada, apagado e ✗ */
+.dg-tile[data-state='correct'] {
+    --tile-bg: var(--dg-gain-bg);
+    --tile-bd: var(--dg-gain);
+    border-width: 3px;
+    border-style: solid;
+}
+.dg-tile[data-state='present'] {
+    --tile-bg: var(--dg-gamify-bg);
+    --tile-bd: var(--dg-gamify);
+    border-style: dashed;
+}
+.dg-tile[data-state='absent'] {
+    --tile-bg: var(--dg-elev);
+    --tile-bd: var(--dg-border);
+    border-style: dotted;
+    color: var(--dg-muted);
+}
+.dg-tile::after {
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    font-family: var(--dg-font);
+    font-size: 0.5em;
+    line-height: 1;
+}
+.dg-tile[data-state='correct']::after {
+    content: '✓';
+    color: var(--dg-gain);
+}
+.dg-tile[data-state='present']::after {
+    content: '●';
+    color: var(--dg-gamify);
+}
+.dg-tile[data-state='absent']::after {
+    content: '✗';
+    color: var(--dg-muted);
+}
+.dg-flip .dg-tile {
+    animation:
+        dg-flip 0.5s ease-in-out backwards,
+        dg-tint 0.5s step-end backwards;
+    animation-delay: calc(var(--i) * 250ms);
+}
+@keyframes dg-flip {
+    0%,
+    100% {
+        transform: rotateX(0);
+    }
+    50% {
+        transform: rotateX(90deg);
+    }
+}
+@keyframes dg-tint {
+    0%,
+    49.9% {
+        background: var(--dg-surface);
+        border-color: var(--dg-border-strong);
+        color: var(--dg-text);
+    }
+}
+.dg-shake {
+    animation: dg-shake 0.35s;
+}
+@keyframes dg-shake {
+    20%,
+    60% {
+        transform: translateX(-6px);
+    }
+    40%,
+    80% {
+        transform: translateX(6px);
+    }
+}
+.dg-kb {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+}
+.dg-kb-row {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+}
+.dg-key {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 44px;
+    min-height: 48px;
+    padding: 0;
+    border: 2px solid var(--dg-border-strong);
+    border-radius: 8px;
+    background: var(--dg-elev);
+    font-weight: 700;
+    cursor: pointer;
+}
+.dg-key-wide {
+    flex: 1.6 1 0;
+    max-width: 66px;
+    font-size: 1.1rem;
+}
+.dg-key[data-state='correct'] {
+    border-color: var(--dg-gain);
+    border-style: solid;
+    background: var(--dg-gain-bg);
+}
+.dg-key[data-state='present'] {
+    border-color: var(--dg-gamify);
+    border-style: dashed;
+    background: var(--dg-gamify-bg);
+}
+.dg-key[data-state='absent'] {
+    border-color: var(--dg-border);
+    border-style: dotted;
+    color: var(--dg-muted);
+    opacity: 0.7;
+}
+.dg-reveal,
+.dg-after {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--dg-border);
+    border-radius: 12px;
+    background: var(--dg-elev);
+}
+.dg-reveal p,
+.dg-after p {
+    margin: 0;
+}
+.dg-reveal-title {
+    font-weight: 700;
+}
+.dg-reveal-word {
+    font-family: var(--dg-font-display);
+    font-size: 1.5rem;
+    letter-spacing: 0.05em;
+}
+.dg-reveal-def,
+.dg-explain {
+    color: var(--dg-text2);
+}
+.dg-source {
+    color: var(--dg-muted);
+    font-size: 0.8125rem;
+}
+
+/* ---- Pergunta do dia ---- */
+.dg-trivia,
+.dg-timeline {
+    display: grid;
+    gap: 12px;
+}
+.dg-question {
+    margin: 0;
+    font-family: var(--dg-font-display);
+    font-size: 1.125rem;
+    line-height: 1.35;
+}
+.dg-options {
+    display: grid;
+    gap: 8px;
+}
+.dg-option {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 2px solid var(--dg-border-strong);
+    border-radius: 10px;
+    background: var(--dg-elev);
+    text-align: left;
+    cursor: pointer;
+}
+.dg-option-letter {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--dg-border-strong);
+    border-radius: 50%;
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+.dg-option-mark {
+    font-weight: 700;
+}
+.dg-option[data-state='selected'] {
+    border-color: var(--dg-brand);
+    border-style: solid;
+}
+.dg-option[data-state='right'] {
+    border-color: var(--dg-gain);
+    border-width: 3px;
+    background: var(--dg-gain-bg);
+}
+.dg-option[data-state='wrong'] {
+    border-color: var(--dg-loss);
+    border-style: dashed;
+    background: var(--dg-loss-bg);
+}
+.dg-option:disabled {
+    cursor: default;
+    color: var(--dg-text);
+}
+
+/* ---- Linha do tempo ---- */
+.dg-hint {
+    margin: 0;
+    color: var(--dg-text2);
+    font-size: 0.875rem;
+}
+.dg-tl {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.dg-tl-item {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 6px 8px;
+    border: 2px solid var(--dg-border-strong);
+    border-radius: 10px;
+    background: var(--dg-elev);
+}
+.dg-tl-item[data-hit] {
+    grid-template-columns: auto 1fr auto auto;
+}
+.dg-tl-item[data-hit='true'] {
+    border-color: var(--dg-gain);
+    border-width: 3px;
+    background: var(--dg-gain-bg);
+}
+.dg-tl-item[data-hit='false'] {
+    border-color: var(--dg-loss);
+    border-style: dashed;
+    background: var(--dg-loss-bg);
+}
+.dg-dragging {
+    border-color: var(--dg-brand);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.dg-tl-pos {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--dg-surface);
+    color: var(--dg-text2);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.dg-tl-label {
+    overflow-wrap: anywhere;
+}
+.dg-tl-year {
+    color: var(--dg-text2);
+    font-variant-numeric: tabular-nums;
+}
+.dg-tl-mark {
+    font-weight: 700;
+}
+.dg-tl-grip,
+.dg-icon-btn {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--dg-border-strong);
+    border-radius: 8px;
+    background: var(--dg-surface);
+    font-size: 1.125rem;
+    cursor: pointer;
+}
+.dg-tl-grip {
+    touch-action: none;
+    cursor: grab;
+}
+.dg-icon-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.dg-truth {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 20px;
+}
+
+/* ---- Resultado, estatísticas, dias anteriores ---- */
+.dg-result {
+    display: grid;
+    gap: 12px;
+}
+.dg-res-title {
+    margin: 0;
+    font-family: var(--dg-font-display);
+    font-size: 1.125rem;
+}
+.dg-res-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.dg-res-list li[data-ok='true'] .dg-res-mark {
+    color: var(--dg-gain);
+}
+.dg-res-list li[data-ok='false'] .dg-res-mark {
+    color: var(--dg-loss);
+}
+.dg-res-mark {
+    margin-right: 6px;
+    font-weight: 700;
+}
+.dg-xp {
+    margin: 0;
+    color: var(--dg-gamify);
+    font-family: var(--dg-font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+.dg-share {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--dg-border);
+    border-radius: 10px;
+    background: var(--dg-bg);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.dg-next {
+    margin: 0;
+    color: var(--dg-text2);
+}
+.dg-count {
+    color: var(--dg-text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+.dg-stats,
+.dg-past {
+    padding: 16px;
+    border: 1px solid var(--dg-border);
+    border-radius: 16px;
+    background: var(--dg-surface);
+}
+.dg-stats h3 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+}
+.dg-stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    text-align: center;
+}
+.dg-stat strong {
+    display: block;
+    font-family: var(--dg-font-display);
+    font-size: 1.5rem;
+}
+.dg-stat span {
+    color: var(--dg-text2);
+    font-size: 0.75rem;
+}
+.dg-dist {
+    display: grid;
+    gap: 4px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.dg-dist li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.dg-dist-n {
+    width: 1ch;
+    color: var(--dg-text2);
+    font-size: 0.8125rem;
+}
+.dg-dist-bar {
+    padding: 1px 6px;
+    border: 1px solid var(--dg-brand);
+    border-radius: 4px;
+    background: var(--dg-surface);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.dg-past summary {
+    min-height: 32px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.dg-past-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.dg-past-btn {
+    min-height: 44px;
+    padding: 6px 12px;
+    border: 1px solid var(--dg-border-strong);
+    border-radius: 8px;
+    background: var(--dg-elev);
+    cursor: pointer;
+}
+.dg-past-done {
+    color: var(--dg-gain);
+    font-weight: 700;
+}
+.dg-note {
+    margin: 0;
+    color: var(--dg-muted);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+/* Desktop tem composição própria: o jogo à esquerda, estatísticas e dias anteriores numa coluna ao lado. */
+@media (min-width: 1024px) {
+    .dg {
+        grid-template-columns: minmax(0, 560px) minmax(0, 300px);
+        grid-template-areas:
+            'banner banner'
+            'stage  stats'
+            'stage  past'
+            'note   note';
+        align-items: start;
+        justify-content: center;
+        max-width: 920px;
+        gap: 20px 32px;
+    }
+    .dg-banner {
+        grid-area: banner;
+    }
+    .dg-stage {
+        grid-area: stage;
+    }
+    .dg-stats {
+        grid-area: stats;
+    }
+    .dg-past {
+        grid-area: past;
+    }
+    .dg-note {
+        grid-area: note;
+    }
+}
+@media (max-width: 380px) {
+    .dg-panel {
+        padding: 12px;
+    }
+    .dg-tabs {
+        gap: 2px;
+        padding: 3px;
+    }
+    .dg-tab {
+        padding: 6px 1px;
+        font-size: 0.6875rem;
+        overflow-wrap: anywhere;
+    }
+    .dg-tab-glyph {
+        margin-right: 2px;
+    }
+    .dg-tl-item {
+        gap: 6px;
+        padding: 6px;
+    }
+}
+/* Em tela estreita o texto do evento ganha a largura toda e os controles descem para a segunda linha. */
+@media (max-width: 420px) {
+    .dg-tl-item:not([data-hit]) {
+        grid-template-columns: auto 1fr auto auto;
+        grid-template-areas:
+            'pos label label label'
+            'grip . up down';
+    }
+    .dg-tl-item:not([data-hit]) .dg-tl-pos {
+        grid-area: pos;
+    }
+    .dg-tl-item:not([data-hit]) .dg-tl-label {
+        grid-area: label;
+    }
+    .dg-tl-item:not([data-hit]) .dg-tl-grip {
+        grid-area: grip;
+    }
+    .dg-tl-item:not([data-hit]) .dg-tl-up {
+        grid-area: up;
+    }
+    .dg-tl-item:not([data-hit]) .dg-tl-down {
+        grid-area: down;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .dg-flip .dg-tile,
+    .dg-shake {
+        animation: none;
+    }
+}

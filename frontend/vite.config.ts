@@ -103,6 +103,9 @@ export default defineConfig({
         }),
     ],
     server: {
+        // DI.3.1: o módulo do Diário mora em `landing/src/diario/` (um jogo só para a landing e o app) e o dev server
+        // só serve arquivos de dentro do projeto por padrão; liberar a raiz do repositório deixa o app importá-lo.
+        fs: { allow: ['..'] },
         proxy: {
             // `(/|\?|$)` — não só `/` (path) ou fim de string, mas também `?`
             // (query string colada direto no namespace, sem segmento de path
