@@ -19,13 +19,6 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
           'Quem define a meta da Selic é o Copom, comitê do Banco Central. Ele se reúne 8 vezes por ano, e a meta vale até a próxima reunião.',
       },
       {
-        type: 'widget',
-        id: 'copom-ano',
-        widget: 'copom-timeline',
-        props: {},
-        caption: 'As 8 reuniões do Copom em um ano',
-      },
-      {
         type: 'check',
         id: 'quem-define-selic',
         kind: 'single',
@@ -62,12 +55,11 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
       {
         type: 'check',
         id: 'cdi-110',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Um CDB paga 110% do CDI. Se o CDI do período for 1%, quanto o CDB rende no período, em %?',
-        answer: 1.1,
-        tolerance: 0.01,
-        unit: '%',
+        options: ['0,11%', '1%', '1,1%', '11%'],
+        answer: 2,
         explanation: '110% de 1% é 1,1%. O percentual do CDI multiplica a taxa do período.',
       },
       {

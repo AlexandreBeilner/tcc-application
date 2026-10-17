@@ -836,7 +836,6 @@ describe('Lesson (tela 3.2)', () => {
 
     describe('perguntas intermediárias (RC.3.2)', () => {
         const check = { type: 'check', id: 'q1', kind: 'single', prompt: 'Qual rende mais?', options: ['LCI', 'CDB'] }
-        const numeric = { type: 'check', id: 'q2', kind: 'numeric', prompt: 'Qual a taxa equivalente?', unit: '%' }
         const withChecks = (scenario: unknown[], overrides: Partial<LessonType> = {}) =>
             lesson({
                 currentStep: 0,
@@ -884,26 +883,6 @@ describe('Lesson (tela 3.2)', () => {
 
             fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
             await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
-        })
-
-        it('numérica envia o valor (aceita vírgula) e mostra a tentativa', async () => {
-            vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([numeric]) })
-            vi.mocked(answerCheckpoint)
-                .mockResolvedValueOnce({ correct: false, attempts: 1, firstTry: false, wrongOptions: [] })
-                .mockResolvedValueOnce({ correct: true, attempts: 2, firstTry: false, wrongOptions: [], explanation: '9,50 / 0,775.' })
-
-            renderLesson()
-
-            const input = await screen.findByLabelText(/Sua resposta/)
-            fireEvent.change(input, { target: { value: '9,5' } })
-            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
-            expect(await screen.findByRole('alert')).toHaveTextContent('Confira a conta')
-            expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'q2', { value: 9.5 })
-
-            fireEvent.change(input, { target: { value: '12,26' } })
-            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
-            expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
-            expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
         })
 
         it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {

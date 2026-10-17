@@ -88,12 +88,11 @@ export const BLOCKS_2_7_6: LessonBlocks = {
       {
         type: 'check',
         id: 'jcp-liquido',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você recebe R$ 1.000 de JCP. Com 17,5% retidos na fonte, quanto cai na sua conta, em reais?',
-        answer: 825,
-        tolerance: 0.5,
-        unit: 'R$',
+        options: ['R$ 175', 'R$ 825', 'R$ 850', 'R$ 1.000'],
+        answer: 1,
         explanation: '17,5% de 1.000 são 175. Sobram 825.',
       },
       {
@@ -194,12 +193,11 @@ export const BLOCKS_2_10: LessonBlocks = {
       {
         type: 'check',
         id: 'dy-do-fii',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Um FII paga R$ 1,00 por cota todo mês, e a cota custa R$ 100. Qual é o Dividend Yield anual, em %?',
-        answer: 12,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['1%', '8,3%', '12%', '100%'],
+        answer: 2,
         explanation: '12 pagamentos de R$ 1,00 são R$ 12,00 em um ano. 12 dividido por 100 dá 12%.',
       },
       {

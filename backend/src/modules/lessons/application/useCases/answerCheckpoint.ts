@@ -24,7 +24,7 @@ export interface AnswerCheckpointResult {
   attempts: number
   // Acertou sem erro antes.
   firstTry: boolean
-  // Alternativas erradas já tentadas (vazio em pergunta numérica e em revisão).
+  // Alternativas erradas já tentadas (vazio em revisão).
   wrongOptions: number[]
   // Só em acerto: errar nunca entrega o gabarito nem a explicação (D3).
   explanation?: string
@@ -87,7 +87,7 @@ export class AnswerCheckpointUseCase {
       input.lessonId,
       input.checkpointId,
       {
-        choice: block.kind === 'numeric' ? null : (input.selectedOption ?? null),
+        choice: input.selectedOption ?? null,
         correct,
         answeredAt: this.clock(),
       },

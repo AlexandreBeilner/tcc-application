@@ -40,15 +40,6 @@ const base: LessonSummary = {
           answer: 1,
           explanation: 'porque b',
         },
-        {
-          type: 'check',
-          id: 'num',
-          kind: 'numeric',
-          prompt: 'p',
-          answer: 10,
-          tolerance: 0.5,
-          explanation: 'porque 10',
-        },
       ],
       microDecision: [],
       revelation: [],
@@ -65,7 +56,7 @@ function build() {
 
 const answer = (
   useCase: AnswerCheckpointUseCase,
-  body: { selectedOption?: number; value?: number },
+  body: { selectedOption: number },
   checkpointId = 'c1',
   lessonId = 'l1',
 ) => useCase.execute({ userId: 'u1', lessonId, checkpointId, ...body })
@@ -107,24 +98,6 @@ describe('AnswerCheckpointUseCase', () => {
     })
   })
 
-  it('numérica aceita a tolerância e erro não guarda alternativa', async () => {
-    const { repo, useCase } = build()
-
-    expect(await answer(useCase, { value: 11 }, 'num')).toMatchObject({
-      correct: false,
-      wrongOptions: [],
-    })
-    expect(await answer(useCase, { value: 10.4 }, 'num')).toMatchObject({
-      correct: true,
-      attempts: 2,
-      explanation: 'porque 10',
-    })
-    expect(
-      (await repo.listCheckpointsForUser('u1', 'l1')).find((c) => c.checkpointId === 'num')
-        ?.solvedAt,
-    ).not.toBeNull()
-  })
-
   it('já resolvido responde sem gravar (revisão sem estado)', async () => {
     const { repo, useCase } = build()
     await answer(useCase, { selectedOption: 1 })
@@ -156,9 +129,6 @@ describe('AnswerCheckpointUseCase', () => {
       CheckpointNotFoundError,
     )
     await expect(answer(useCase, { selectedOption: 7 })).rejects.toBeInstanceOf(
-      InvalidCheckpointResponseError,
-    )
-    await expect(answer(useCase, { value: 1 })).rejects.toBeInstanceOf(
       InvalidCheckpointResponseError,
     )
   })

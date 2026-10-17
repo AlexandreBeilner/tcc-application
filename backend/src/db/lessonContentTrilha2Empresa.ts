@@ -61,12 +61,11 @@ export const BLOCKS_2_7_1: LessonBlocks = {
       {
         type: 'check',
         id: 'patrimonio-liquido-conta',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Uma empresa tem R$ 900 milhões em bens e direitos e deve R$ 600 milhões. Qual é o patrimônio líquido, em milhões de reais?',
-        answer: 300,
-        tolerance: 0.5,
-        unit: 'R$ milhões',
+        options: ['R$ 300 milhões', 'R$ 600 milhões', 'R$ 900 milhões', 'R$ 1.500 milhões'],
+        answer: 0,
         explanation: 'O que ela tem (900) menos o que deve (600) dá 300.',
       },
       {
@@ -137,12 +136,11 @@ export const BLOCKS_2_7_2: LessonBlocks = {
       {
         type: 'check',
         id: 'margem-ebit-conta',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Uma empresa vende R$ 800 milhões e tem EBIT de R$ 120 milhões. Qual é a margem EBIT, em %?',
-        answer: 15,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['6,7%', '15%', '85%', '150%'],
+        answer: 1,
         explanation: '120 dividido por 800 dá 0,15, ou seja, 15%.',
       },
       {
@@ -225,12 +223,11 @@ export const BLOCKS_2_7_3: LessonBlocks = {
       {
         type: 'check',
         id: 'divida-liquida-sobre-ebit',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Dívida bruta de R$ 800 milhões, caixa de R$ 300 milhões e EBIT de R$ 250 milhões. Quantos anos de EBIT cabem na dívida líquida?',
-        answer: 2,
-        tolerance: 0.01,
-        unit: 'anos',
+        options: ['1,2 ano', '2 anos', '3,2 anos', '4,2 anos'],
+        answer: 1,
         explanation:
           'A dívida líquida é 800 menos 300, ou 500. Dividido pelo EBIT de 250, dá 2 anos.',
       },
@@ -311,12 +308,11 @@ export const BLOCKS_2_7_4: LessonBlocks = {
       {
         type: 'check',
         id: 'roe-conta',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Lucro líquido de R$ 60 milhões e patrimônio líquido de R$ 400 milhões. Qual é o ROE, em %?',
-        answer: 15,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['6,7%', '15%', '60%', '150%'],
+        answer: 1,
         explanation: '60 dividido por 400 dá 0,15, ou 15%.',
       },
       {
@@ -390,11 +386,10 @@ export const BLOCKS_2_7_5: LessonBlocks = {
       {
         type: 'check',
         id: 'pl-conta',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'A ação custa R$ 24 e o lucro por ação é de R$ 2. Qual é o P/L?',
-        answer: 12,
-        tolerance: 0.01,
-        unit: 'vezes',
+        options: ['0,08 vez', '12 vezes', '26 vezes', '48 vezes'],
+        answer: 1,
         explanation: '24 dividido por 2 dá 12: o preço equivale a 12 anos do lucro atual.',
       },
       {
@@ -477,12 +472,11 @@ export const BLOCKS_2_7_7: LessonBlocks = {
       {
         type: 'check',
         id: 'dy-conta',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Uma ação paga R$ 3,00 de dividendos em 12 meses e custa R$ 50,00. Qual é o Dividend Yield, em %?',
-        answer: 6,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['0,6%', '6%', '16,7%', '60%'],
+        answer: 1,
         explanation: '3 dividido por 50 dá 0,06, ou 6%.',
       },
       {
@@ -651,12 +645,11 @@ export const BLOCKS_2_9: LessonBlocks = {
       {
         type: 'check',
         id: 'peso-vezes-queda',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Um ativo de peso 25% cai 10% e o resto da cesta fica parado. Quanto cai o ETF, em %?',
-        answer: 2.5,
-        tolerance: 0.05,
-        unit: '%',
+        options: ['2,5%', '10%', '25%', '35%'],
+        answer: 0,
         explanation: '25% de 10% dá 2,5%.',
       },
       {
@@ -784,12 +777,11 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
       {
         type: 'check',
         id: 'retorno-liquido',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Um fundo rende 10% ao ano e cobra 2% de taxa. Quanto sobra de retorno, em % ao ano?',
-        answer: 8,
-        tolerance: 0.01,
-        unit: '% ao ano',
+        options: ['8%', '9,8%', '12%', '20%'],
+        answer: 0,
         explanation: 'O retorno que chega a você é o bruto menos a taxa: 10% menos 2% dá 8%.',
       },
       {
@@ -815,12 +807,11 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
       {
         type: 'check',
         id: 'custodia-do-tesouro',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você tem R$ 20.000 em um Tesouro Prefixado. Quanto paga de custódia por ano, em reais?',
-        answer: 40,
-        tolerance: 0.5,
-        unit: 'reais',
+        options: ['R$ 0', 'R$ 20', 'R$ 40', 'R$ 400'],
+        answer: 2,
         explanation:
           '0,20% de R$ 20.000 dá R$ 40 por ano. O Tesouro Selic tem isenção sobre até R$ 10 mil, mas não é o caso aqui.',
       },
@@ -922,12 +913,11 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'check',
         id: 'imposto-acima-do-limite',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você vendeu R$ 30.000 em ações no mês, com lucro de R$ 4.000, em operações de swing trade. Quanto paga de imposto, em reais?',
-        answer: 600,
-        tolerance: 0.5,
-        unit: 'reais',
+        options: ['R$ 0', 'R$ 600', 'R$ 800', 'R$ 4.500'],
+        answer: 1,
         explanation: 'Passou de R$ 20 mil, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
       },
       {
@@ -938,12 +928,11 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'check',
         id: 'compensar-prejuizo',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'No mês passado você teve R$ 1.000 de prejuízo em swing trade. Neste mês, R$ 4.000 de lucro, também em swing trade, com vendas de R$ 30.000. Qual é a base do imposto, em reais?',
-        answer: 3000,
-        tolerance: 0.5,
-        unit: 'reais',
+        options: ['R$ 1.000', 'R$ 3.000', 'R$ 4.000', 'R$ 5.000'],
+        answer: 1,
         explanation:
           'O prejuízo abate o lucro: R$ 4.000 menos R$ 1.000 dá R$ 3.000, e o imposto é de 15% disso.',
       },

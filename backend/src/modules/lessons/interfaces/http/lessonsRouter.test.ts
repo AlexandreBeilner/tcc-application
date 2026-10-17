@@ -487,19 +487,8 @@ describe('lessons routes', () => {
 
       expect((await request(app).post(url).set('Authorization', auth).send({})).status).toBe(400)
       expect(
-        (
-          await request(app)
-            .post(url)
-            .set('Authorization', auth)
-            .send({ selectedOption: 1, value: 1 })
-        ).status,
-      ).toBe(400)
-      expect(
         (await request(app).post(url).set('Authorization', auth).send({ selectedOption: 9 }))
           .status,
-      ).toBe(400)
-      expect(
-        (await request(app).post(url).set('Authorization', auth).send({ value: 3 })).status,
       ).toBe(400)
       expect(
         (

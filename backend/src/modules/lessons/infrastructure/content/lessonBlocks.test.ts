@@ -43,11 +43,10 @@ export const CONTRACT_EXAMPLE = {
       {
         type: 'check',
         id: 'q3',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'Taxa bruta equivalente?',
-        answer: 12.26,
-        tolerance: 0.05,
-        unit: '%',
+        options: ['9,5%', '12,26%'],
+        answer: 1,
         explanation: '9,50 / 0,775.',
       },
     ],
@@ -352,18 +351,6 @@ describe('lessonBlocksSchema', () => {
     [
       'check sem explicação',
       { type: 'check', id: 'x', kind: 'true_false', prompt: 'p', answer: true },
-    ],
-    [
-      'numérica com tolerância negativa',
-      {
-        type: 'check',
-        id: 'x',
-        kind: 'numeric',
-        prompt: 'p',
-        answer: 1,
-        tolerance: -1,
-        explanation: 'e',
-      },
     ],
   ])('rejeita check inválido: %s', (_name, check) => {
     const blocks = {

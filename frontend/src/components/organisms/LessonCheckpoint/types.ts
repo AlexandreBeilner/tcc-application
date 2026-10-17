@@ -8,5 +8,5 @@ export interface LessonCheckpointProps {
     error: boolean
     // Em revisão (sem estado) a resposta certa não trava nada; só muda o texto do selo.
     isReview: boolean
-    onSubmit: (response: { selectedOption: number } | { value: number }) => void
+    onSubmit: (response: { selectedOption: number }) => void
 }

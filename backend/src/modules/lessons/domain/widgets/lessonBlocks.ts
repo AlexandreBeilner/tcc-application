@@ -72,16 +72,6 @@ export type CheckBlock =
       answer: boolean
       explanation: string
     }
-  | {
-      type: 'check'
-      id: string
-      kind: 'numeric'
-      prompt: string
-      answer: number
-      tolerance: number
-      unit?: string
-      explanation: string
-    }
 
 export type LessonBlock =
   | { type: 'text'; markup: string }
@@ -105,7 +95,6 @@ export interface PublicCheckBlock {
   prompt: string
   // `true_false` sempre expõe as duas alternativas na ordem [Verdadeiro, Falso].
   options?: string[]
-  unit?: string
 }
 
 export type PublicLessonBlock = Exclude<LessonBlock, CheckBlock> | PublicCheckBlock
@@ -137,21 +126,12 @@ function toPublicBlock(block: LessonBlock): PublicLessonBlock {
       options: block.options,
     }
   }
-  if (block.kind === 'true_false') {
-    return {
-      type: 'check',
-      id: block.id,
-      kind: 'true_false',
-      prompt: block.prompt,
-      options: TRUE_FALSE_OPTIONS,
-    }
-  }
   return {
     type: 'check',
     id: block.id,
-    kind: 'numeric',
+    kind: 'true_false',
     prompt: block.prompt,
-    ...(block.unit ? { unit: block.unit } : {}),
+    options: TRUE_FALSE_OPTIONS,
   }
 }
 
@@ -196,14 +176,10 @@ export function checkpointIdsForStep(
 
 export interface CheckResponse {
   selectedOption?: number
-  value?: number
 }
 
-// Resposta válida pro formato do bloco? (índice dentro das alternativas, número finito.)
+// Resposta válida pro formato do bloco? (índice dentro das alternativas.)
 export function isValidCheckResponse(block: CheckBlock, response: CheckResponse): boolean {
-  if (block.kind === 'numeric') {
-    return typeof response.value === 'number' && Number.isFinite(response.value)
-  }
   const optionCount = block.kind === 'single' ? block.options.length : TRUE_FALSE_OPTIONS.length
   return (
     typeof response.selectedOption === 'number' &&
@@ -217,9 +193,6 @@ export function isCheckCorrect(block: CheckBlock, response: CheckResponse): bool
   if (block.kind === 'single') {
     return response.selectedOption === block.answer
   }
-  if (block.kind === 'true_false') {
-    // índice 0 = Verdadeiro, 1 = Falso
-    return response.selectedOption === (block.answer ? 0 : 1)
-  }
-  return Math.abs((response.value ?? Number.NaN) - block.answer) <= block.tolerance
+  // índice 0 = Verdadeiro, 1 = Falso
+  return response.selectedOption === (block.answer ? 0 : 1)
 }

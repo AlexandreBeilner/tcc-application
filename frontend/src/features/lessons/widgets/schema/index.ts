@@ -311,14 +311,13 @@ const widgetBlock = z.object({
 })
 
 // Pergunta intermediária (RC.3.2), como o servidor a entrega: sem gabarito nem
-// explicação (`answer`/`tolerance`/`explanation` ficam só no servidor).
+// explicação (`answer`/`explanation` ficam só no servidor).
 const checkBlock = z.object({
     type: z.literal('check'),
     id: z.string().min(1),
-    kind: z.enum(['single', 'true_false', 'numeric']),
+    kind: z.enum(['single', 'true_false']),
     prompt: z.string().min(1),
     options: z.array(z.string().min(1)).min(2).max(4).optional(),
-    unit: z.string().min(1).optional(),
 })
 
 const lessonBlocksSchema = z.object({

@@ -115,11 +115,10 @@ export const BLOCKS_1_2: LessonBlocks = {
       {
         type: 'check',
         id: 'custodia-selic',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'Você tem R$ 8.000 no Tesouro Selic. Quanto paga de custódia da B3 por ano?',
+        options: ['R$ 0', 'R$ 16', 'R$ 80', 'R$ 160'],
         answer: 0,
-        tolerance: 0,
-        unit: 'reais',
         explanation:
           'No Tesouro Selic a custódia só incide sobre o que passa de R$ 10 mil por CPF. Com R$ 8.000, é zero.',
       },
@@ -404,12 +403,11 @@ export const BLOCKS_1_7: LessonBlocks = {
       {
         type: 'check',
         id: 'preco-um-ano',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Com taxa de 10% ao ano e prazo de 1 ano, quanto custa um título que paga R$ 1.000?',
-        answer: 909.09,
-        tolerance: 0.05,
-        unit: 'reais',
+        options: ['R$ 900,00', 'R$ 909,09', 'R$ 1.000,00', 'R$ 1.100,00'],
+        answer: 1,
         explanation:
           'R$ 1.000 divididos por 1,10 dão R$ 909,09. O deságio de R$ 90,91 é o juro de um ano.',
       },
@@ -516,12 +514,11 @@ export const BLOCKS_1_8: LessonBlocks = {
       {
         type: 'check',
         id: 'preco-a-14',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Faltam 2 anos. Com a taxa de mercado em 14% ao ano, quanto vale hoje um título que paga R$ 1.000?',
-        answer: 769.47,
-        tolerance: 0.05,
-        unit: 'reais',
+        options: ['R$ 740,00', 'R$ 769,47', 'R$ 781,25', 'R$ 877,19'],
+        answer: 1,
         explanation:
           'R$ 1.000 divididos por 1,14 ao quadrado dão R$ 769,47, cerca de 3,9% abaixo dos R$ 800,76 da compra.',
       },
@@ -634,11 +631,10 @@ export const BLOCKS_1_9: LessonBlocks = {
       {
         type: 'check',
         id: 'acumulado-doze-meses',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'A inflação foi de 0,5% ao mês durante 12 meses. Quanto deu o acumulado, em %?',
-        answer: 6.17,
-        tolerance: 0.02,
-        unit: '%',
+        options: ['0,5%', '6%', '6,17%', '6,5%'],
+        answer: 2,
         explanation:
           '1,005 elevado a 12 dá 1,0617. A soma simples daria 6%, e a diferença vem da composição.',
       },
@@ -749,12 +745,11 @@ export const BLOCKS_1_10: LessonBlocks = {
       {
         type: 'check',
         id: 'valor-final-ipca-mais',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você aplica R$ 10.000 por 2 anos, com IPCA de 4% ao ano e taxa de 6%. Quanto vale no fim, antes do imposto?',
-        answer: 12152.86,
-        tolerance: 0.5,
-        unit: 'reais',
+        options: ['R$ 11.236,00', 'R$ 12.000,00', 'R$ 12.100,00', 'R$ 12.152,86'],
+        answer: 3,
         explanation:
           'São R$ 10.000 vezes 1,04 ao quadrado vezes 1,06 ao quadrado, ou seja, R$ 12.152,86.',
       },
@@ -915,12 +910,11 @@ export const BLOCKS_1_11: LessonBlocks = {
       {
         type: 'check',
         id: 'taxa-bruta-cri',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Um CRI isento paga 11% ao ano (taxa de exemplo). Com imposto de 15%, qual taxa bruta um CDB precisa pagar para empatar?',
-        answer: 12.94,
-        tolerance: 0.02,
-        unit: '%',
+        options: ['9,35%', '12,65%', '12,94%', '26%'],
+        answer: 2,
         explanation: '11 dividido por 0,85 dá 12,94%. É a taxa bruta equivalente.',
       },
       {

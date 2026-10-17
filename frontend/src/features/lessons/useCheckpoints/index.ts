@@ -18,7 +18,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
     const { token } = useAuth()
     const [local, setLocal] = useState<Record<string, CheckpointView>>({})
     const mutation = useMutation({
-        mutationFn: ({ block, response }: { block: CheckBlock; response: { selectedOption: number } | { value: number } }) =>
+        mutationFn: ({ block, response }: { block: CheckBlock; response: { selectedOption: number } }) =>
             answerCheckpoint(token as string, lessonId, block.id, response),
     })
 
@@ -39,7 +39,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
         }
     }
 
-    async function submit(block: CheckBlock, response: { selectedOption: number } | { value: number }) {
+    async function submit(block: CheckBlock, response: { selectedOption: number }) {
         const before = viewFor(block.id)
         let result
         try {

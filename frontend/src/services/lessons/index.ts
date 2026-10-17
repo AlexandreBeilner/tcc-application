@@ -42,12 +42,12 @@ export function answerMicroDecision(token: string, id: string, selectedOption: n
 }
 
 // `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2): `selectedOption`
-// (única escolha, verdadeiro/falso) ou `value` (numérica). A explicação só vem no acerto.
+// (única escolha ou verdadeiro/falso). A explicação só vem no acerto.
 export function answerCheckpoint(
     token: string,
     id: string,
     checkpointId: string,
-    response: { selectedOption: number } | { value: number },
+    response: { selectedOption: number },
 ): Promise<AnswerCheckpointResult> {
     return apiRequest<AnswerCheckpointResult>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/answer`, {
         token,

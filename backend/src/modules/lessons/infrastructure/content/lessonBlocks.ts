@@ -408,13 +408,6 @@ const checkBlock = z.discriminatedUnion('kind', [
       message: 'answer fora das options',
     }),
   z.object({ ...checkBase, kind: z.literal('true_false'), answer: z.boolean() }),
-  z.object({
-    ...checkBase,
-    kind: z.literal('numeric'),
-    answer: z.number().finite(),
-    tolerance: z.number().finite().min(0),
-    unit: z.string().min(1).max(20).optional(),
-  }),
 ])
 
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })

@@ -42,12 +42,11 @@ export const BLOCKS_3_1: LessonBlocks = {
       {
         type: 'check',
         id: 'perda-ponderada',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Uma ação com 25% da carteira cai 40%. Quanto a carteira perde por causa dela, em %?',
-        answer: 10,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['10%', '15%', '25%', '40%'],
+        answer: 0,
         explanation: 'Peso vezes queda: 25% de 40% dá 10% da carteira.',
       },
       {
@@ -110,12 +109,11 @@ export const BLOCKS_3_1: LessonBlocks = {
       {
         type: 'check',
         id: 'fgc-excedente',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você põe R$ 400 mil em CDBs de um único banco. Quantos reais ficam sem a cobertura do FGC?',
-        answer: 150000,
-        tolerance: 1,
-        unit: 'R$',
+        options: ['R$ 0', 'R$ 150 mil', 'R$ 250 mil', 'R$ 400 mil'],
+        answer: 1,
         explanation:
           'A cobertura é de R$ 250 mil por instituição. 400 mil menos 250 mil dá 150 mil.',
       },
@@ -332,12 +330,11 @@ export const BLOCKS_3_3: LessonBlocks = {
       {
         type: 'check',
         id: 'taxa-equivalente-calc',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Uma LCI isenta paga 9% ao ano e o IR do CDB é de 22,5%. Qual a taxa bruta equivalente, em %?',
-        answer: 11.6,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['7,0%', '10,6%', '11,6%', '13,5%'],
+        answer: 2,
         explanation:
           '9 ÷ (1 menos 0,225) dá cerca de 11,6%. O CDB de 11% fica abaixo disso, então perde.',
       },

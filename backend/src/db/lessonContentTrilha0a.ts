@@ -93,11 +93,10 @@ export const BLOCKS_0_2: LessonBlocks = {
       {
         type: 'check',
         id: 'simples-3-anos',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'Com juros simples de 10% ao ano sobre R$ 1.000, quanto você tem depois de 3 anos?',
-        answer: 1300,
-        tolerance: 0,
-        unit: 'R$',
+        options: ['R$ 1.100', 'R$ 1.300', 'R$ 1.331', 'R$ 3.000'],
+        answer: 1,
         explanation:
           'No regime simples o rendimento é sempre de R$ 100 por ano, sobre os R$ 1.000 iniciais: 1.000 + 3 × 100 = R$ 1.300.',
       },
@@ -182,12 +181,11 @@ export const BLOCKS_0_3: LessonBlocks = {
       {
         type: 'check',
         id: 'inflacao-8',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Com inflação de 8% em um ano, quanto custa daqui a um ano o que hoje custa R$ 250?',
-        answer: 270,
-        tolerance: 0.5,
-        unit: 'R$',
+        options: ['R$ 258', 'R$ 270', 'R$ 280', 'R$ 2.000'],
+        answer: 1,
         explanation: '8% de R$ 250 são R$ 20, então o preço vai a R$ 270.',
       },
       {
@@ -234,12 +232,11 @@ export const BLOCKS_0_4: LessonBlocks = {
       {
         type: 'check',
         id: 'real-10-5',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Um rendimento nominal de 10% com inflação de 5%. Qual o rendimento real aproximado, em %?',
-        answer: 5,
-        tolerance: 0.3,
-        unit: '%',
+        options: ['2%', '5%', '15%', '50%'],
+        answer: 1,
         explanation: 'Aproximadamente 10 − 5 = 5%. A conta exata dá cerca de 4,76%.',
       },
       {

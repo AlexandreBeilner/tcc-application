@@ -71,11 +71,10 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
       {
         type: 'check',
         id: 'sobra-em-porcentagem',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'Você ganha R$ 5.000 e gasta R$ 4.250 no mês. Quanto da renda sobra, em %?',
-        answer: 15,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['15%', '17,6%', '75%', '85%'],
+        answer: 0,
         explanation: 'Sobram R$ 750, que são 15% de R$ 5.000.',
       },
       {
@@ -186,12 +185,11 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
       {
         type: 'check',
         id: 'dois-meses',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você deve R$ 1.000 a juros de 10% ao mês e não paga nada. Quanto deve depois de 2 meses, em reais?',
-        answer: 1210,
-        tolerance: 0.5,
-        unit: 'reais',
+        options: ['R$ 1.100', 'R$ 1.200', 'R$ 1.210', 'R$ 2.000'],
+        answer: 2,
         explanation:
           'No primeiro mês a dívida vai a R$ 1.100. No segundo, 10% de R$ 1.100 são R$ 110, e ela chega a R$ 1.210.',
       },

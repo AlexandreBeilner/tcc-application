@@ -51,12 +51,11 @@ export const BLOCKS_1_4: LessonBlocks = {
       {
         type: 'check',
         id: 'fgc-limite',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você tem R$ 400 mil em CDBs de bancos do mesmo conglomerado financeiro. Até quanto o FGC cobre?',
-        answer: 250,
-        tolerance: 0,
-        unit: 'mil reais',
+        options: ['R$ 100 mil', 'R$ 150 mil', 'R$ 250 mil', 'R$ 400 mil'],
+        answer: 2,
         explanation:
           'O limite é de R$ 250 mil por CPF e por conglomerado financeiro, não por banco. Os outros R$ 150 mil ficam sem a cobertura.',
       },
@@ -153,11 +152,10 @@ export const BLOCKS_1_5: LessonBlocks = {
       {
         type: 'check',
         id: 'ir-valor',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'Um CDB rendeu R$ 1.000 em 400 dias. Quantos reais de IR são retidos?',
-        answer: 175,
-        tolerance: 0.5,
-        unit: 'R$',
+        options: ['R$ 150', 'R$ 175', 'R$ 225', 'R$ 1.175'],
+        answer: 1,
         explanation: 'Com 400 dias a alíquota é de 17,5%, e 17,5% de R$ 1.000 são R$ 175.',
       },
       {
@@ -264,12 +262,11 @@ export const BLOCKS_1_6: LessonBlocks = {
       {
         type: 'check',
         id: 'taxa-equivalente-calc',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Uma LCI isenta paga 8,5% ao ano e o IR do CDB é de 15%. Qual a taxa bruta equivalente, em %?',
-        answer: 10,
-        tolerance: 0.1,
-        unit: '%',
+        options: ['7,2%', '9,8%', '10%', '12,75%'],
+        answer: 2,
         explanation:
           'A taxa isenta dividida por (1 menos 0,15): 8,5 ÷ 0,85 = 10%. Um CDB precisaria pagar 10% para empatar.',
       },

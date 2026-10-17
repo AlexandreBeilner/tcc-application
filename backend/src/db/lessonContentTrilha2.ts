@@ -59,12 +59,11 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
       {
         type: 'check',
         id: 'calculo-do-spread',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'A melhor compra está a R$ 10,00 e a melhor venda a R$ 10,05. Qual é o spread, em reais?',
-        answer: 0.05,
-        tolerance: 0.001,
-        unit: 'reais',
+        options: ['R$ 0,05', 'R$ 0,50', 'R$ 10,00', 'R$ 20,05'],
+        answer: 0,
         explanation: 'R$ 10,05 menos R$ 10,00 dá R$ 0,05.',
       },
       {
@@ -216,12 +215,11 @@ export const BLOCKS_2_1: LessonBlocks = {
       {
         type: 'check',
         id: 'sua-fatia',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'A empresa tem 1 milhão de ações e você compra 10 mil. Que percentual dela você tem?',
-        answer: 1,
-        tolerance: 0.01,
-        unit: '%',
+        options: ['0,01%', '0,1%', '1%', '10%'],
+        answer: 2,
         explanation: '10 mil dividido por 1 milhão dá 0,01, ou seja, 1% da empresa.',
       },
       {
@@ -312,12 +310,11 @@ export const BLOCKS_2_2: LessonBlocks = {
       {
         type: 'check',
         id: 'caixa-da-oferta-primaria',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Uma oferta vende 10 milhões de ações novas a R$ 20 cada. Quanto entra no caixa da empresa, em milhões de reais?',
-        answer: 200,
-        tolerance: 0.5,
-        unit: 'R$ milhões',
+        options: ['R$ 2 milhões', 'R$ 20 milhões', 'R$ 200 milhões', 'R$ 2.000 milhões'],
+        answer: 2,
         explanation:
           '10 milhões de ações vezes R$ 20 dá R$ 200 milhões, todos para a empresa, porque as ações são novas.',
       },

@@ -183,7 +183,6 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
           lessonId: req.params.id as string,
           checkpointId: req.params.checkpointId as string,
           selectedOption: parsed.data.selectedOption,
-          value: parsed.data.value,
         })
         res.status(200).json(result)
       } catch (err) {
