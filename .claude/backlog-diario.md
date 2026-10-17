@@ -40,7 +40,7 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 | DI5 | **O dia do Diário segue o mesmo fuso do streak** (hoje UTC, `todayUtc` em `gamification/domain/streak`). Consequência: o jogo novo aparece às **21h de Brasília**. O texto da tela diz isso ("novo Diário todo dia às 21h"), em vez de esconder. Se um dia o streak mudar de fuso, o Diário muda junto. |
 | DI6 | **XP: 50 se acertar todos os cartões, menos se errar algum.** Fórmula (decidida em 2026-10-17): **20 por concluir o Diário + 10 por cartão acertado, de 20 a 50** (3 cartões). No Termo, "acertou" = descobriu a palavra nas 6 tentativas. |
 | DI7 | **Página pública, sem login e com SEO**, junto da landing (`selucra.com.br/diario`). **E o mesmo jogo dentro do app**, onde ele vale XP e streak. |
-| DI8 | **Quem joga fora do app não ganha XP por aquele jogo**, nem depois de entrar. Nada jogado sem login é importado. |
+| DI8 | **Quem joga fora do app não ganha XP por aquele jogo.** Nada jogado sem login é importado (para ganhar o XP, joga de novo no app, DP6). |
 | DI9 | **Ao terminar o Diário fora do app, a pessoa é convidada a entrar no app** (criar conta ou fazer login). |
 | DI10 | Lista de palavras aceitas: fica a cargo da implementação, com a abordagem da seção 3.1. |
 | DI11 | **Conteúdo inicial de pelo menos 30 dias**, revisado, antes da estreia. |
@@ -50,7 +50,7 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 | DI15 | **Quem volta no mesmo dia vê o que já respondeu**, como no Termo: o jogo não reinicia ao recarregar a página (seção 3.4). |
 | DI16 | **Três cartões por dia** (decidido em 2026-10-17): **Palavra do dia**, **Neste dia na história** e **Linha do tempo**. O cartão "Mais ou menos" (pergunta de número sobre séries históricas) foi cogitado e ficou de fora: perguntas numéricas já tinham saído dos checkpoints das lições, e tirá-lo dispensa a importação de séries do Banco Central. |
 
-### Propostas e aceitas em linhas gerais (confirmar ao abrir a tarefa que depende delas)
+### Fechadas pelo autor na revisão das propostas (2026-10-17)
 
 | # | Decisão | Onde pesa |
 |---|---|---|
@@ -58,13 +58,10 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 | DP3 | **Gabarito nunca vai ao navegador antes da resposta.** O servidor avalia cada palpite (inclusive as cores do Termo). | DI.2.1 |
 | DP4 | Conteúdo no banco, editado por um painel admin com auditoria (mesmo modelo das lições, N.23), nunca só em arquivo de seed. | DI.1.2, DI.5.1 |
 | DP5 | **Jogo escrito uma vez, sem framework**, usado pela landing e pelo app (seção 3.2). | DI.3.1 |
-| DP6 | Quem jogou na landing e clica no convite chega ao app com o número do jogo no link (`?jogado=47`). No app, o Diário daquele dia aparece como "já jogado fora do app, sem XP", e o XP volta no dia seguinte. Quem tira o parâmetro na mão consegue rejogar: aceito, porque só vale XP. | DI.3.2, DI.4.1 |
+| DP6 | **Sem trava para quem jogou fora do app.** O convite da landing leva ao app sem marcar nada; quem já jogou na landing pode jogar de novo logado e ganha o XP do dia normalmente. O que vale de DI8 é só que nada jogado sem login é importado. A trava pelo link (`?jogado=`) foi cogitada e descartada. | DI.3.2, DI.4.1 |
+| DA1 | **Nome: Diário Selucra.** Título da página, SEO e cartão compartilhado ("Diário Selucra #47"); URL `selucra.com.br/diario`; no app, `/diario`. | DI.3.2 |
 
-### Em aberto
-
-| # | Pergunta | Bloqueia |
-|---|---|---|
-| DA1 | Nome do jogo ("Diário" é provisório). Aparece no título da página, na URL se mudar, e no cartão compartilhado. | DI.3.2 |
+Não há decisão em aberto neste backlog.
 
 ## 3. Os três cartões e de onde vem o conteúdo
 
@@ -163,11 +160,11 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 
 ### DI.1.1 · Domínio do Diário
 - **Descrição:** módulo `backend/src/modules/daily/` (DDD lite). `domain/`: estado do Diário (desligado, agendado, no ar) e número do jogo a partir da data de estreia (seção 3.5: #1 = dia da estreia; DI5: mesma regra de dia do streak, com o relógio entrando por parâmetro); regra de acesso (seção 3.6: número maior que o de hoje = inexistente; só o jogo do dia vale XP); regras da data de estreia (muda livre enquanto futura, trava depois do início, exige 30 dias de conteúdo à frente); tipos de cartão (`word`, `on_this_day`, `timeline`); avaliação do palpite do Termo (verde/amarelo/cinza com letra repetida tratada como no Termo, acento ignorado na comparação); avaliação dos outros cartões; fórmula de XP (DI6); gerador determinístico da Linha do tempo a partir de (data, banco).
-- **Dependências:** confirmar DP2.
+- **Dependências:** nenhuma.
 - **Aceite:** testes table-driven da avaliação do Termo (letra repetida no palpite e na resposta, acento, tamanho variável), da virada de dia (teste que prova que o dia do Diário e o do streak são o mesmo para o mesmo instante, inclusive às 20h59 e 21h00 de Brasília), da fórmula de XP (0 a 3 acertos => 20 a 50), da numeração e do acesso (antes da estreia nada é acessível; no dia da estreia só o #1; número futuro sempre recusado; mudar a estreia depois do início recusado) e dos geradores (mesma data => mesmo jogo; datas diferentes => jogos diferentes; Linha do tempo nunca sorteia dois eventos do mesmo ano).
 
 ### DI.1.2 · Tabelas e repositórios
-- **Descrição:** migration com `daily_settings` (estado do Diário e data de estreia, uma linha; quem e quando alterou), `daily_words` (resposta, definição, link opcional, categoria, marcador Brasil/fora, ativo), `daily_accepted_words` (forma normalizada, origem `vero` ou `extra`), `daily_facts` (data, enunciado, alternativas, resposta, explicação, fonte primária obrigatória, categoria, marcador Brasil/fora, revisado por e quando, ativo), `daily_puzzles` (número, data, conteúdo materializado de cada cartão, origem de cada item, revisado, publicado), `daily_results` (usuário, número, por cartão: acertou, tentativas, **os palpites do Termo e as respostas dadas**, para redesenhar o jogo em qualquer aparelho, seção 3.4; XP concedido; marca `played_outside` para DP6; uma linha por usuário e jogo). Ports + adapters Drizzle.
+- **Descrição:** migration com `daily_settings` (estado do Diário e data de estreia, uma linha; quem e quando alterou), `daily_words` (resposta, definição, link opcional, categoria, marcador Brasil/fora, ativo), `daily_accepted_words` (forma normalizada, origem `vero` ou `extra`), `daily_facts` (data, enunciado, alternativas, resposta, explicação, fonte primária obrigatória, categoria, marcador Brasil/fora, revisado por e quando, ativo), `daily_puzzles` (número, data, conteúdo materializado de cada cartão, origem de cada item, revisado, publicado), `daily_results` (usuário, número, por cartão: acertou, tentativas, **os palpites do Termo e as respostas dadas**, para redesenhar o jogo em qualquer aparelho, seção 3.4; XP concedido; uma linha por usuário e jogo). Ports + adapters Drizzle.
 - **Dependências:** DI.1.1.
 - **Aceite:** teste de integração dos repositórios em banco descartável; UNIQUE (usuário, número) em `daily_results`; `when` do journal acima da última migration.
 
@@ -189,21 +186,21 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 - **Aceite:** testes de router (supertest) provando que nenhuma resposta antes do fim do cartão contém o gabarito; **toda rota com número recusa o dia seguinte ao de hoje com 404**, inclusive às 20h59 e 21h00 de Brasília (virada UTC); antes da estreia nenhuma rota de jogo funciona; dia anterior acessível; origem da landing aceita só nas rotas `/daily` públicas; `.docs/backend/daily.md` criado.
 
 ### DI.2.2 · Resultado, estatísticas, XP e streak com login
-- **Descrição:** com auth, as mesmas rotas gravam em `daily_results` (uma tentativa válida por cartão por dia, com os palpites e respostas dados). `GET /daily/:number/me` devolve o estado salvo do usuário naquele jogo para redesenhar a tela (seção 3.4). Dia anterior jogado logado é gravado, mas sem XP, sem streak e sem sequência do Diário (seção 3.6). Ao concluir o último cartão **do jogo de hoje, antes da virada do dia**: XP pela fórmula DI6 via port (`xpAwarder`, mesmo padrão de lições e missões) e toque de streak via port (`streakTracker`, DI4), ambos uma vez por dia. `POST /daily/:number/played-outside` (DP6): marca o jogo do dia como jogado fora do app, sem XP, e é recusado se o usuário já tiver começado o jogo logado. `GET /daily/me/stats` (jogos, % de acerto por cartão, distribuição de tentativas do Termo, sequência atual e maior sequência do Diário). Nada jogado sem login é importado (DI8).
+- **Descrição:** com auth, as mesmas rotas gravam em `daily_results` (uma tentativa válida por cartão por dia, com os palpites e respostas dados). `GET /daily/:number/me` devolve o estado salvo do usuário naquele jogo para redesenhar a tela (seção 3.4). Dia anterior jogado logado é gravado, mas sem XP, sem streak e sem sequência do Diário (seção 3.6). Ao concluir o último cartão **do jogo de hoje, antes da virada do dia**: XP pela fórmula DI6 via port (`xpAwarder`, mesmo padrão de lições e missões) e toque de streak via port (`streakTracker`, DI4), ambos uma vez por dia. `GET /daily/me/stats` (jogos, % de acerto por cartão, distribuição de tentativas do Termo, sequência atual e maior sequência do Diário). Nada jogado sem login é importado (DI8).
 - **Dependências:** DI.2.1.
-- **Aceite:** XP e streak concedidos uma vez por dia (idempotente, inclusive com duas abas); jogo de dia anterior nunca dá XP; jogo começado num dia e concluído depois da virada não dá XP; `GET /daily/:number/me` redesenha o mesmo estado em outro aparelho; jogo marcado como `played_outside` nunca dá XP; resposta do último cartão devolve o XP ganho, o nível e as conquistas desbloqueadas (para o teatro de recompensa, Fase I do backlog de engajamento); documentação atualizada.
+- **Aceite:** XP e streak concedidos uma vez por dia (idempotente, inclusive com duas abas); jogo de dia anterior nunca dá XP; jogo começado num dia e concluído depois da virada não dá XP; `GET /daily/:number/me` redesenha o mesmo estado em outro aparelho; resposta do último cartão devolve o XP ganho, o nível e as conquistas desbloqueadas (para o teatro de recompensa, Fase I do backlog de engajamento); documentação atualizada.
 
 ## Fase C, o jogo e a página pública (landing)
 
 ### DI.3.1 · Módulo do jogo, sem framework
 - **Descrição:** o módulo da seção 3.2: grade do Termo (teclado físico e na tela, acento ignorado, animação de revelação, aviso de palavra não aceita sem gastar tentativa), os dois cartões de pergunta (alternativas do Neste dia; ordenar a Linha do tempo por arrastar e por botões), tela de resultado (cartão de texto pela Web Share API, cópia para a área de transferência como fallback, contagem até o próximo jogo às 21h). Recebe o cliente da API, o modo (`publico`/`app`) e um "guardador de estado" por parâmetro: no modo `publico`, o `localStorage` com as regras da seção 3.4; no modo `app`, o servidor (`GET /daily/:number/me`). Ao abrir, redesenha o jogo do dia se já houver estado salvo, em vez de reiniciar. Aviso "Novo Diário disponível" na virada do dia sem apagar o jogo da tela. Lista de dias anteriores para jogar (sem XP). **Acessível:** a informação nunca depende só de cor (símbolo ou borda por estado, leitor de tela por letra, ordenação da linha do tempo sem precisar arrastar).
-- **Dependências:** DI.2.1; confirmar DP5 (local do módulo).
+- **Dependências:** DI.2.1. O local exato do módulo (seção 3.2) é escolha técnica da própria tarefa.
 - **Aceite:** testes do módulo (letra repetida, palavra recusada, resultado compartilhado sem resposta e sem valor em R$; recarregar a página no mesmo dia mostra o jogo como estava, com o tabuleiro e as respostas; dia seguinte começa limpo e mantém as estatísticas; estado com número futuro, corrompido ou de versão desconhecida é ignorado sem erro; sem `localStorage` o jogo funciona); modo claro e escuro pelas variáveis de cor; funciona em 320, 390, 768 e 1280 px.
 
 ### DI.3.2 · Página `selucra.com.br/diario`
-- **Descrição:** nova página no build da landing (`landing/build.mjs`), com o conteúdo para busca **no HTML entregue** (título, como jogar, o que se aprende, perguntas frequentes) e o módulo do jogo montado em modo `publico`. Progresso, estatística e sequência do anônimo só no navegador (seção 3.4). **Antes da estreia** (seção 3.5), a mesma página mostra o conteúdo de "como jogar", as perguntas frequentes e a data de estreia no lugar do jogo, e já é indexável: é ela que vai para o Google e para a divulgação. Ao terminar (DI9): convite "Entre no app para ganhar XP e manter sua sequência", com link para `app.selucra.com.br/diario?jogado=<número>` (DP6) e para criar conta. Ligação no menu do cabeçalho da landing (mesmo lugar dos "Guias").
-- **Dependências:** DI.3.1; DA1 decidida (nome).
-- **Aceite:** jogável deslogado do início ao fim; antes da estreia mostra a data e nenhum jogo; convite aparece ao terminar e leva ao app com o parâmetro; com JS desligado a página ainda mostra o conteúdo e explica que o jogo precisa de JS; sem preço nem PRO.
+- **Descrição:** nova página no build da landing (`landing/build.mjs`), com o conteúdo para busca **no HTML entregue** (título, como jogar, o que se aprende, perguntas frequentes) e o módulo do jogo montado em modo `publico`. Progresso, estatística e sequência do anônimo só no navegador (seção 3.4). **Antes da estreia** (seção 3.5), a mesma página mostra o conteúdo de "como jogar", as perguntas frequentes e a data de estreia no lugar do jogo, e já é indexável: é ela que vai para o Google e para a divulgação. Ao terminar (DI9): convite "Entre no app para ganhar XP e manter sua sequência", com link para `app.selucra.com.br/diario?origem=diario` (o parâmetro só serve para medir, DI.7.1; não trava nada, DP6) e para criar conta. Ligação no menu do cabeçalho da landing (mesmo lugar dos "Guias").
+- **Dependências:** DI.3.1.
+- **Aceite:** jogável deslogado do início ao fim; antes da estreia mostra a data e nenhum jogo; convite aparece ao terminar e leva ao app; com JS desligado a página ainda mostra o conteúdo e explica que o jogo precisa de JS; sem preço nem PRO.
 
 ### DI.3.3 · SEO e segurança da página
 - **Descrição:** `title`, meta description, `canonical`, Open Graph com imagem própria do Diário, JSON-LD (`WebApplication` e `FAQPage` gerado das perguntas visíveis, mesmo teste de consistência da LW.6.2), entrada no `sitemap.xml`. **CSP** do `landing/src/static/_headers`: `connect-src` passa a liberar a origem da API. Cabeçalho de cache da página igual ao do `index.html` (sem cache longo).
@@ -218,9 +215,9 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 ## Fase D, o jogo dentro do app
 
 ### DI.4.1 · Rota `/diario` no app
-- **Descrição:** rota logada no `frontend/` com um organismo que monta o módulo da DI.3.1 em modo `app`. Ao terminar: XP e conquistas pelo componente de celebração existente (Fase I do backlog de engajamento) e streak atualizado. Chegando com `?jogado=<número>` do dia corrente (DP6): chama `played-outside` e mostra o resultado como "jogado fora do app, sem XP hoje", com o horário do próximo jogo. O service worker não guarda resposta de `/daily` (regra do PWA: API nunca em cache).
+- **Descrição:** rota logada no `frontend/` com um organismo que monta o módulo da DI.3.1 em modo `app`. Ao terminar: XP e conquistas pelo componente de celebração existente (Fase I do backlog de engajamento) e streak atualizado. O service worker não guarda resposta de `/daily` (regra do PWA: API nunca em cache).
 - **Dependências:** DI.2.2, DI.3.1.
-- **Aceite:** XP aparece uma vez por dia; parâmetro de dia antigo ignorado; teste de componente; responsivo nos três breakpoints.
+- **Aceite:** XP aparece uma vez por dia; teste de componente; responsivo nos três breakpoints.
 
 ### DI.4.2 · Portas de entrada e saída no app
 - **Descrição:** chamada "Diário de hoje" no app (ex: cartão no Portfólio ou indicador na `TopBar`, apagado quando já jogado); "Saiba mais" de cada cartão leva ao Glossário ou à lição, respeitando o bloqueio da trilha (nunca aponta para lição inacessível, Fase N do backlog de engajamento); depois do último cartão, um próximo passo dentro do app (continuar a lição em andamento ou ver o mercado).
@@ -239,7 +236,7 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 ### DI.6.1 · Conquistas e missão
 - **Descrição:** conquistas por qualidade, não por volume (ex: "Palavra na primeira", "7 Diários seguidos sem errar a Linha do tempo"), pelo enum de critérios já estendido na H.1 do backlog de engajamento. Opcional: missão diária "Jogue o Diário" (se entrar, o XP da missão soma ao do Diário: conferir que um dia perfeito não passa do teto que o autor achar razoável).
 - **Dependências:** DI.2.2.
-- **Aceite:** conquistas desbloqueadas pelo teatro de recompensa existente; teste de que jogo `played_outside` não conta para conquista.
+- **Aceite:** conquistas desbloqueadas pelo teatro de recompensa existente; teste de que jogo de dia anterior não conta para conquista.
 
 ### DI.6.2 · E-mail
 - **Descrição:** incluir o Diário nos e-mails de engajamento opt-in que já existem (resumo semanal EM.7.1; streak em risco EM.7.3: "o Diário de hoje leva 3 minutos e mantém sua sequência"). Sem e-mail novo diário nesta fase.
@@ -249,7 +246,7 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 ## Fase G, medição
 
 ### DI.7.1 · Contadores do Diário
-- **Descrição:** contadores agregados por dia, contados no servidor (o Web Analytics da Cloudflare na landing não registra evento): jogos iniciados e concluídos (públicos e logados), cadastros e logins que chegaram com `?jogado=`. Visão simples no painel admin. Sem rastrear pessoa anônima individualmente (nada de identificador no navegador).
+- **Descrição:** contadores agregados por dia, contados no servidor (o Web Analytics da Cloudflare na landing não registra evento): jogos iniciados e concluídos (públicos e logados), cadastros e logins que chegaram com `?origem=diario`. Visão simples no painel admin. Sem rastrear pessoa anônima individualmente (nada de identificador no navegador).
 - **Dependências:** DI.3.2, DI.4.1.
 - **Aceite:** números dos logados batem com `daily_results`; nenhum dado pessoal de anônimo gravado.
 
@@ -259,7 +256,7 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 
 1. **DI.1.1 → DI.1.2 → DI.1.3** (fundação, sem tela).
 2. **DI.1.4** em paralelo com a etapa seguinte: escrever e conferir os fatos leva mais tempo que o código.
-3. **DI.2.1 → DI.3.1 → DI.3.2 → DI.3.3**: a partir daqui o jogo já roda na landing, sem login (dá para testar com amigos). **Decidir o nome (DA1) antes da DI.3.2.**
+3. **DI.2.1 → DI.3.1 → DI.3.2 → DI.3.3**: a partir daqui o jogo já roda na landing, sem login (dá para testar com amigos).
 4. **DI.2.2 → DI.4.1 → DI.4.2**: o jogo no app, com XP e streak.
 5. **DI.5.1** (painel e controle da estreia), depois **DI.6.1, DI.6.2, DI.7.1**.
 6. **DI.3.4** quando a landing estiver publicada no Pages.
