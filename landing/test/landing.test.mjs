@@ -261,3 +261,55 @@ describe('gráficos determinísticos', () => {
         assert.notEqual(a[1], b[1])
     })
 })
+
+describe('página do Diário Selucra (/diario/)', () => {
+    const API = 'https://api.exemplo.test'
+    let dir
+    let html
+    before(async () => {
+        dir = await mkdtemp(join(tmpdir(), 'landing-diario-'))
+        await buildLanding({ siteUrl: SITE, appUrl: APP, apiUrl: API, outDir: dir })
+        html = await readFile(join(dir, 'diario/index.html'), 'utf8')
+    })
+    after(() => rm(dir, { recursive: true, force: true }))
+
+    it('o conteúdo para busca está no HTML entregue (título, como jogar, o que se aprende, perguntas)', () => {
+        assert.equal((html.match(/<h1[\s>]/g) ?? []).length, 1)
+        assert.match(html, /<h1>Diário Selucra<\/h1>/)
+        for (const id of ['como-jogar', 'o-que-se-aprende', 'duvidas']) assert.match(html, new RegExp(`id="${id}"`))
+        assert.ok((html.match(/<summary>/g) ?? []).length >= 4)
+        assert.match(html, new RegExp(`<link rel="canonical" href="${SITE}/diario/"`))
+    })
+
+    it('sem JS a página explica que o jogo precisa de JavaScript', () => {
+        assert.match(html, /<noscript>[\s\S]*precisa de JavaScript[\s\S]*<\/noscript>/)
+    })
+
+    it('monta o jogo com um bundle próprio, sem a cena da home, e passa a API e o site por atributo', () => {
+        assert.match(html, /<script type="module" src="\/assets\/diario-page-[^"]+\.js"><\/script>/)
+        assert.doesNotMatch(html, /\/assets\/main-/)
+        assert.match(html, new RegExp(`id="diario" data-api="${API}" data-app="${APP}" data-site="${SITE}" data-guides="[^"]*o-que-e-etf`))
+    })
+
+    it('o convite ao terminar começa escondido e leva ao app com origem=diario e ao cadastro', () => {
+        const invite = html.match(/<aside[^>]*id="diario-convite"[\s\S]*?<\/aside>/)[0]
+        assert.match(invite, /\bhidden\b/)
+        assert.match(invite, /Entre no app para ganhar XP e manter sua sequência/)
+        assert.match(invite, new RegExp(`href="${APP}/diario\\?origem=diario"`))
+        assert.match(invite, new RegExp(`href="${APP}/login\\?modo=cadastro"`))
+    })
+
+    it('está no menu da home e do cabeçalho dos guias, e no sitemap', async () => {
+        const home = await readFile(join(dir, 'index.html'), 'utf8')
+        assert.match(home, /<li><a href="\/diario\/">Diário<\/a><\/li>/)
+        assert.match(html, /<li><a href="\/diario\/">Diário<\/a><\/li>/)
+        assert.match(await readFile(join(dir, 'sitemap.xml'), 'utf8'), new RegExp(`<loc>${SITE}/diario/</loc>`))
+    })
+
+    it('sem preço, PRO, "grátis", travessão nem placeholder', () => {
+        const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ')
+        assert.doesNotMatch(text, /gr[áa]tis|sem cart[ãa]o|\bPRO\b|assinatura|R\$ ?\d/i)
+        assert.doesNotMatch(text, /—/)
+        assert.equal(html.match(/\{\{[A-Za-z_:-]+\}\}/g), null)
+    })
+})
