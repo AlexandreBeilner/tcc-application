@@ -9,13 +9,39 @@ import { DiarioNextStep } from '../../molecules/DiarioNextStep'
 import { createDailyApi, createServerKeeper, mountDiario } from '../../../features/diario'
 import { useRewardReveal } from '../../../features/shell/RewardRevealProvider'
 import { dispatchRewardReveals } from '../../../features/shell/dispatchRewardReveals'
+import { MISSIONS_QUERY_KEY } from '../../../features/missions/useMissionsQuery'
 import { API_BASE_URL } from '../../../services/client'
+import { completeMission, listMissions } from '../../../services/missions'
 import '../../../../../landing/src/diario/diario.css'
+
+// Chave da missão "Jogue o Diário de hoje" (DI.6.1, ponto 060; `play_daily` no backend).
+const PLAY_DAILY_MISSION_KEY = 'play_daily'
 
 // Diário Selucra dentro do app (DI.4.1): o mesmo módulo sem framework da landing, em modo `app`.
 // O estado vive no servidor (`/daily/:n/me`), então logado o jogo nunca usa `localStorage`; o token
 // vai em cada chamada. Só o jogo do dia, concluído antes da virada, volta com `xpAwarded > 0`: nesse
 // caso o teatro de recompensa roda uma vez (um dia anterior ou um reenvio fecha com 0 e não mostra nada).
+// Conclui a missão do Diário logo depois do jogo (o servidor confere o jogo do dia). O reveal da missão
+// entra na fila depois do do Diário. Falha, missão ausente ou já concluída: nada a mostrar, o jogo já valeu.
+async function claimDailyMission(
+    token: string | null,
+    client: ReturnType<typeof useQueryClient>,
+    reveal: Parameters<typeof dispatchRewardReveals>[0],
+) {
+    if (!token) return
+    try {
+        const { missions } = await listMissions(token)
+        const mission = missions.find((m) => m.key === PLAY_DAILY_MISSION_KEY)
+        if (!mission || mission.status === 'completed') return
+        const result = await completeMission(token, mission.id)
+        void client.invalidateQueries({ queryKey: MISSIONS_QUERY_KEY })
+        void client.invalidateQueries({ queryKey: ['gamification'] })
+        dispatchRewardReveals(reveal, result)
+    } catch {
+        // A missão é um bônus; quem joga não vê erro por ela.
+    }
+}
+
 export function DiarioGame() {
     const { token, logout } = useAuth()
     const queryClient = useQueryClient()
@@ -68,6 +94,7 @@ export function DiarioGame() {
                     streakMilestone: completion.streakMilestone,
                     unlockedAchievements: completion.unlockedAchievements,
                 })
+                void claimDailyMission(live.current.token, client, reveal)
             },
         })
         return () => {

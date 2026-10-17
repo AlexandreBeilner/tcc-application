@@ -37,7 +37,7 @@ interface Call {
     auth: string | null
 }
 
-function stubFetch(timelineCompletion: object | undefined) {
+function stubFetch(timelineCompletion: object | undefined, missionStatus: 'pending' | 'completed' | null = null) {
     const calls: Call[] = []
     const impl = async (input: string, init?: RequestInit) => {
         const headers = new Headers(init?.headers)
@@ -62,6 +62,24 @@ function stubFetch(timelineCompletion: object | undefined) {
                     { id: 'a', label: 'Plano Real', year: 1994, explanation: 'y', sourceRef: 's', learnMore: null },
                 ],
                 ...(timelineCompletion ? { completion: timelineCompletion } : {}),
+            })
+        if (input.endsWith('/missions'))
+            return json({
+                missions: missionStatus
+                    ? [
+                          { id: 'm9', key: 'feed_read', status: 'pending' },
+                          { id: 'm5', key: 'play_daily', status: missionStatus },
+                      ]
+                    : [],
+            })
+        if (input.endsWith('/missions/m5/complete'))
+            return json({
+                status: 'completed',
+                xpAwarded: 20,
+                leveledUp: false,
+                newLevel: 2,
+                streakMilestone: null,
+                unlockedAchievements: [],
             })
         if (input.includes('/me/stats'))
             return json({ games: 0, streak: 0, bestStreak: 0, wordWins: 0, wordPlayed: 0, distribution: [0, 0, 0, 0, 0, 0] })
@@ -139,6 +157,33 @@ describe('DiarioGame (DI.4.1)', () => {
         expect(await screen.findByText('+50 XP', { selector: '[role="status"] *' }, { timeout: 4000 })).toBeTruthy()
         expect(screen.getAllByText('+50 XP').filter((el) => el.closest('[role="status"]') && el.tagName === 'P')).toHaveLength(1)
         expect(invalidate).toHaveBeenCalledWith({ queryKey: ['gamification'] })
+    })
+
+    it('conclui a missão "Jogue o Diário" ao fechar o jogo do dia e mostra o XP dela depois do do Diário', async () => {
+        const calls = stubFetch({ correctCards: 3, xpAwarded: 50, level: 2, leveledUp: false, unlockedAchievements: [] }, 'pending')
+        renderGame()
+        await playAll()
+        await waitFor(() => expect(calls.some((c) => c.url.endsWith('/missions/m5/complete'))).toBe(true), { timeout: 4000 })
+        expect(calls.some((c) => c.url.endsWith('/missions/m9/complete'))).toBe(false)
+        expect(await screen.findByText('+50 XP', { selector: '[role="status"] *' }, { timeout: 4000 })).toBeTruthy()
+    })
+
+    it('missão do Diário já concluída hoje não é enviada de novo', async () => {
+        const calls = stubFetch({ correctCards: 3, xpAwarded: 50, level: 2, leveledUp: false, unlockedAchievements: [] }, 'completed')
+        renderGame()
+        await playAll()
+        await waitFor(() => expect(calls.some((c) => c.url.endsWith('/missions'))).toBe(true), { timeout: 4000 })
+        await act(async () => {})
+        expect(calls.some((c) => c.url.includes('/complete'))).toBe(false)
+    })
+
+    it('dia anterior (xpAwarded 0) nem consulta as missões', async () => {
+        const calls = stubFetch({ correctCards: 3, xpAwarded: 0 }, 'pending')
+        renderGame()
+        await playAll()
+        await waitFor(() => expect(document.querySelector('.dg-result')?.childElementCount).toBeGreaterThan(0), { timeout: 4000 })
+        await act(async () => {})
+        expect(calls.some((c) => c.url.endsWith('/missions'))).toBe(false)
     })
 
     it('nível, conquista e marco de streak entram na fila de recompensa', async () => {
