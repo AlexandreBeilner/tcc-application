@@ -1,6 +1,14 @@
 import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
-import { createDailyComposition } from './modules/daily/composition'
+import { createDailyAdminUseCases, createDailyComposition } from './modules/daily/composition'
+import { createAdminDailyRouter } from './modules/admin/interfaces/http/adminDailyRouter'
+import {
+  DailyAdminReadsUseCase,
+  DailyContentAdminUseCase,
+  DailyLaunchAdminUseCase,
+  DailyPuzzleAdminUseCase,
+} from './modules/admin/application/useCases/dailyAdmin'
+import { createInProcessDailyAdmin } from './modules/admin/infrastructure/daily/inProcessDailyAdmin'
 import { createApiCors } from './modules/daily/interfaces/http/dailyCors'
 import { createDailyRateLimiter } from './modules/daily/interfaces/http/dailyRateLimit'
 import { createRedisClient } from './infra/redisClient'
@@ -1361,6 +1369,17 @@ export function createApp(deps: AppDeps = {}): Express {
         lessonCatalogAdmin,
         recordAdminAction,
       ),
+      authMiddleware,
+    }),
+  )
+  // Painel do Diário (DI.5.1): o módulo `daily` decide, o painel audita e expõe.
+  const dailyAdmin = createInProcessDailyAdmin(createDailyAdminUseCases(db))
+  app.use(
+    createAdminDailyRouter({
+      reads: new DailyAdminReadsUseCase(dailyAdmin),
+      launch: new DailyLaunchAdminUseCase(dailyAdmin, recordAdminAction),
+      puzzles: new DailyPuzzleAdminUseCase(dailyAdmin, recordAdminAction),
+      content: new DailyContentAdminUseCase(dailyAdmin, recordAdminAction),
       authMiddleware,
     }),
   )

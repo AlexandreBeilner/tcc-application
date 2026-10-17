@@ -55,8 +55,11 @@ export class MaterializeUpcomingPuzzlesUseCase {
     private readonly options: MaterializeOptions = {},
   ) {}
 
-  async execute(): Promise<MaterializeResult> {
-    const { startDate } = await this.settings.get()
+  // `draftStartDate`: o painel prepara o rascunho de uma estreia que ainda não foi agendada (sem
+  // jogo revisado não há como agendar, e sem agendar a agenda não materializa). Só para uma data
+  // futura; no ar, vale sempre a data gravada.
+  async execute(draftStartDate?: string): Promise<MaterializeResult> {
+    const startDate = draftStartDate ?? (await this.settings.get()).startDate
     const today = dailyDay(this.now())
     const state = resolveStatus(startDate, today)
     const result: MaterializeResult = {

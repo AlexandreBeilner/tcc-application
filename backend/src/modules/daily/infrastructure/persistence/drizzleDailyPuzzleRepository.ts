@@ -1,4 +1,4 @@
-import { asc, eq, gte, isNull } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { dailyPuzzles } from '../../../../db/schema'
 import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
@@ -64,6 +64,64 @@ export function createDrizzleDailyPuzzleRepository(db: Database): DailyPuzzleRep
         .orderBy(asc(dailyPuzzles.gameDate))
         .limit(limit)
       return rows.map(toPuzzle)
+    },
+
+    async listUsing(kind, itemId) {
+      const where =
+        kind === 'word'
+          ? eq(dailyPuzzles.wordId, itemId)
+          : kind === 'question'
+            ? eq(dailyPuzzles.questionId, itemId)
+            : sql`${dailyPuzzles.timelineEventIds} @> ${JSON.stringify([itemId])}::jsonb`
+      const rows = await db
+        .select()
+        .from(dailyPuzzles)
+        .where(where)
+        .orderBy(asc(dailyPuzzles.gameDate))
+      return rows.map(toPuzzle)
+    },
+
+    async updateCard(number, change) {
+      const cleared = { reviewedBy: null, reviewedAt: null }
+      const set =
+        change.card === 'word'
+          ? { wordId: change.wordId, wordOrigin: 'manual', ...cleared }
+          : change.card === 'question'
+            ? { questionId: change.questionId, questionOrigin: 'manual', ...cleared }
+            : { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual', ...cleared }
+      await db.update(dailyPuzzles).set(set).where(eq(dailyPuzzles.number, number))
+    },
+
+    async clearReview(numbers) {
+      if (numbers.length === 0) return
+      await db
+        .update(dailyPuzzles)
+        .set({ reviewedBy: null, reviewedAt: null })
+        .where(and(inArray(dailyPuzzles.number, [...numbers]), isNull(dailyPuzzles.publishedAt)))
+    },
+
+    async publishReviewed(fromDate, now) {
+      const rows = await db
+        .update(dailyPuzzles)
+        .set({ publishedAt: now })
+        .where(
+          and(
+            gte(dailyPuzzles.gameDate, fromDate),
+            isNotNull(dailyPuzzles.reviewedAt),
+            isNull(dailyPuzzles.publishedAt),
+          ),
+        )
+        .returning({ number: dailyPuzzles.number })
+      return rows.map((r) => r.number).sort((a, b) => a - b)
+    },
+
+    async unpublishFrom(fromDate) {
+      const rows = await db
+        .update(dailyPuzzles)
+        .set({ publishedAt: null })
+        .where(and(gte(dailyPuzzles.gameDate, fromDate), isNotNull(dailyPuzzles.publishedAt)))
+        .returning({ number: dailyPuzzles.number })
+      return rows.length
     },
 
     async markReviewed(number, reviewedBy, now) {

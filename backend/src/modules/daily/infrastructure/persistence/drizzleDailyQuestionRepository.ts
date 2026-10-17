@@ -66,5 +66,35 @@ export function createDrizzleDailyQuestionRepository(db: Database): DailyQuestio
         .orderBy(dailyQuestions.stableKey)
       return rows.map(toQuestion)
     },
+
+    async listAll() {
+      const rows = await db.select().from(dailyQuestions).orderBy(dailyQuestions.stableKey)
+      return rows.map(toQuestion)
+    },
+
+    async update(id, fields, updatedBy) {
+      const { learnMore, ...rest } = fields
+      const [row] = await db
+        .update(dailyQuestions)
+        .set({
+          ...rest,
+          ...(learnMore !== undefined ? learnMoreColumns(learnMore) : {}),
+          // Editar tira a revisão, a menos que o painel diga o contrário.
+          ...(fields.reviewedAt === undefined ? { reviewedAt: null, reviewedBy: null } : {}),
+          updatedBy,
+          updatedAt: new Date(),
+        })
+        .where(eq(dailyQuestions.id, id))
+        .returning()
+      return row ? toQuestion(row) : null
+    },
+
+    async markReviewed(ids, reviewedBy, now) {
+      if (ids.length === 0) return
+      await db
+        .update(dailyQuestions)
+        .set({ reviewedBy, reviewedAt: now })
+        .where(inArray(dailyQuestions.id, [...ids]))
+    },
   }
 }

@@ -36,3 +36,33 @@ export class CardAlreadyAnsweredError extends Error {}
 
 // Sem login o servidor não sabe em que tentativa o Termo está; o cliente precisa informar.
 export class AttemptRequiredError extends Error {}
+
+// Painel (DI.5.1). O item, o jogo ou a palavra não existe.
+export class DailyAdminNotFoundError extends Error {}
+
+// Conteúdo ou data recusados pelas regras do Diário; `problems` lista cada motivo.
+export class DailyAdminInvalidError extends Error {
+  constructor(readonly problems: string[]) {
+    super(problems.join('; '))
+  }
+}
+
+export type DailyAdminConflictCode =
+  | 'already_started'
+  | 'not_in_future'
+  | 'insufficient_content'
+  | 'not_reviewed'
+  | 'confirmation_required'
+  | 'duplicate'
+  | 'word_in_use'
+
+// O pedido é válido, mas o estado atual não deixa: Diário já no ar, pouco conteúdo revisado, jogo
+// publicado sem confirmação. `code` deixa o painel explicar sem interpretar texto.
+export class DailyAdminConflictError extends Error {
+  constructor(
+    readonly code: DailyAdminConflictCode,
+    message: string,
+  ) {
+    super(message)
+  }
+}

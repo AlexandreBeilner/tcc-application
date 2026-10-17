@@ -59,6 +59,19 @@ export const ADMIN_AUDIT_ACTIONS = [
   'assembly.template_activate',
   'assembly.template_deactivate',
   'billing.grant_promotional',
+  'daily.start_date',
+  'daily.draft',
+  'daily.puzzle_review',
+  'daily.puzzle_publish',
+  'daily.puzzle_card',
+  'daily.word_create',
+  'daily.word_update',
+  'daily.question_create',
+  'daily.question_update',
+  'daily.event_create',
+  'daily.event_update',
+  'daily.accepted_word_add',
+  'daily.accepted_word_remove',
 ] as const
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]

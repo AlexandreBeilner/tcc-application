@@ -98,6 +98,34 @@ describe('GET /daily/today', () => {
   })
 })
 
+describe('jogo materializado e não publicado (ponto 058)', () => {
+  function appWithUnpublished(now: Date) {
+    const world = buildDailyWorld({ startDate: START })
+    for (const puzzle of world.puzzleRepo.items) puzzle.publishedAt = null
+    const app = express()
+    app.use(express.json())
+    app.use(createDailyRouter({ ...world, now: () => now }))
+    return app
+  }
+
+  it('hoje não publicado é 503, como se não existisse', async () => {
+    const res = await request(appWithUnpublished(AT.launchDay)).get('/daily/today')
+    expect(res.status).toBe(503)
+    expect(res.body).toEqual({ error: 'game_unavailable' })
+  })
+
+  it('dia anterior não publicado é 404', async () => {
+    expect((await request(appWithUnpublished(AT.brasilia2100)).get('/daily/1')).status).toBe(404)
+  })
+
+  it('as rotas de palpite também não aceitam jogo não publicado', async () => {
+    const res = await request(appWithUnpublished(AT.launchDay))
+      .post('/daily/1/cards/trivia/answer')
+      .send({ choice: 1 })
+    expect(res.status).toBe(503)
+  })
+})
+
 describe('dia anterior sem jogo materializado', () => {
   it('é 404, como um número que não existe', async () => {
     const world = buildDailyWorld({ startDate: START, puzzleCount: 0 })

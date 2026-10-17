@@ -183,3 +183,22 @@ export class ProGrantUnavailableError extends Error {}
 
 // O provedor (RevenueCat) falhou ao conceder: nada foi concedido, dá para tentar de novo.
 export class ProGrantProviderError extends Error {}
+
+// Painel do Diário (DI.5.1). Traduzidos pelo adapter a partir das recusas do módulo `daily`, para
+// o router mapear 404/409/422 sem conhecer esse módulo.
+export class AdminDailyNotFoundError extends Error {}
+
+export class AdminDailyConflictError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
+export class InvalidAdminDailyError extends Error {
+  constructor(readonly problems: string[]) {
+    super(problems.join('; '))
+  }
+}

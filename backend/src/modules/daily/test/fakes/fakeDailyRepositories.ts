@@ -47,6 +47,15 @@ export function createFakeDailyWordRepository(
     async listActive() {
       return items.filter((w) => w.active)
     },
+    async listAll() {
+      return [...items]
+    },
+    async update(id, fields) {
+      const w = items.find((x) => x.id === id)
+      if (!w) return null
+      Object.assign(w, fields)
+      return w
+    },
   }
 }
 
@@ -70,6 +79,19 @@ export function createFakeDailyQuestionRepository(
     async listActive() {
       return items.filter((x) => x.active)
     },
+    async listAll() {
+      return [...items]
+    },
+    async update(id, fields) {
+      const x = items.find((i) => i.id === id)
+      if (!x) return null
+      // Como o repositório real: editar tira a revisão, a menos que o patch diga o contrário.
+      Object.assign(x, { reviewedAt: null }, fields)
+      return x
+    },
+    async markReviewed(ids, _by, now) {
+      for (const x of items) if (ids.includes(x.id)) x.reviewedAt = now
+    },
   }
 }
 
@@ -92,6 +114,19 @@ export function createFakeDailyEventRepository(
     },
     async listActive() {
       return items.filter((x) => x.active)
+    },
+    async listAll() {
+      return [...items]
+    },
+    async update(id, fields) {
+      const x = items.find((i) => i.id === id)
+      if (!x) return null
+      // Como o repositório real: editar tira a revisão, a menos que o patch diga o contrário.
+      Object.assign(x, { reviewedAt: null }, fields)
+      return x
+    },
+    async markReviewed(ids, _by, now) {
+      for (const x of items) if (ids.includes(x.id)) x.reviewedAt = now
     },
   }
 }
@@ -124,6 +159,53 @@ export function createFakeDailyPuzzleRepository(
         .filter((p) => p.gameDate >= fromDate)
         .slice(0, limit)
     },
+    async listUsing(kind, itemId) {
+      return sorted().filter((p) =>
+        kind === 'word'
+          ? p.wordId === itemId
+          : kind === 'question'
+            ? p.questionId === itemId
+            : p.timelineEventIds.includes(itemId),
+      )
+    },
+    async updateCard(number, change) {
+      const p = items.find((x) => x.number === number)
+      if (!p) return
+      if (change.card === 'word') Object.assign(p, { wordId: change.wordId, wordOrigin: 'manual' })
+      else if (change.card === 'question') {
+        Object.assign(p, { questionId: change.questionId, questionOrigin: 'manual' })
+      } else {
+        Object.assign(p, { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual' })
+      }
+      Object.assign(p, { reviewedBy: null, reviewedAt: null })
+    },
+    async clearReview(numbers) {
+      for (const p of items) {
+        if (numbers.includes(p.number) && p.publishedAt === null) {
+          Object.assign(p, { reviewedBy: null, reviewedAt: null })
+        }
+      }
+    },
+    async publishReviewed(fromDate, now) {
+      const done: number[] = []
+      for (const p of sorted()) {
+        if (p.gameDate >= fromDate && p.reviewedAt !== null && p.publishedAt === null) {
+          p.publishedAt = now
+          done.push(p.number)
+        }
+      }
+      return done
+    },
+    async unpublishFrom(fromDate) {
+      let n = 0
+      for (const p of items) {
+        if (p.gameDate >= fromDate && p.publishedAt !== null) {
+          p.publishedAt = null
+          n += 1
+        }
+      }
+      return n
+    },
     async markReviewed(number, reviewedBy, now) {
       const p = items.find((x) => x.number === number)
       if (p) Object.assign(p, { reviewedBy, reviewedAt: now })
@@ -141,18 +223,31 @@ export function createFakeDailyPuzzleRepository(
 
 export function createFakeAcceptedWordRepository(
   initial: string[] = [],
-): AcceptedWordRepository & { words: Set<string> } {
-  const words = new Set(initial)
+  extras: string[] = [],
+): AcceptedWordRepository & { words: Set<string>; extras: Set<string> } {
+  const words = new Set([...initial, ...extras])
+  const extraSet = new Set(extras)
   return {
     words,
+    extras: extraSet,
+    async listExtra() {
+      return [...extraSet].sort()
+    },
+    async removeExtra(word) {
+      if (!extraSet.has(word)) return false
+      extraSet.delete(word)
+      words.delete(word)
+      return true
+    },
     async isAccepted(word) {
       return words.has(word)
     },
-    async addMany(list) {
+    async addMany(list, source) {
       let added = 0
       for (const w of list) {
         if (!words.has(w)) {
           words.add(w)
+          if (source === 'extra') extraSet.add(w)
           added += 1
         }
       }

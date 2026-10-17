@@ -64,5 +64,35 @@ export function createDrizzleDailyEventRepository(db: Database): DailyEventRepos
         .orderBy(dailyEvents.stableKey)
       return rows.map(toEvent)
     },
+
+    async listAll() {
+      const rows = await db.select().from(dailyEvents).orderBy(dailyEvents.stableKey)
+      return rows.map(toEvent)
+    },
+
+    async update(id, fields, updatedBy) {
+      const { learnMore, ...rest } = fields
+      const [row] = await db
+        .update(dailyEvents)
+        .set({
+          ...rest,
+          ...(learnMore !== undefined ? learnMoreColumns(learnMore) : {}),
+          // Editar tira a revisão, a menos que o painel diga o contrário.
+          ...(fields.reviewedAt === undefined ? { reviewedAt: null, reviewedBy: null } : {}),
+          updatedBy,
+          updatedAt: new Date(),
+        })
+        .where(eq(dailyEvents.id, id))
+        .returning()
+      return row ? toEvent(row) : null
+    },
+
+    async markReviewed(ids, reviewedBy, now) {
+      if (ids.length === 0) return
+      await db
+        .update(dailyEvents)
+        .set({ reviewedBy, reviewedAt: now })
+        .where(inArray(dailyEvents.id, [...ids]))
+    },
   }
 }

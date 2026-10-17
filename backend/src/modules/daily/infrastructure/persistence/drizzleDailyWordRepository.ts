@@ -51,5 +51,25 @@ export function createDrizzleDailyWordRepository(db: Database): DailyWordReposit
         .orderBy(dailyWords.stableKey)
       return rows.map(toWord)
     },
+
+    async listAll() {
+      const rows = await db.select().from(dailyWords).orderBy(dailyWords.stableKey)
+      return rows.map(toWord)
+    },
+
+    async update(id, fields, updatedBy) {
+      const { learnMore, ...rest } = fields
+      const [row] = await db
+        .update(dailyWords)
+        .set({
+          ...rest,
+          ...(learnMore !== undefined ? learnMoreColumns(learnMore) : {}),
+          updatedBy,
+          updatedAt: new Date(),
+        })
+        .where(eq(dailyWords.id, id))
+        .returning()
+      return row ? toWord(row) : null
+    },
   }
 }

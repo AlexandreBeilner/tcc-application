@@ -15,6 +15,28 @@ import { EvaluateWordGuessUseCase } from './application/useCases/evaluateWordGue
 import { GetGameUseCase } from './application/useCases/getGame'
 import { GetTodayUseCase } from './application/useCases/getToday'
 import { MaterializeUpcomingPuzzlesUseCase } from './application/useCases/materializeUpcomingPuzzles'
+import {
+  AddAcceptedWordUseCase,
+  CreateAdminEventUseCase,
+  CreateAdminQuestionUseCase,
+  CreateAdminWordUseCase,
+  ListAcceptedExtraUseCase,
+  ListAdminEventsUseCase,
+  ListAdminQuestionsUseCase,
+  ListAdminWordsUseCase,
+  RemoveAcceptedWordUseCase,
+  UpdateAdminEventUseCase,
+  UpdateAdminQuestionUseCase,
+  UpdateAdminWordUseCase,
+} from './application/useCases/admin/content'
+import { PrepareLaunchDraftUseCase, SetStartDateUseCase } from './application/useCases/admin/launch'
+import { GetDailyAdminOverviewUseCase } from './application/useCases/admin/overview'
+import {
+  GetAdminPuzzleUseCase,
+  PublishPuzzlesUseCase,
+  ReplacePuzzleCardUseCase,
+  ReviewPuzzleUseCase,
+} from './application/useCases/admin/puzzles'
 import { createDailyRouter } from './interfaces/http/dailyRouter'
 import { createDrizzleAcceptedWordRepository } from './infrastructure/persistence/drizzleAcceptedWordRepository'
 import { createDrizzleDailyEventRepository } from './infrastructure/persistence/drizzleDailyEventRepository'
@@ -37,6 +59,52 @@ export function createDailyAgendaComposition(db: Database) {
   return { materializeUpcomingPuzzles }
 }
 
+// Casos de uso do painel (DI.5.1). O módulo `admin` os embrulha com auditoria e HTTP.
+export function createDailyAdminUseCases(db: Database) {
+  const settings = createDrizzleDailySettingsRepository(db)
+  const words = createDrizzleDailyWordRepository(db)
+  const questions = createDrizzleDailyQuestionRepository(db)
+  const events = createDrizzleDailyEventRepository(db)
+  const puzzles = createDrizzleDailyPuzzleRepository(db)
+  const accepted = createDrizzleAcceptedWordRepository(db)
+  const materialize = new MaterializeUpcomingPuzzlesUseCase(
+    settings,
+    words,
+    questions,
+    events,
+    puzzles,
+  )
+
+  return {
+    overview: new GetDailyAdminOverviewUseCase(
+      settings,
+      puzzles,
+      words,
+      questions,
+      events,
+      accepted,
+    ),
+    getPuzzle: new GetAdminPuzzleUseCase(puzzles, words, questions, events),
+    reviewPuzzle: new ReviewPuzzleUseCase(puzzles, words, questions, events),
+    publishPuzzles: new PublishPuzzlesUseCase(puzzles),
+    replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions, events),
+    prepareDraft: new PrepareLaunchDraftUseCase(settings, puzzles, materialize),
+    setStartDate: new SetStartDateUseCase(settings, puzzles, materialize),
+    listWords: new ListAdminWordsUseCase(words),
+    createWord: new CreateAdminWordUseCase(words, accepted),
+    updateWord: new UpdateAdminWordUseCase(words, accepted, puzzles),
+    listAcceptedExtra: new ListAcceptedExtraUseCase(accepted),
+    addAcceptedWord: new AddAcceptedWordUseCase(accepted),
+    removeAcceptedWord: new RemoveAcceptedWordUseCase(accepted, words),
+    listQuestions: new ListAdminQuestionsUseCase(questions),
+    createQuestion: new CreateAdminQuestionUseCase(questions),
+    updateQuestion: new UpdateAdminQuestionUseCase(questions, puzzles),
+    listEvents: new ListAdminEventsUseCase(events),
+    createEvent: new CreateAdminEventUseCase(events),
+    updateEvent: new UpdateAdminEventUseCase(events, puzzles),
+  }
+}
+
 export interface DailyRouterComposition {
   authMiddleware: AuthMiddleware
   // XP e streak entram pelos casos de uso de `gamification`, por ports próprias (padrão de `missions`).
@@ -44,7 +112,7 @@ export interface DailyRouterComposition {
   touchStreak: TouchStreakUseCase
 }
 
-// Rotas HTTP (`app.ts`). O painel (DI.5.1) entra aqui depois.
+// Rotas HTTP públicas do jogo (`app.ts`). O painel está em `createDailyAdminUseCases`.
 export function createDailyComposition(db: Database, deps: DailyRouterComposition) {
   const settings = createDrizzleDailySettingsRepository(db)
   const words = createDrizzleDailyWordRepository(db)

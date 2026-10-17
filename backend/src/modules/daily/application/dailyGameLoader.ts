@@ -28,8 +28,9 @@ export interface LoadedGame {
 // ponto que decide acesso, então toda rota com número passa pela mesma regra (DI14): desligado,
 // número futuro e número inexistente são o mesmo 404; antes da estreia, "ainda não começou".
 //
-// Serve todo jogo materializado, publicado ou não: a publicação é do painel (DI.5.1, ainda não
-// existe) e a estreia já é travada pela exigência de 30 dias revisados. Ver ponto em aberto 058.
+// Serve só jogo publicado (ponto 058, decisão (b)): materializar não põe nada no ar, quem publica é
+// o admin no painel (DI.5.1), depois de revisar. Jogo materializado e não publicado é, para o
+// jogador, o mesmo que não existir.
 export class DailyGameLoader {
   constructor(
     private readonly settings: DailySettingsRepository,
@@ -50,7 +51,7 @@ export class DailyGameLoader {
     const puzzle = await this.puzzles.findByNumber(access.number)
     // Hoje sem jogo é falha da agenda (indisponível); dia anterior sem jogo é só um buraco no
     // arquivo, igual a um número que não existe.
-    if (!puzzle)
+    if (!puzzle || puzzle.publishedAt === null)
       throw access.isToday ? new DailyGameUnavailableError() : new DailyGameNotFoundError()
     return this.assemble(puzzle, access)
   }

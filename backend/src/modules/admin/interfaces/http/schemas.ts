@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ASSEMBLY_SETTING_KEYS } from '../../../assemblies/domain/settings'
 import { ADMIN_AUDIT_ACTIONS } from '../../domain/auditEntry'
+import { DAILY_CATEGORIES } from '../../../daily/content/categories'
 
 // Mesmo formato 8-4-4-4-12 de `requireUuidParam` (ids de empresa do motor não têm versão RFC).
 const ENGINE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -573,3 +574,109 @@ export const createAgendaTemplateBodySchema = agendaTemplateContentSchema.extend
 })
 
 export const setAgendaTemplateActiveBodySchema = z.object({ active: z.boolean() })
+
+// Painel do Diário (DI.5.1). Aqui só o formato e os tamanhos; as regras de conteúdo (fonte, ano,
+// travessão, lista aceita) são do módulo `daily` (422).
+const dailyLearnMoreSchema = z
+  .strictObject({
+    kind: z.enum(['lesson', 'glossary', 'guide']),
+    ref: z.string().trim().min(1).max(120),
+  })
+  .nullable()
+
+const dailyItemShape = {
+  category: z.enum(DAILY_CATEGORIES),
+  scope: z.enum(['brasil', 'fora']),
+  learn_more: dailyLearnMoreSchema,
+}
+
+const dailyDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+export const dailyDraftBodySchema = z.strictObject({ start_date: dailyDateSchema })
+
+export const dailyStartDateBodySchema = z.strictObject({ start_date: dailyDateSchema.nullable() })
+
+export const dailyPublishBodySchema = z.strictObject({
+  numbers: z.array(z.number().int().min(1)).min(1).max(200).optional(),
+})
+
+export const dailyReplaceCardBodySchema = z.discriminatedUnion('card', [
+  z.strictObject({
+    card: z.literal('word'),
+    word_id: z.guid(),
+    confirm_published: z.boolean().default(false),
+  }),
+  z.strictObject({
+    card: z.literal('question'),
+    question_id: z.guid(),
+    confirm_published: z.boolean().default(false),
+  }),
+  z.strictObject({
+    card: z.literal('timeline'),
+    event_ids: z.array(z.guid()).length(4),
+    confirm_published: z.boolean().default(false),
+  }),
+])
+
+const dailyWordShape = {
+  display: z.string().trim().min(1).max(20),
+  definition: z.string().trim().min(1).max(500),
+  ...dailyItemShape,
+}
+
+export const dailyWordCreateBodySchema = z.strictObject(dailyWordShape)
+
+export const dailyWordUpdateBodySchema = z
+  .strictObject({
+    ...z.strictObject(dailyWordShape).partial().shape,
+    active: z.boolean().optional(),
+    confirm_published: z.boolean().default(false),
+  })
+  .refine((b) => Object.keys(b).some((k) => k !== 'confirm_published'), {
+    message: 'informe pelo menos um campo a alterar',
+  })
+
+export const dailyAcceptedWordBodySchema = z.strictObject({
+  word: z.string().trim().min(1).max(20),
+})
+
+const dailyQuestionShape = {
+  question: z.string().trim().min(1).max(400),
+  options: z.array(z.string().trim().min(1).max(200)).min(2).max(6),
+  correct_index: z.number().int().min(0).max(5),
+  explanation: z.string().trim().min(1).max(400),
+  source_ref: z.string().trim().min(1).max(600),
+  ...dailyItemShape,
+}
+
+export const dailyQuestionCreateBodySchema = z.strictObject(dailyQuestionShape)
+
+export const dailyQuestionUpdateBodySchema = z
+  .strictObject({
+    ...z.strictObject(dailyQuestionShape).partial().shape,
+    active: z.boolean().optional(),
+    confirm_published: z.boolean().default(false),
+  })
+  .refine((b) => Object.keys(b).some((k) => k !== 'confirm_published'), {
+    message: 'informe pelo menos um campo a alterar',
+  })
+
+const dailyEventShape = {
+  year: z.number().int(),
+  label: z.string().trim().min(1).max(80),
+  explanation: z.string().trim().min(1).max(400),
+  source_ref: z.string().trim().min(1).max(600),
+  ...dailyItemShape,
+}
+
+export const dailyEventCreateBodySchema = z.strictObject(dailyEventShape)
+
+export const dailyEventUpdateBodySchema = z
+  .strictObject({
+    ...z.strictObject(dailyEventShape).partial().shape,
+    active: z.boolean().optional(),
+    confirm_published: z.boolean().default(false),
+  })
+  .refine((b) => Object.keys(b).some((k) => k !== 'confirm_published'), {
+    message: 'informe pelo menos um campo a alterar',
+  })

@@ -104,7 +104,7 @@ export function buildDailyWorld(options: WorldOptions) {
         timelineOrigin: 'generated',
         reviewedBy: null,
         reviewedAt: null,
-        publishedAt: null,
+        publishedAt: new Date(0),
       }))
     : []
   const puzzleRepo = createFakeDailyPuzzleRepository(puzzles)
