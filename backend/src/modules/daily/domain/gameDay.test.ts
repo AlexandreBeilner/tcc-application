@@ -3,6 +3,7 @@ import { todayUtc } from '../../gamification/domain/streak'
 import {
   addDays,
   dailyDay,
+  dayStartInstant,
   gameDateFor,
   gameNumberFor,
   isDateKey,
@@ -107,5 +108,11 @@ describe('resolveGameAccess', () => {
       expect(resolveGameAccess('2026-11-03', today, todayNumber).kind).toBe('ok')
       expect(resolveGameAccess('2026-11-03', today, todayNumber + 1)).toEqual({ kind: 'not_found' })
     }
+  })
+})
+
+describe('dayStartInstant', () => {
+  it('é 00:00 UTC do dia, que são 21h do dia anterior em Brasília', () => {
+    expect(dayStartInstant('2026-11-03').toISOString()).toBe('2026-11-03T00:00:00.000Z')
   })
 })

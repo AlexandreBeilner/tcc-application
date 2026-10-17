@@ -69,6 +69,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/auth/google/callback}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # DI.2.1: origem da landing (`selucra.com.br`), aceita só nas rotas públicas do Diário (`/daily`).
+      LANDING_URL: ${LANDING_URL:-http://localhost:4173}
       # EM.1.2 (gateway de e-mail). `log` é o padrão de desenvolvimento: imprime o e-mail
       # (com os links) no log em vez de enviar. Em produção, EMAIL_PROVIDER=resend com uma chave e um
       # remetente por fluxo (send = segurança/transacional, news = social/engajamento); nunca deixar `log` fora de desenvolvimento.

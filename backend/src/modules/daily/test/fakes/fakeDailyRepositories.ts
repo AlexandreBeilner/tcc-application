@@ -1,3 +1,4 @@
+import type { AcceptedWordRepository } from '../../application/ports/acceptedWordRepository'
 import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
 import type { DailyEventRepository } from '../../application/ports/dailyEventRepository'
 import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
@@ -129,6 +130,28 @@ export function createFakeDailyPuzzleRepository(
     async replaceUnpublished(puzzles) {
       const published = items.filter((p) => p.publishedAt !== null)
       items.splice(0, items.length, ...published, ...puzzles)
+    },
+  }
+}
+
+export function createFakeAcceptedWordRepository(
+  initial: string[] = [],
+): AcceptedWordRepository & { words: Set<string> } {
+  const words = new Set(initial)
+  return {
+    words,
+    async isAccepted(word) {
+      return words.has(word)
+    },
+    async addMany(list) {
+      let added = 0
+      for (const w of list) {
+        if (!words.has(w)) {
+          words.add(w)
+          added += 1
+        }
+      }
+      return added
     },
   }
 }

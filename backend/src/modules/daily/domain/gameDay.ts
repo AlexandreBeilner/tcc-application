@@ -76,3 +76,9 @@ export function resolveGameAccess(
     awardsXp: isToday,
   }
 }
+
+// Instante em que o dia começa (00:00 UTC, 21h de Brasília). É a hora do jogo novo (DI5) e da
+// estreia.
+export function dayStartInstant(day: string): Date {
+  return new Date(`${day}T00:00:00.000Z`)
+}

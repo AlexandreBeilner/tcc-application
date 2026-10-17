@@ -1,6 +1,8 @@
-import cors from 'cors'
 import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
+import { createDailyComposition } from './modules/daily/composition'
+import { createApiCors } from './modules/daily/interfaces/http/dailyCors'
+import { createDailyRateLimiter } from './modules/daily/interfaces/http/dailyRateLimit'
 import { createRedisClient } from './infra/redisClient'
 import { readTrustedProxyHops } from './shared/http/trustProxy'
 import { apiSecurityHeaders, JSON_BODY_LIMIT } from './shared/http/securityHeaders'
@@ -1073,7 +1075,13 @@ export function createApp(deps: AppDeps = {}): Express {
   // Um log por requisição, só com logs estruturados ligados (LW.3.5); em desenvolvimento ficaria ruído.
   if (process.env.LOG_FORMAT === 'json') app.use(requestLogger())
   app.use(apiSecurityHeaders())
-  app.use(cors({ origin: frontendUrl }))
+  // Só a origem do app, salvo nas rotas públicas do Diário, que aceitam também a da landing.
+  app.use(
+    createApiCors({
+      appOrigin: frontendUrl,
+      landingOrigin: process.env.LANDING_URL ?? 'https://selucra.com.br',
+    }),
+  )
   if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
   app.use(express.json({ limit: JSON_BODY_LIMIT }))
   app.use(healthRouter)
@@ -1410,6 +1418,9 @@ export function createApp(deps: AppDeps = {}): Express {
   app.locals.generateMonthlyRetrospectives = retrospectives.generateMonthly
   // O job que encerra os duelos vencidos é ligado em `server.ts` (nunca em testes de rota).
   app.locals.settleDueDuels = duels.settleDueDuels
+  // Diário (DI.2.1): rotas do jogo sem login, com teto por IP.
+  app.use('/daily', createDailyRateLimiter())
+  app.use(createDailyComposition(db).router)
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))

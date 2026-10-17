@@ -32,7 +32,14 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Em aberto
 
-Nenhum ponto em aberto no momento.
+### 058 · As rotas públicas do Diário servem jogo ainda não publicado? (DI.2.1), achado em 2026-10-17
+
+- **Local:** `backend/src/modules/daily/application/dailyGameLoader.ts` (`DailyGameLoader.load`).
+- **Origem:** DI.2.1. O backlog define `published_at` e a publicação como ação do painel (DI.5.1, ainda não existe), mas não diz se `GET /daily/today` e as outras rotas só devem servir jogo publicado.
+- **O que é:** hoje o `DailyGameLoader` serve **todo jogo materializado**, publicado ou não. Isso não abre brecha para jogo futuro (o acesso por número é decidido antes, seção 3.6) nem antes da estreia (a estreia exige 30 dias revisados, DI11), mas o jogo de **hoje** pode ir ao ar sem o autor ter marcado como revisado se a agenda o materializou e ninguém o revisou.
+- **Por que não foi corrigido:** exigir `published_at` agora deixaria o Diário fora do ar até a DI.5.1, e não dá para testar de ponta a ponta nem estrear sem o painel; é uma escolha de comportamento do autor.
+- **Opções:** (a) manter como está até a DI.5.1 e, nela, o painel só deixa a estreia ser agendada com 30 dias revisados (já previsto), aceitando o risco para dias além deles; (b) servir só jogo com `published_at` (a filtragem é uma linha no loader) e fazer a DI.5.1 publicar em lote ao agendar a estreia; (c) servir só jogo revisado (`reviewed_at`), sem o conceito de publicação para as rotas públicas.
+- **Status:** aberto. Recomendação: (b) quando a DI.5.1 existir; até lá, (a).
 
 ## Resolvidos
 

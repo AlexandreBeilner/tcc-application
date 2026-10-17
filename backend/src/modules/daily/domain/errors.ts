@@ -1,0 +1,32 @@
+// Erros das rotas do Diário. Os de "não existe" são de propósito indistinguíveis entre jogo futuro
+// e jogo inexistente (seção 3.6).
+export class DailyGameNotFoundError extends Error {}
+
+// Antes da estreia nenhuma rota de jogo funciona; a data vai junto para a página mostrar.
+export class DailyNotStartedError extends Error {
+  constructor(
+    readonly startDate: string,
+    readonly startsAt: Date,
+  ) {
+    super('o Diário ainda não começou')
+  }
+}
+
+// O dia existe, mas o jogo dele não foi materializado (a agenda não rodou ou o conteúdo sumiu).
+export class DailyGameUnavailableError extends Error {}
+
+export type InvalidGuessReason = 'invalid_characters' | 'invalid_length' | 'wrong_length'
+
+// Palpite que não tem o formato de uma palavra deste jogo. Não gasta tentativa.
+export class InvalidGuessError extends Error {
+  constructor(readonly reason: InvalidGuessReason) {
+    super('palpite inválido')
+  }
+}
+
+// Sequência de letras que não é palavra da lista aceita. Não gasta tentativa.
+export class WordNotAcceptedError extends Error {}
+
+export class InvalidChoiceError extends Error {}
+
+export class InvalidOrderError extends Error {}
