@@ -34,17 +34,18 @@ function describe(order: OrderInput, result: MatchResult): string {
 // navegador, com dados de exemplo. Compras à esquerda e vendas à direita; o
 // aluno envia ordens a mercado ou limitadas e vê o que executa, o preço médio,
 // o spread e a fila. Os botões de onda empurram o livro com uma ordem grande.
-export function OrderBookWidget(_props: OrderBookWidgetProps) {
+export function OrderBookWidget({ orderType, limitPrice, onMetrics }: OrderBookWidgetProps) {
     const [book, setBook] = useState<Book>(INITIAL_BOOK)
     const [side, setSide] = useState<Side>('buy')
-    const [type, setType] = useState<'market' | 'limit'>('market')
+    const [type, setType] = useState<'market' | 'limit'>(orderType ?? 'market')
     const [qty, setQty] = useState(500)
-    const [limit, setLimit] = useState(10)
+    const [limit, setLimit] = useState(limitPrice ?? 10)
     const [message, setMessage] = useState('Envie uma ordem para ver o livro se mexer.')
 
     const spread = spreadCents(book)
 
-    const send = (order: OrderInput) => {
+    // `own`: ordem enviada pelo botão "Enviar ordem" (as ondas de compradores e vendedores não são ordens da pessoa).
+    const send = (order: OrderInput, own = false) => {
         if (order.qty <= 0 || (order.type === 'limit' && !order.limitCents)) {
             setMessage('Informe uma quantidade e, na ordem limitada, um preço.')
             return
@@ -52,6 +53,8 @@ export function OrderBookWidget(_props: OrderBookWidgetProps) {
         const result = matchOrder(book, order)
         setBook(result.book)
         setMessage(describe(order, result))
+        // Para a missão: quantas ações a ordem limitada de compra executou na hora (0 se esperou na fila).
+        if (own) onMetrics?.({ limitFilledQty: order.side === 'buy' && order.type === 'limit' ? result.filledQty : 0 })
     }
 
     return (
@@ -129,7 +132,7 @@ export function OrderBookWidget(_props: OrderBookWidgetProps) {
                 <button
                     type="button"
                     className={styles.preset}
-                    onClick={() => send({ side, type, qty, limitCents: type === 'limit' ? Math.round(limit * 100) : undefined })}
+                    onClick={() => send({ side, type, qty, limitCents: type === 'limit' ? Math.round(limit * 100) : undefined }, true)}
                 >
                     Enviar ordem
                 </button>

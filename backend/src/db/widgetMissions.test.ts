@@ -75,6 +75,14 @@ const EXPECTED: Expected[] = [
     op: 'gt',
     value: 0,
   },
+  {
+    lesson: '2.4',
+    id: 'livro-de-ofertas',
+    widget: 'order-book',
+    metric: 'limitFilledQty',
+    op: 'gt',
+    value: 0,
+  },
 ]
 
 function goalsOf(code: string) {

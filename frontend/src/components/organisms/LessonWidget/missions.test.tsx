@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ComponentType } from 'react'
 import { widgetRegistry } from '.'
@@ -164,5 +164,50 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(gap(4.5)).toBeLessThan(0)
         expect(gap(4.75)).toBeGreaterThan(0)
         expect(gap(4.75)).toBeCloseTo(0.0988, 3)
+    })
+
+    describe('2.4: ordem limitada de compra executada (o widget só informa depois de "Enviar ordem")', () => {
+        const goal = { metric: 'limitFilledQty', op: 'gt', value: 0, text: 't', reveal: 'r' } as WidgetGoal
+        const OrderBook = widgetRegistry['order-book'].component as ComponentType<Record<string, unknown>>
+        const lastMetrics = (onMetrics: ReturnType<typeof vi.fn>): WidgetMetrics => onMetrics.mock.calls[onMetrics.mock.calls.length - 1][0]
+
+        it('a R$ 10,00 espera na fila, a R$ 10,05 executa as 300 ações do melhor preço, e só a ordem da pessoa conta', () => {
+            const onMetrics = vi.fn()
+            render(<OrderBook onMetrics={onMetrics} />)
+            // Antes de enviar nada, não há métrica, então a missão não cumpre sozinha.
+            expect(onMetrics).not.toHaveBeenCalled()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Limitada' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Enviar ordem' }))
+            expect(Object.keys(lastMetrics(onMetrics))).toEqual(WIDGET_MISSION_METRICS['order-book'])
+            expect(lastMetrics(onMetrics).limitFilledQty).toBe(0)
+            expect(goalMet(goal, lastMetrics(onMetrics))).toBe(false)
+
+            // A onda de compradores executa ordens a mercado do outro lado do livro, mas não é ordem da pessoa.
+            const calls = onMetrics.mock.calls.length
+            fireEvent.click(screen.getByRole('button', { name: 'Chega onda de compradores' }))
+            expect(onMetrics.mock.calls.length).toBe(calls)
+            // A onda varreu as vendas de R$ 10,05: o livro volta ao começo para a ordem da pessoa encontrar vendedor.
+            fireEvent.click(screen.getByRole('button', { name: 'Reiniciar o livro' }))
+
+            fireEvent.change(screen.getByLabelText(/Preço limite/), { target: { value: '10.05' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Enviar ordem' }))
+            expect(goalMet(goal, lastMetrics(onMetrics))).toBe(true)
+        })
+
+        it('ordem a mercado não conta como ordem limitada', () => {
+            const onMetrics = vi.fn()
+            render(<OrderBook onMetrics={onMetrics} />)
+            fireEvent.click(screen.getByRole('button', { name: 'Enviar ordem' }))
+            expect(lastMetrics(onMetrics).limitFilledQty).toBe(0)
+        })
+
+        it('o "Me mostra" deixa o formulário em ordem limitada de R$ 10,05, que executa ao enviar', () => {
+            const onMetrics = vi.fn()
+            render(<OrderBook orderType="limit" limitPrice={10.05} onMetrics={onMetrics} />)
+            expect(screen.getByLabelText(/Preço limite/)).toHaveValue(10.05)
+            fireEvent.click(screen.getByRole('button', { name: 'Enviar ordem' }))
+            expect(lastMetrics(onMetrics).limitFilledQty).toBe(300)
+        })
     })
 })

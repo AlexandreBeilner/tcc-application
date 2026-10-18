@@ -184,7 +184,12 @@ export const widgetPropsSchemas = {
     }),
     'ticker-decoder': emptyProps,
     'headline-triage': emptyProps,
-    'order-book': emptyProps,
+    'order-book': z
+        .object({
+            orderType: z.enum(['market', 'limit']).optional(),
+            limitPrice: z.number().positive().max(1000).optional(),
+        })
+        .strict(),
     'interactive-balance': z.object({
         netRevenue: z.number().positive().max(100_000).default(1000),
         costsPct: z.number().min(0).max(90).default(55),

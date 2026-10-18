@@ -50,6 +50,15 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
         props: {},
         caption:
           'Compre 500 a mercado e veja o preço médio. Depois tente uma ordem limitada abaixo do mercado.',
+        goal: {
+          text: 'Envie uma ordem limitada de compra e faça com que ela seja executada',
+          metric: 'limitFilledQty',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'Uma ordem limitada só executa se houver vendedor no seu preço ou por menos. Com R$ 10,00 ela esperou na fila; a partir de R$ 10,05, o menor preço de venda, ela encontra vendedor.',
+          showMe: { orderType: 'limit', limitPrice: 10.05 },
+        },
       },
       {
         type: 'text',
