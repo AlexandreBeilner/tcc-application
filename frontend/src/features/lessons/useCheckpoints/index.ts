@@ -40,6 +40,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             wrongOptions: restored.wrongOptions,
             firstTry: restored.firstTry,
             lastAttemptWrong: false,
+            ...(restored.estimate ? { estimate: restored.estimate } : {}),
         }
     }
 
@@ -57,30 +58,33 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             : streakMilestone((streak.current = nextStreak(streak.current, { correct: result.correct, firstTry: result.firstTry })))
         // Som e vibração só no acerto, e nunca em revisão (LJ.5.4). Erro é silencioso.
         if (result.correct && !isReview) playLessonCue('correct')
-        const tried = response.selectedOption
+        const tried = 'selectedOption' in response ? response.selectedOption : undefined
         setLocal((current) => ({
             ...current,
-            [block.id]: result.correct
-                ? {
-                      solved: true,
-                      attempts: result.attempts,
-                      wrongOptions: before.wrongOptions,
-                      firstTry: result.firstTry,
-                      explanation: result.explanation,
-                      streakMilestone: milestone,
-                      lastAttemptWrong: false,
-                  }
-                : {
-                      solved: false,
-                      attempts: result.attempts,
-                      // Em revisão o servidor devolve `wrongOptions` vazio: acumula só no cliente.
-                      wrongOptions:
-                          tried === undefined || before.wrongOptions.includes(tried)
-                              ? before.wrongOptions
-                              : [...before.wrongOptions, tried],
-                      firstTry: false,
-                      lastAttemptWrong: true,
-                  },
+            // Estimativa resolve na 1ª resposta, mesmo longe do valor (LJ-D1): sempre vem o resultado.
+            [block.id]:
+                result.correct || result.estimate
+                    ? {
+                          solved: true,
+                          attempts: result.attempts,
+                          wrongOptions: before.wrongOptions,
+                          firstTry: result.firstTry,
+                          explanation: result.explanation,
+                          streakMilestone: milestone,
+                          lastAttemptWrong: false,
+                          ...(result.estimate ? { estimate: result.estimate } : {}),
+                      }
+                    : {
+                          solved: false,
+                          attempts: result.attempts,
+                          // Em revisão o servidor devolve `wrongOptions` vazio: acumula só no cliente.
+                          wrongOptions:
+                              tried === undefined || before.wrongOptions.includes(tried)
+                                  ? before.wrongOptions
+                                  : [...before.wrongOptions, tried],
+                          firstTry: false,
+                          lastAttemptWrong: true,
+                      },
         }))
     }
 

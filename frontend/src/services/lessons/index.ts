@@ -16,6 +16,7 @@ export type {
     AnswerCheckpointResult,
     AnswerMicroDecisionResult,
     CheckpointState,
+    EstimateResult,
     ReviewLessonResult,
     MicroDecisionType,
     UnlockedAchievement,

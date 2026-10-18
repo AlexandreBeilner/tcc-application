@@ -79,6 +79,18 @@ export interface CheckpointState {
     attempts: number
     wrongOptions: number[]
     firstTry: boolean
+    // Só estimativa já respondida (LJ.2.2): restaura a régua depois de sair e voltar.
+    estimate?: EstimateResult
+}
+
+// Resultado de uma estimativa, devolvido só depois do chute (LJ-D1): `value` é o valor real e
+// `low`/`high` a faixa que conta como "na mosca".
+export interface EstimateResult {
+    guess: number
+    band: 'exact' | 'close' | 'far'
+    value: number
+    low: number
+    high: number
 }
 
 // `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, `.docs/backend/lessons.md`).
@@ -87,8 +99,9 @@ export interface AnswerCheckpointResult {
     attempts: number
     firstTry: boolean
     wrongOptions: number[]
-    // Só em acerto.
+    // Só em acerto; na estimativa vem sempre (ela avança acertando ou não).
     explanation?: string
+    estimate?: EstimateResult
 }
 
 // `POST /lessons/:id/answer` (RC.2.3, `.docs/backend/lessons.md`).

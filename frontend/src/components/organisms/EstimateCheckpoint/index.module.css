@@ -1,0 +1,262 @@
+.check {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.eyebrow {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-gamify-500);
+}
+
+.prompt {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.control {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.current {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Alvo de toque de 44 px: a área do controle é alta, o trilho e o polegar são desenhados dentro dela. */
+.slider {
+    width: 100%;
+    height: 44px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    accent-color: var(--color-brand-500);
+}
+
+.slider:focus-visible,
+.field:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+}
+
+.slider::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+}
+
+.slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+}
+
+.ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.typed {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.field {
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    min-height: 44px;
+    max-width: 14rem;
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+}
+
+.field[aria-invalid='true'] {
+    border-color: var(--color-gamify-500);
+}
+
+.hint {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.solved {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.verdict {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-gamify-500);
+}
+
+/* Régua do resultado: rótulo do chute em cima, rótulo do valor real embaixo, para não se sobreporem. */
+.ruler {
+    position: relative;
+    padding: var(--space-6) 0;
+}
+
+.track {
+    position: relative;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--color-border);
+}
+
+.band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 999px;
+    background: var(--color-gamify-100);
+    box-shadow: inset 0 0 0 1px var(--color-gamify-500);
+}
+
+.guessMark,
+.realMark {
+    position: absolute;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid var(--color-bg-surface);
+}
+
+.guessMark {
+    background: var(--color-brand-500);
+    transition: left 400ms ease-out;
+}
+
+.realMark {
+    background: var(--color-gamify-500);
+    transition: left 400ms ease-out;
+}
+
+.markLabelTop,
+.markLabelBottom {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.markLabelTop {
+    top: 0;
+    color: var(--color-link);
+}
+
+.markLabelBottom {
+    bottom: 0;
+    color: var(--color-gamify-500);
+}
+
+.legend {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+    margin: 0;
+}
+
+.legend div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+.legend dt {
+    color: var(--color-text-secondary);
+}
+
+.legend dd {
+    margin: 0;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.explanation {
+    margin: 0;
+    font-size: var(--font-size-base);
+    color: var(--color-text-secondary);
+}
+
+/* Tablet e desktop: o campo digitável ao lado do controle e a legenda em três colunas. */
+@media (min-width: 768px) {
+    .legend {
+        grid-template-columns: repeat(3, auto);
+        justify-content: space-between;
+    }
+
+    .legend div {
+        flex-direction: column;
+        justify-content: flex-start;
+    }
+
+    .legend dd {
+        text-align: left;
+    }
+}
+
+@media (min-width: 1024px) {
+    .control {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 14rem;
+        grid-template-areas:
+            'current typed'
+            'slider  typed'
+            'ends    typed'
+            'hint    typed';
+        column-gap: var(--space-6);
+        align-items: start;
+    }
+
+    .current {
+        grid-area: current;
+    }
+
+    .slider {
+        grid-area: slider;
+    }
+
+    .ends {
+        grid-area: ends;
+    }
+
+    .typed {
+        grid-area: typed;
+    }
+
+    .hint {
+        grid-area: hint;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .guessMark,
+    .realMark {
+        transition: none;
+    }
+}

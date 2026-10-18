@@ -1026,6 +1026,84 @@ describe('Lesson (tela 3.2)', () => {
             await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
         })
 
+        describe('estimativa (LJ.2.2)', () => {
+            const estimate = {
+                type: 'check',
+                id: 'e1',
+                kind: 'estimate',
+                prompt: 'Quanto viram R$ 1.000?',
+                range: { min: 1000, max: 10000, step: 100, unit: 'brl' },
+            }
+            const far = { guess: 3000, band: 'far' as const, value: 6727.5, low: 6054.75, high: 7400.25 }
+
+            it('chutar longe avança do mesmo jeito: mostra o valor real, a explicação e libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([estimate]) })
+                vi.mocked(answerCheckpoint).mockResolvedValue({
+                    correct: false,
+                    attempts: 1,
+                    firstTry: false,
+                    wrongOptions: [],
+                    explanation: 'Juros sobre juros.',
+                    estimate: far,
+                })
+
+                renderLesson()
+
+                const slider = await screen.findByRole('slider', { name: 'Seu chute' })
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Responder' })).toBeDisabled()
+
+                fireEvent.change(slider, { target: { value: '3000' } })
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Bem diferente do que parece, né?')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'e1', { value: 3000 })
+                expect(screen.getByText('Juros sobre juros.')).toBeInTheDocument()
+                expect(screen.getByText(/6\.727,50/)).toBeInTheDocument()
+                expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('aceita o valor digitado e recusa o que está fora da régua', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([estimate]) })
+                vi.mocked(answerCheckpoint).mockResolvedValue({
+                    correct: true,
+                    attempts: 1,
+                    firstTry: true,
+                    wrongOptions: [],
+                    explanation: 'Juros sobre juros.',
+                    estimate: { ...far, guess: 6700, band: 'exact' },
+                })
+
+                renderLesson()
+
+                const field = await screen.findByLabelText('Ou digite o valor')
+                fireEvent.change(field, { target: { value: '50' } })
+                expect(screen.getByRole('alert')).toHaveTextContent('entre')
+                expect(screen.getByRole('button', { name: 'Responder' })).toBeDisabled()
+
+                fireEvent.change(field, { target: { value: '6.700' } })
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Na mosca!')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'e1', { value: 6700 })
+            })
+
+            it('restaura a régua do servidor depois de sair e voltar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([estimate], {
+                        checkpoints: [{ checkpointId: 'e1', solved: true, attempts: 1, wrongOptions: [], firstTry: false, estimate: far }],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Bem diferente do que parece, né?')).toBeInTheDocument()
+                expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+        })
+
         it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {
             vi.mocked(getLesson).mockResolvedValue({
                 lesson: withChecks([check], {

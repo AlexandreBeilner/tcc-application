@@ -329,13 +329,34 @@ const widgetBlock = z.object({
 
 // Pergunta intermediária (RC.3.2), como o servidor a entrega: sem gabarito nem
 // explicação (`answer`/`explanation` ficam só no servidor).
-const checkBlock = z.object({
+const checkBase = {
     type: z.literal('check'),
     id: z.string().min(1),
-    kind: z.enum(['single', 'true_false']),
     prompt: z.string().min(1),
+}
+
+const choiceCheckBlock = z.object({
+    ...checkBase,
+    kind: z.enum(['single', 'true_false']),
     options: z.array(z.string().min(1)).min(2).max(4).optional(),
 })
+
+// Estimativa (LJ.2.2): o servidor só entrega a régua; o valor real e a tolerância vêm depois do chute.
+export const ESTIMATE_UNITS = ['brl', 'pct', 'years', 'none'] as const
+export type EstimateUnit = (typeof ESTIMATE_UNITS)[number]
+
+const estimateCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('estimate'),
+    range: z.object({
+        min: z.number(),
+        max: z.number(),
+        step: z.number().positive(),
+        unit: z.enum(ESTIMATE_UNITS),
+    }),
+})
+
+const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock])
 
 const lessonBlocksSchema = z.object({
     schemaVersion: z.literal(1),
@@ -353,7 +374,8 @@ export type LessonBlock = LessonBlocks['phases']['scenario'][number]
 export type WidgetBlock = Extract<LessonBlock, { type: 'widget' }>
 export type CheckBlock = Extract<LessonBlock, { type: 'check' }>
 // Perguntas de alternativas (única escolha e verdadeiro/falso), as que têm `selectedOption`.
-export type ChoiceBlock = CheckBlock & { kind: 'single' | 'true_false' }
+export type ChoiceBlock = Exclude<CheckBlock, { kind: 'estimate' }>
+export type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>
 
 // Ausente ou fora do contrato vira `null` (o player usa o texto legado).
 export function parseLessonBlocks(raw: unknown): LessonBlocks | null {

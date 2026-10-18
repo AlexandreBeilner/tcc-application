@@ -88,3 +88,22 @@ describe('widgetPropsSchemas', () => {
         expect(widgetPropsSchemas['growth-calculator'].safeParse({ a: 1 }).success).toBe(false)
     })
 })
+
+describe('pergunta de estimativa (LJ.2.2)', () => {
+    const estimate = { type: 'check', id: 'e1', kind: 'estimate', prompt: 'Quanto?', range: { min: 0, max: 100, step: 1, unit: 'brl' } }
+    const withCheck = (check: unknown) => ({ schemaVersion: 1, phases: { scenario: [check], microDecision: [], revelation: [] } })
+
+    it('aceita a régua e entrega o bloco com a unidade', () => {
+        const parsed = parseLessonBlocks(withCheck(estimate))
+
+        expect(parsed?.phases.scenario[0]).toMatchObject({ kind: 'estimate', range: { min: 0, max: 100, step: 1, unit: 'brl' } })
+    })
+
+    it.each([
+        ['sem régua', { ...estimate, range: undefined }],
+        ['passo zero', { ...estimate, range: { ...estimate.range, step: 0 } }],
+        ['unidade desconhecida', { ...estimate, range: { ...estimate.range, unit: 'usd' } }],
+    ])('cai no texto legado: %s', (_name, check) => {
+        expect(parseLessonBlocks(withCheck(check))).toBeNull()
+    })
+})
