@@ -311,6 +311,24 @@ Duas rotas de leitura da tela de entrada do painel. Exigem Bearer token + `role:
   - `errors`: por seção que falhou (`market`, `scheduler`, `last_tick`, `users`), a mensagem do erro; vazio quando tudo respondeu.
 - **Erros:** nenhum próprio. Uma fonte fora vira `null` na seção dela e a mensagem em `errors`; as demais seguem. A tela de entrada precisa abrir justamente quando algo está quebrado.
 
+### Painel de retenção (tarefa RT.1.2)
+
+#### `GET /admin/retention`
+
+Exige Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum). Só leitura: não passa pela auditoria. **Só números agregados**: nenhuma lista de pessoas, nenhum identificador, nenhum patrimônio (RP4, RNF09). Conta apenas `role = user`. Todos os dias são datas UTC (`AAAA-MM-DD`), a mesma convenção do streak.
+
+- **Payload:** query opcional validada por `retentionQuerySchema`: `weeks` (1 a 52, padrão 12; quantas semanas de coorte, contando a semana atual) e `days` (7 a 180, padrão 60; tamanho do gráfico de ativos por dia).
+- **Sucesso:** `200` → `{ cohorts, active, milestones }`.
+  - `cohorts`: `{ tracking_since: { presence, activity }, cohorts: [...] }`. `tracking_since` é o primeiro dia com registro de cada medida (`null` = ainda sem registro). Cada coorte (semana de cadastro, mais recente primeiro): `{ cohort_week, size, returned: { d1, d7, d30 }, studied: { d1, d7, d30 } }`. **"voltou"** = qualquer acesso autenticado exatamente no dia N depois do cadastro (`daily_presence`); **"estudou"** = atividade qualificadora nesse dia (`daily_activity`). Cada célula: `{ status, rate, measured, size }`, com `status`:
+    - `complete`: todos da coorte foram medidos; `rate` = fração que apareceu no dia N (0 a 1);
+    - `partial`: só parte foi medida (o resto ainda está em andamento ou é anterior ao registro); `rate` vale para os `measured`;
+    - `in_progress`: o dia N ainda não fechou para ninguém da coorte; `rate = null`. **Nunca é zero**;
+    - `no_data`: o dia N é anterior ao início do registro daquela medida; `rate = null`.
+  - `active`: `{ tracking_since, days: [{ day, returned, studied, mau, dau_mau }] }`, do mais antigo para o mais recente, terminando **ontem** (o dia corrente ainda não fechou). `returned` = pessoas com presença no dia (DAU), `studied` = com atividade, `mau` = pessoas distintas com presença nos 30 dias que terminam no dia, `dau_mau = returned / mau`. Cada campo é `null` antes do início do registro da medida; `mau` e `dau_mau` só existem depois que os 30 dias da janela estão todos dentro do período registrado (um MAU incompleto inflaria a razão).
+  - `milestones`: `{ tracking_since, eligible, milestones: [...], cohorts: [...] }`. Só entram pessoas cadastradas **depois** do primeiro dia de registro (as anteriores não têm marco gravado; `tracking_since` é esse corte, `null` sem registro). `milestones` traz, nesta ordem, `first_return` (primeiro acesso depois do dia do cadastro, com precisão de dia, `granularity: 'day'`), `first_lesson`, `first_trade` (primeira operação real: ação, FII, ETF ou renda fixa do mercado ao vivo, Sandbox não conta), `first_fixed_income` e `first_daily`; cada um `{ milestone, granularity: 'day' | 'second', reached, reached_rate, median_seconds }` (mediana do tempo entre o cadastro e o marco, só de quem chegou; `null` se ninguém chegou). `cohorts`: por semana de cadastro `{ cohort_week, size, status, rates }`, com `rates` = fração da coorte que chegou em cada marco e `status` `complete` (30 dias depois do fim da semana) ou `in_progress` (a % ainda está subindo).
+- **Erros:** `400` — `weeks` ou `days` fora do intervalo ou não inteiros (`{ error: 'parâmetros do painel de retenção inválidos', details }`).
+- **Regra:** três casos de uso (`GetRetentionCohortsUseCase`, `GetActiveUsersUseCase`, `GetMilestoneTimesUseCase`) sobre uma porta de consultas agregadas (`RetentionReader`, adapter Drizzle com SQL agregado); nada é calculado no router. Presença é gravada pelo middleware de autenticação (no máximo uma escrita por pessoa por dia UTC) e os marcos pelos casos de uso donos de cada fato (RT.1.1). Os dados começam a contar na publicação da RT.1.1.
+
 ### Monitor do mercado ao vivo (tarefa N.8)
 
 Duas rotas de leitura que repassam o monitor do motor (ver `.docs/engine/admin.md`). Exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comum). Só leitura: não passam pela auditoria (N.4). Proxy fino: `MarketMonitorReader` (porta) → `engineMarketMonitorReader`; os números (spread, variação, indicador por classe, posse de bots) são calculados no motor. Os indicadores macro (Selic/IPCA) e o calendário da tela reaproveitam as rotas públicas `GET /market/indicators` e `GET /market/calendar`, sem rota nova.

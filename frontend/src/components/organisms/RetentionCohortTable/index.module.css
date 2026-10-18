@@ -1,0 +1,134 @@
+.wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+/* No celular a tabela rola na horizontal e a semana fica fixa à esquerda. */
+.scroll {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.scroll:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--font-size-sm);
+}
+
+.table th,
+.table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.table thead th {
+    background: var(--color-bg-surface);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.table .group {
+    text-align: center;
+    color: var(--color-text-secondary);
+    border-left: 1px solid var(--color-border);
+}
+
+.weekHead {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    text-align: left !important;
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    border-right: 1px solid var(--color-border);
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.value {
+    font-weight: 700;
+}
+
+.good {
+    background: var(--color-gain-100);
+    color: var(--color-gain-text);
+}
+
+.ok {
+    color: var(--color-text-primary);
+}
+
+.low {
+    background: var(--color-loss-100);
+    color: var(--color-loss-text);
+}
+
+/* Parcial: sólido como o resto, mas com o asterisco; sem fundo cheio para não parecer coorte fechada. */
+.partial {
+    font-style: italic;
+}
+
+/* Tracejado = ainda não aconteceu ou não existe registro (identidade-visual-padroes.md §3). */
+.pending {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    outline: 1px dashed var(--color-border-strong);
+    outline-offset: -4px;
+}
+
+.legend {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.goodText {
+    color: var(--color-gain-text);
+    font-weight: 600;
+}
+
+.lowText {
+    color: var(--color-loss-text);
+    font-weight: 600;
+}
+
+.pendingSample {
+    padding: 0 var(--space-1);
+    outline: 1px dashed var(--color-border-strong);
+    color: var(--color-text-muted);
+}
+
+@media (min-width: 1024px) {
+    .legend {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--space-1) var(--space-4);
+    }
+}
+
+.empty {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}

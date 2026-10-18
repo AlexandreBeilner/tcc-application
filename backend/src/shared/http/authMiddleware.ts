@@ -15,6 +15,12 @@ declare global {
   }
 }
 
+// Avisado a cada requisição autenticada que passou pela guarda (RT.1.1, presença diária). Síncrono e
+// sem retorno de propósito: quem implementa é best-effort e nunca pode atrasar nem derrubar a rota.
+export interface PresenceTracker {
+  touch(userId: string): void
+}
+
 export interface AuthMiddleware {
   authenticate: RequestHandler
   requireRole(role: UserRole): RequestHandler
@@ -34,6 +40,7 @@ export const RECENT_AUTH_MAX_AGE_SECONDS = 5 * 60
 export function createAuthMiddleware(
   tokenIssuer: TokenIssuer,
   sessionGuard?: SessionGuard,
+  presenceTracker?: PresenceTracker,
 ): AuthMiddleware {
   return {
     authenticate(req: Request, res: Response, next: NextFunction) {
@@ -52,8 +59,17 @@ export function createAuthMiddleware(
       }
       req.auth = { userId: payload.sub, role: payload.role, authTime: payload.authTime }
 
-      // Sem guarda (testes isolados de rota) o token vale por si só.
+      // Presença só conta depois que a conta passou na guarda (suspensa ou sessão revogada não
+      // "voltou"); sem guarda (testes isolados de rota) o token vale por si só.
+      const recordPresence = () => {
+        try {
+          presenceTracker?.touch(payload.sub)
+        } catch (err) {
+          console.error('[auth] falha ao registrar a presença', err)
+        }
+      }
       if (!sessionGuard) {
+        recordPresence()
         next()
         return
       }
@@ -65,6 +81,7 @@ export function createAuthMiddleware(
         } else if (verdict === 'revoked') {
           res.status(401).json({ error: 'sessão encerrada' })
         } else {
+          recordPresence()
           next()
         }
       }, next)

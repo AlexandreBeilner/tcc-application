@@ -47,6 +47,8 @@ import type {
     FundBotInput,
     UpdateBotInput,
     AdminOverview,
+    AdminRetention,
+    AdminRetentionParams,
     AdminOrdersFilters,
     AdvanceTicksResult,
     AuditLogFilters,
@@ -248,6 +250,17 @@ export type {
     CancelOrdersBatchResult,
     ListAdminOrdersResult,
     AdminOverview,
+    AdminRetention,
+    AdminRetentionParams,
+    RetentionActiveDay,
+    RetentionCell,
+    RetentionCellStatus,
+    RetentionCohort,
+    RetentionDays,
+    RetentionMilestone,
+    RetentionMilestoneCohort,
+    RetentionMilestoneSummary,
+    RetentionTrackingStart,
     ComponentHealth,
     HealthComponentKey,
     HealthStatus,
@@ -361,6 +374,11 @@ export function getSystemHealth(token: string): Promise<SystemHealth> {
 
 export function getAdminOverview(token: string): Promise<AdminOverview> {
     return apiRequest<AdminOverview>('/admin/overview', { token })
+}
+
+// Painel de retenção (RT.1.2): coortes, ativos por dia e marcos, só números agregados.
+export function getAdminRetention(token: string, { weeks, days }: AdminRetentionParams): Promise<AdminRetention> {
+    return apiRequest<AdminRetention>(`/admin/retention?weeks=${weeks}&days=${days}`, { token })
 }
 
 // Monitor do mercado ao vivo (N.8): só leitura.

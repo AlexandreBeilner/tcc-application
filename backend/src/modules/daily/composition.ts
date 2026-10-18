@@ -6,6 +6,7 @@ import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import type { AwardXpUseCase } from '../gamification/application/useCases/awardXp'
 import type { TouchStreakUseCase } from '../gamification/application/useCases/touchStreak'
 import { DailyProgressRecorder } from './application/dailyProgressRecorder'
+import type { DailyCompletionListener } from './application/ports/dailyCompletionListener'
 import { GetMyGameStateUseCase } from './application/useCases/getMyGameState'
 import { GetMyStatsUseCase } from './application/useCases/getMyStats'
 import { createInProcessStreakTracker } from './infrastructure/gamification/inProcessStreakTracker'
@@ -126,6 +127,7 @@ export interface DailyRouterComposition {
   // XP e streak entram pelos casos de uso de `gamification`, por ports próprias (padrão de `missions`).
   awardXp: AwardXpUseCase
   touchStreak: TouchStreakUseCase
+  completionListener?: DailyCompletionListener
 }
 
 // Rotas HTTP públicas do jogo (`app.ts`). O painel está em `createDailyAdminUseCases`.
@@ -143,6 +145,7 @@ export function createDailyComposition(db: Database, deps: DailyRouterCompositio
     results,
     createInProcessXpAwarder(deps.awardXp),
     createInProcessStreakTracker(deps.touchStreak),
+    deps.completionListener,
   )
   const router = createDailyRouter({
     getToday: new GetTodayUseCase(settings, loader),

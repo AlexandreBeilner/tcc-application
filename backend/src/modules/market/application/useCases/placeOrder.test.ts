@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ProductLockedError } from '../../domain/errors'
 import { createFakeCatalogReader } from '../../test/fakes/fakeCatalogReader'
 import { createFakeOrderExecutor } from '../../test/fakes/fakeOrderExecutor'
@@ -104,5 +104,56 @@ describe('PlaceOrderUseCase', () => {
 
     expect(productUnlockReader.getUnlockedKeysCalls).toEqual([])
     expect(orderExecutor.calls).toHaveLength(1)
+  })
+
+  describe('aviso de operação ao vivo (RT.1.1)', () => {
+    const filled = { order_id: 'o-1', filled_quantity: 10, remaining_quantity: 0, fills: [] }
+    const resting = { order_id: 'o-2', filled_quantity: 0, remaining_quantity: 10, fills: [] }
+    const unlocked = createFakeProductUnlockReader({ unlockedKeys: new Set(['asset:acao']) })
+
+    function build(asset: AssetDetail, result = filled) {
+      const calls: Array<[string, string]> = []
+      const listener = {
+        onLiveTrade: async (userId: string, kind: string) => {
+          calls.push([userId, kind])
+        },
+      }
+      const useCase = new PlaceOrderUseCase(
+        createFakeOrderExecutor(result),
+        createFakeCatalogReader({ asset }),
+        unlocked,
+        listener,
+      )
+      return { useCase, calls, listener }
+    }
+
+    it('avisa quando a ordem de um ativo ao vivo teve execução', async () => {
+      const { useCase, calls } = build(equityAsset)
+      await useCase.execute(input)
+      expect(calls).toEqual([['user-1', 'order']])
+    })
+
+    it('ordem de Sandbox não gera aviso', async () => {
+      const { useCase, calls } = build(sandboxAsset)
+      await useCase.execute({ ...input, asset_id: 'sand-1' })
+      expect(calls).toEqual([])
+    })
+
+    it('ordem que só ficou no livro, sem execução, não gera aviso', async () => {
+      const { useCase, calls } = build(equityAsset, resting)
+      await useCase.execute(input)
+      expect(calls).toEqual([])
+    })
+
+    it('falha do listener nunca derruba a ordem já executada', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const { useCase, listener } = build(equityAsset)
+      listener.onLiveTrade = async () => {
+        throw new Error('boom')
+      }
+      await expect(useCase.execute(input)).resolves.toEqual(filled)
+      expect(error).toHaveBeenCalled()
+      error.mockRestore()
+    })
   })
 })
