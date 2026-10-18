@@ -43,6 +43,9 @@ describe.skipIf(!databaseUrl)('seed de lição no meio da trilha (banco real)', 
   })
 
   it('renumera, troca o code sem perder a linha e dispensa só quem já passou', async () => {
+    await db.delete(schema.lessonPollVotes)
+    await db.delete(schema.lessonCardReach)
+    await db.delete(schema.userLessonCardProgress)
     await db.delete(schema.userLessonCheckpoints)
     await db.delete(schema.userLessonProgress)
     await db.delete(schema.lessons)

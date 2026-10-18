@@ -212,6 +212,13 @@ Exigem Bearer token + `role: 'admin'` (`401` sem token, `403` para usuário comu
 - **Sucesso:** `200` → `{ lessons: [...] }`, **todas** as lições (publicadas ou não) em ordem da trilha. Cada item: `{ id, code, title, track_number, track_name, sort_order, micro_decision_type, has_bet, unlocks_keys, published, prerequisite_code, funnel }`. `prerequisite_code` é o código da publicada anterior na ordem (a progressão é linear); `null` na primeira e nas despublicadas. `funnel`: `{ started, completed, abandoned, completion_rate, avg_seconds_to_complete, median_seconds_to_complete, bet_answered, bet_correct, bet_accuracy, abandoned_by_step: [n, n, n, n] }`.
 - **Como o funil é contado** (a partir de `user_lesson_progress`): `started` são as linhas que não são só uma dispensa nunca aberta (N.24), `completed` as com `completed_at`; `abandoned_by_step` distribui quem iniciou e não concluiu pelo passo gravado (0 cenário, 1 micro-decisão, 2 revelação, 3 desbloqueio). O tempo é de iniciar a concluir, só de quem concluiu sem dispensa, e **inclui pausas** (quem volta no dia seguinte), por isso a mediana vem junto da média. A aposta só conta quem concluiu com a escolha gravada, em lição com aposta real. As taxas são `null` quando não há base (ninguém iniciou, lição sem aposta respondida).
 
+#### `GET /admin/lessons/:id/card-funnel`
+
+- **Query:** `days` (inteiro de 1 a 365, padrão 30): janela em dias UTC contando hoje (1 = só hoje).
+- **Sucesso:** `200` → `{ lesson: { id, code, title }, days, since, bars: [{ phase, card_index, reached, lost, lost_rate }], biggest_drop: { phase, card_index } | null }`. Uma barra por cartão que alguém alcançou na janela, na ordem da lição (`phase` 0 Cenário, 1 Micro-decisão, 2 Revelação, 3 tela final). `reached` = pessoas que chegaram ao cartão; `lost` = quantas chegaram ao cartão anterior e não a este (nunca negativo; 0 no primeiro); `lost_rate` = `lost` sobre os do cartão anterior (`null` no primeiro ou sem base). `biggest_drop` é o cartão com mais pessoas perdidas (o primeiro em empate), `null` se ninguém caiu. Sem dado individual: só contagem.
+- **Limites da medição:** conta a partir do deploy da tarefa LJ.5.1; quem retomou uma lição no meio entra a partir de onde parou (um cartão pode ter mais gente que o anterior; a queda é truncada em 0); o índice é o do player no momento, então depois de reeditar o texto de uma lição o funil antigo deixa de corresponder (use uma janela curta). Lição legada sem `blocks` funciona igual (o player fatia o texto).
+- **Erros:** `400` `days` fora de 1 a 365 ou `id` que não é UUID; `404` lição inexistente. Leitura, sem auditoria.
+
 #### `PATCH /admin/lessons/:id/published`
 
 - **Payload:** `{ "published": true | false }`.

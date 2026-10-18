@@ -14,7 +14,7 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Investir começa pela sobra: o que resta da sua renda depois de pagar o mês. Sem saber quanto sobra, não dá para decidir quanto aplicar.',
+          'O salário entra, o mês passa e, no fim, sobra quanto? Investir começa pela sobra: o que resta da sua renda depois de pagar o mês. Sem saber quanto sobra, não dá para decidir quanto aplicar.',
       },
       {
         type: 'text',
@@ -49,9 +49,18 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
         type: 'widget',
         id: 'monte-seu-orcamento',
         widget: 'budget-split',
-        props: {},
+        props: { leisure: 700 },
         caption:
           'Mexa nas categorias e veja a sobra mudar. Se passar da renda, o orçamento fecha no vermelho.',
+        goal: {
+          text: 'Feche o mês com 10% da renda de sobra',
+          metric: 'surplusPct',
+          op: 'gte',
+          value: 10,
+          reveal:
+            'A sobra nasce de gastar menos ou de ganhar mais. É ela, e não a renda, que limita quanto dá para aportar todo mês.',
+          showMe: { leisure: 500 },
+        },
       },
       {
         type: 'text',
@@ -84,12 +93,20 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'regra-50-30-20',
-        kind: 'true_false',
-        prompt: 'A regra 50/30/20 é uma norma oficial que todo orçamento precisa seguir.',
-        answer: false,
+        id: 'grupos-50-30-20',
+        kind: 'categorize',
+        prompt: 'Na regra 50/30/20, em que grupo entra cada gasto?',
+        groups: ['Necessidades', 'Desejos', 'Poupar'],
+        items: [
+          'Aluguel',
+          'Assinatura de streaming',
+          'Reserva de emergência',
+          'Mercado',
+          'Jantar com amigos',
+        ],
+        answer: [0, 1, 2, 0, 1],
         explanation:
-          'É uma regra de bolso popular, um ponto de partida. O que importa é gastar menos do que se recebe.',
+          'Aluguel e mercado são necessidades, streaming e jantar são desejos, e a reserva é poupança. A regra é um ponto de partida popular, não uma norma que todo orçamento precise seguir.',
       },
       {
         type: 'text',
@@ -143,7 +160,7 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Os {{juros compostos}} que fazem um investimento crescer trabalham contra você quando é você quem deve. A dívida cresce sobre um saldo que já inclui os juros dos meses anteriores.',
+          'O mesmo efeito que faz R$ 1.000 crescerem num investimento faz uma dívida de R$ 1.000 virar bola de neve. Os {{juros compostos}} trabalham contra você quando é você quem deve: a dívida cresce sobre um saldo que já inclui os juros dos meses anteriores.',
       },
       {
         type: 'text',
@@ -178,25 +195,38 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
         type: 'widget',
         id: 'simulador-de-divida',
         widget: 'debt-snowball',
-        props: {},
+        props: { payment: 400 },
         caption:
           'Mude a dívida, os juros e o pagamento mensal. Pagar pouco faz a dívida durar anos, ou nunca acabar.',
+        goal: {
+          text: 'Quite a dívida em menos de 12 meses',
+          metric: 'monthsToPayOff',
+          op: 'lt',
+          value: 12,
+          reveal:
+            'Pagar mais por mês encurta o prazo e reduz o total de juros, porque cada real pago cedo deixa de render juros contra você.',
+          showMe: { payment: 700 },
+        },
       },
       {
         type: 'check',
-        id: 'dois-meses',
-        kind: 'single',
+        id: 'chute-divida-12-meses',
+        kind: 'estimate',
         prompt:
-          'Você deve R$ 1.000 a juros de 10% ao mês e não paga nada. Quanto deve depois de 2 meses, em reais?',
-        options: ['R$ 1.100', 'R$ 1.200', 'R$ 1.210', 'R$ 2.000'],
-        answer: 2,
+          'Chute: você deve R$ 1.000 a 15% ao mês e não paga nada. Quanto deve depois de 12 meses?',
+        min: 1000,
+        max: 6000,
+        step: 100,
+        unit: 'brl',
+        answer: 5350.25,
+        tolerancePct: 10,
         explanation:
-          'No primeiro mês a dívida vai a R$ 1.100. No segundo, 10% de R$ 1.100 são R$ 110, e ela chega a R$ 1.210.',
+          'A conta dá cerca de R$ 5.350: 15% ao mês, mês após mês, multiplica a dívida por mais de 5. No rotativo do cartão existe um freio por lei, que você vê a seguir.',
       },
       {
         type: 'text',
         markup:
-          'No cartão de crédito, a fatura que você não paga por inteiro entra no {{rotativo}}. Em 2026, a média do Banco Central ficou perto de 15% ao mês, mais de 400% ao ano. Por lei, desde 2024 os juros e encargos do rotativo somados não passam do valor original da dívida: ela pode, no máximo, dobrar.',
+          'No cartão de crédito, a fatura que você não paga por inteiro entra no {{rotativo}}, uma das taxas mais altas do mercado. Por lei, os juros e encargos do rotativo somados não passam do valor original da dívida: ela pode, no máximo, dobrar.',
       },
       {
         type: 'check',
@@ -212,7 +242,25 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{cheque especial}} e o crédito pessoal sem desconto em folha também são caros: o cheque especial ficou perto de 7% ao mês em 2026. O {{consignado}} costuma ser mais barato porque a parcela é descontada direto da folha de pagamento ou do benefício, e o banco corre menos risco de não receber.',
+          'O {{cheque especial}} e o crédito pessoal sem desconto em folha também são caros. O {{consignado}} costuma ser mais barato porque a parcela é descontada direto da folha de pagamento ou do benefício, e o banco corre menos risco de não receber.',
+      },
+      {
+        type: 'more',
+        id: 'mais-taxas-de-hoje',
+        title: 'Quanto cobram hoje',
+        blocks: [
+          {
+            type: 'widget',
+            id: 'hoje-taxas-credito',
+            widget: 'callout',
+            props: {
+              tone: 'info',
+              title: 'Taxas de hoje',
+              body:
+                'Em 2026, a média do Banco Central para o rotativo do cartão ficou perto de 15% ao mês, mais de 400% ao ano, e a do cheque especial, perto de 7% ao mês. Essas taxas mudam com o tempo.',
+            },
+          },
+        ],
       },
       {
         type: 'check',

@@ -15,7 +15,7 @@ export const BLOCKS_2_7_1: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Empresa de capital aberto presta contas ao mercado: publica o {{ITR e DFP}}, com os resultados de cada trimestre e do ano. É dali que saem os números que você vai aprender a ler.',
+          'Todo trimestre, uma empresa de capital aberto abre as contas para qualquer pessoa ver. Ela publica o {{ITR e DFP}}, com os resultados de cada trimestre e do ano. É dali que saem os números que você vai aprender a ler.',
       },
       {
         type: 'text',
@@ -44,19 +44,35 @@ export const BLOCKS_2_7_1: LessonBlocks = {
         type: 'widget',
         id: 'balanco-interativo',
         widget: 'interactive-balance',
-        props: {},
+        props: { costsPct: 85 },
         caption:
           'Mude custos, despesas, juros e imposto e veja a receita virar lucro. Embaixo, o que a empresa tem é igual ao que deve mais o patrimônio líquido.',
+        goal: {
+          text: 'Deixe o lucro líquido positivo mexendo só nos custos',
+          metric: 'netIncome',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'Cada real de custo a menos sobe o lucro em todos os degraus da conta, até o lucro líquido. Com custos altos, a receita é toda consumida antes de chegar ao fim.',
+          showMe: { costsPct: 60 },
+        },
       },
       {
         type: 'check',
-        id: 'ebit-x-lucro',
-        kind: 'single',
-        prompt: 'Em geral, o EBIT de uma empresa é maior ou menor que o lucro líquido?',
-        options: ['Maior', 'Menor', 'Sempre igual'],
-        answer: 0,
+        id: 'ordem-do-resultado',
+        kind: 'order',
+        prompt: 'Coloque as linhas do resultado na ordem em que a conta desce, da receita ao que sobra.',
+        items: [
+          'Receita líquida (o que a empresa vendeu)',
+          'Lucro bruto (depois dos custos)',
+          'EBIT (lucro da operação, antes de juros e imposto)',
+          'Lucro líquido (o que sobra no fim)',
+        ],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Começa aqui',
+        highLabel: 'Termina aqui',
         explanation:
-          'O EBIT vem antes de juros e imposto, então em geral é maior. Com muita receita financeira ou crédito fiscal pode inverter, por isso a pergunta diz "em geral".',
+          'Da receita saem os custos (lucro bruto), depois as despesas da operação (EBIT) e, por fim, juros e imposto (lucro líquido). Por isso o EBIT, em geral, é maior que o lucro líquido.',
       },
       {
         type: 'check',
@@ -301,9 +317,18 @@ export const BLOCKS_2_7_4: LessonBlocks = {
         type: 'widget',
         id: 'laboratorio-de-roe',
         widget: 'roe-lab',
-        props: {},
+        props: { netIncome: 50 },
         caption:
           'O ROE é margem vezes giro vezes alavancagem. Mude a dívida e veja o ROE subir junto com o risco.',
+        goal: {
+          text: 'Leve o ROE acima da Selic de referência sem mexer na Selic',
+          metric: 'roeMinusSelicPp',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'O lucro não mudou: o ROE subiu porque a dívida encolheu o patrimônio dos sócios. Um ROE acima da Selic parece bom, mas o risco subiu junto.',
+          showMe: { equity: 400 },
+        },
       },
       {
         type: 'check',
@@ -351,7 +376,7 @@ export const BLOCKS_2_7_5: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O preço de uma ação sozinho não diz se ela está cara. R$ 20 pode ser muito para quem lucra pouco por ação e pouco para quem lucra muito.',
+          'Uma ação de R$ 10 pode estar mais cara que uma de R$ 100. Como? O preço sozinho não diz se ela está cara: R$ 20 pode ser muito para quem lucra pouco por ação e pouco para quem lucra muito.',
       },
       {
         type: 'text',
@@ -448,7 +473,7 @@ export const BLOCKS_2_7_7: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Além de se valorizar, uma ação pode pagar parte do lucro aos sócios em dinheiro, os dividendos. O {{Dividend Yield}} resume quanto isso representa frente ao preço.',
+          'Duas ações custam R$ 10. Uma paga R$ 1 por ano em dividendos, a outra paga R$ 0,10. Qual rende mais como renda? O {{Dividend Yield}} resume quanto os dividendos representam frente ao preço.',
       },
       {
         type: 'text',
@@ -496,27 +521,35 @@ export const BLOCKS_2_7_7: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'dividendo-do-passado',
-        kind: 'true_false',
-        prompt: 'Quem pagou muito dividendo no ano passado vai pagar o mesmo no próximo.',
-        answer: false,
+        id: 'pergunta-de-cada-indicador',
+        kind: 'match',
+        prompt: 'Ligue cada indicador à pergunta que ele responde.',
+        left: ['P/L', 'ROE', 'Margem líquida', 'Dívida líquida sobre EBIT', 'Dividend Yield'],
+        right: [
+          'Quanto o mercado paga por cada real de lucro?',
+          'Quanto os sócios ganham por cada real que é deles?',
+          'Quanto de cada real vendido vira lucro?',
+          'Em quantos anos de operação a dívida seria quitada?',
+          'Quanto a ação paga de dividendos frente ao preço?',
+        ],
+        answer: [0, 1, 2, 3, 4],
         explanation:
-          'O dividendo depende do lucro e da decisão da empresa. O Dividend Yield olha para trás e não garante nada.',
+          'Cada indicador responde a uma pergunta diferente. Todos olham para trás: o Dividend Yield, por exemplo, não garante o dividendo do próximo ano.',
       },
       {
         type: 'text',
         markup:
-          'O Dividend Yield é bruto, sem imposto. Desde 2026, dividendos acima de R$ 50 mil no mês pagos por uma mesma empresa a uma pessoa física têm 10% retidos na fonte. O {{JCP}} tem 17,5% retidos.',
+          'O Dividend Yield é bruto, sem imposto. Dividendos acima de um limite no mês, pagos por uma mesma empresa a uma pessoa física, têm parte retida na fonte. O {{JCP}} tem 17,5% retidos.',
       },
       {
         type: 'check',
         id: 'retencao-dividendos',
         kind: 'true_false',
         prompt:
-          'Quem recebe R$ 1.000 de dividendos num mês, de uma mesma empresa, sofre retenção de 10%.',
+          'Se a retenção de 10% só vale acima de R$ 50 mil no mês, de uma mesma empresa, quem recebe R$ 1.000 de dividendos num mês sofre retenção.',
         answer: false,
         explanation:
-          'A retenção de 10% vale acima de R$ 50 mil no mês, da mesma empresa para a mesma pessoa. Abaixo disso, não há retenção sobre o dividendo.',
+          'A retenção só vale acima do limite do mês, da mesma empresa para a mesma pessoa. Abaixo disso, não há retenção sobre o dividendo.',
       },
       {
         type: 'widget',
@@ -543,7 +576,7 @@ export const BLOCKS_2_8: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Empresas se agrupam em setores, como mineração, bancos, varejo, energia e tecnologia. Cada setor reage de um jeito à economia e aos juros.',
+          'Quando a economia esfria, algumas empresas sentem logo e outras quase não notam. Por quê? Empresas se agrupam em setores, como mineração, bancos, varejo, energia e tecnologia, e cada setor reage de um jeito à economia e aos juros.',
       },
       {
         type: 'text',
@@ -552,13 +585,20 @@ export const BLOCKS_2_8: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'setor-defensivo',
-        kind: 'single',
-        prompt: 'Qual destes setores é tipicamente defensivo?',
-        options: ['Moda de luxo', 'Distribuição de energia', 'Venda de carros novos'],
-        answer: 1,
+        id: 'ciclico-ou-defensivo',
+        kind: 'categorize',
+        prompt: 'Cada setor é cíclico ou defensivo?',
+        groups: ['Cíclico', 'Defensivo'],
+        items: [
+          'Distribuição de energia',
+          'Construção de imóveis',
+          'Moda de luxo',
+          'Saneamento básico',
+          'Venda de carros novos',
+        ],
+        answer: [1, 0, 0, 1, 0],
         explanation:
-          'Energia é gasta em qualquer fase da economia. Moda de luxo e carros novos são os primeiros cortes quando o orçamento aperta.',
+          'Energia e água se consomem em qualquer fase da economia. Imóveis, luxo e carros novos são os primeiros cortes quando o orçamento aperta.',
       },
       {
         type: 'text',
@@ -621,7 +661,7 @@ export const BLOCKS_2_9: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Um {{ETF}} é um fundo que reproduz um índice e é negociado na bolsa como uma ação. Com uma cota, você tem uma fatia de uma cesta inteira de ativos.',
+          'Dá para ter um pedacinho de várias empresas com uma única compra? Dá, com um {{ETF}}: um fundo que reproduz um índice e é negociado na bolsa como uma ação. Com uma cota, você tem uma fatia de uma cesta inteira de ativos.',
       },
       {
         type: 'text',
@@ -688,21 +728,18 @@ export const BLOCKS_2_9: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Vender com lucro paga imposto de renda, e o ETF não tem a isenção de R$ 20 mil em vendas no mês, que vale só para ações.',
+          'Vender com lucro paga imposto de renda, e o ETF não tem a isenção de vendas no mês, que vale só para ações.',
       },
       {
         type: 'check',
         id: 'etf-sem-isencao',
         kind: 'single',
-        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
-        options: [
-          'Sim, como nas ações',
-          'Não, a isenção de R$ 20 mil vale só para ações',
-          'Só se o ETF distribuir dividendos',
-        ],
+        prompt:
+          'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
+        options: ['Sim, como nas ações', 'Não, a isenção do mês vale só para ações', 'Só se o ETF distribuir dividendos'],
         answer: 1,
         explanation:
-          'A isenção de até R$ 20 mil em vendas no mês vale para ações, não para ETF nem FII.',
+          'A isenção de vendas no mês vale para ações, não para ETF nem FII.',
       },
       {
         type: 'widget',
@@ -767,22 +804,36 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
           'Perto de 70%. A taxa leva cerca de 30% do saldo final em 20 anos, e mais de um terço do ganho, porque ela corrói o retorno todo ano e os juros seguintes incidem sobre o que sobrou.',
       },
       {
+        type: 'check',
+        id: 'chute-taxa-30-anos',
+        kind: 'estimate',
+        prompt:
+          'R$ 10.000 a 10% ao ano por 30 anos viram cerca de R$ 174 mil. Chute: quanto uma taxa de 2% ao ano leva desse saldo?',
+        min: 0,
+        max: 150000,
+        step: 1000,
+        unit: 'brl',
+        answer: 73867.45,
+        tolerancePct: 10,
+        explanation:
+          'A taxa leva cerca de R$ 74 mil: o saldo cai de R$ 174,5 mil para R$ 100,6 mil. Parece só 2% ao ano, mas ela corrói o retorno todo ano, por 30 anos.',
+      },
+      {
         type: 'widget',
         id: 'efeito-da-taxa',
         widget: 'fee-drag',
-        props: {},
+        props: { years: 30, feeBPct: 0.1 },
         caption:
           'Mude as taxas, o retorno e o prazo e veja a diferença entre os dois produtos crescer.',
-      },
-      {
-        type: 'check',
-        id: 'retorno-liquido',
-        kind: 'single',
-        prompt:
-          'Um fundo rende 10% ao ano e cobra 2% de taxa. Quanto sobra de retorno, em % ao ano?',
-        options: ['8%', '9,8%', '12%', '20%'],
-        answer: 0,
-        explanation: 'O retorno que chega a você é o bruto menos a taxa: 10% menos 2% dá 8%.',
+        goal: {
+          text: 'Com 30 anos de prazo, ache a taxa do produto B que já leva R$ 10 mil do saldo',
+          metric: 'differenceBRL',
+          op: 'gte',
+          value: 10000,
+          reveal:
+            'Uma taxa que parece pequena já leva mais de R$ 10 mil em 30 anos: ela corrói o retorno todo ano, e os juros seguintes incidem sobre o que sobrou.',
+          showMe: { feeBPct: 0.3 },
+        },
       },
       {
         type: 'text',
@@ -802,18 +853,18 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{spread}} também é custo: você compra pelo preço de venda e vende pelo de compra, e a diferença fica com o mercado. No Tesouro Direto, a B3 cobra custódia de 0,20% ao ano sobre o valor dos títulos.',
+          'O {{spread}} também é custo: você compra pelo preço de venda e vende pelo de compra, e a diferença fica com o mercado. No Tesouro Direto, a B3 cobra uma custódia anual sobre o valor dos títulos.',
       },
       {
         type: 'check',
         id: 'custodia-do-tesouro',
         kind: 'single',
         prompt:
-          'Você tem R$ 20.000 em um Tesouro Prefixado. Quanto paga de custódia por ano, em reais?',
+          'Você tem R$ 20.000 em um Tesouro Prefixado, e a custódia da B3 é de 0,20% ao ano. Quanto paga de custódia por ano, em reais?',
         options: ['R$ 0', 'R$ 20', 'R$ 40', 'R$ 400'],
         answer: 2,
         explanation:
-          '0,20% de R$ 20.000 dá R$ 40 por ano. O Tesouro Selic tem isenção sobre até R$ 10 mil, mas não é o caso aqui.',
+          '0,20% de R$ 20.000 dá R$ 40 por ano. O Tesouro Selic tem isenção sobre uma parte pequena do valor, mas não é o caso aqui.',
       },
       {
         type: 'check',
@@ -856,7 +907,7 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Ganhar vendendo uma ação ou uma cota pode gerar imposto. Quanto, depende de três coisas: o que você vendeu, se comprou e vendeu no mesmo dia e quanto vendeu no mês.',
+          'Você vendeu uma ação com lucro. A Receita quer uma parte? Depende de três coisas: o que você vendeu, se comprou e vendeu no mesmo dia e quanto vendeu no mês.',
       },
       {
         type: 'text',
@@ -886,7 +937,7 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Nada. Quem vende até R$ 20 mil em ações no mês tem o ganho isento, e o que conta é o valor vendido, não o lucro. Day trade não entra nessa isenção.',
+          'Nada. Quem vende até o limite de isenção do mês em ações tem o ganho isento, e o que conta é o valor vendido, não o lucro. Day trade não entra nessa isenção.',
       },
       {
         type: 'widget',
@@ -897,28 +948,37 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'isencao-so-acoes',
-        kind: 'single',
-        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, no mês. O ganho é isento?',
-        options: ['Sim, abaixo de R$ 20 mil', 'Não, a isenção vale só para ações', 'Só se for FII'],
-        answer: 1,
+        id: 'isento-ou-tributado',
+        kind: 'categorize',
+        prompt:
+          'Vale a regra: vendas de até R$ 20 mil em ações no mês, em dias diferentes, têm o lucro isento. Cada venda abaixo, com lucro, é isenta ou paga imposto?',
+        groups: ['Isento', 'Paga imposto'],
+        items: [
+          'Vender R$ 15.000 em ações no mês',
+          'Vender R$ 30.000 em ações no mês',
+          'Vender R$ 15.000 em cotas de ETF',
+          'Vender R$ 12.000 em ações, em dois dias diferentes',
+          'Comprar e vender a mesma ação no mesmo dia',
+        ],
+        answer: [0, 1, 1, 0, 1],
         explanation:
-          'A isenção de R$ 20 mil em vendas no mês vale para ações. ETF e FII pagam imposto sobre o lucro.',
+          'A isenção vale só para ações, até o limite do mês e fora do day trade. Acima do limite, ETF e day trade pagam imposto sobre o lucro.',
       },
       {
         type: 'text',
         markup:
-          'Passou de R$ 20 mil? Todo o lucro do mês é tributado, não só o que passou do limite. Você mesmo apura e paga o imposto em {{DARF}}, até o último dia útil do mês seguinte à venda.',
+          'Passou do limite? Todo o lucro do mês é tributado, não só o que passou do limite. Você mesmo apura e paga o imposto em {{DARF}}, até o último dia útil do mês seguinte à venda.',
       },
       {
         type: 'check',
         id: 'imposto-acima-do-limite',
         kind: 'single',
         prompt:
-          'Você vendeu R$ 30.000 em ações no mês, com lucro de R$ 4.000, em operações de swing trade. Quanto paga de imposto, em reais?',
+          'Você vendeu R$ 30.000 em ações no mês, acima do limite de isenção, com lucro de R$ 4.000, em operações de swing trade com alíquota de 15%. Quanto paga de imposto, em reais?',
         options: ['R$ 0', 'R$ 600', 'R$ 800', 'R$ 4.500'],
         answer: 1,
-        explanation: 'Passou de R$ 20 mil, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
+        explanation:
+          'Passou do limite, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
       },
       {
         type: 'text',
@@ -937,16 +997,23 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
           'O prejuízo abate o lucro: R$ 4.000 menos R$ 1.000 dá R$ 3.000, e o imposto é de 15% disso.',
       },
       {
-        type: 'text',
-        markup:
-          'A corretora retém um pouco na venda, o {{dedo-duro}}: 0,005% do valor vendido no swing trade e 1% no day trade. Ele avisa a Receita e abate do imposto que você deve.',
-      },
-      {
         type: 'widget',
         id: 'arvore-de-imposto',
         widget: 'tax-decision-tree',
         props: {},
         caption: 'Responda as perguntas e veja como a venda é tributada.',
+      },
+      {
+        type: 'more',
+        id: 'mais-dedo-duro',
+        title: 'O que a corretora retém na venda',
+        blocks: [
+          {
+            type: 'text',
+            markup:
+              'A corretora retém um pouco na venda, o {{dedo-duro}}: 0,005% do valor vendido no swing trade e 1% no day trade. Ele avisa a Receita e abate do imposto que você deve.',
+          },
+        ],
       },
       {
         type: 'check',
@@ -960,16 +1027,35 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Os dividendos das ações também têm regra própria: desde 2026, a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Abaixo disso, não há retenção.',
+          'Os dividendos das ações também têm regra própria: a empresa retém parte do imposto quando paga muito a uma mesma pessoa no mês. Abaixo desse limite, não há retenção.',
+      },
+      {
+        type: 'more',
+        id: 'mais-valores-de-hoje',
+        title: 'Os limites em vigor',
+        blocks: [
+          {
+            type: 'widget',
+            id: 'hoje-isencao-dividendos',
+            widget: 'callout',
+            props: {
+              tone: 'info',
+              title: 'Valores de hoje',
+              body:
+                'A isenção vale para vendas de até R$ 20 mil em ações no mês. Nos dividendos, desde 2026 a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Esses valores são definidos em lei e podem mudar.',
+            },
+          },
+        ],
       },
       {
         type: 'check',
         id: 'dividendo-limite',
         kind: 'true_false',
-        prompt: 'Em 2026, todo dividendo de ação tem 10% de imposto retido.',
+        prompt:
+          'Se a regra retém 10% só quando uma mesma empresa paga mais de R$ 50 mil no mês a você, todo dividendo de ação tem imposto retido.',
         answer: false,
         explanation:
-          'A retenção de 10% só vale quando a mesma empresa paga mais de R$ 50 mil no mês a uma mesma pessoa.',
+          'A retenção só vale acima do limite do mês. Abaixo dele, o dividendo chega inteiro.',
       },
       {
         type: 'text',

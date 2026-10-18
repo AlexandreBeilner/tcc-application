@@ -141,6 +141,7 @@ import {
   CreateLessonAdminUseCase,
   GetLessonForEditAdminUseCase,
   GetLessonRevisionAdminUseCase,
+  GetLessonCardFunnelAdminUseCase,
   ListLessonCatalogAdminUseCase,
   RestoreLessonRevisionAdminUseCase,
   SetLessonPublishedAdminUseCase,
@@ -255,6 +256,7 @@ import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/applicat
 import { GetTracksCompletedWithoutErrorsCountUseCase } from './modules/lessons/application/useCases/getTracksCompletedWithoutErrorsCount'
 import { CountReviewedLessonsUseCase } from './modules/lessons/application/useCases/countReviewedLessons'
 import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
+import { GetCompletedLessonCodesUseCase } from './modules/lessons/application/useCases/getCompletedLessonCodes'
 import { GetCompletedTracksUseCase } from './modules/lessons/application/useCases/getCompletedTracks'
 import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/useCases/findLessonUnlockingKey'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
@@ -262,10 +264,17 @@ import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/use
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { HasReviewedOldLessonTodayUseCase } from './modules/lessons/application/useCases/hasReviewedOldLessonToday'
 import { HasMicroDecisionStreakTodayUseCase } from './modules/lessons/application/useCases/hasMicroDecisionStreakToday'
+import { GetLessonCardFunnelUseCase } from './modules/lessons/application/useCases/getLessonCardFunnel'
+import { GetReviewSessionUseCase } from './modules/lessons/application/useCases/getReviewSession'
+import { RecordCardReachUseCase } from './modules/lessons/application/useCases/recordCardReach'
+import { VotePollUseCase } from './modules/lessons/application/useCases/votePoll'
+import { RecordReviewResultUseCase } from './modules/lessons/application/useCases/recordReviewResult'
 import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
+import { createDrizzleLessonCardReachRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonCardReachRepository'
+import { createDrizzleLessonPollRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonPollRepository'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createInProcessSocialFeedRecorder } from './modules/lessons/infrastructure/socialfeed/inProcessSocialFeedRecorder'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
@@ -864,7 +873,8 @@ export function createApp(deps: AppDeps = {}): Express {
       ? configuredStepInterval
       : LESSON_MIN_STEP_INTERVAL_MS
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
-  const getLesson = new GetLessonUseCase(lessonRepository)
+  const lessonPollRepository = createDrizzleLessonPollRepository(db)
+  const getLesson = new GetLessonUseCase(lessonRepository, lessonPollRepository)
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   // Indicação (MO.7.2): recompensa do indicador quando a pessoa indicada conclui a primeira lição.
@@ -1039,7 +1049,10 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessGamificationReader(getProgression),
     createInProcessAchievementsReader(listAchievements),
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
-    createInProcessTrackCompletionReader(new GetCompletedTracksUseCase(lessonRepository)),
+    createInProcessTrackCompletionReader(
+      new GetCompletedTracksUseCase(lessonRepository),
+      new GetCompletedLessonCodesUseCase(lessonRepository),
+    ),
     cosmeticsReader,
   )
 
@@ -1347,8 +1360,13 @@ export function createApp(deps: AppDeps = {}): Express {
   // (dispensa ao publicar de volta) vivem no módulo `lessons`.
   const lessonCatalogRepository = createDrizzleLessonCatalogRepository(db)
   const lessonContentValidator = new LessonContentValidator(createEngineAssetTypeLookup(engineUrl))
+  const lessonCardReachRepository = createDrizzleLessonCardReachRepository(db)
   const lessonCatalogAdmin = createInProcessLessonCatalogAdmin({
     listLessonCatalog: new ListLessonCatalogUseCase(lessonCatalogRepository),
+    getLessonCardFunnel: new GetLessonCardFunnelUseCase(
+      lessonCatalogRepository,
+      lessonCardReachRepository,
+    ),
     setLessonPublished: new SetLessonPublishedUseCase(lessonCatalogRepository),
     getLessonForEdit: new GetLessonForEditUseCase(lessonCatalogRepository),
     updateLessonContent: new UpdateLessonContentUseCase(
@@ -1366,6 +1384,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createAdminLessonsRouter({
       listLessonCatalog: new ListLessonCatalogAdminUseCase(lessonCatalogAdmin),
       setLessonPublished: new SetLessonPublishedAdminUseCase(lessonCatalogAdmin, recordAdminAction),
+      getLessonCardFunnel: new GetLessonCardFunnelAdminUseCase(lessonCatalogAdmin),
       getLessonForEdit: new GetLessonForEditAdminUseCase(lessonCatalogAdmin),
       updateLessonContent: new UpdateLessonContentAdminUseCase(
         lessonCatalogAdmin,
@@ -1425,6 +1444,10 @@ export function createApp(deps: AppDeps = {}): Express {
       answerMicroDecision,
       answerCheckpoint,
       reviewLesson,
+      recordCardReach: new RecordCardReachUseCase(lessonRepository, lessonCardReachRepository),
+      votePoll: new VotePollUseCase(lessonRepository, lessonPollRepository),
+      getReviewSession: new GetReviewSessionUseCase(lessonRepository),
+      recordReviewResult: new RecordReviewResultUseCase(lessonRepository),
       authMiddleware,
     }),
   )

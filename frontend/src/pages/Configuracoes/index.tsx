@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/atoms/Avatar'
 import { Button } from '../../components/atoms/Button'
 import { InstallInvite } from '../../components/molecules/InstallInvite'
+import { LessonFeedbackSection } from '../../components/organisms/LessonFeedbackSection'
 import { EmailPreferencesSection } from '../../components/organisms/EmailPreferencesSection'
 import { CosmeticsPicker } from '../../components/organisms/CosmeticsPicker'
 import { PlanSection } from '../../components/organisms/PlanSection'
@@ -312,6 +313,7 @@ export function Configuracoes() {
                     <PlanSection />
                     <CosmeticsPicker username={user.username} avatarUrl={user.avatarUrl} />
                     <EmailPreferencesSection />
+                    <LessonFeedbackSection />
 
                     <section className={styles.section}>
                         <h2 className={styles.sectionTitle}>Aparência</h2>

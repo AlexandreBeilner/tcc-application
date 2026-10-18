@@ -50,6 +50,15 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
         props: {},
         caption:
           'Compre 500 a mercado e veja o preço médio. Depois tente uma ordem limitada abaixo do mercado.',
+        goal: {
+          text: 'Envie uma ordem limitada de compra e faça com que ela seja executada',
+          metric: 'limitFilledQty',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'Uma ordem limitada só executa se houver vendedor no seu preço ou por menos. Com R$ 10,00 ela esperou na fila; a partir de R$ 10,05, o menor preço de venda, ela encontra vendedor.',
+          showMe: { orderType: 'limit', limitPrice: 10.05 },
+        },
       },
       {
         type: 'text',
@@ -102,6 +111,23 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
           'As ações negociam em lotes de 100. Quantidades de 1 a 99 vão para o mercado fracionário, e o código da ação ganha um F no fim.',
       },
       {
+        type: 'more',
+        id: 'mais-pregao-e-custos',
+        title: 'Pregão e custos',
+        blocks: [
+          {
+            type: 'text',
+            markup:
+              'O pregão funciona em dias úteis, em horário definido pela B3, com uma fase de leilão antes de abrir e outra no fechamento.',
+          },
+          {
+            type: 'text',
+            markup:
+              'Investir em ações tem custos. A corretagem é combinada livremente com a corretora, e muitas nem cobram. A B3 cobra emolumentos e taxa de liquidação, e há a custódia.',
+          },
+        ],
+      },
+      {
         type: 'check',
         id: 'lote-ou-fracionario',
         kind: 'single',
@@ -113,32 +139,18 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O pregão funciona em dias úteis, em horário definido pela B3, com uma fase de leilão antes de abrir e outra no fechamento.',
-      },
-      {
-        type: 'text',
-        markup:
-          'Investir em ações tem custos. A corretagem é combinada livremente com a corretora, e muitas nem cobram. A B3 cobra emolumentos e taxa de liquidação, e há a custódia.',
-      },
-      {
-        type: 'text',
-        markup:
-          'Vender com lucro paga imposto de renda, mas quem vende até R$ 20 mil em ações no mês tem o ganho isento. A regra vale para ações, não para ETF nem FII.',
+          'Vender com lucro paga imposto de renda, mas quem vende até o limite de isenção do mês em ações tem o ganho isento. A regra vale para ações, não para ETF nem FII.',
       },
       {
         type: 'check',
         id: 'isencao-vinte-mil',
         kind: 'single',
         prompt:
-          'Em um mês, você vendeu R$ 15.000 em ações com lucro. O ganho paga imposto de renda?',
-        options: [
-          'Sim, todo lucro paga',
-          'Não, está dentro da isenção de R$ 20 mil no mês',
-          'Só se vender em lote padrão',
-        ],
+          'Em um mês, você vendeu R$ 15.000 em ações com lucro, e o limite de isenção do mês é de R$ 20 mil. O ganho paga imposto de renda?',
+        options: ['Sim, todo lucro paga', 'Não, está dentro do limite de isenção do mês', 'Só se vender em lote padrão'],
         answer: 1,
         explanation:
-          'O total vendido no mês, R$ 15.000, está abaixo de R$ 20 mil, então o ganho é isento.',
+          'O total vendido no mês, R$ 15.000, está abaixo do limite de isenção, então o ganho é isento.',
       },
       {
         type: 'widget',
@@ -168,7 +180,7 @@ export const BLOCKS_2_1: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Uma ação é uma fração do capital de uma empresa. Quem compra ações vira sócio: não empresta dinheiro, como na renda fixa, e passa a dividir o resultado do negócio.',
+          'Você toparia ser dono de um pedacinho de uma empresa grande? É o que uma ação oferece: uma fração do capital da empresa. Quem compra ações vira sócio: não empresta dinheiro, como na renda fixa, e passa a dividir o resultado do negócio.',
       },
       {
         type: 'text',
@@ -273,7 +285,7 @@ export const BLOCKS_2_2: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Para ter ações na bolsa, a empresa precisa abrir o capital. O {{IPO}}, a oferta pública inicial, é a primeira vez que ela oferece ações ao público.',
+          'Um dia, uma empresa que era só dos fundadores passa a ter milhares de sócios. Como isso acontece? Ela abre o capital, e o {{IPO}}, a oferta pública inicial, é a primeira vez que ela oferece ações ao público.',
       },
       {
         type: 'check',
@@ -347,14 +359,20 @@ export const BLOCKS_2_2: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'dinheiro-no-secundario',
-        kind: 'single',
-        prompt:
-          'Você compra uma ação na bolsa, meses depois do IPO. O dinheiro vai principalmente para:',
-        options: ['O caixa da empresa', 'O investidor que vendeu a ação', 'O Banco Central'],
-        answer: 1,
+        id: 'etapas-da-oferta',
+        kind: 'order',
+        prompt: 'Coloque as etapas de um IPO na ordem em que acontecem.',
+        items: [
+          'Os investidores dizem quantas ações querem e o preço máximo que aceitam',
+          'A oferta fecha no preço de corte',
+          'As ações novas são vendidas e o dinheiro entra na empresa',
+          'As ações passam a ser negociadas entre investidores',
+        ],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Primeiro',
+        highLabel: 'Por último',
         explanation:
-          'No mercado secundário a ação já existe e muda de dono. Quem recebe é o investidor que vendeu, descontados os custos da operação.',
+          'O bookbuilding mede a demanda, o preço de corte fecha a oferta e a venda das ações novas é o mercado primário. Só depois vem o mercado secundário, em que o dinheiro vai para o investidor que vendeu, não para a empresa.',
       },
       {
         type: 'text',
@@ -383,7 +401,7 @@ export const BLOCKS_2_3: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Todo ticker tem quatro letras, que lembram o nome da empresa, e um número que diz o tipo da ação. A empresa escolhe as letras. O número segue um padrão da B3.',
+          'Dois códigos quase iguais na tela, um terminado em 3 e outro em 4. O que o número final está dizendo? Todo ticker tem quatro letras, que lembram o nome da empresa, e um número que diz o tipo da ação. A empresa escolhe as letras. O número segue um padrão da B3.',
       },
       {
         type: 'text',
@@ -437,12 +455,18 @@ export const BLOCKS_2_3: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'final-onze',
-        kind: 'single',
-        prompt: 'O que costuma ser um ticker terminado em 11, como SINT11?',
-        options: ['Uma ação ordinária', 'Um fundo ou ETF', 'Uma ação preferencial'],
-        answer: 1,
-        explanation: 'O final 11 abrange fundos e ETFs. As ações simples terminam em 3 ou em 4.',
+        id: 'finais-do-ticker',
+        kind: 'match',
+        prompt: 'Ligue o número final do ticker ao que ele costuma indicar.',
+        left: ['Final 3', 'Final 4', 'Final 11'],
+        right: [
+          'Ação ordinária, com direito a voto',
+          'Ação preferencial, que pode ter preferência no dividendo',
+          'Fundo ou ETF, não uma ação simples',
+        ],
+        answer: [0, 1, 2],
+        explanation:
+          'O 3 marca a ação ordinária e o 4, a preferencial. O 11 abrange fundos e ETFs: as ações simples terminam em 3 ou em 4.',
       },
       {
         type: 'check',
@@ -480,7 +504,7 @@ export const BLOCKS_2_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O preço de uma ação reage a notícias. Algumas atingem a economia inteira, como uma decisão sobre a Selic. Outras atingem só um setor, o grupo de empresas do mesmo ramo, como a quebra de uma safra.',
+          'Uma decisão sobre a Selic abala a bolsa inteira. A quebra de uma safra abala só algumas empresas. O preço de uma ação reage a notícias: umas atingem a economia inteira, outras só um setor, o grupo de empresas do mesmo ramo.',
       },
       {
         type: 'check',
@@ -567,7 +591,7 @@ export const BLOCKS_2_5: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O preço de uma ação não é decidido pela empresa nem por você. É o preço do último negócio, aquele em que um comprador e um vendedor se acertaram.',
+          'Quem decide o preço de uma ação? Nem a empresa, nem você. É o preço do último negócio, aquele em que um comprador e um vendedor se acertaram.',
       },
       {
         type: 'check',

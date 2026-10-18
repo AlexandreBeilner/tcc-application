@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
     ALLOCATION_CLASSES,
     EXAMPLE_ALLOCATIONS,
@@ -29,12 +29,22 @@ const pct = (value: number) => `${value.toFixed(1).replace('.', ',').replace(',0
 // Widget `allocation-donut` (RC.3.4h): como o dinheiro se divide entre quatro classes. Parte de
 // um exemplo por perfil (não é recomendação) e deixa o aluno mexer nos pesos. Cada fatia tem o
 // percentual escrito na legenda, e o ano ruim ilustrativo mostra a perda em % e em reais.
-export function AllocationDonutWidget(props: AllocationDonutWidgetProps) {
-    const [profile, setProfile] = useState<RiskProfile | 'custom'>(props.profile)
-    const [allocation, setAllocation] = useState<Allocation>(EXAMPLE_ALLOCATIONS[props.profile])
+export function AllocationDonutWidget({ onMetrics, ...props }: AllocationDonutWidgetProps) {
+    // Os pesos de partida podem vir de uma missão (ou do "Me mostra"); sem eles, parte do exemplo do perfil.
+    const startOverride = {
+        ...(props.postFixedPct === undefined ? {} : { 'post-fixed': props.postFixedPct }),
+        ...(props.longerFixedPct === undefined ? {} : { 'longer-fixed': props.longerFixedPct }),
+        ...(props.fiiPct === undefined ? {} : { fii: props.fiiPct }),
+        ...(props.stocksPct === undefined ? {} : { stocks: props.stocksPct }),
+    }
+    const [profile, setProfile] = useState<RiskProfile | 'custom'>(Object.keys(startOverride).length > 0 ? 'custom' : props.profile)
+    const [allocation, setAllocation] = useState<Allocation>({ ...EXAMPLE_ALLOCATIONS[props.profile], ...startOverride })
 
     const total = allocationTotal(allocation)
     const shares = normalizedShares(allocation)
+    // Maior fatia da carteira; só vale com a soma fechada em 100%, senão o donut é proporcional e a conta não é do aluno.
+    const maxSharePct = total === 100 ? Math.max(...ALLOCATION_CLASSES.map(({ key }) => allocation[key])) : Infinity
+    useEffect(() => onMetrics?.({ maxSharePct }), [maxSharePct, onMetrics])
     const loss = badYearLoss(allocation, props.amount)
 
     let offset = 0

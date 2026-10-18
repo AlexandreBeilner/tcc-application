@@ -1,5 +1,7 @@
-import { toPublicBlocks } from './widgets/lessonBlocks'
-import type { LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
+import { classifyEstimate, findCheckBlock, toPublicBlocks } from './widgets/lessonBlocks'
+import type { EstimateResult, LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
+import type { PollState } from './poll'
+import type { RecallView } from './recall'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
 // lição hoje") pra manter o import existente em `application/`; implementação
@@ -203,7 +205,22 @@ export interface CheckpointRecord {
   attempts: number
   wrongOptions: number[]
   solvedAt: Date | null
+  // Resposta dos formatos que não são por índice (LJ.2.1). Estimativa: o chute e se caiu na
+  // tolerância ("na mosca"). `null` em `single`/`true_false`.
+  lastResponse?: CheckpointLastResponse | null
+  // Revisão espaçada (LJ.5.6): revisões já acertadas e quando a pergunta volta (`null`/ausente: fora da fila).
+  reviewStage?: number
+  reviewDueAt?: Date | null
 }
+
+// Estimativa: o chute e se caiu na tolerância. Ordenar: a ordem certa que a pessoa montou (só gravada ao
+// resolver, para restaurar a tela).
+export type CheckpointLastResponse =
+  | { kind: 'estimate'; value: number; hit: boolean }
+  | { kind: 'order'; sequence: number[] }
+  | { kind: 'categorize'; groups: number[] }
+  // Ligar: pares já travados (esquerda, direita como o cliente a recebeu) e quantos erros houve.
+  | { kind: 'match'; pairs: [number, number][]; misses: number }
 
 // Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
 // o gabarito nunca vai aqui.
@@ -213,6 +230,14 @@ export interface CheckpointState {
   attempts: number
   wrongOptions: number[]
   firstTry: boolean
+  // Só estimativa já respondida: o chute, o valor real e a faixa (restaura a régua da tela).
+  estimate?: EstimateResult
+  // Só ordenar já resolvido: a ordem montada (índices dos itens como o cliente os recebeu).
+  sequence?: number[]
+  // Só agrupar já resolvido: o grupo de cada item.
+  groups?: number[]
+  // Só ligar: os pares já travados, para restaurar a tela no meio do caminho.
+  match?: { pairs: [number, number][] }
 }
 
 export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
@@ -221,6 +246,11 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   checkpoints: CheckpointState[]
   // Quantas perguntas intermediárias o aluno acertou de primeira nesta lição.
   checkpointsFirstTry: number
+  // "Relembra?" (LJ.5.5): pergunta de uma lição anterior para abrir esta. Só `GetLessonUseCase` preenche.
+  recall?: RecallView
+  // Enquetes da comunidade (LJ.2.6) em que a pessoa já votou: o voto e, com votos suficientes, o resultado.
+  // Só `GetLessonUseCase` preenche; enquete ainda não votada não aparece (o resultado só vem depois do voto).
+  polls?: PollState[]
   status: LessonStatus
   currentStep: number
   // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair
@@ -230,6 +260,74 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   // Lição dispensada e ainda não feita (N.24): aparece no mapa como "nova,
   // opcional" — disponível pra fazer, mas sem bloquear nada.
   waived: boolean
+}
+
+// "De primeira": resolvido sem erro antes. Estimativa resolve na 1ª resposta, então vale a que caiu na
+// mosca; ligar pares conta erros pelos pares (cada par certo é uma chamada), não pelas tentativas.
+function wasFirstTry(record: CheckpointRecord): boolean {
+  if (record.solvedAt === null) {
+    return false
+  }
+  if (record.lastResponse?.kind === 'match') {
+    return record.lastResponse.misses === 0
+  }
+  return (
+    record.attempts === 1 &&
+    (record.lastResponse?.kind === 'estimate' ? record.lastResponse.hit : true)
+  )
+}
+
+// Resolvida, mas só depois de errar (ou, na estimativa, fora da tolerância). É o que entra no "Relembra?"
+// (LJ.5.5) e na fila de revisão espaçada (LJ.5.6). Pergunta ainda não resolvida não é "errada", é pendente.
+export function missedCheckpoint(record: CheckpointRecord): boolean {
+  return record.solvedAt !== null && !wasFirstTry(record)
+}
+
+// Checkpoint de qualquer lição, para quem precisa olhar o histórico inteiro da pessoa (LJ.5.5, LJ.5.6).
+export interface UserCheckpointRecord extends CheckpointRecord {
+  lessonId: string
+}
+
+function responseStateFor(
+  record: CheckpointRecord,
+):
+  | { sequence: number[] }
+  | { groups: number[] }
+  | { match: { pairs: [number, number][] } }
+  | Record<string, never> {
+  if (record.lastResponse?.kind === 'match') {
+    return { match: { pairs: record.lastResponse.pairs } }
+  }
+  if (record.solvedAt === null) {
+    return {}
+  }
+  if (record.lastResponse?.kind === 'order') {
+    return { sequence: record.lastResponse.sequence }
+  }
+  if (record.lastResponse?.kind === 'categorize') {
+    return { groups: record.lastResponse.groups }
+  }
+  return {}
+}
+
+function estimateStateFor(
+  lesson: LessonSummary,
+  record: CheckpointRecord,
+): { estimate: EstimateResult } | Record<string, never> {
+  const block = findCheckBlock(lesson.blocks, record.checkpointId)
+  if (
+    record.lastResponse?.kind !== 'estimate' ||
+    record.solvedAt === null ||
+    block?.kind !== 'estimate'
+  ) {
+    return {}
+  }
+  return {
+    estimate: {
+      guess: record.lastResponse.value,
+      ...classifyEstimate(block, record.lastResponse.value),
+    },
+  }
 }
 
 export function buildLessonView(
@@ -249,7 +347,10 @@ export function buildLessonView(
     solved: record.solvedAt !== null,
     attempts: record.attempts,
     wrongOptions: record.wrongOptions,
-    firstTry: record.solvedAt !== null && record.attempts === 1,
+    // Estimativa resolve na 1ª resposta mesmo longe do valor: "de primeira" é a que caiu na mosca.
+    firstTry: wasFirstTry(record),
+    ...estimateStateFor(lesson, record),
+    ...responseStateFor(record),
   }))
 
   return {

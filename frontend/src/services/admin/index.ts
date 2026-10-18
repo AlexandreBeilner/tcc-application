@@ -23,6 +23,7 @@ import type {
     AdminLesson,
     AdminLessonContent,
     AdminLessonForEdit,
+    LessonCardFunnel,
     LessonCreateInput,
     LessonCreateResult,
     LessonRevisionContent,
@@ -136,6 +137,8 @@ export type {
     LessonRevisionItem,
     LessonSaveResult,
     LessonFunnel,
+    LessonCardFunnel,
+    LessonCardFunnelBar,
     LessonMicroDecisionType,
     LessonPublicationResult,
     AchievementCatalog,
@@ -572,6 +575,10 @@ export function getAdminRanking(token: string, filters: AdminRankingFilters): Pr
 
 export function getAdminLessons(token: string) {
     return apiRequest<{ lessons: AdminLesson[] }>('/admin/lessons', { token })
+}
+
+export function getLessonCardFunnel(token: string, id: string, days: number) {
+    return apiRequest<LessonCardFunnel>(`/admin/lessons/${id}/card-funnel?days=${days}`, { token })
 }
 
 export function setLessonPublished(token: string, id: string, published: boolean) {

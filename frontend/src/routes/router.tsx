@@ -92,6 +92,8 @@ export const router = createBrowserRouter([
                     { path: '/diario', lazy: async () => ({ Component: (await import('../pages/Diario')).Diario }) },
                     { path: '/glossario', lazy: async () => ({ Component: (await import('../pages/Glossario')).Glossario }) },
                     { path: '/trilha/mapa/:trackNumber', lazy: async () => ({ Component: (await import('../pages/TrackMap')).TrackMap }) },
+                    // Revisão de 1 minuto (LJ.5.6): segmento estático, nunca colide com `/trilha/:id`.
+                    { path: '/trilha/revisao', lazy: async () => ({ Component: (await import('../pages/RevisaoRapida')).RevisaoRapida }) },
                     { path: '/trilha/:id', lazy: async () => ({ Component: (await import('../pages/Lesson')).Lesson }) },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
                     // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). 4.7 não é
@@ -246,6 +248,10 @@ export const router = createBrowserRouter([
                                     {
                                         path: '/admin/conteudo/nova',
                                         lazy: async () => ({ Component: (await import('../pages/AdminConteudoNova')).AdminConteudoNova }),
+                                    },
+                                    {
+                                        path: '/admin/conteudo/:id/funil',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminConteudoFunil')).AdminConteudoFunil }),
                                     },
                                     {
                                         path: '/admin/conteudo/:id',

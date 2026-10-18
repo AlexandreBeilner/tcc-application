@@ -14,7 +14,7 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Toda aplicação de renda fixa e todo empréstimo têm um ponto de partida: o preço do dinheiro. No Brasil, essa referência é a {{Selic}}, a taxa básica de juros.' +
+          'Por que um empréstimo custa tanto e uma aplicação rende tão pouco? Os dois partem do mesmo número: o preço do dinheiro. No Brasil, essa referência é a {{Selic}}, a taxa básica de juros.' +
           '\n\n' +
           'Quem define a meta da Selic é o Copom, comitê do Banco Central. Ele se reúne 8 vezes por ano, e a meta vale até a próxima reunião.',
       },
@@ -73,6 +73,16 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
         widget: 'real-return',
         props: { nominalPct: 12, inflationPct: 5, amount: 10000 },
         caption: 'Exemplo hipotético: juro de 12% e inflação de 5%',
+        goal: {
+          text: 'Ache a inflação em que o juro real zera',
+          metric: 'realReturnPct',
+          op: 'between',
+          min: -0.1,
+          max: 0.1,
+          reveal:
+            'Com juro real zero, o saldo cresce, mas só acompanha os preços: o dinheiro não perde, mas também não ganha.',
+          showMe: { inflationPct: 12 },
+        },
       },
       {
         type: 'check',
@@ -91,12 +101,19 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'tr-sempre-zero',
-        kind: 'true_false',
-        prompt: 'A TR é sempre zero.',
-        answer: false,
+        id: 'o-que-cada-um-mede',
+        kind: 'match',
+        prompt: 'Ligue cada sigla ao que ela mede.',
+        left: ['Selic', 'CDI', 'IPCA', 'TR'],
+        right: [
+          'A taxa básica de juros, que o Copom define',
+          'A taxa média dos empréstimos de um dia entre bancos',
+          'A inflação, a alta dos preços ao consumidor',
+          'Uma taxa do Banco Central calculada a partir dos juros de títulos públicos',
+        ],
+        answer: [0, 1, 2, 3],
         explanation:
-          'A TR acompanha os juros dos títulos públicos. Com juros baixos ela chegou a ficar zerada, mas com juros altos fica positiva. Ela entra no cálculo da poupança e de financiamentos.',
+          'A Selic é a meta do Copom, e o CDI anda colado nela. O IPCA mede a inflação. A TR vem dos juros dos títulos públicos: já ficou zerada, mas não é sempre zero.',
       },
       {
         type: 'widget',
@@ -131,12 +148,29 @@ export const BLOCKS_POUPANCA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'A poupança é o investimento mais popular do Brasil: o dinheiro fica à mão, e o rendimento cai uma vez por mês, no aniversário do depósito.',
+          'Seu dinheiro rende na poupança, mas rende mais que a inflação? Depende. Ela é o investimento mais popular do Brasil: o dinheiro fica à mão, e o rendimento cai uma vez por mês, no aniversário do depósito.',
+      },
+      {
+        type: 'widget',
+        id: 'poupanca-vs-tesouro',
+        widget: 'savings-vs-selic',
+        props: { selicPct: 6, trMonthlyPct: 0.15, amount: 10000, months: 12 },
+        caption: 'Mexa na Selic, na TR e no prazo e compare',
+        goal: {
+          text: 'Ache a Selic em que a poupança e o Tesouro Selic rendem quase igual',
+          metric: 'savingsGapPct',
+          op: 'between',
+          min: -0.25,
+          max: 0.25,
+          reveal:
+            'Nesse ponto as duas rendem quase igual. Com a Selic mais baixa, a poupança, isenta de imposto, passa na frente; com a Selic mais alta, o Tesouro Selic vence.',
+          showMe: { selicPct: 10 },
+        },
       },
       {
         type: 'text',
         markup:
-          'A regra de rendimento depende da meta da {{Selic}}. Acima de 8,5% ao ano, ela rende 0,5% ao mês mais a {{TR}}. Com a meta em 8,5% ou menos, rende 70% da meta ao ano, mais a TR.',
+          'O que você viu tem nome: a regra de rendimento da poupança, que depende da meta da {{Selic}}. Acima de 8,5% ao ano, ela rende 0,5% ao mês mais a {{TR}}. Com a meta em 8,5% ou menos, rende 70% da meta ao ano, mais a TR.',
       },
       {
         type: 'check',
@@ -161,13 +195,6 @@ export const BLOCKS_POUPANCA: LessonBlocks = {
         type: 'text',
         markup:
           'Menos. Com a Selic alta, a poupança paga uma fração do que o Tesouro Selic rende, mesmo depois de ele pagar imposto de renda.',
-      },
-      {
-        type: 'widget',
-        id: 'poupanca-vs-tesouro',
-        widget: 'savings-vs-selic',
-        props: { selicPct: 14, trMonthlyPct: 0.15, amount: 10000, months: 12 },
-        caption: 'Mexa na Selic, na TR e no prazo e compare',
       },
       {
         type: 'check',

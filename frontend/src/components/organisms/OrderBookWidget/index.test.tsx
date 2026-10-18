@@ -27,6 +27,25 @@ describe('OrderBookWidget', () => {
         expect(screen.getByText(/ficaram no livro, na fila/)).toBeInTheDocument()
     })
 
+    it('mostra a prévia antes de enviar: a mercado executa, limitada abaixo da venda espera na fila', () => {
+        render(<OrderBookWidget />)
+        expect(screen.getByText(/Prévia: executaria 500 ações, a R\$\s10,07 em média/)).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'Limitada' }))
+        expect(screen.getByText(/ninguém aceita agora, e a ordem esperaria na fila/)).toBeInTheDocument()
+
+        fireEvent.change(screen.getByLabelText(/Preço limite/), { target: { value: '10.05' } })
+        expect(screen.getByText(/executaria 300 ações, a R\$\s10,05 em média e 200 esperariam na fila/)).toBeInTheDocument()
+    })
+
+    it('marca no livro a ordem que ficou esperando na fila', () => {
+        render(<OrderBookWidget />)
+        fireEvent.click(screen.getByRole('button', { name: 'Limitada' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Enviar ordem' }))
+
+        expect(screen.getByText(/sua ordem aqui/)).toBeInTheDocument()
+    })
+
     it('onda de vendedores derruba o último negócio', () => {
         render(<OrderBookWidget />)
         fireEvent.click(screen.getByRole('button', { name: 'Chega onda de vendedores' }))

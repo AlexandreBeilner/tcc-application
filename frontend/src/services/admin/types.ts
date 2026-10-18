@@ -916,6 +916,23 @@ export interface LessonFunnel {
     abandoned_by_step: number[]
 }
 
+// Funil por cartão de uma lição (LJ.5.1). `phase`: 0 Cenário, 1 Micro-decisão, 2 Revelação, 3 tela final.
+export interface LessonCardFunnelBar {
+    phase: number
+    card_index: number
+    reached: number
+    lost: number
+    lost_rate: number | null
+}
+
+export interface LessonCardFunnel {
+    lesson: { id: string; code: string; title: string }
+    days: number
+    since: string
+    bars: LessonCardFunnelBar[]
+    biggest_drop: { phase: number; card_index: number } | null
+}
+
 export interface AdminLesson {
     id: string
     code: string

@@ -50,8 +50,10 @@ describe('TrackPath', () => {
         )
 
         expect(screen.getByRole('button', { name: 'O que é investir: Concluída' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Inflação: Disponível' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /^Inflação: Disponível, ~\d+ min$/ })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Rendimento real: Bloqueada: libera Renda Fixa' })).toBeInTheDocument()
+        // Só a lição disponível mostra o tempo estimado (LJ.5.2).
+        expect(screen.getAllByText(/^~\d+ min$/)).toHaveLength(1)
         expect(screen.getByText('0.1')).toBeInTheDocument()
         expect(screen.getByText('O que é investir')).toBeInTheDocument()
     })

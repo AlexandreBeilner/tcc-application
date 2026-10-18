@@ -4,7 +4,7 @@ import type {
   LessonRepository,
   UpsertProgressInput,
 } from '../../application/ports/lessonRepository'
-import type { CheckpointRecord, LessonSummary } from '../../domain/lesson'
+import type { CheckpointRecord, LessonSummary, UserCheckpointRecord } from '../../domain/lesson'
 
 export function createFakeLessonRepository(
   seedLessons: LessonSummary[] = [],
@@ -130,6 +130,37 @@ export function createFakeLessonRepository(
         .map(([, record]) => record)
     },
 
+    async listAllCheckpointsForUser(userId) {
+      return [...checkpoints.entries()]
+        .filter(([key]) => key.startsWith(`${userId}|`))
+        .map(([key, record]): UserCheckpointRecord => ({
+          ...record,
+          lessonId: key.split('|')[1] as string,
+        }))
+    },
+
+    async listDueReviewsForUser(userId, now, limit) {
+      return [...checkpoints.entries()]
+        .filter(([key]) => key.startsWith(`${userId}|`))
+        .map(([key, record]): UserCheckpointRecord => ({
+          ...record,
+          lessonId: key.split('|')[1] as string,
+        }))
+        .filter((r) => r.solvedAt !== null && r.reviewDueAt != null && r.reviewDueAt <= now)
+        .sort((a, b) => (a.reviewDueAt as Date).getTime() - (b.reviewDueAt as Date).getTime())
+        .slice(0, limit)
+    },
+
+    async scheduleReview(userId, lessonId, checkpointId, next, expectedDueAt) {
+      const key = checkpointKey(userId, lessonId, checkpointId)
+      const existing = checkpoints.get(key)
+      if (!existing || existing.reviewDueAt?.getTime() !== expectedDueAt.getTime()) {
+        return false
+      }
+      checkpoints.set(key, { ...existing, reviewStage: next.stage, reviewDueAt: next.dueAt })
+      return true
+    },
+
     async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {
       const key = checkpointKey(userId, lessonId, checkpointId)
       const existing = checkpoints.get(key)
@@ -144,7 +175,9 @@ export function createFakeLessonRepository(
           answer.correct || answer.choice === null || wrongOptions.includes(answer.choice)
             ? wrongOptions
             : [...wrongOptions, answer.choice],
-        solvedAt: answer.correct ? answer.answeredAt : null,
+        solvedAt: (answer.solved ?? answer.correct) ? answer.answeredAt : null,
+        ...(answer.lastResponse ? { lastResponse: answer.lastResponse } : {}),
+        ...(answer.reviewDueAt ? { reviewStage: 0, reviewDueAt: answer.reviewDueAt } : {}),
       }
       checkpoints.set(key, record)
       return record

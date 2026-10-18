@@ -52,3 +52,13 @@ function toSegment(content: string): Segment {
 export function termsInText(text: string): string[] {
     return parseLessonMarkup(text).flatMap((segment) => (segment.type === 'term' ? [segment.term] : []))
 }
+
+// Texto corrido sem a marcação: termo de glossário vira a palavra, referência a outra lição some e os
+// espaços se juntam. Serve a quem precisa só do tamanho ou de um trecho do texto (tempo estimado, teaser).
+export function plainLessonText(text: string): string {
+    return parseLessonMarkup(text)
+        .map((segment) => (segment.type === 'text' ? segment.value : segment.type === 'term' ? segment.term : ''))
+        .join('')
+        .replace(/\s+/g, ' ')
+        .trim()
+}

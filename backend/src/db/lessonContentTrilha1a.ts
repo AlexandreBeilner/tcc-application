@@ -16,7 +16,7 @@ export const BLOCKS_1_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O CDB (Certificado de Depósito Bancário) é um empréstimo que você faz ao banco. Em troca, ele devolve o dinheiro com juros.' +
+          'Quem pede dinheiro emprestado ao banco paga juros. E quando é o banco que pede o seu? O CDB (Certificado de Depósito Bancário) é isso: um empréstimo que você faz ao banco, que devolve o dinheiro com juros.' +
           '\n\n' +
           'A remuneração costuma ser um percentual do {{CDI}}. 100% do CDI rende o mesmo que o CDI; 110% rende um pouco mais.',
       },
@@ -46,25 +46,50 @@ export const BLOCKS_1_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{FGC}} protege até R$ 250 mil por CPF, por {{conglomerado financeiro}}. Além disso, o teto é de R$ 1 milhão por CPF a cada 4 anos.',
+          'O {{FGC}} protege até um limite por CPF, por {{conglomerado financeiro}}, e há ainda um teto total por CPF a cada 4 anos.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-fgc',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Valores de hoje',
+          body:
+            'O FGC protege até R$ 250 mil por CPF e por conglomerado financeiro, e o teto total é de R$ 1 milhão por CPF a cada 4 anos. Esses valores são definidos por regra e podem mudar.',
+        },
       },
       {
         type: 'check',
         id: 'fgc-limite',
         kind: 'single',
         prompt:
-          'Você tem R$ 400 mil em CDBs de bancos do mesmo conglomerado financeiro. Até quanto o FGC cobre?',
-        options: ['R$ 100 mil', 'R$ 150 mil', 'R$ 250 mil', 'R$ 400 mil'],
-        answer: 2,
+          'Você tem CDBs em dois bancos do mesmo conglomerado financeiro. O limite do FGC vale:',
+        options: ['Separado para cada banco', 'Uma vez só para o conglomerado inteiro', 'Não existe limite'],
+        answer: 1,
         explanation:
-          'O limite é de R$ 250 mil por CPF e por conglomerado financeiro, não por banco. Os outros R$ 150 mil ficam sem a cobertura.',
+          'O limite vale por CPF e por conglomerado financeiro, não por banco. Dois bancos do mesmo conglomerado dividem a mesma cobertura.',
       },
       {
         type: 'widget',
         id: 'barra-fgc',
         widget: 'fgc-coverage-bar',
-        props: { amountPerInstitution: 200000, institutions: 2, sameConglomerate: true },
-        caption: 'Mude os valores e veja o que o FGC cobre e o que fica de fora.',
+        props: {
+          amountPerInstitution: 300000,
+          institutions: 2,
+          sameConglomerate: false,
+          totalAmount: 600000,
+        },
+        caption: 'Mude o número de instituições e veja o que o FGC cobre e o que fica de fora.',
+        goal: {
+          text: 'Distribua os R$ 600 mil sem deixar nada fora da cobertura',
+          metric: 'uncoveredAmount',
+          op: 'lte',
+          value: 0,
+          reveal:
+            'O limite vale por instituição (ou conglomerado), então dividir o mesmo dinheiro em mais lugares faz cada parte caber na cobertura. Em instituições do mesmo conglomerado, a divisão não ajuda: elas contam como uma só.',
+          showMe: { institutions: 3 },
+        },
       },
       {
         type: 'text',
@@ -96,7 +121,6 @@ export const BLOCKS_1_4: LessonBlocks = {
           why: 'Assim você pratica com um produto que existe no Mercado, sem depender de um banco real.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra do CDB2027 no Mercado.' },
     ],
   },
 }
@@ -108,7 +132,7 @@ export const BLOCKS_1_5: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Um CDB rendeu R$ 1.000 de lucro. Antes de chegar à sua conta, uma parte vai para o Imposto de Renda (IR).' +
+          'Dois amigos aplicaram o mesmo valor no mesmo CDB. Um pagou 22,5% de Imposto de Renda (IR) sobre o lucro, o outro pagou 15%. O que um fez diferente do outro?' +
           '\n\n' +
           'O IR é retido na fonte: o banco desconta e paga por você, e não sobra nada para pagar depois.' +
           '\n\n' +
@@ -120,15 +144,28 @@ export const BLOCKS_1_5: LessonBlocks = {
         widget: 'ir-regressive-table',
         props: { grossYield: 1000, initialDays: 90 },
         caption: 'Mova o prazo e veja a alíquota mudar.',
+        goal: {
+          text: 'Ache o prazo em que a alíquota chega à menor da tabela',
+          metric: 'irRatePct',
+          op: 'lte',
+          value: 15,
+          reveal:
+            'Passados 720 dias de aplicação, a alíquota cai para 15%, a menor da tabela. Quanto mais tempo o dinheiro fica aplicado, menor a mordida do IR.',
+          showMe: { initialDays: 721 },
+        },
       },
       {
         type: 'check',
-        id: 'ir-90-dias',
-        kind: 'single',
-        prompt: 'Com 90 dias de aplicação, qual é a alíquota de IR?',
-        options: ['15%', '22,5%', '17,5%'],
-        answer: 1,
-        explanation: 'Até 180 dias a alíquota é de 22,5%, a mais alta da tabela.',
+        id: 'ordem-aliquotas',
+        kind: 'order',
+        prompt:
+          'Resgates de um mesmo CDB, com prazos diferentes. Ordene do que paga mais IR para o que paga menos.',
+        items: ['Resgate com 90 dias', 'Resgate com 250 dias', 'Resgate com 400 dias', 'Resgate com 800 dias'],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Paga mais IR',
+        highLabel: 'Paga menos IR',
+        explanation:
+          'Quanto mais tempo o dinheiro fica aplicado, menor a alíquota: 22,5% até 180 dias, 20% até 360, 17,5% até 720 e 15% acima disso.',
       },
     ],
     microDecision: [
@@ -183,7 +220,7 @@ export const BLOCKS_1_6: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'LCI (Letra de Crédito Imobiliário) e LCA (Letra de Crédito do Agronegócio) financiam o setor imobiliário e o agronegócio. Têm a cobertura do {{FGC}}, como o CDB.' +
+          'Por que uma aplicação que rende menos no papel pode render mais no seu bolso? Parte da resposta está nas letras de crédito: LCI (Letra de Crédito Imobiliário) e LCA (Letra de Crédito do Agronegócio) financiam o setor imobiliário e o agronegócio, e têm a cobertura do {{FGC}}, como o CDB.' +
           '\n\n' +
           'Para pessoa física, o rendimento delas é isento de IR. O do CDB paga IR.',
       },
@@ -214,6 +251,16 @@ export const BLOCKS_1_6: LessonBlocks = {
         widget: 'equivalent-rate',
         props: { exemptRatePct: 9, cdbRatePct: 11, daysPresets: [180, 800] },
         caption: DIDACTIC_RATES,
+        goal: {
+          text: 'Ache a taxa do CDB que rende o mesmo que a LCI depois do imposto',
+          metric: 'cdbGapPct',
+          op: 'between',
+          min: -0.05,
+          max: 0.05,
+          reveal:
+            'Esse é o ponto de empate: com uma taxa abaixo dele o CDB rende menos que a LCI isenta, e acima rende mais. O imposto do prazo escolhido decide onde ele fica.',
+          showMe: { cdbRatePct: 11.61 },
+        },
       },
     ],
     revelation: [
@@ -286,7 +333,6 @@ export const BLOCKS_1_6: LessonBlocks = {
           why: 'Assim todos comparam os mesmos produtos e você vê o efeito do IR e do prazo.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra de LCI e LCA no Mercado.' },
     ],
   },
 }

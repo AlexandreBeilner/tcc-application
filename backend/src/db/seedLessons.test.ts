@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { isParallelTrack } from '../modules/lessons/domain/lesson'
+import { countMainPathCards } from '../content/contentRules'
 import { importLessonSeed, LESSON_SEEDS, type LessonSeed } from './seedLessons'
 import { lessonBlocksSchema } from '../modules/lessons/infrastructure/content/lessonBlocks'
+import { LESSON_SUMMARIES } from './lessonSummaries'
 import { lessons } from './schema'
 import type { Database } from './client'
 import { checkLessonContent, contentOf } from '../modules/lessons/domain/lessonContent'
@@ -132,6 +134,37 @@ describe('blocks no seed (RC.3.1)', () => {
         expect(result.success, `blocks inválido na lição ${seed.code}`).toBe(true)
       }
     }
+  })
+
+  it('toda lição do seed tem o resumo "O que ficou" (LJ.1.5)', () => {
+    for (const seed of LESSON_SEEDS) {
+      expect(seed.blocks?.summary, `sem summary na lição ${seed.code}`).toBeDefined()
+    }
+    // Nenhum resumo órfão: toda chave do arquivo de resumos é uma lição do seed.
+    const keys = new Set(LESSON_SEEDS.map((s) => s.stableKey))
+    expect(Object.keys(LESSON_SUMMARIES).filter((k) => !keys.has(k))).toEqual([])
+  })
+
+  // LJ.5.7: o caminho principal (cartões que o player conta; "Na plataforma" e "Saiba mais" colam no
+  // cartão anterior) tem no máximo 15 cartões (teto subido de 12 pelo autor em 2026-10-18, ponto 061).
+  // Lições acima disso entram aqui com a contagem de hoje: catraca, como o baseline de conteúdo. Lição
+  // nova ou editada não pode passar de 15 nem crescer, e a que encolher falha até a linha baixar ou sair.
+  const MAIN_PATH_CARD_LIMIT = 15
+  const MAIN_PATH_BASELINE: Record<string, number> = {
+    '2.12': 16,
+    'F.2': 16,
+  }
+
+  it('o caminho principal de cada lição respeita o teto de cartões (baseline por lição)', () => {
+    const counts: Record<string, number> = {}
+    for (const seed of LESSON_SEEDS) {
+      const total = Object.values(seed.blocks?.phases ?? {}).reduce(
+        (sum, blocks) => sum + countMainPathCards(blocks),
+        0,
+      )
+      if (total > MAIN_PATH_CARD_LIMIT || seed.code in MAIN_PATH_BASELINE) counts[seed.code] = total
+    }
+    expect(counts).toEqual(MAIN_PATH_BASELINE)
   })
 
   // RC.3.4: nenhum texto manda calcular fora; quem pede conta precisa ter um

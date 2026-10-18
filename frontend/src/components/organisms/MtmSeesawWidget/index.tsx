@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FACE_VALUE, mtmOutcome, pricingYears, seesawTiltDeg } from '../../../features/lessons/widgets/mtmMath'
 import type { MtmIndexer } from '../../../features/lessons/widgets/mtmMath'
 import { formatCurrency } from '../../../features/portfolio/format'
@@ -24,13 +24,15 @@ const clampRate = (value: number) => Math.max(2, Math.min(25, value))
 // prazo restante alonga o braço (mais oscilação) e o título Selic quase não se
 // mexe. Conta bruta, antes de IR e de custódia, e vale para quem vende antes do
 // vencimento: quem segura recebe o combinado.
-export function MtmSeesawWidget({ contractRatePct, yearsToMaturity, indexer }: MtmSeesawWidgetProps) {
-    const [market, setMarket] = useState(contractRatePct)
+export function MtmSeesawWidget({ contractRatePct, yearsToMaturity, indexer, marketRatePct, onMetrics }: MtmSeesawWidgetProps) {
+    const [market, setMarket] = useState(marketRatePct ?? contractRatePct)
     const [years, setYears] = useState(yearsToMaturity)
     const [kind, setKind] = useState<MtmIndexer>(indexer)
 
     const outcome = mtmOutcome(contractRatePct, market, pricingYears(kind, years))
     const tilt = seesawTiltDeg(contractRatePct, market)
+    const priceChangePct = outcome.changePct
+    useEffect(() => onMetrics?.({ priceChangePct }), [priceChangePct, onMetrics])
     const direction = outcome.changePct > 0.005 ? 'sobe' : outcome.changePct < -0.005 ? 'cai' : 'fica igual'
     const rateLabel = kind === 'ipca-plus' ? 'Taxa real de mercado' : 'Taxa de mercado'
 

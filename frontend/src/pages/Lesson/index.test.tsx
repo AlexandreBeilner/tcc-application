@@ -5,11 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { ApiError } from '../../services/client'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
-import { advanceLesson, answerCheckpoint, answerMicroDecision, getLesson, listLessons, reviewLesson } from '../../services/lessons'
+import {
+    advanceLesson,
+    answerCheckpoint,
+    answerMicroDecision,
+    getLesson,
+    listLessons,
+    recordCardReach,
+    reviewLesson,
+    votePoll,
+} from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, getIndicatorHistory, listAssets } from '../../services/market'
 import type { AssetDetail, AssetSummary, IndicatorHistoryEntry } from '../../services/market'
 import { listMissions } from '../../services/missions'
+import { getMyReferral } from '../../services/referral'
 import { Lesson } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
@@ -20,6 +30,8 @@ vi.mock('../../services/lessons', () => ({
     answerMicroDecision: vi.fn(),
     answerCheckpoint: vi.fn(),
     reviewLesson: vi.fn(),
+    recordCardReach: vi.fn().mockResolvedValue({ recorded: true }),
+    votePoll: vi.fn(),
 }))
 vi.mock('../../services/market', () => ({
     listAssets: vi.fn(),
@@ -27,6 +39,7 @@ vi.mock('../../services/market', () => ({
     getFixedIncomeTaxRate: vi.fn(),
     getIndicatorHistory: vi.fn(),
 }))
+vi.mock('../../services/referral', () => ({ getMyReferral: vi.fn() }))
 vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
 
 function renderLesson(id = 'lesson-1') {
@@ -99,9 +112,51 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        expect(await screen.findByText('Cenário')).toBeInTheDocument()
-        expect(screen.getByText('Diversificação')).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { level: 1, name: 'Diversificação' })).toBeInTheDocument()
+        // O Cenário não tem etiqueta (LJ.1.2).
+        expect(screen.queryByText('Cenário')).not.toBeInTheDocument()
         expect(screen.getByText('Espalhar capital reduz risco')).toBeInTheDocument()
+    })
+
+    it('o título da lição vale em todas as fases e nenhum rótulo antigo sobra (LJ.1.2)', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+        renderLesson()
+        const heading = () => screen.getByRole('heading', { level: 1 })
+        await screen.findByRole('heading', { level: 1, name: 'Diversificação' })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
+        expect(heading()).toHaveTextContent('Diversificação')
+
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        expect(await screen.findByText('O que acontece')).toBeInTheDocument()
+        expect(heading()).toHaveTextContent('Diversificação')
+
+        for (const old of ['Cenário', 'Micro-decisão', 'Revelação', 'Desbloqueio', 'Pense antes de continuar', 'Por que isso importa']) {
+            expect(screen.queryByText(old)).not.toBeInTheDocument()
+        }
+    })
+
+    it('funil por cartão: reporta o cartão aberto e o da fase seguinte, e nada em revisão', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+        const { unmount } = renderLesson()
+        await screen.findByRole('heading', { level: 1 })
+        await waitFor(() => expect(recordCardReach).toHaveBeenCalledWith('token-valido', 'lesson-1', 0, 0))
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+        await waitFor(() => expect(recordCardReach).toHaveBeenCalledWith('token-valido', 'lesson-1', 1, 0))
+        unmount()
+
+        vi.mocked(recordCardReach).mockClear()
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 3, status: 'completed' }) })
+        renderLesson()
+        await screen.findByRole('heading', { level: 1 })
+        expect(recordCardReach).not.toHaveBeenCalled()
     })
 
     it('retoma no meio (currentStep vindo do backend), sem voltar ao passo 0', async () => {
@@ -109,7 +164,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        expect(await screen.findByText('Revelação')).toBeInTheDocument()
+        expect(await screen.findByText('O que acontece')).toBeInTheDocument()
         expect(screen.getByText('Diversificar reduz o risco não sistemático')).toBeInTheDocument()
     })
 
@@ -122,7 +177,7 @@ describe('Lesson (tela 3.2)', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
 
         await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
-        expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+        expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
     })
 
     it('passo de micro-decisão (reflection, sem opções reais) não exige nenhum gate: Continuar já vem habilitado (backlog engajamento M.1)', async () => {
@@ -281,7 +336,7 @@ describe('Lesson (tela 3.2)', () => {
             renderLesson()
 
             fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
             expect(screen.getByRole('button', { name: 'Sim' })).not.toBeDisabled()
             expect(advanceLesson).not.toHaveBeenCalled()
@@ -293,7 +348,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Revelação')
+        await screen.findByText('O que acontece')
         expect(screen.queryByText('Você acertou')).not.toBeInTheDocument()
         expect(screen.queryByText(/Quase\./)).not.toBeInTheDocument()
     })
@@ -369,7 +424,7 @@ describe('Lesson (tela 3.2)', () => {
 
         fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
 
-        expect(await screen.findByText('Desbloqueio')).toBeInTheDocument()
+        expect(await screen.findByText('Lição concluída')).toBeInTheDocument()
         expect(screen.getByText('Tesouro Selic')).toBeInTheDocument()
     })
 
@@ -400,7 +455,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Desbloqueio')
+        await screen.findByText('Lição concluída')
         expect(screen.queryByRole('button', { name: 'Comprar agora' })).not.toBeInTheDocument()
     })
 
@@ -435,9 +490,9 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        expect(await screen.findByText('Cenário')).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-        expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+        expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
         expect(advanceLesson).not.toHaveBeenCalled()
     })
 
@@ -446,13 +501,13 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Cenário')
+        await screen.findByRole('heading', { level: 1 })
         expect(reviewLesson).not.toHaveBeenCalled()
 
         fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-        await screen.findByText('Micro-decisão')
+        await screen.findByText('Sua aposta')
         fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-        await screen.findByText('Revelação')
+        await screen.findByText('O que acontece')
         await waitFor(() => expect(reviewLesson).toHaveBeenCalledExactlyOnceWith('token-valido', 'lesson-1'))
         expect(advanceLesson).not.toHaveBeenCalled()
     })
@@ -462,7 +517,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Cenário')
+        await screen.findByRole('heading', { level: 1 })
         expect(reviewLesson).not.toHaveBeenCalled()
     })
 
@@ -482,7 +537,7 @@ describe('Lesson (tela 3.2)', () => {
         renderLesson('lesson-1')
 
         fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
-        await waitFor(() => expect(screen.getByText('Cenário')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument())
         expect(getLesson).toHaveBeenLastCalledWith('token-valido', 'lesson-2')
     })
 
@@ -673,7 +728,7 @@ describe('Lesson (tela 3.2)', () => {
 
             renderLesson()
 
-            await screen.findByText('Cenário')
+            await screen.findByRole('heading', { level: 1 })
             expect(screen.queryByRole('button', { name: /^Voltar ao/ })).not.toBeInTheDocument()
         })
 
@@ -701,14 +756,14 @@ describe('Lesson (tela 3.2)', () => {
 
             fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
             fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(advanceLesson).toHaveBeenCalledTimes(1)
 
             fireEvent.click(voltar())
             expect(await screen.findByText('Último do cenário.')).toBeInTheDocument()
 
             fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(advanceLesson).toHaveBeenCalledTimes(1)
         })
 
@@ -726,17 +781,53 @@ describe('Lesson (tela 3.2)', () => {
             expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
         })
 
+        it('Enter avança o cartão e não pula a pergunta travada (LJ.5.3)', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+            })
+
+            renderLesson()
+
+            await screen.findByText('Primeiro cartão.')
+            fireEvent.keyDown(window, { key: 'Enter' })
+            expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+        })
+
+        it('número escolhe a alternativa da pergunta e Enter responde (LJ.5.3)', async () => {
+            const check = { type: 'check', id: 'q1', kind: 'single', prompt: 'Qual rende mais?', options: ['LCI', 'CDB'] }
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({
+                    currentStep: 0,
+                    blocks: { schemaVersion: 1, phases: { scenario: [check], microDecision: [], revelation: [] } },
+                }),
+            })
+            vi.mocked(answerCheckpoint).mockResolvedValue({ correct: true, attempts: 1, firstTry: true, wrongOptions: [] })
+
+            renderLesson()
+
+            await screen.findByText('Qual rende mais?')
+            // Enter sem alternativa marcada não pula a pergunta.
+            fireEvent.keyDown(window, { key: 'Enter' })
+            expect(answerCheckpoint).not.toHaveBeenCalled()
+
+            fireEvent.keyDown(window, { key: '2' })
+            expect(screen.getByRole('button', { name: 'CDB' })).toHaveAttribute('aria-pressed', 'true')
+            fireEvent.keyDown(window, { key: 'Enter' })
+
+            await waitFor(() => expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'q1', { selectedOption: 1 }))
+        })
+
         it('lição retomada no meio deixa voltar às fases anteriores e reavançar sem POST', async () => {
             vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
 
             renderLesson()
 
-            await screen.findByText('Revelação')
+            await screen.findByText('O que acontece')
             fireEvent.click(voltar())
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
 
             fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Revelação')).toBeInTheDocument()
+            expect(await screen.findByText('O que acontece')).toBeInTheDocument()
             expect(advanceLesson).not.toHaveBeenCalled()
         })
 
@@ -745,10 +836,10 @@ describe('Lesson (tela 3.2)', () => {
 
             renderLesson()
 
-            await screen.findByText('Revelação')
+            await screen.findByText('O que acontece')
             fireEvent.click(voltar())
 
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(screen.getByRole('button', { name: 'Sim' })).toBeDisabled()
             expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
         })
@@ -834,6 +925,60 @@ describe('Lesson (tela 3.2)', () => {
         })
     })
 
+    describe('"Na plataforma" como rodapé recolhido (LJ.1.3)', () => {
+        const note = {
+            type: 'widget',
+            id: 'n1',
+            widget: 'platform-note',
+            props: { brazil: 'Regra real.', here: 'Regra aqui.', why: 'Porque sim.' },
+        }
+        const withNote = (scenario: unknown[]) =>
+            lesson({ currentStep: 0, blocks: { schemaVersion: 1, phases: { scenario, microDecision: [], revelation: [] } } })
+
+        it('a nota depois de um texto não vira cartão: o Continuar já sai da fase e o rodapé nasce fechado', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withNote([{ type: 'text', markup: 'Primeiro texto.' }, note]) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Primeiro texto.')).toBeInTheDocument()
+            const footnote = screen.getByRole('group', { name: /^Na plataforma\./ })
+            expect(footnote).not.toHaveAttribute('open')
+            // Um cartão só: a barra mostra "Cartão 1 de 4" (1 de Cenário, 1 de aposta, 1 de revelação, final).
+            expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Cartão 1 de 4')
+        })
+
+        it('abrir mostra as três linhas e o rodapé segue aberto ao voltar ao cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withNote([{ type: 'text', markup: 'Primeiro texto.' }, note, { type: 'text', markup: 'Segundo texto.' }]),
+            })
+
+            renderLesson()
+            await screen.findByText('Primeiro texto.')
+            fireEvent.click(screen.getByText('Na plataforma'))
+
+            expect(await screen.findByText('Regra real.')).toBeVisible()
+            expect(screen.getByText('Regra aqui.')).toBeInTheDocument()
+            expect(screen.getByText('Porque sim.')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Segundo texto.')).toBeInTheDocument()
+            expect(screen.queryByText('Na plataforma')).not.toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Voltar ao cartão anterior' }))
+            expect(await screen.findByText('Primeiro texto.')).toBeInTheDocument()
+            expect(screen.getByRole('group', { name: /^Na plataforma\./ })).toHaveAttribute('open')
+        })
+
+        it('como primeiro bloco da fase continua cartão próprio, com a nota por inteiro', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withNote([note, { type: 'text', markup: 'Depois.' }]) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Regra real.')).toBeVisible()
+            expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Cartão 1 de 5')
+        })
+    })
+
     describe('perguntas intermediárias (RC.3.2)', () => {
         const check = { type: 'check', id: 'q1', kind: 'single', prompt: 'Qual rende mais?', options: ['LCI', 'CDB'] }
         const withChecks = (scenario: unknown[], overrides: Partial<LessonType> = {}) =>
@@ -883,6 +1028,433 @@ describe('Lesson (tela 3.2)', () => {
 
             fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
             await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
+        })
+
+        describe('estimativa (LJ.2.2)', () => {
+            const estimate = {
+                type: 'check',
+                id: 'e1',
+                kind: 'estimate',
+                prompt: 'Quanto viram R$ 1.000?',
+                range: { min: 1000, max: 10000, step: 100, unit: 'brl' },
+            }
+            const far = { guess: 3000, band: 'far' as const, value: 6727.5, low: 6054.75, high: 7400.25 }
+
+            it('chutar longe avança do mesmo jeito: mostra o valor real, a explicação e libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([estimate]) })
+                vi.mocked(answerCheckpoint).mockResolvedValue({
+                    correct: false,
+                    attempts: 1,
+                    firstTry: false,
+                    wrongOptions: [],
+                    explanation: 'Juros sobre juros.',
+                    estimate: far,
+                })
+
+                renderLesson()
+
+                const slider = await screen.findByRole('slider', { name: 'Seu chute' })
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Responder' })).toBeDisabled()
+
+                fireEvent.change(slider, { target: { value: '3000' } })
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Bem diferente do que parece, né?')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'e1', { value: 3000 })
+                expect(screen.getByText('Juros sobre juros.')).toBeInTheDocument()
+                expect(screen.getByText(/6\.727,50/)).toBeInTheDocument()
+                expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('depois do chute dá para compartilhar o chute e o valor real (LJ.5.10)', async () => {
+                const writeText = vi.fn().mockResolvedValue(undefined)
+                Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+                Object.defineProperty(navigator, 'share', { value: undefined, configurable: true })
+                vi.mocked(getMyReferral).mockResolvedValue({ code: 'ABCD2345' } as never)
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([estimate]) })
+                vi.mocked(answerCheckpoint).mockResolvedValue({
+                    correct: false,
+                    attempts: 1,
+                    firstTry: false,
+                    wrongOptions: [],
+                    explanation: 'Juros sobre juros.',
+                    estimate: far,
+                })
+
+                renderLesson()
+                fireEvent.change(await screen.findByRole('slider', { name: 'Seu chute' }), { target: { value: '3000' } })
+                expect(screen.queryByRole('button', { name: 'Compartilhar' })).not.toBeInTheDocument()
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+                fireEvent.click(await screen.findByRole('button', { name: 'Compartilhar' }))
+
+                await waitFor(() => expect(writeText).toHaveBeenCalled())
+                const sent = String(writeText.mock.calls[0]?.[0])
+                expect(sent).toMatch(/^Chutei R\$\s3\.000\. Era R\$\s6\.727,50\./)
+                expect(sent).toContain('?ref=ABCD2345')
+            })
+
+            it('aceita o valor digitado e recusa o que está fora da régua', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([estimate]) })
+                vi.mocked(answerCheckpoint).mockResolvedValue({
+                    correct: true,
+                    attempts: 1,
+                    firstTry: true,
+                    wrongOptions: [],
+                    explanation: 'Juros sobre juros.',
+                    estimate: { ...far, guess: 6700, band: 'exact' },
+                })
+
+                renderLesson()
+
+                const field = await screen.findByLabelText('Ou digite o valor')
+                fireEvent.change(field, { target: { value: '50' } })
+                expect(screen.getByRole('alert')).toHaveTextContent('entre')
+                expect(screen.getByRole('button', { name: 'Responder' })).toBeDisabled()
+
+                fireEvent.change(field, { target: { value: '6.700' } })
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Na mosca!')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'e1', { value: 6700 })
+            })
+
+            it('restaura a régua do servidor depois de sair e voltar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([estimate], {
+                        checkpoints: [{ checkpointId: 'e1', solved: true, attempts: 1, wrongOptions: [], firstTry: false, estimate: far }],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Bem diferente do que parece, né?')).toBeInTheDocument()
+                expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+        })
+
+        describe('ordenar (LJ.2.3)', () => {
+            const order = {
+                type: 'check',
+                id: 'o1',
+                kind: 'order',
+                prompt: 'Do menos ao mais arriscado',
+                items: ['CDB', 'Ação pequena', 'Tesouro Selic'],
+                lowLabel: 'Menos risco',
+                highLabel: 'Mais risco',
+            }
+            const rows = () => screen.getAllByRole('listitem').map((row) => row.textContent ?? '')
+
+            it('começa na ordem embaralhada do servidor, com os rótulos de ponta e o Continuar travado', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([order]) })
+
+                renderLesson()
+
+                expect(await screen.findByText('Menos risco')).toBeInTheDocument()
+                expect(screen.getByText('Mais risco')).toBeInTheDocument()
+                expect(rows()[0]).toContain('CDB')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Subir CDB' })).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Descer Tesouro Selic' })).toBeDisabled()
+            })
+
+            it('sobe e desce pelos botões, errar mostra só a contagem e acertar libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([order]) })
+                vi.mocked(answerCheckpoint)
+                    .mockResolvedValueOnce({
+                        correct: false,
+                        attempts: 1,
+                        firstTry: false,
+                        wrongOptions: [],
+                        hint: { correctCount: 1, total: 3 },
+                    })
+                    .mockResolvedValueOnce({
+                        correct: true,
+                        attempts: 2,
+                        firstTry: false,
+                        wrongOptions: [],
+                        explanation: 'O risco cresce com a incerteza.',
+                    })
+
+                renderLesson()
+                await screen.findByText('Menos risco')
+
+                fireEvent.click(screen.getByRole('button', { name: 'Subir Tesouro Selic' }))
+                expect(rows()[1]).toContain('Tesouro Selic')
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByRole('alert')).toHaveTextContent('1 de 3 no lugar certo.')
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'o1', { sequence: [0, 2, 1] })
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+                expect(screen.queryByText('O risco cresce com a incerteza.')).not.toBeInTheDocument()
+
+                fireEvent.click(screen.getByRole('button', { name: 'Subir Tesouro Selic' }))
+                expect(rows()[0]).toContain('Tesouro Selic')
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
+                expect(screen.getByText('O risco cresce com a incerteza.')).toBeInTheDocument()
+                expect(screen.queryByRole('button', { name: /^Subir/ })).not.toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('restaura a ordem montada quando a pergunta já foi resolvida', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([order], {
+                        checkpoints: [
+                            { checkpointId: 'o1', solved: true, attempts: 1, wrongOptions: [], firstTry: true, sequence: [2, 0, 1] },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+                expect(rows()[0]).toContain('Tesouro Selic')
+                expect(rows()[2]).toContain('Ação pequena')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+        })
+
+        describe('agrupar (LJ.2.4)', () => {
+            const categorize = {
+                type: 'check',
+                id: 'g1',
+                kind: 'categorize',
+                prompt: 'Renda fixa ou variável?',
+                groups: ['Renda fixa', 'Renda variável'],
+                items: ['Tesouro Selic', 'Ação', 'CDB'],
+            }
+
+            it('só envia com todos os itens agrupados; errar mostra a contagem e acertar libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([categorize]) })
+                vi.mocked(answerCheckpoint)
+                    .mockResolvedValueOnce({
+                        correct: false,
+                        attempts: 1,
+                        firstTry: false,
+                        wrongOptions: [],
+                        hint: { correctCount: 2, total: 3 },
+                    })
+                    .mockResolvedValueOnce({
+                        correct: true,
+                        attempts: 2,
+                        firstTry: false,
+                        wrongOptions: [],
+                        explanation: 'O retorno é conhecido ou não.',
+                    })
+
+                renderLesson()
+                await screen.findByText('Renda fixa ou variável?')
+                const send = screen.getByRole('button', { name: 'Responder' })
+                expect(send).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+                const place = (item: string, group: string) => {
+                    fireEvent.click(screen.getByRole('button', { name: item }))
+                    fireEvent.click(screen.getByRole('button', { name: `Colocar ${item} em ${group}` }))
+                }
+                place('Tesouro Selic', 'Renda fixa')
+                place('Ação', 'Renda fixa')
+                expect(send).toBeDisabled()
+                place('CDB', 'Renda fixa')
+                expect(send).toBeEnabled()
+
+                fireEvent.click(send)
+                expect(await screen.findByRole('alert')).toHaveTextContent('2 de 3 no lugar certo.')
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'g1', { groups: [0, 0, 0] })
+                expect(screen.queryByText('O retorno é conhecido ou não.')).not.toBeInTheDocument()
+
+                // Troca de grupo antes de reenviar.
+                place('Ação', 'Renda variável')
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'g1', { groups: [0, 1, 0] })
+                expect(screen.getByText('O retorno é conhecido ou não.')).toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('restaura os grupos quando a pergunta já foi resolvida', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([categorize], {
+                        checkpoints: [
+                            { checkpointId: 'g1', solved: true, attempts: 1, wrongOptions: [], firstTry: true, groups: [0, 1, 0] },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+                expect(screen.getByRole('list', { name: 'Itens em Renda variável' })).toHaveTextContent('Ação')
+                expect(screen.getByRole('list', { name: 'Itens em Renda fixa' })).toHaveTextContent('Tesouro Selic')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+        })
+
+        describe('ligar pares (LJ.2.5)', () => {
+            const match = {
+                type: 'check',
+                id: 'm1',
+                kind: 'match',
+                prompt: 'Ligue cada sigla ao que ela mede',
+                left: ['Selic', 'CDI', 'IPCA'],
+                right: ['Inflação', 'Juro básico da economia', 'Taxa entre bancos'],
+            }
+            const pairResult = (pairCorrect: boolean, pairs: [number, number][], extra: object = {}) => ({
+                correct: false,
+                attempts: 1,
+                firstTry: false,
+                wrongOptions: [],
+                match: { pairCorrect, pairs },
+                ...extra,
+            })
+            const pick = (left: string, right: string) => {
+                fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${left}`) }))
+                fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${right}`) }))
+            }
+
+            it('cada par vai ao servidor na hora; o errado treme e se desfaz, o certo trava e o último libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([match]) })
+                vi.mocked(answerCheckpoint)
+                    .mockResolvedValueOnce(pairResult(false, []))
+                    .mockResolvedValueOnce(pairResult(true, [[0, 1]]))
+                    .mockResolvedValueOnce(
+                        pairResult(true, [
+                            [0, 1],
+                            [1, 2],
+                        ]),
+                    )
+                    .mockResolvedValueOnce(
+                        pairResult(
+                            true,
+                            [
+                                [0, 1],
+                                [1, 2],
+                                [2, 0],
+                            ],
+                            { correct: true, firstTry: false, explanation: 'Cada índice mede uma coisa.' },
+                        ),
+                    )
+
+                renderLesson()
+                await screen.findByText('Ligue cada sigla ao que ela mede')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+                pick('Selic', 'Inflação')
+                expect(await screen.findByText('Esse par não combina. Tente outro.')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'm1', { pair: [0, 0] })
+                expect(screen.getByRole('button', { name: /^Selic/ })).toBeEnabled()
+
+                pick('Selic', 'Juro básico')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^Selic.*par 1/ })).toBeDisabled())
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'm1', { pair: [0, 1] })
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+                pick('CDI', 'Taxa entre bancos')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^CDI.*par 2/ })).toBeDisabled())
+                pick('IPCA', 'Inflação')
+
+                expect(await screen.findByText('Ligou todos os pares.')).toBeInTheDocument()
+                expect(screen.getByText('Cada índice mede uma coisa.')).toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('em revisão (sem estado) soma os pares certos na tela e resolve no último', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([match], {
+                        status: 'completed',
+                        currentStep: 3,
+                        checkpoints: [
+                            {
+                                checkpointId: 'm1',
+                                solved: true,
+                                attempts: 3,
+                                wrongOptions: [],
+                                firstTry: true,
+                                match: {
+                                    pairs: [
+                                        [0, 1],
+                                        [1, 2],
+                                        [2, 0],
+                                    ],
+                                },
+                            },
+                        ],
+                    }),
+                })
+                // Sem estado no servidor: cada resposta só diz se aquele par está certo.
+                vi.mocked(answerCheckpoint).mockResolvedValue(
+                    pairResult(true, [], { correct: true, explanation: 'Cada índice mede uma coisa.' }),
+                )
+
+                renderLesson()
+                await screen.findByText('Ligue cada sigla ao que ela mede')
+
+                pick('Selic', 'Juro básico')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^Selic.*par 1/ })).toBeDisabled())
+                expect(screen.queryByText('Tudo ligado.')).not.toBeInTheDocument()
+                pick('CDI', 'Taxa entre bancos')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^CDI.*par 2/ })).toBeDisabled())
+                pick('IPCA', 'Inflação')
+
+                expect(await screen.findByText('Tudo ligado.')).toBeInTheDocument()
+            })
+
+            it('restaura os pares já travados no meio do caminho', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([match], {
+                        checkpoints: [
+                            {
+                                checkpointId: 'm1',
+                                solved: false,
+                                attempts: 1,
+                                wrongOptions: [],
+                                firstTry: false,
+                                match: { pairs: [[1, 2]] },
+                            },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByRole('button', { name: /^CDI.*par 1/ })).toBeDisabled()
+                expect(screen.getByRole('button', { name: /^Taxa entre bancos.*par 1/ })).toBeDisabled()
+                expect(screen.getByRole('button', { name: /^Selic/ })).toBeEnabled()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+            })
+
+            it('restaura a pergunta resolvida', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([match], {
+                        checkpoints: [
+                            {
+                                checkpointId: 'm1',
+                                solved: true,
+                                attempts: 3,
+                                wrongOptions: [],
+                                firstTry: true,
+                                match: {
+                                    pairs: [
+                                        [0, 1],
+                                        [1, 2],
+                                        [2, 0],
+                                    ],
+                                },
+                            },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
         })
 
         it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {
@@ -958,6 +1530,563 @@ describe('Lesson (tela 3.2)', () => {
                 if (i < 6) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
             }
             expect(advanceLesson).not.toHaveBeenCalled()
+        })
+    })
+
+    describe('enquete da comunidade (LJ.2.6)', () => {
+        const poll = {
+            type: 'poll',
+            id: 'e1',
+            prompt: 'Com R$ 1.000 de bônus, o que você faria?',
+            options: ['Deixaria na conta', 'Investiria'],
+            closing: 'A seguir: o que investir quer dizer.',
+        }
+        const withPoll = (overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                blocks: {
+                    schemaVersion: 1,
+                    phases: { scenario: [poll, { type: 'text', markup: 'Depois da enquete' }], microDecision: [], revelation: [] },
+                },
+                ...overrides,
+            })
+
+        it('não trava o Continuar: dá para seguir sem votar', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withPoll() })
+
+            renderLesson()
+
+            expect(await screen.findByText(poll.prompt)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Depois da enquete')).toBeInTheDocument()
+        })
+
+        it('votar chama a rota e mostra o convite quando há poucos votos', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withPoll() })
+            vi.mocked(votePoll).mockResolvedValue({ poll: { pollId: 'e1', vote: 1 } })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Investiria' }))
+
+            await waitFor(() => expect(votePoll).toHaveBeenCalledWith('token-valido', 'lesson-1', 'e1', 1))
+            expect(await screen.findByText('Você está entre os primeiros a responder.')).toBeInTheDocument()
+            expect(screen.getByText('A seguir: o que investir quer dizer.')).toBeInTheDocument()
+            // Enquete não é pergunta: não entra no placar nem na barra de marcos.
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+        })
+
+        it('mostra o resultado e restaura o voto de quem já votou, inclusive em revisão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withPoll({
+                    status: 'completed',
+                    currentStep: 3,
+                    polls: [{ pollId: 'e1', vote: 0, results: { total: 40, percentages: [70, 30] } }],
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByText('70% responderam como você.')).toBeInTheDocument()
+            expect(screen.getByText('Seu voto')).toBeInTheDocument()
+            expect(votePoll).not.toHaveBeenCalled()
+        })
+
+        it('falha de rede mostra o aviso e mantém as alternativas', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withPoll() })
+            vi.mocked(votePoll).mockRejectedValue(new Error('rede'))
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Investiria' }))
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('Não deu para registrar seu voto')
+            expect(screen.getByRole('button', { name: 'Investiria' })).toBeInTheDocument()
+        })
+    })
+
+    describe('"Relembra?" (LJ.5.5)', () => {
+        const recallBlock = { type: 'check', id: 'r1', kind: 'single', prompt: 'Qual é a regra do IR?', options: ['Fixa', 'Regressiva'] }
+        const recall = { lessonId: 'lesson-0', lessonTitle: 'Imposto na renda fixa', block: recallBlock }
+        const withRecall = (overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                recall,
+                blocks: {
+                    schemaVersion: 1,
+                    phases: { scenario: [{ type: 'text', markup: 'Primeiro cartão da lição' }], microDecision: [], revelation: [] },
+                },
+                ...overrides,
+            })
+
+        it('abre a lição com a pergunta da lição de origem, antes do primeiro cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+
+            renderLesson()
+
+            expect(await screen.findByText('Relembra?')).toBeInTheDocument()
+            expect(screen.getByText('Da lição: Imposto na renda fixa')).toBeInTheDocument()
+            expect(screen.getByText('Qual é a regra do IR?')).toBeInTheDocument()
+            expect(screen.queryByText('Primeiro cartão da lição')).not.toBeInTheDocument()
+            // O funil só conta o primeiro cartão depois do Relembra.
+            expect(recordCardReach).not.toHaveBeenCalled()
+        })
+
+        it('responde pela rota da lição de origem, em modo prática, e não trava o Continuar', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({
+                correct: false,
+                attempts: 3,
+                firstTry: false,
+                wrongOptions: [],
+                explanation: 'A alíquota cai com o prazo.',
+            })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Fixa' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            await waitFor(() =>
+                expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-0', 'r1', { selectedOption: 0 }, { practice: true }),
+            )
+            // Errou: a explicação aparece e dá para seguir sem resolver.
+            expect(await screen.findByText('A alíquota cai com o prazo.')).toBeInTheDocument()
+            expect(advanceLesson).not.toHaveBeenCalled()
+            fireEvent.click(screen.getByRole('button', { name: 'Pular' }))
+            expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+        })
+
+        it('acertar mostra "Isso ficou!" e o Continuar leva ao primeiro cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({
+                correct: true,
+                attempts: 2,
+                firstTry: false,
+                wrongOptions: [],
+                explanation: 'Regressiva.',
+            })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Regressiva' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Isso ficou!')).toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+            expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+            expect(screen.queryByText('Relembra?')).not.toBeInTheDocument()
+            await waitFor(() => expect(recordCardReach).toHaveBeenCalledWith('token-valido', 'lesson-1', 0, 0))
+        })
+
+        it('não conta no placar da lição, na barra nem na sequência de acertos', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                explanation: 'x',
+            })
+
+            renderLesson()
+            const bar = await screen.findByRole('progressbar')
+            expect(bar).toHaveAttribute('aria-valuetext', expect.stringMatching(/^Cartão 1 de/))
+            fireEvent.click(screen.getByRole('button', { name: 'Regressiva' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            await screen.findByText('Isso ficou!')
+
+            expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            await screen.findByText('Primeiro cartão da lição')
+            expect(bar).toHaveAttribute('aria-valuetext', expect.stringMatching(/^Cartão 1 de/))
+        })
+
+        it('não aparece em revisão de lição concluída nem em lição retomada no meio', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall({ status: 'completed' }) })
+            const first = renderLesson()
+            await screen.findByText('Primeiro cartão da lição')
+            expect(screen.queryByText('Relembra?')).not.toBeInTheDocument()
+            first.unmount()
+
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall({ currentStep: 1 }) })
+            renderLesson()
+            await waitFor(() => expect(screen.queryByText('Relembra?')).not.toBeInTheDocument())
+        })
+
+        it('lição sem recall abre direto no primeiro cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall({ recall: undefined }) })
+            renderLesson()
+            expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+            expect(screen.queryByText('Relembra?')).not.toBeInTheDocument()
+        })
+    })
+
+    describe('tela final (LJ.1.4)', () => {
+        const trueFalse = (id: string) => ({ type: 'check', id, kind: 'true_false', prompt: `Pergunta ${id}` })
+        const state = (checkpointId: string, firstTry: boolean) => ({
+            checkpointId,
+            solved: true,
+            attempts: firstTry ? 1 : 2,
+            wrongOptions: [],
+            firstTry,
+        })
+
+        function finished(checkIds: string[], firstTry: boolean[], overrides: Partial<LessonType> = {}) {
+            return lesson({
+                currentStep: 3,
+                blocks: {
+                    schemaVersion: 1,
+                    phases: { scenario: checkIds.map(trueFalse), microDecision: [], revelation: [] },
+                    summary: ['Primeira ideia que ficou.', 'Segunda ideia que ficou.'],
+                },
+                checkpoints: checkIds.map((id, i) => state(id, firstTry[i])),
+                ...overrides,
+            })
+        }
+
+        it.each([
+            [[true, true], 'Na mosca!', '2 de 2 de primeira'],
+            [[true, true, false], 'Mandou bem!', '2 de 3 de primeira'],
+            [[true, false, false], 'Lição concluída', '1 de 3 de primeira'],
+        ])('título e placar pelo desempenho %j', async (firstTry, title, summary) => {
+            const ids = firstTry.map((_, i) => `q${i}`)
+            vi.mocked(getLesson).mockResolvedValue({ lesson: finished(ids, firstTry) })
+
+            renderLesson()
+
+            expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
+            expect(screen.getByText(summary)).toBeInTheDocument()
+            expect(screen.getByText('Diversificação')).toBeInTheDocument()
+        })
+
+        it('oferece compartilhar o resultado, com o placar da lição na mensagem (LJ.5.10)', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined)
+            Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+            Object.defineProperty(navigator, 'share', { value: undefined, configurable: true })
+            vi.mocked(getMyReferral).mockResolvedValue({ code: 'ABCD2345' } as never)
+            vi.mocked(getLesson).mockResolvedValue({ lesson: finished(['q0', 'q1'], [true, true]) })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Compartilhar' }))
+
+            await waitFor(() =>
+                expect(writeText).toHaveBeenCalledWith(
+                    `Fiz a lição "Diversificação" no Selucra: 2 de 2 de primeira. ${window.location.origin}/login?ref=ABCD2345`,
+                ),
+            )
+        })
+
+        it('mostra "O que ficou" com os resumos e some quando a lição não tem resumo', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: finished(['q0'], [true]) })
+            const { unmount } = renderLesson()
+
+            expect(await screen.findByRole('heading', { name: 'O que ficou' })).toBeInTheDocument()
+            expect(screen.getByText('Primeira ideia que ficou.')).toBeInTheDocument()
+            unmount()
+
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({
+                    currentStep: 3,
+                    blocks: { schemaVersion: 1, phases: { scenario: [], microDecision: [], revelation: [] } },
+                }),
+            })
+            renderLesson()
+
+            await screen.findByRole('heading', { level: 1, name: 'Lição concluída' })
+            expect(screen.queryByRole('heading', { name: 'O que ficou' })).not.toBeInTheDocument()
+            expect(screen.queryByText(/de primeira/)).not.toBeInTheDocument()
+        })
+
+        it('concluir a lição mostra o XP ganho na tela, sem o aviso global de XP por cima', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 3, completed: true, xpAwarded: 40 })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+
+            expect(await screen.findByText('Você ganhou 40 XP')).toBeInTheDocument()
+            expect(screen.queryByRole('status')).not.toBeInTheDocument()
+        })
+
+        it('subir de nível ainda dispara o aviso de nível', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 3, completed: true, xpAwarded: 40, leveledUp: true, newLevel: 2 })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+
+            expect(await screen.findByText('Você subiu de nível!')).toBeInTheDocument()
+            expect(screen.getByText('Você ganhou 40 XP')).toBeInTheDocument()
+        })
+
+        it('em revisão mostra o placar gravado e omite o XP', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: finished(['q0', 'q1'], [true, false], { status: 'completed' }) })
+
+            renderLesson()
+            for (let i = 0; i < 2; i++) {
+                await screen.findByText(`Pergunta q${i}`)
+                fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            }
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+
+            expect(await screen.findByText('1 de 2 de primeira')).toBeInTheDocument()
+            expect(screen.queryByText(/Você ganhou/)).not.toBeInTheDocument()
+        })
+
+        it('em revisão sem nenhuma resposta gravada não mostra o placar nem o título de desempenho', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: finished(['q0'], [true], { status: 'completed', checkpoints: [] }) })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+
+            await screen.findByRole('heading', { level: 1, name: 'Lição concluída' })
+            expect(screen.queryByText(/de primeira/)).not.toBeInTheDocument()
+        })
+
+        it('mostra o teaser da próxima lição e leva até ela no Continuar', async () => {
+            vi.mocked(listLessons).mockResolvedValue({
+                lessons: [
+                    lesson({ id: 'lesson-1', sortOrder: 5 }),
+                    lesson({ id: 'lesson-2', sortOrder: 6, title: 'Juros compostos', scenarioText: 'Imagine R$ 1.000 rendendo todo mês.' }),
+                ],
+            })
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 3 }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Na próxima')).toBeInTheDocument()
+            expect(screen.getByText('Juros compostos')).toBeInTheDocument()
+            expect(screen.getByText('Imagine R$ 1.000 rendendo todo mês.')).toBeInTheDocument()
+        })
+    })
+
+    describe('sequência de acertos (LJ.1.6) e vibração (LJ.5.4)', () => {
+        const ids = ['q0', 'q1', 'q2', 'q3', 'q4']
+        const vibrate = vi.fn()
+        const right = { correct: true, attempts: 1, firstTry: true, wrongOptions: [], explanation: 'ok' }
+        const wrong = { correct: false, attempts: 1, firstTry: false, wrongOptions: [1] }
+        const later = { correct: true, attempts: 2, firstTry: false, wrongOptions: [1], explanation: 'ok' }
+
+        function withFive(overrides: Partial<LessonType> = {}) {
+            return lesson({
+                blocks: {
+                    schemaVersion: 1,
+                    phases: {
+                        scenario: ids.map((id) => ({ type: 'check', id, kind: 'true_false', prompt: `Pergunta ${id}` })),
+                        microDecision: [],
+                        revelation: [],
+                    },
+                },
+                ...overrides,
+            })
+        }
+
+        // Responde a pergunta `index` com o gabarito simulado; acertando, espera o selo "Acertou" e (se `goOn`) segue.
+        async function answer(index: number, response: Awaited<ReturnType<typeof answerCheckpoint>>, goOn = true) {
+            await screen.findByText(`Pergunta q${index}`)
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce(response)
+            fireEvent.click(screen.getByRole('button', { name: 'Verdadeiro' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            if (!response.correct) {
+                await screen.findByRole('alert')
+                return
+            }
+            await screen.findByText(/Acertou|Resposta certa/)
+            if (goOn) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        }
+
+        beforeEach(() => {
+            vibrate.mockClear()
+            vi.mocked(answerCheckpoint).mockReset()
+            Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true })
+        })
+        afterEach(() => Reflect.deleteProperty(navigator, 'vibrate'))
+
+        it('mostra o selo ao chegar a 3 e a 5 acertos de primeira seguidos, e só nesses', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive() })
+            renderLesson()
+
+            for (let i = 0; i < 5; i++) {
+                await answer(i, right, false)
+                if (i === 2) expect(screen.getByText('3 de primeira seguidas!')).toBeInTheDocument()
+                if (i === 3) expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+                if (i === 4) expect(screen.getByText('5 de primeira seguidas!')).toBeInTheDocument()
+                if (i < 4) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            }
+        })
+
+        it('errar zera a sequência sem nenhuma mensagem e a contagem recomeça', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive() })
+            renderLesson()
+
+            await answer(0, right)
+            await answer(1, wrong, false)
+            expect(screen.queryByText(/sequência|perdeu|seguidas/i)).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Falso' }))
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce(later)
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            await screen.findByText(/Acertou na 2ª tentativa/)
+            expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+            await answer(2, right)
+            await answer(3, right)
+            await answer(4, right, false)
+
+            // Só 3 acertos de primeira depois do erro: o selo de 3 vem na q4, não na q2.
+            expect(await screen.findByText('3 de primeira seguidas!')).toBeInTheDocument()
+        })
+
+        it('em revisão não mostra selo nem vibra', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive({ status: 'completed', currentStep: 3 }) })
+            renderLesson()
+
+            for (let i = 0; i < 4; i++) {
+                await answer(i, right)
+            }
+
+            expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+            expect(vibrate).not.toHaveBeenCalled()
+        })
+
+        it('vibra ao concluir a lição, mas não ao só rever uma já concluída', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 3, completed: true, xpAwarded: 50 })
+            const first = renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+
+            await waitFor(() => expect(vibrate).toHaveBeenCalledWith([60, 50, 90]))
+            first.unmount()
+            vibrate.mockClear()
+
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ status: 'completed', currentStep: 3 }) })
+            renderLesson()
+            for (let i = 0; i < 3; i++) fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            await screen.findByRole('heading', { level: 1, name: 'Lição concluída' })
+
+            expect(vibrate).not.toHaveBeenCalled()
+        })
+
+        it('vibra no acerto e fica silencioso no erro', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive() })
+            renderLesson()
+
+            await answer(0, wrong, false)
+            expect(await screen.findByRole('alert')).toBeInTheDocument()
+            expect(vibrate).not.toHaveBeenCalled()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Falso' }))
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce(later)
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            await screen.findByText(/Acertou na 2ª tentativa/)
+            expect(vibrate).toHaveBeenCalledTimes(1)
+        })
+    })
+
+    describe('missão de widget (LJ.3.1)', () => {
+        const mission = {
+            type: 'widget',
+            id: 'juro-real',
+            widget: 'real-return',
+            props: { nominalPct: 8, inflationPct: 5, amount: 10000 },
+            goal: {
+                text: 'Deixe o rendimento real negativo',
+                metric: 'realReturnPct',
+                op: 'lt',
+                value: 0,
+                reveal: 'a inflação passou o rendimento.',
+            },
+        }
+        const withMission = (overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                blocks: { schemaVersion: 1, phases: { scenario: [mission], microDecision: [], revelation: [] } },
+                ...overrides,
+            })
+
+        it('o Continuar fica travado até atingir o alvo, que libera e mostra o que se descobriu', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission() })
+
+            renderLesson()
+
+            expect(await screen.findByText(/Missão:/)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+            fireEvent.change(screen.getByLabelText(/Inflação:/), { target: { value: '9' } })
+
+            expect(await screen.findByText(/a inflação passou o rendimento/)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+        })
+
+        it('a missão cumprida entra no placar da tela final; missão que ficou para trás não conta', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission() })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+            const { unmount } = renderLesson()
+            await screen.findByText(/Missão:/)
+            fireEvent.change(screen.getByLabelText(/Inflação:/), { target: { value: '9' } })
+            await screen.findByText(/a inflação passou/)
+            for (const step of [1, 2, 3]) {
+                vi.mocked(advanceLesson).mockResolvedValue({ currentStep: step, completed: step === 3 })
+                fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+                await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', step))
+            }
+            expect(await screen.findByText('1 de 1 de primeira')).toBeInTheDocument()
+            unmount()
+
+            // Retomar na tela final: a missão nunca foi feita nesta sessão, então não entra na conta.
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission({ currentStep: 3 }) })
+            renderLesson()
+            await screen.findByRole('heading', { level: 1, name: 'Lição concluída' })
+            expect(screen.queryByText(/de primeira/)).not.toBeInTheDocument()
+        })
+
+        it('em revisão nada trava', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission({ status: 'completed' }) })
+
+            renderLesson()
+
+            expect(await screen.findByText(/Missão:/)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+        })
+    })
+
+    describe('tempo estimado (LJ.5.2)', () => {
+        const long = { scenarioText: 'a'.repeat(3000), revelationText: 'a'.repeat(1500) }
+
+        it('o primeiro cartão da lição mostra "~N min"', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0, ...long }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('~5 min')).toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            await screen.findByText('Sua aposta')
+            expect(screen.queryByText(/min$/)).not.toBeInTheDocument()
+        })
+
+        it('ao retomar no meio mostra "Faltam ~N min" no primeiro cartão da fase retomada', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2, ...long }) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Faltam ~2 min')).toBeInTheDocument()
+        })
+
+        it('o "Faltam" não reaparece em toda fase depois que o servidor regrava o passo', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 1, ...long }) })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+
+            renderLesson()
+            expect(await screen.findByText(/^Faltam ~\d+ min$/)).toBeInTheDocument()
+
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2, ...long }) })
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            await screen.findByText('O que acontece')
+            expect(screen.queryByText(/min$/)).not.toBeInTheDocument()
         })
     })
 })

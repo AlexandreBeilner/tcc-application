@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { oneYearOutcome, realReturnPct } from '../../../features/lessons/widgets/macroMath'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { RealReturnWidgetProps } from './types'
@@ -13,11 +13,12 @@ const BAR_SCALE_MAX = 20
 // Widget `real-return` (RC.3.4c): três barras (rendimento nominal, inflação e
 // rendimento real) e um controle de inflação. O valor sai escrito em cada barra,
 // então a leitura não depende de cor nem de comprimento.
-export function RealReturnWidget({ nominalPct, inflationPct, amount }: RealReturnWidgetProps) {
+export function RealReturnWidget({ nominalPct, inflationPct, amount, onMetrics }: RealReturnWidgetProps) {
     const [nominal, setNominal] = useState(nominalPct)
     const [inflation, setInflation] = useState(inflationPct)
 
     const real = realReturnPct(nominal, inflation)
+    useEffect(() => onMetrics?.({ realReturnPct: real }), [real, onMetrics])
     const { nominal: nominalValue, inTodaysMoney } = oneYearOutcome(amount, nominal, inflation)
     const bars = [
         { label: 'Rendimento nominal', value: nominal },

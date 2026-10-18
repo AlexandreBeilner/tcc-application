@@ -1,0 +1,74 @@
+.scoreboard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.dots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.dot {
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    border-radius: var(--radius-full);
+}
+
+.dotPending {
+    background: var(--color-bg-base);
+    border: 2px solid var(--color-border-strong);
+}
+
+.dotFirstTry {
+    background: var(--color-gamify-500);
+    border: 2px solid var(--color-gamify-500);
+    animation: dotPop 320ms ease-out both;
+}
+
+.dotLater {
+    background: var(--color-text-muted);
+    border: 2px solid var(--color-text-muted);
+}
+
+/* Os pontos acesos entram um a um, da esquerda para a direita, como os marcos da barra. */
+.dot:nth-child(2) {
+    animation-delay: 80ms;
+}
+.dot:nth-child(3) {
+    animation-delay: 160ms;
+}
+.dot:nth-child(4) {
+    animation-delay: 240ms;
+}
+.dot:nth-child(5) {
+    animation-delay: 320ms;
+}
+.dot:nth-child(6) {
+    animation-delay: 400ms;
+}
+.dot:nth-child(n + 7) {
+    animation-delay: 480ms;
+}
+
+.summary {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+@keyframes dotPop {
+    from {
+        transform: scale(0.4);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dotFirstTry {
+        animation: none;
+    }
+}

@@ -47,6 +47,7 @@ import {
   BLOCKS_3_4,
   BLOCKS_VIESES,
 } from './lessonContentTrilha3'
+import { LESSON_SUMMARIES } from './lessonSummaries'
 import { legacyText } from './lessonText'
 
 export interface LessonSeed {
@@ -145,7 +146,7 @@ export interface LessonSeed {
 // dois), 3.4 (efeito nos fundamentos + o que acontece com o Tesouro Selic,
 // desafio final da trilha sintetizando 2.8+3.2 — 4 combinações possíveis,
 // só uma bate com o texto de `revelationText`).
-export const LESSON_SEEDS: LessonSeed[] = [
+const BASE_LESSON_SEEDS: LessonSeed[] = [
   {
     stableKey: '0.1',
     code: '0.1',
@@ -1060,6 +1061,13 @@ export const LESSON_SEEDS: LessonSeed[] = [
   },
 ]
 
+// "O que ficou" (LJ.1.5): o resumo de cada lição mora em `lessonSummaries.ts` e entra no `blocks`
+// aqui, pela `stableKey`, para o seed e o script aditivo lerem a mesma fonte.
+export const LESSON_SEEDS: LessonSeed[] = BASE_LESSON_SEEDS.map((seed) => {
+  const summary = LESSON_SUMMARIES[seed.stableKey]
+  return seed.blocks && summary ? { ...seed, blocks: { ...seed.blocks, summary } } : seed
+})
+
 // Importação inicial (N.23): o banco é a fonte da verdade do conteúdo das lições, editado e criado
 // pelo painel admin (com histórico em `lesson_revisions`). Este seed só insere o que falta, casando por
 // `stableKey` (a única coluna imutável por lição, achado 010/M.6): uma lição que já existe NUNCA é
@@ -1243,7 +1251,9 @@ async function main() {
   process.exit(0)
 }
 
-if (process.env.VITEST === undefined) {
+// Só roda quando o arquivo é o ponto de entrada: outros scripts (ex.: convertNumericChecks) importam
+// `LESSON_SEEDS` daqui e não podem disparar o seed, que termina o processo com `process.exit`.
+if (process.env.VITEST === undefined && /seedLessons\.(ts|js)$/.test(process.argv[1] ?? '')) {
   main().catch((err) => {
     console.error('erro ao rodar seed de lições:', err)
     process.exit(1)

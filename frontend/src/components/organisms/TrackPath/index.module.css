@@ -189,6 +189,16 @@
     align-self: flex-end;
 }
 
+.duration {
+    align-self: flex-start;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.metaLeft .duration {
+    align-self: flex-end;
+}
+
 .nodeTitleLocked {
     color: var(--color-text-muted);
     font-weight: 500;

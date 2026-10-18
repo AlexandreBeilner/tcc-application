@@ -6,6 +6,10 @@ import { lessonBlocksSchema, parseLessonBlocks } from './lessonBlocks'
 // o contrato sem o outro, um deles quebra.
 export const CONTRACT_EXAMPLE = {
   schemaVersion: 1,
+  summary: [
+    'Juros sobre juros fazem o tempo trabalhar a seu favor.',
+    'LCI isenta pode vencer o CDB.',
+  ],
   phases: {
     scenario: [
       { type: 'text', markup: 'Você tem R$ 1.000 parados.' },
@@ -76,6 +80,144 @@ export const CONTRACT_EXAMPLE = {
 describe('lessonBlocksSchema', () => {
   it('aceita o exemplo do contrato', () => {
     expect(lessonBlocksSchema.safeParse(CONTRACT_EXAMPLE).success).toBe(true)
+  })
+
+  it('aceita o resumo "O que ficou" opcional, de 2 a 3 frases de até 120 caracteres', () => {
+    const withSummary = (summary: unknown) => ({ ...CONTRACT_EXAMPLE, summary })
+    expect(lessonBlocksSchema.safeParse(withSummary(['Uma ideia.', 'Outra ideia.'])).success).toBe(
+      true,
+    )
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', 'b', 'c'])).success).toBe(true)
+    expect(lessonBlocksSchema.safeParse(withSummary(['só uma'])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', 'b', 'c', 'd'])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', 'x'.repeat(121)])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', ''])).success).toBe(false)
+  })
+
+  describe('enquete (LJ.2.6)', () => {
+    const poll = {
+      type: 'poll',
+      id: 'enquete',
+      prompt: 'O que você faz?',
+      options: ['a', 'b'],
+      closing: 'Na próxima tela você vê o que isso custa.',
+    }
+    const withPoll = (block: unknown) => ({
+      ...CONTRACT_EXAMPLE,
+      phases: { ...CONTRACT_EXAMPLE.phases, scenario: [block] },
+    })
+
+    it('aceita enquete com 2 a 4 alternativas, com e sem frase final', () => {
+      expect(lessonBlocksSchema.safeParse(withPoll(poll)).success).toBe(true)
+      const { closing: _closing, ...bare } = poll
+      void _closing
+      expect(lessonBlocksSchema.safeParse(withPoll(bare)).success).toBe(true)
+      expect(
+        lessonBlocksSchema.safeParse(withPoll({ ...poll, options: ['a', 'b', 'c', 'd'] })).success,
+      ).toBe(true)
+    })
+
+    it.each([
+      ['com uma alternativa só', { ...poll, options: ['a'] }],
+      ['com cinco alternativas', { ...poll, options: ['a', 'b', 'c', 'd', 'e'] }],
+      ['com alternativa vazia', { ...poll, options: ['a', ''] }],
+      ['sem pergunta', { ...poll, prompt: '' }],
+      ['com frase final longa demais', { ...poll, closing: 'x'.repeat(201) }],
+    ])('recusa enquete %s', (_name, block) => {
+      expect(lessonBlocksSchema.safeParse(withPoll(block)).success).toBe(false)
+    })
+
+    it('recusa dentro de "Saiba mais" e com id repetido', () => {
+      const more = { type: 'more', id: 'm1', title: 'Mais', blocks: [poll] }
+      expect(
+        lessonBlocksSchema.safeParse({
+          ...CONTRACT_EXAMPLE,
+          phases: {
+            ...CONTRACT_EXAMPLE.phases,
+            scenario: [{ type: 'text', markup: 'x' }, more],
+          },
+        }).success,
+      ).toBe(false)
+      expect(
+        lessonBlocksSchema.safeParse({
+          ...CONTRACT_EXAMPLE,
+          phases: { ...CONTRACT_EXAMPLE.phases, scenario: [poll, poll] },
+        }).success,
+      ).toBe(false)
+    })
+  })
+
+  describe('"Saiba mais" (LJ.5.7)', () => {
+    const more = (blocks: unknown[], id = 'm1') => ({ type: 'more', id, title: 'Detalhe', blocks })
+    const withScenario = (...scenario: unknown[]) => ({
+      ...CONTRACT_EXAMPLE,
+      phases: { ...CONTRACT_EXAMPLE.phases, scenario },
+    })
+    const text = { type: 'text', markup: 'Antes.' }
+    const inner = { type: 'text', markup: 'Detalhe.' }
+
+    it('aceita texto e widget sem missão, depois de outro bloco da fase', () => {
+      const widget = {
+        type: 'widget',
+        id: 'w1',
+        widget: 'callout',
+        props: { title: 't', body: 'b' },
+      }
+      expect(lessonBlocksSchema.safeParse(withScenario(text, more([inner, widget]))).success).toBe(
+        true,
+      )
+    })
+
+    it.each([
+      ['como primeiro bloco da fase', withScenario(more([inner]), text)],
+      ['vazio', withScenario(text, more([]))],
+      [
+        'com pergunta dentro',
+        withScenario(
+          text,
+          more([
+            {
+              type: 'check',
+              id: 'q',
+              kind: 'true_false',
+              prompt: 'p',
+              answer: true,
+              explanation: 'e',
+            },
+          ]),
+        ),
+      ],
+      ['com outro "Saiba mais" dentro', withScenario(text, more([more([inner], 'm2')]))],
+      [
+        'com missão num widget',
+        withScenario(
+          text,
+          more([
+            {
+              type: 'widget',
+              id: 'w2',
+              widget: 'real-return',
+              props: {},
+              goal: { text: 't', metric: 'realReturnPct', op: 'lt', value: 0, reveal: 'r' },
+            },
+          ]),
+        ),
+      ],
+      ['com título longo demais', withScenario(text, { ...more([inner]), title: 'x'.repeat(61) })],
+      ['com id repetido', withScenario(text, more([inner]), more([inner]))],
+    ])('recusa "Saiba mais" %s', (_name, blocks) => {
+      expect(lessonBlocksSchema.safeParse(blocks).success).toBe(false)
+    })
+
+    it('recusa id de widget de dentro repetido com outro bloco da lição', () => {
+      const dup = {
+        type: 'widget',
+        id: 'calc',
+        widget: 'callout',
+        props: { title: 't', body: 'b' },
+      }
+      expect(lessonBlocksSchema.safeParse(withScenario(text, more([dup]))).success).toBe(false)
+    })
   })
 
   it('aceita os widgets de renda fixa com defaults', () => {
@@ -360,6 +502,156 @@ describe('lessonBlocksSchema', () => {
     expect(lessonBlocksSchema.safeParse(blocks).success).toBe(false)
   })
 
+  describe('estimativa (LJ.2.1)', () => {
+    const estimate = {
+      type: 'check',
+      id: 'e1',
+      kind: 'estimate',
+      prompt: 'Quanto viram?',
+      min: 1000,
+      max: 10000,
+      step: 100,
+      unit: 'brl',
+      answer: 6727.5,
+      tolerancePct: 10,
+      explanation: 'Juros sobre juros.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita a estimativa completa', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(estimate)).success).toBe(true)
+    })
+
+    it.each([
+      ['min >= max', { min: 5000, max: 5000 }],
+      ['valor real fora da régua', { answer: 20000 }],
+      ['passo zero', { step: 0 }],
+      ['tolerância zero', { tolerancePct: 0 }],
+      ['tolerância acima de 100', { tolerancePct: 101 }],
+      ['unidade desconhecida', { unit: 'usd' }],
+    ])('rejeita estimativa inválida: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...estimate, ...patch })).success).toBe(false)
+    })
+  })
+
+  describe('ordenar (LJ.2.3)', () => {
+    const order = {
+      type: 'check',
+      id: 'o1',
+      kind: 'order',
+      prompt: 'Do menos ao mais arriscado',
+      items: ['Tesouro Selic', 'CDB', 'FII', 'Ação pequena'],
+      answer: [0, 1, 2, 3],
+      lowLabel: 'Menos risco',
+      highLabel: 'Mais risco',
+      explanation: 'Quanto mais incerto o retorno, maior o risco.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita ordenar completo e sem rótulos de ponta', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(order)).success).toBe(true)
+      expect(
+        lessonBlocksSchema.safeParse(
+          withCheck({ ...order, lowLabel: undefined, highLabel: undefined }),
+        ).success,
+      ).toBe(true)
+    })
+
+    it.each([
+      ['2 itens', { items: ['a', 'b'], answer: [0, 1] }],
+      ['7 itens', { items: ['a', 'b', 'c', 'd', 'e', 'f', 'g'], answer: [0, 1, 2, 3, 4, 5, 6] }],
+      ['gabarito de outro tamanho', { answer: [0, 1, 2] }],
+      ['gabarito com repetição', { answer: [0, 1, 1, 3] }],
+      ['gabarito fora dos itens', { answer: [0, 1, 2, 4] }],
+      ['item vazio', { items: ['a', '', 'c', 'd'] }],
+    ])('rejeita ordenar inválido: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...order, ...patch })).success).toBe(false)
+    })
+  })
+
+  describe('agrupar (LJ.2.4)', () => {
+    const categorize = {
+      type: 'check',
+      id: 'g1',
+      kind: 'categorize',
+      prompt: 'Renda fixa ou variável?',
+      groups: ['Renda fixa', 'Renda variável'],
+      items: ['Tesouro Selic', 'Ação', 'CDB', 'FII'],
+      answer: [0, 1, 0, 1],
+      explanation: 'Porque sim.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita agrupar completo e com três grupos', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(categorize)).success).toBe(true)
+      expect(
+        lessonBlocksSchema.safeParse(
+          withCheck({ ...categorize, groups: ['a', 'b', 'c'], answer: [0, 1, 2, 0] }),
+        ).success,
+      ).toBe(true)
+    })
+
+    it.each([
+      ['1 grupo', { groups: ['a'], answer: [0, 0, 0, 0] }],
+      ['4 grupos', { groups: ['a', 'b', 'c', 'd'], answer: [0, 1, 2, 3] }],
+      ['2 itens', { items: ['a', 'b'], answer: [0, 1] }],
+      ['gabarito de outro tamanho', { answer: [0, 1, 0] }],
+      ['grupo inexistente no gabarito', { answer: [0, 1, 0, 2] }],
+      ['grupo sem nenhum item', { answer: [0, 0, 0, 0] }],
+    ])('rejeita agrupar inválido: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...categorize, ...patch })).success).toBe(
+        false,
+      )
+    })
+  })
+
+  describe('ligar pares (LJ.2.5)', () => {
+    const match = {
+      type: 'check',
+      id: 'm1',
+      kind: 'match',
+      prompt: 'Ligue cada sigla ao que ela mede',
+      left: ['Selic', 'CDI', 'IPCA'],
+      right: ['Juro básico da economia', 'Taxa entre bancos', 'Inflação'],
+      answer: [0, 1, 2],
+      explanation: 'Porque sim.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita ligar completo, com gabarito fora da ordem de autoria', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(match)).success).toBe(true)
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...match, answer: [2, 0, 1] })).success).toBe(
+        true,
+      )
+    })
+
+    it.each([
+      ['2 pares', { left: ['a', 'b'], right: ['c', 'd'], answer: [0, 1] }],
+      [
+        '6 pares',
+        { left: Array(6).fill('a'), right: Array(6).fill('b'), answer: [0, 1, 2, 3, 4, 5] },
+      ],
+      ['colunas de tamanhos diferentes', { right: ['a', 'b'] }],
+      ['gabarito repetido', { answer: [0, 0, 2] }],
+      ['gabarito fora da direita', { answer: [0, 1, 3] }],
+      ['gabarito curto', { answer: [0, 1] }],
+    ])('rejeita ligar inválido: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...match, ...patch })).success).toBe(false)
+    })
+  })
+
   it('rejeita mais de 7 checkpoints por lição', () => {
     const checks = Array.from({ length: 8 }, (_, i) => ({
       type: 'check',
@@ -451,5 +743,75 @@ describe('parseLessonBlocks', () => {
 
   it('devolve o conteúdo validado', () => {
     expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(3)
+  })
+})
+
+describe('formula-walkthrough', () => {
+  const doc = (items: unknown[]) => ({
+    schemaVersion: 1,
+    phases: {
+      scenario: [{ type: 'text', markup: 'a' }],
+      microDecision: [{ type: 'text', markup: 'a' }],
+      revelation: [{ type: 'widget', id: 'f', widget: 'formula-walkthrough', props: { items } }],
+    },
+  })
+  const item = { label: 'Simples', formula: 'M = C', numbers: 'M = 1.000', result: 'R$ 1.000' }
+
+  it('aceita itens completos', () => {
+    expect(lessonBlocksSchema.safeParse(doc([item])).success).toBe(true)
+  })
+
+  it('rejeita lista vazia e item sem resultado', () => {
+    expect(lessonBlocksSchema.safeParse(doc([])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(doc([{ ...item, result: '' }])).success).toBe(false)
+  })
+})
+
+describe('missão de widget (LJ.3.1)', () => {
+  const goal = {
+    text: 'Deixe o rendimento real negativo',
+    metric: 'realReturnPct',
+    op: 'lt',
+    value: 0,
+    reveal: 'Rendeu no papel e perdeu no mercado.',
+    showMe: { nominalPct: 4, inflationPct: 8 },
+  }
+  const blocks = (override: object = {}, widget = 'real-return', props: object = {}) => ({
+    schemaVersion: 1,
+    phases: {
+      scenario: [{ type: 'widget', id: 'w', widget, props, goal: { ...goal, ...override } }],
+      microDecision: [],
+      revelation: [],
+    },
+  })
+
+  it('aceita missão com métrica que o widget declara', () => {
+    expect(lessonBlocksSchema.safeParse(blocks()).success).toBe(true)
+    expect(
+      lessonBlocksSchema.safeParse(
+        blocks(
+          { metric: 'interestRatio', op: 'gte', value: 2, showMe: { periodYears: 15 } },
+          'growth-calculator',
+          { initialCapital: 1000 },
+        ),
+      ).success,
+    ).toBe(true)
+  })
+
+  it.each([
+    ['métrica que o widget não declara', { metric: 'outra' }],
+    ['op sem value', { value: undefined }],
+    ['between sem limites', { op: 'between', value: undefined }],
+    ['between invertido', { op: 'between', min: 2, max: 1 }],
+    ['showMe que quebra as props do widget', { showMe: { nominalPct: 999 } }],
+    ['texto da missão vazio', { text: '' }],
+  ])('rejeita %s', (_name, override) => {
+    expect(lessonBlocksSchema.safeParse(blocks(override)).success).toBe(false)
+  })
+
+  it('rejeita missão em widget sem métricas declaradas', () => {
+    expect(
+      lessonBlocksSchema.safeParse(blocks({}, 'callout', { title: 't', body: 'b' })).success,
+    ).toBe(false)
   })
 })

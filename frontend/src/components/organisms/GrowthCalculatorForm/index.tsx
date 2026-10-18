@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { GrowthChart } from '../GrowthChart'
 import { GrowthProjectionTable } from '../GrowthProjectionTable'
 import { OrderSummaryList } from '../OrderSummaryList'
 import { computeGrowthProjection, resolvePeriodInMonths } from '../../../features/calculator/computeGrowthProjection'
 import type { InterestMode, PeriodUnit, RateUnit } from '../../../features/calculator/computeGrowthProjection'
 import { formatCurrency } from '../../../features/portfolio/format'
+import type { GrowthCalculatorFormProps } from './types'
 import styles from './index.module.css'
 
 const MODE_LABEL: Record<InterestMode, string> = { simple: 'Juros simples', compound: 'Juros compostos' }
@@ -35,12 +36,13 @@ const PERIOD_UNIT_LABEL: Record<PeriodUnit, string> = { months: 'Meses', years: 
 // capital inicial e aporte mensal começam em 0 — a tela nasce "em branco"
 // pro usuário digitar os próprios números, em vez de um exemplo
 // pré-preenchido que ele precisa apagar primeiro.
-export function GrowthCalculatorForm() {
-    const [initialCapital, setInitialCapital] = useState(0)
-    const [monthlyContribution, setMonthlyContribution] = useState(0)
-    const [ratePct, setRatePct] = useState(10)
+export function GrowthCalculatorForm(props: GrowthCalculatorFormProps) {
+    const { onMetrics } = props
+    const [initialCapital, setInitialCapital] = useState(props.initialCapital ?? 0)
+    const [monthlyContribution, setMonthlyContribution] = useState(props.monthlyContribution ?? 0)
+    const [ratePct, setRatePct] = useState(props.ratePct ?? 10)
     const [rateUnit, setRateUnit] = useState<RateUnit>('year')
-    const [periodValue, setPeriodValue] = useState(1)
+    const [periodValue, setPeriodValue] = useState(props.periodYears ?? 1)
     const [periodUnit, setPeriodUnit] = useState<PeriodUnit>('years')
     const [mode, setMode] = useState<InterestMode>('compound')
 
@@ -50,6 +52,15 @@ export function GrowthCalculatorForm() {
         () => computeGrowthProjection({ initialCapital, monthlyContribution, ratePct, rateUnit, months, mode }),
         [initialCapital, monthlyContribution, ratePct, rateUnit, months, mode],
     )
+
+    // Missão (LJ.3.1): quantas vezes os juros compostos superam os simples com os mesmos números, qualquer que seja
+    // a aba aberta. Zero enquanto não houver juros para comparar.
+    const interestRatio = useMemo(() => {
+        const input = { initialCapital, monthlyContribution, ratePct, rateUnit, months }
+        const simple = computeGrowthProjection({ ...input, mode: 'simple' }).totalInterest
+        return simple > 0 ? computeGrowthProjection({ ...input, mode: 'compound' }).totalInterest / simple : 0
+    }, [initialCapital, monthlyContribution, ratePct, rateUnit, months])
+    useEffect(() => onMetrics?.({ interestRatio }), [interestRatio, onMetrics])
 
     function handleRateUnitChange(unit: RateUnit) {
         if (unit === rateUnit) return

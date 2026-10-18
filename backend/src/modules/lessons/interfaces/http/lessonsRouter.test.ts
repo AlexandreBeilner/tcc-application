@@ -8,9 +8,15 @@ import { AnswerMicroDecisionUseCase } from '../../application/useCases/answerMic
 import { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import { GetLessonUseCase } from '../../application/useCases/getLesson'
 import { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import { GetReviewSessionUseCase } from '../../application/useCases/getReviewSession'
+import { RecordCardReachUseCase } from '../../application/useCases/recordCardReach'
+import { RecordReviewResultUseCase } from '../../application/useCases/recordReviewResult'
 import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD } from '../../domain/lesson'
 import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
+import { createFakeLessonCardReachRepository } from '../../test/fakes/fakeLessonCardReachRepository'
+import { createFakeLessonPollRepository } from '../../test/fakes/fakeLessonPollRepository'
+import { VotePollUseCase } from '../../application/useCases/votePoll'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { createFakeSocialFeedRecorder } from '../../test/fakes/fakeSocialFeedRecorder'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -69,12 +75,16 @@ const lessonsWithCheck = lessons.map((lesson) =>
 
 // `minStepIntervalMs` 0 por padrão: os testes de rota não são sobre o tempo
 // mínimo entre passos (S.4, coberto no caso de uso e no teste dedicado abaixo).
+// Relógio da revisão de 1 minuto (LJ.5.6): os testes o adiantam para vencer as perguntas.
+let reviewClock = () => new Date()
+
 function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
   const lessonRepository = createFakeLessonRepository(lessonSet)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
+  const lessonPollRepository = createFakeLessonPollRepository()
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
-  const getLesson = new GetLessonUseCase(lessonRepository)
+  const getLesson = new GetLessonUseCase(lessonRepository, lessonPollRepository)
   const advanceLesson = new AdvanceLessonUseCase(
     lessonRepository,
     createFakeXpAwarder(),
@@ -85,6 +95,10 @@ function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   const reviewLesson = new ReviewLessonUseCase(lessonRepository, createFakeAchievementChecker())
+  const recordCardReach = new RecordCardReachUseCase(
+    lessonRepository,
+    createFakeLessonCardReachRepository(),
+  )
 
   const app = express()
   app.use(express.json())
@@ -96,6 +110,10 @@ function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
       answerMicroDecision,
       answerCheckpoint,
       reviewLesson,
+      recordCardReach,
+      votePoll: new VotePollUseCase(lessonRepository, lessonPollRepository),
+      getReviewSession: new GetReviewSessionUseCase(lessonRepository, () => reviewClock()),
+      recordReviewResult: new RecordReviewResultUseCase(lessonRepository, () => reviewClock()),
       authMiddleware,
     }),
   )
@@ -434,6 +452,49 @@ describe('lessons routes', () => {
       expect(res.body.lesson.checkpointsFirstTry).toBe(0)
     })
 
+    it('GET /lessons/:id da segunda lição traz o Relembra? da concluída, sem gabarito', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+      await lessonRepository.upsertProgress('u1', 'l1', {
+        currentStep: LESSON_UNLOCK_STEP,
+        completedAt: new Date('2026-08-01T12:00:00Z'),
+      })
+
+      const res = await request(app).get('/lessons/l2').set('Authorization', auth)
+
+      expect(res.status).toBe(200)
+      expect(res.body.lesson.recall).toEqual({
+        lessonId: 'l1',
+        lessonTitle: 'Lição 0.1',
+        block: {
+          type: 'check',
+          id: 'c1',
+          kind: 'single',
+          prompt: 'Qual?',
+          options: ['a', 'b', 'c'],
+        },
+      })
+      expect(JSON.stringify(res.body.lesson.recall)).not.toContain('Porque c.')
+    })
+
+    it('resposta de prática em lição concluída traz a explicação no erro e não grava', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+      await lessonRepository.upsertProgress('u1', 'l1', {
+        currentStep: LESSON_UNLOCK_STEP,
+        completedAt: new Date('2026-08-01T12:00:00Z'),
+      })
+
+      const res = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ selectedOption: 0, practice: true })
+
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({ correct: false, explanation: 'Porque c.' })
+      expect(await lessonRepository.listCheckpointsForUser('u1', 'l1')).toEqual([])
+    })
+
     it('errar não entrega a explicação; acertar entrega e conta de primeira', async () => {
       const { app, tokenIssuer } = buildApp(0, lessonsWithCheck)
       const auth = authHeader(tokenIssuer)
@@ -507,6 +568,587 @@ describe('lessons routes', () => {
         ).status,
       ).toBe(404)
       expect((await request(app).post(url).send({ selectedOption: 0 })).status).toBe(401)
+    })
+  })
+
+  describe('estimativa (LJ.2.1)', () => {
+    const lessonsWithEstimate = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'e1',
+                    kind: 'estimate' as const,
+                    prompt: 'Quanto viram?',
+                    min: 1000,
+                    max: 10000,
+                    step: 100,
+                    unit: 'brl' as const,
+                    answer: 6000,
+                    tolerancePct: 10,
+                    explanation: 'Porque juros sobre juros.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/e1/answer'
+
+    it('GET devolve só a régua; o valor real só sai depois do chute', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithEstimate)
+      const auth = authHeader(tokenIssuer)
+
+      const before = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(before.body.lesson.blocks.phases.scenario[0]).toEqual({
+        type: 'check',
+        id: 'e1',
+        kind: 'estimate',
+        prompt: 'Quanto viram?',
+        range: { min: 1000, max: 10000, step: 100, unit: 'brl' },
+      })
+      expect(JSON.stringify(before.body)).not.toContain('6000')
+
+      await request(app).post(url).set('Authorization', auth).send({ value: 3000 })
+      const after = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(after.body.lesson.checkpoints).toEqual([
+        {
+          checkpointId: 'e1',
+          solved: true,
+          attempts: 1,
+          wrongOptions: [],
+          firstTry: false,
+          estimate: { guess: 3000, band: 'far', value: 6000, low: 5400, high: 6600 },
+        },
+      ])
+      expect(after.body.lesson.checkpointsFirstTry).toBe(0)
+    })
+
+    it('POST devolve o resultado com a explicação mesmo longe do valor', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithEstimate)
+
+      const res = await request(app)
+        .post(url)
+        .set('Authorization', authHeader(tokenIssuer))
+        .send({ value: 3000 })
+
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({
+        correct: false,
+        explanation: 'Porque juros sobre juros.',
+        estimate: { band: 'far', value: 6000 },
+      })
+    })
+
+    it('400 pra valor fora da régua, corpo vazio e os dois campos de formatos diferentes ausentes', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithEstimate)
+      const auth = authHeader(tokenIssuer)
+
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ value: 5 })).status,
+      ).toBe(400)
+      expect((await request(app).post(url).set('Authorization', auth).send({})).status).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ value: 'x' })).status,
+      ).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ selectedOption: 0 }))
+          .status,
+      ).toBe(400)
+    })
+  })
+
+  describe('ordenar (LJ.2.3)', () => {
+    const items = ['Tesouro Selic', 'CDB', 'FII', 'Ação pequena']
+    const lessonsWithOrder = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'o1',
+                    kind: 'order' as const,
+                    prompt: 'Do menos ao mais arriscado',
+                    items,
+                    answer: [0, 1, 2, 3],
+                    lowLabel: 'Menos risco',
+                    highLabel: 'Mais risco',
+                    explanation: 'Porque o risco cresce.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/o1/answer'
+
+    async function shownItems(app: ReturnType<typeof buildApp>['app'], auth: string) {
+      const res = await request(app).get('/lessons/l1').set('Authorization', auth)
+      return res.body.lesson.blocks.phases.scenario[0] as {
+        items: string[]
+        lowLabel: string
+        answer?: unknown
+      }
+    }
+
+    it('GET devolve os itens embaralhados e os rótulos, sem gabarito', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithOrder)
+
+      const block = await shownItems(app, authHeader(tokenIssuer))
+
+      expect([...block.items].sort()).toEqual([...items].sort())
+      expect(block.items).not.toEqual(items)
+      expect(block.lowLabel).toBe('Menos risco')
+      expect(block).not.toHaveProperty('answer')
+    })
+
+    it('errar devolve a contagem sem explicação; acertar libera a explicação e GET restaura a ordem', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithOrder)
+      const auth = authHeader(tokenIssuer)
+      const shown = (await shownItems(app, auth)).items
+      const right = items.map((item) => shown.indexOf(item))
+
+      const wrong = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ sequence: [...right].reverse() })
+      expect(wrong.status).toBe(200)
+      expect(wrong.body).toMatchObject({ correct: false, hint: { correctCount: 0, total: 4 } })
+      expect(wrong.body.explanation).toBeUndefined()
+
+      const hit = await request(app).post(url).set('Authorization', auth).send({ sequence: right })
+      expect(hit.body).toMatchObject({
+        correct: true,
+        attempts: 2,
+        explanation: 'Porque o risco cresce.',
+      })
+
+      const after = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(after.body.lesson.checkpoints).toEqual([
+        {
+          checkpointId: 'o1',
+          solved: true,
+          attempts: 2,
+          wrongOptions: [],
+          firstTry: false,
+          sequence: right,
+        },
+      ])
+    })
+
+    it('400 pra sequência repetida, curta ou de outro formato', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithOrder)
+      const auth = authHeader(tokenIssuer)
+      const post = (body: unknown) => request(app).post(url).set('Authorization', auth).send(body)
+
+      expect((await post({ sequence: [0, 0, 1, 2] })).status).toBe(400)
+      expect((await post({ sequence: [0, 1, 2] })).status).toBe(400)
+      expect((await post({ sequence: 'x' })).status).toBe(400)
+      expect((await post({ value: 3 })).status).toBe(400)
+    })
+  })
+
+  describe('agrupar (LJ.2.4)', () => {
+    const lessonsWithCategorize = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'g1',
+                    kind: 'categorize' as const,
+                    prompt: 'Renda fixa ou variável?',
+                    groups: ['Renda fixa', 'Renda variável'],
+                    items: ['Tesouro Selic', 'Ação', 'CDB', 'FII'],
+                    answer: [0, 1, 0, 1],
+                    explanation: 'Porque o retorno é conhecido ou não.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/g1/answer'
+
+    it('GET devolve grupos e itens sem gabarito; errar devolve a contagem; acertar restaura os grupos', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCategorize)
+      const auth = authHeader(tokenIssuer)
+
+      const before = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(before.body.lesson.blocks.phases.scenario[0]).toEqual({
+        type: 'check',
+        id: 'g1',
+        kind: 'categorize',
+        prompt: 'Renda fixa ou variável?',
+        groups: ['Renda fixa', 'Renda variável'],
+        items: ['Tesouro Selic', 'Ação', 'CDB', 'FII'],
+      })
+
+      const wrong = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ groups: [1, 1, 1, 1] })
+      expect(wrong.body).toMatchObject({ correct: false, hint: { correctCount: 2, total: 4 } })
+      expect(wrong.body.explanation).toBeUndefined()
+
+      const hit = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ groups: [0, 1, 0, 1] })
+      expect(hit.body).toMatchObject({
+        correct: true,
+        explanation: 'Porque o retorno é conhecido ou não.',
+      })
+
+      const after = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(after.body.lesson.checkpoints[0]).toMatchObject({
+        solved: true,
+        attempts: 2,
+        groups: [0, 1, 0, 1],
+      })
+    })
+
+    it('400 pra grupo fora do intervalo, resposta curta e formato trocado', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCategorize)
+      const auth = authHeader(tokenIssuer)
+      const post = (body: unknown) => request(app).post(url).set('Authorization', auth).send(body)
+
+      expect((await post({ groups: [0, 1, 0, 2] })).status).toBe(400)
+      expect((await post({ groups: [0, 1] })).status).toBe(400)
+      expect((await post({ groups: [-1, 1, 0, 1] })).status).toBe(400)
+      expect((await post({ sequence: [0, 1, 2, 3] })).status).toBe(400)
+    })
+  })
+
+  describe('ligar pares (LJ.2.5)', () => {
+    const right = ['Juro básico da economia', 'Taxa entre bancos', 'Inflação']
+    const lessonsWithMatch = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'm1',
+                    kind: 'match' as const,
+                    prompt: 'Ligue cada sigla ao que ela mede',
+                    left: ['Selic', 'CDI', 'IPCA'],
+                    right,
+                    answer: [0, 1, 2],
+                    explanation: 'Porque cada índice mede uma coisa.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/m1/answer'
+
+    it('GET embaralha só a direita; par errado é recusado, par certo trava e o GET restaura os pares', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithMatch)
+      const auth = authHeader(tokenIssuer)
+
+      const before = await request(app).get('/lessons/l1').set('Authorization', auth)
+      const block = before.body.lesson.blocks.phases.scenario[0]
+      expect(block.left).toEqual(['Selic', 'CDI', 'IPCA'])
+      expect([...block.right].sort()).toEqual([...right].sort())
+      expect(block).not.toHaveProperty('answer')
+      const rightOf = (left: number) => block.right.indexOf(right[left])
+
+      const miss = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [0, (rightOf(0) + 1) % 3] })
+      expect(miss.body).toMatchObject({ correct: false, match: { pairCorrect: false, pairs: [] } })
+      expect(miss.body.explanation).toBeUndefined()
+
+      const hit = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [0, rightOf(0)] })
+      expect(hit.body).toMatchObject({ match: { pairCorrect: true, pairs: [[0, rightOf(0)]] } })
+
+      const mid = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(mid.body.lesson.checkpoints[0]).toMatchObject({
+        solved: false,
+        match: { pairs: [[0, rightOf(0)]] },
+      })
+
+      await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [1, rightOf(1)] })
+      const last = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [2, rightOf(2)] })
+      expect(last.body).toMatchObject({
+        correct: true,
+        firstTry: false,
+        explanation: 'Porque cada índice mede uma coisa.',
+      })
+      const done = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(done.body.lesson.checkpoints[0]).toMatchObject({ solved: true, firstTry: false })
+    })
+
+    it('400 pra par malformado, fora do intervalo ou de outro formato; 400 ao religar item travado', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithMatch)
+      const auth = authHeader(tokenIssuer)
+      const post = (body: unknown) => request(app).post(url).set('Authorization', auth).send(body)
+
+      expect((await post({ pair: [0] })).status).toBe(400)
+      expect((await post({ pair: [0, 3] })).status).toBe(400)
+      expect((await post({ pair: [-1, 0] })).status).toBe(400)
+      expect((await post({ groups: [0, 1, 2] })).status).toBe(400)
+      expect((await post({ pair: [0, 0] })).status).toBe(200)
+    })
+  })
+
+  describe('POST /lessons/:id/cards/reached (LJ.5.1)', () => {
+    const url = '/lessons/l1/cards/reached'
+
+    it('conta o primeiro envio de um cartão e ignora o repetido', async () => {
+      const { app, tokenIssuer } = buildApp()
+      const auth = authHeader(tokenIssuer)
+
+      const first = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ phase: 0, cardIndex: 0 })
+      const again = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ phase: 0, cardIndex: 0 })
+
+      expect(first.status).toBe(200)
+      expect(first.body).toEqual({ recorded: true })
+      expect(again.body).toEqual({ recorded: false })
+    })
+
+    it('valida payload (400), lição bloqueada ou inexistente (404), fase não alcançada (422) e exige token (401)', async () => {
+      const { app, tokenIssuer } = buildApp()
+      const auth = authHeader(tokenIssuer)
+
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ phase: 9, cardIndex: 0 }))
+          .status,
+      ).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ phase: 0 })).status,
+      ).toBe(400)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/l2/cards/reached')
+            .set('Authorization', auth)
+            .send({ phase: 0, cardIndex: 0 })
+        ).status,
+      ).toBe(404)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/nope/cards/reached')
+            .set('Authorization', auth)
+            .send({ phase: 0, cardIndex: 0 })
+        ).status,
+      ).toBe(404)
+      const ahead = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ phase: 2, cardIndex: 0 })
+      expect(ahead.status).toBe(422)
+      expect(ahead.body.code).toBe('step_out_of_order')
+      expect((await request(app).post(url).send({ phase: 0, cardIndex: 0 })).status).toBe(401)
+    })
+  })
+  describe('enquete da comunidade (LJ.2.6)', () => {
+    const pollLessons = lessons.map((lesson) => ({
+      ...lesson,
+      blocks: {
+        schemaVersion: 1 as const,
+        phases: {
+          scenario: [
+            { type: 'poll' as const, id: 'enquete', prompt: 'E você?', options: ['a', 'b', 'c'] },
+          ],
+          microDecision: [],
+          revelation: [],
+        },
+      },
+    }))
+    const url = '/lessons/l1/polls/enquete/vote'
+
+    it('grava o voto e o GET devolve o voto da pessoa, sem dado individual', async () => {
+      const { app, tokenIssuer } = buildApp(0, pollLessons)
+      const auth = authHeader(tokenIssuer)
+
+      const res = await request(app).post(url).set('Authorization', auth).send({ option: 1 })
+      const again = await request(app).post(url).set('Authorization', auth).send({ option: 2 })
+      const lesson = await request(app).get('/lessons/l1').set('Authorization', auth)
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ poll: { pollId: 'enquete', vote: 1 } })
+      expect(again.body.poll.vote).toBe(1)
+      expect(lesson.body.lesson.polls).toEqual([{ pollId: 'enquete', vote: 1 }])
+    })
+
+    it('valida payload (400), opção inexistente (400), enquete ou lição inexistente e bloqueada (404) e exige token (401)', async () => {
+      const { app, tokenIssuer } = buildApp(0, pollLessons)
+      const auth = authHeader(tokenIssuer)
+      const post = (path: string, body: unknown) =>
+        request(app)
+          .post(path)
+          .set('Authorization', auth)
+          .send(body as object)
+
+      expect((await post(url, { option: 'a' })).status).toBe(400)
+      expect((await post(url, { option: 9 })).status).toBe(400)
+      expect((await post(url, { option: 3 })).status).toBe(400)
+      expect((await post('/lessons/l1/polls/nada/vote', { option: 0 })).status).toBe(404)
+      expect((await post('/lessons/nope/polls/enquete/vote', { option: 0 })).status).toBe(404)
+      expect((await post('/lessons/l2/polls/enquete/vote', { option: 0 })).status).toBe(404)
+      expect((await request(app).post(url).send({ option: 0 })).status).toBe(401)
+    })
+  })
+
+  describe('revisão de 1 minuto (LJ.5.6)', () => {
+    const checks = ['q1', 'q2', 'q3', 'q4']
+    const reviewLessons = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: checks.map((id) => ({
+                  type: 'check' as const,
+                  id,
+                  kind: 'single' as const,
+                  prompt: `Pergunta ${id}`,
+                  options: ['a', 'b'],
+                  answer: 1,
+                  explanation: 'Porque b.',
+                })),
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+
+    async function seedMisses(
+      lessonRepository: ReturnType<typeof buildApp>['lessonRepository'],
+      userId: string,
+    ) {
+      const solvedAt = new Date('2026-10-01T12:00:00Z')
+      for (const id of checks) {
+        await lessonRepository.recordCheckpointAnswer(userId, 'l1', id, {
+          choice: 0,
+          correct: false,
+          answeredAt: solvedAt,
+        })
+        await lessonRepository.recordCheckpointAnswer(userId, 'l1', id, {
+          choice: 1,
+          correct: true,
+          answeredAt: solvedAt,
+          reviewDueAt: new Date('2026-10-02T12:00:00Z'),
+        })
+      }
+    }
+
+    beforeEach(() => {
+      reviewClock = () => new Date('2026-10-05T12:00:00Z')
+    })
+
+    it('GET /lessons/review/session exige token e devolve três perguntas sem gabarito', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, reviewLessons)
+      expect((await request(app).get('/lessons/review/session')).status).toBe(401)
+      await seedMisses(lessonRepository, 'u1')
+
+      const res = await request(app)
+        .get('/lessons/review/session')
+        .set('Authorization', authHeader(tokenIssuer))
+
+      expect(res.status).toBe(200)
+      expect(res.body.ready).toBe(true)
+      expect(res.body.questions).toHaveLength(3)
+      expect(res.body.questions[0]).toMatchObject({ lessonId: 'l1', lessonTitle: 'Lição 0.1' })
+      expect(JSON.stringify(res.body)).not.toContain('Porque b.')
+    })
+
+    it('sem perguntas vencidas, não há revisão', async () => {
+      const { app, tokenIssuer } = buildApp(0, reviewLessons)
+      const res = await request(app)
+        .get('/lessons/review/session')
+        .set('Authorization', authHeader(tokenIssuer))
+      expect(res.body).toEqual({ ready: false, questions: [] })
+    })
+
+    it('POST .../review grava o resultado uma vez e valida o corpo', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, reviewLessons)
+      const auth = authHeader(tokenIssuer)
+      await seedMisses(lessonRepository, 'u1')
+      const url = '/lessons/l1/checkpoints/q1/review'
+
+      expect((await request(app).post(url).set('Authorization', auth).send({})).status).toBe(400)
+      const first = await request(app).post(url).set('Authorization', auth).send({ correct: true })
+      const second = await request(app).post(url).set('Authorization', auth).send({ correct: true })
+
+      expect(first.body).toEqual({ recorded: true })
+      expect(second.body).toEqual({ recorded: false })
+      const q1 = (await lessonRepository.listCheckpointsForUser('u1', 'l1')).find(
+        (c) => c.checkpointId === 'q1',
+      )
+      expect(q1?.reviewStage).toBe(1)
+    })
+
+    it('POST .../review responde 404 para pergunta ou lição inexistente', async () => {
+      const { app, tokenIssuer } = buildApp(0, reviewLessons)
+      const auth = authHeader(tokenIssuer)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/l1/checkpoints/nope/review')
+            .set('Authorization', auth)
+            .send({ correct: true })
+        ).status,
+      ).toBe(404)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/zz/checkpoints/q1/review')
+            .set('Authorization', auth)
+            .send({ correct: true })
+        ).status,
+      ).toBe(404)
     })
   })
 })

@@ -53,8 +53,17 @@ export const BLOCKS_3_1: LessonBlocks = {
         type: 'widget',
         id: 'pesos-da-carteira',
         widget: 'allocation-donut',
-        props: { profile: 'moderate', amount: 10000 },
+        props: { profile: 'conservative', amount: 10000 },
         caption: 'Mude os pesos e veja quanto cada classe pesa num ano ruim. Valores ilustrativos.',
+        goal: {
+          text: 'Monte uma carteira em que nenhuma fatia chegue a 40% e a soma feche em 100%',
+          metric: 'maxSharePct',
+          op: 'lt',
+          value: 40,
+          reveal:
+            'Quando nenhuma fatia domina, o problema de uma classe pesa pouco no total. Diversificar é espalhar o dinheiro para que nenhuma parte decida sozinha o resultado.',
+          showMe: { postFixedPct: 35, longerFixedPct: 30, fiiPct: 15, stocksPct: 20 },
+        },
       },
       {
         type: 'text',
@@ -97,7 +106,7 @@ export const BLOCKS_3_1: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Na renda fixa, diversificar é dividir entre emissores. O {{FGC}} cobre até R$ 250 mil por CPF, por instituição ou conglomerado, e o que passa disso fica sem a garantia.',
+          'Na renda fixa, diversificar é dividir entre emissores. O {{FGC}} cobre até um limite por CPF, por instituição ou conglomerado, e o que passa disso fica sem a garantia.',
       },
       {
         type: 'widget',
@@ -111,11 +120,11 @@ export const BLOCKS_3_1: LessonBlocks = {
         id: 'fgc-excedente',
         kind: 'single',
         prompt:
-          'Você põe R$ 400 mil em CDBs de um único banco. Quantos reais ficam sem a cobertura do FGC?',
+          'Suponha que o limite do FGC seja de R$ 250 mil por instituição. Você põe R$ 400 mil em CDBs de um único banco. Quantos reais ficam sem a cobertura?',
         options: ['R$ 0', 'R$ 150 mil', 'R$ 250 mil', 'R$ 400 mil'],
         answer: 1,
         explanation:
-          'A cobertura é de R$ 250 mil por instituição. 400 mil menos 250 mil dá 150 mil.',
+          'A cobertura vai até o limite por instituição. 400 mil menos 250 mil dá 150 mil sem cobertura.',
       },
       {
         type: 'widget',
@@ -209,12 +218,15 @@ export const BLOCKS_3_2: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'mais-risco-mais-retorno',
-        kind: 'true_false',
-        prompt: 'Assumir mais risco garante um retorno maior.',
-        answer: false,
+        id: 'ordem-de-risco',
+        kind: 'order',
+        prompt: 'Coloque estes investimentos do menos ao mais arriscado.',
+        items: ['Tesouro Selic', 'CDB de banco médio', 'FII', 'Ação de empresa pequena'],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Menos risco',
+        highLabel: 'Mais risco',
         explanation:
-          'Mais risco só abre a possibilidade de retorno maior. Também pode render menos, ou dar prejuízo.',
+          'O Tesouro Selic é dívida do governo e oscila pouco. O CDB depende do banco. FII e ação oscilam com o mercado, e a empresa pequena sofre mais. Mais risco só abre a possibilidade de retorno maior: também pode render menos, ou dar prejuízo.',
       },
       {
         type: 'text',
@@ -341,7 +353,7 @@ export const BLOCKS_3_3: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Taxa não é tudo. Confira também o prazo mínimo e a liquidez (a LCI exige 6 meses), o emissor e a cobertura do FGC, que vale até R$ 250 mil por CPF e instituição.',
+          'Taxa não é tudo. Confira também o prazo mínimo e a liquidez (a LCI exige 6 meses), o emissor e a cobertura do FGC, que tem limite por CPF e instituição.',
       },
       {
         type: 'check',
@@ -490,7 +502,14 @@ export const BLOCKS_VIESES: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Conhecer produtos e contas não basta. Na hora do susto, a emoção decide mais rápido que a razão, e os atalhos da mente nos levam a erros previsíveis, os vieses.',
+          'Você vende uma ação na baixa e ela sobe 40% no mês seguinte. Quanto isso dói, de 0 a 10? Conhecer produtos e contas não basta: na hora do susto, a emoção decide mais rápido que a razão, e os atalhos da mente nos levam a erros previsíveis, os vieses.',
+      },
+      {
+        type: 'poll',
+        id: 'enquete-queda-sem-noticia',
+        prompt: 'Sua ação caiu 30% e não saiu notícia nenhuma. O que você faz?',
+        options: ['Vendo para não perder mais', 'Seguro e espero', 'Compro mais'],
+        closing: 'Não existe resposta certa só pelo susto. A seguir: os erros que a emoção costuma causar.',
       },
       {
         type: 'text',

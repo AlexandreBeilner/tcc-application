@@ -1,0 +1,147 @@
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.title {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    margin: 0;
+}
+
+.meter {
+    height: 6px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface-elevated);
+    overflow: hidden;
+}
+
+.meterFill {
+    display: block;
+    height: 100%;
+    background: var(--color-gamify-500);
+}
+
+.empty {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+}
+
+@media (min-width: 768px) {
+    .grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.cardItem {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+/* A carta aberta ocupa a linha toda para a definição ter espaço, em qualquer largura. */
+.open {
+    grid-column: 1 / -1;
+}
+
+.card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    min-width: 0;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+}
+
+/* Ganha: virada para cima, borda sólida. */
+.earned {
+    cursor: pointer;
+    color: var(--color-text-primary);
+    background: var(--color-gamify-100);
+    border: 1px solid var(--color-gamify-500);
+}
+
+/* Por ganhar: virada para baixo, borda tracejada (nunca só cor), sem o termo. */
+.locked {
+    color: var(--color-text-muted);
+    background: transparent;
+    border: 1px dashed var(--color-border);
+}
+
+.term,
+.lockedTrack {
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.lockedTrack {
+    font-weight: 500;
+}
+
+.detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.definition,
+.example {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.example {
+    color: var(--color-text-secondary);
+}
+
+.review {
+    align-self: flex-start;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-brand-500);
+}
+
+.toggle {
+    align-self: flex-start;
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-brand-500);
+    background: none;
+    border: 0;
+    cursor: pointer;
+}

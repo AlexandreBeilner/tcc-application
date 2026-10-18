@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { widgetGoalSchema } from '../goal'
 
 // Espelho do contrato `blocks` do backend
 // (`backend/src/modules/lessons/infrastructure/content/lessonBlocks.ts`, RC.3.1).
@@ -8,6 +9,7 @@ import { z } from 'zod'
 export const WIDGET_IDS = [
     'callout',
     'platform-note',
+    'formula-walkthrough',
     'equivalent-rate',
     'ir-regressive-table',
     'product-comparator',
@@ -72,6 +74,22 @@ export const widgetPropsSchemas = {
         body: z.string().min(1),
         formula: z.string().min(1).optional(),
     }),
+    'formula-walkthrough': z.object({
+        intro: z.string().min(1).optional(),
+        items: z
+            .array(
+                z.object({
+                    label: z.string().min(1),
+                    formula: z.string().min(1),
+                    legend: z.string().min(1).optional(),
+                    numbers: z.string().min(1),
+                    result: z.string().min(1),
+                }),
+            )
+            .min(1)
+            .max(3),
+        note: z.string().min(1).optional(),
+    }),
     'platform-note': z.object({
         brazil: z.string().min(1),
         here: z.string().min(1),
@@ -128,11 +146,13 @@ export const widgetPropsSchemas = {
         contractRatePct: z.number().min(2).max(25).default(11.75),
         yearsToMaturity: z.number().min(0.25).max(10).default(2),
         indexer: z.enum(['prefixed', 'ipca-plus', 'selic']).default('prefixed'),
+        marketRatePct: z.number().min(2).max(25).optional(),
     }),
     'fgc-coverage-bar': z.object({
         amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),
         institutions: z.number().int().min(1).max(6).default(1),
         sameConglomerate: z.boolean().default(false),
+        totalAmount: z.number().positive().max(5_000_000).optional(),
     }),
     'bond-price-calculator': z.object({
         ratePct: z.number().min(6).max(18).default(11.75),
@@ -164,7 +184,12 @@ export const widgetPropsSchemas = {
     }),
     'ticker-decoder': emptyProps,
     'headline-triage': emptyProps,
-    'order-book': emptyProps,
+    'order-book': z
+        .object({
+            orderType: z.enum(['market', 'limit']).optional(),
+            limitPrice: z.number().positive().max(1000).optional(),
+        })
+        .strict(),
     'interactive-balance': z.object({
         netRevenue: z.number().positive().max(100_000).default(1000),
         costsPct: z.number().min(0).max(90).default(55),
@@ -251,6 +276,10 @@ export const widgetPropsSchemas = {
     'allocation-donut': z.object({
         profile: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
         amount: z.number().min(100).max(1_000_000).default(10000),
+        postFixedPct: z.number().min(0).max(100).optional(),
+        longerFixedPct: z.number().min(0).max(100).optional(),
+        fiiPct: z.number().min(0).max(100).optional(),
+        stocksPct: z.number().min(0).max(100).optional(),
     }),
     'risk-profile-quiz': emptyProps,
     'behavior-bias-quiz': emptyProps,
@@ -289,7 +318,16 @@ export const widgetPropsSchemas = {
         amount: z.number().positive().default(10000),
         months: z.number().int().min(1).max(36).default(12),
     }),
-    'growth-calculator': emptyProps,
+    // Valores iniciais opcionais, para a missão partir de um capital já preenchido (LJ.3.1).
+    'growth-calculator': z
+        .object({
+            initialCapital: z.number().min(0).max(10_000_000),
+            monthlyContribution: z.number().min(0).max(1_000_000),
+            ratePct: z.number().min(0).max(100),
+            periodYears: z.number().int().min(1).max(40),
+        })
+        .partial()
+        .strict(),
     'fixed-income-comparison': emptyProps,
     'live-indicator': z.object({ ticker: z.string().min(1).max(20) }),
     'live-macro': z.object({ windowDays: z.number().int().min(7).max(365).optional() }),
@@ -308,31 +346,108 @@ const widgetBlock = z.object({
     widget: z.string().min(1),
     props: z.unknown().default({}),
     caption: z.string().min(1).optional(),
+    // Missão (LJ.3.1): o Continuar só libera quando a métrica do widget cumpre o alvo.
+    goal: widgetGoalSchema.optional(),
 })
 
 // Pergunta intermediária (RC.3.2), como o servidor a entrega: sem gabarito nem
 // explicação (`answer`/`explanation` ficam só no servidor).
-const checkBlock = z.object({
+const checkBase = {
     type: z.literal('check'),
     id: z.string().min(1),
-    kind: z.enum(['single', 'true_false']),
     prompt: z.string().min(1),
+}
+
+const choiceCheckBlock = z.object({
+    ...checkBase,
+    kind: z.enum(['single', 'true_false']),
     options: z.array(z.string().min(1)).min(2).max(4).optional(),
 })
+
+// Estimativa (LJ.2.2): o servidor só entrega a régua; o valor real e a tolerância vêm depois do chute.
+export const ESTIMATE_UNITS = ['brl', 'pct', 'years', 'none'] as const
+export type EstimateUnit = (typeof ESTIMATE_UNITS)[number]
+
+const estimateCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('estimate'),
+    range: z.object({
+        min: z.number(),
+        max: z.number(),
+        step: z.number().positive(),
+        unit: z.enum(ESTIMATE_UNITS),
+    }),
+})
+
+// Ordenar (LJ.2.3): o servidor entrega os itens já embaralhados e nunca a ordem certa.
+const orderCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('order'),
+    items: z.array(z.string().min(1)).min(3).max(6),
+    lowLabel: z.string().min(1).optional(),
+    highLabel: z.string().min(1).optional(),
+})
+
+// Agrupar (LJ.2.4): grupos e itens na ordem de autoria; o grupo certo de cada item fica no servidor.
+const categorizeCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('categorize'),
+    groups: z.array(z.string().min(1)).min(2).max(3),
+    items: z.array(z.string().min(1)).min(3).max(6),
+})
+
+// Ligar pares (LJ.2.5): a esquerda na ordem de autoria e a direita embaralhada pelo servidor.
+const matchCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('match'),
+    left: z.array(z.string().min(1)).min(3).max(5),
+    right: z.array(z.string().min(1)).min(3).max(5),
+})
+
+const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock, orderCheckBlock, categorizeCheckBlock, matchCheckBlock])
+
+// "Saiba mais" (LJ.5.7): detalhe recolhido, colado ao cartão anterior. Só texto e widget (sem pergunta).
+const moreBlock = z.object({
+    type: z.literal('more'),
+    id: z.string().min(1),
+    title: z.string().min(1),
+    blocks: z.array(z.union([textBlock, widgetBlock])).min(1),
+})
+
+// Enquete da comunidade (LJ.2.6): opinião, sem resposta certa. Não é pergunta: não trava o Continuar nem entra no placar.
+const pollBlock = z.object({
+    type: z.literal('poll'),
+    id: z.string().min(1),
+    prompt: z.string().min(1),
+    options: z.array(z.string().min(1)).min(2).max(4),
+    closing: z.string().min(1).optional(),
+})
+
+const anyBlock = z.union([textBlock, widgetBlock, checkBlock, moreBlock, pollBlock])
 
 const lessonBlocksSchema = z.object({
     schemaVersion: z.literal(1),
     phases: z.object({
-        scenario: z.array(z.union([textBlock, widgetBlock, checkBlock])),
-        microDecision: z.array(z.union([textBlock, widgetBlock, checkBlock])),
-        revelation: z.array(z.union([textBlock, widgetBlock, checkBlock])),
+        scenario: z.array(anyBlock),
+        microDecision: z.array(anyBlock),
+        revelation: z.array(anyBlock),
     }),
+    // "O que ficou" (LJ.1.5): mostrado na tela final; lição sem resumo só omite o bloco.
+    summary: z.array(z.string().min(1).max(120)).min(2).max(3).optional(),
 })
 
 export type LessonBlocks = z.infer<typeof lessonBlocksSchema>
 export type LessonBlock = LessonBlocks['phases']['scenario'][number]
 export type WidgetBlock = Extract<LessonBlock, { type: 'widget' }>
 export type CheckBlock = Extract<LessonBlock, { type: 'check' }>
+export type MoreBlock = Extract<LessonBlock, { type: 'more' }>
+export type PollBlock = Extract<LessonBlock, { type: 'poll' }>
+// Perguntas de alternativas (única escolha e verdadeiro/falso), as que têm `selectedOption`.
+export type ChoiceBlock = Extract<CheckBlock, { kind: 'single' | 'true_false' }>
+export type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>
+export type OrderBlock = Extract<CheckBlock, { kind: 'order' }>
+export type CategorizeBlock = Extract<CheckBlock, { kind: 'categorize' }>
+export type MatchBlock = Extract<CheckBlock, { kind: 'match' }>
 
 // Ausente ou fora do contrato vira `null` (o player usa o texto legado).
 export function parseLessonBlocks(raw: unknown): LessonBlocks | null {
@@ -340,5 +455,11 @@ export function parseLessonBlocks(raw: unknown): LessonBlocks | null {
         return null
     }
     const result = lessonBlocksSchema.safeParse(raw)
+    return result.success ? result.data : null
+}
+
+// Pergunta solta, como o "Relembra?" e a revisão a entregam (LJ.5.5, LJ.5.6): fora do contrato vira `null`.
+export function parseCheckBlock(raw: unknown): CheckBlock | null {
+    const result = checkBlock.safeParse(raw)
     return result.success ? result.data : null
 }

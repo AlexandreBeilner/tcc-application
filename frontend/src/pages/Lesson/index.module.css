@@ -12,15 +12,15 @@
 
 .top {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
+    align-items: center;
+    gap: var(--space-4);
 }
 
 .back {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    align-self: flex-start;
+    flex: none;
     font-family: inherit;
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
@@ -29,28 +29,6 @@
     padding: 0;
     cursor: pointer;
     min-height: 44px;
-}
-
-/* Barra de 4 segmentos substitui "passo 2 de 4" por texto (mockup) — o
-   estado visual já comunica progresso sem depender de leitura. */
-.steps {
-    display: flex;
-    gap: var(--space-2);
-}
-
-.stepSeg {
-    flex: 1;
-    height: 4px;
-    border-radius: var(--radius-full);
-    background: var(--color-border);
-}
-
-.stepSeg.done {
-    background: var(--color-gamify-500);
-}
-
-.stepSeg.current {
-    background: var(--color-brand-500);
 }
 
 .card {
@@ -70,26 +48,10 @@
     color: var(--color-brand-300);
 }
 
-.unlock {
-    border: 1px solid var(--color-gamify-500);
-}
-
-/* Teatro de recompensa (identidade-visual-padroes.md §6) — energia
-   dourada concentrada só neste passo final, não nos três anteriores. */
-.unlockBadge {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-full);
-    background: var(--color-gamify-500);
-    color: var(--color-bg-base);
-    box-shadow: 0 0 0 8px var(--color-gamify-100);
-}
-
-.unlock .eyebrow {
-    color: var(--color-gamify-500);
+.duration {
+    margin-top: calc(var(--space-2) * -1);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
 }
 
 .heading {
@@ -191,6 +153,11 @@
     color: var(--color-feedback-error-500);
 }
 
+/* Tela final (LJ.1.4): só marca o passo, para o desktop alargar a página (ver mais abaixo). */
+.finalScreen {
+    min-width: 0;
+}
+
 /* Cartão de widget (RC.3.1). Mobile/tablet: tudo empilhado, widget em largura
    total. Desktop (>= 1024px): composição própria, texto/CTA numa coluna e o
    widget numa coluna maior ao lado, em vez de widget empilhado abaixo de um
@@ -200,7 +167,8 @@
 }
 
 @media (min-width: 1024px) {
-    .page:has(.hasWidget) {
+    .page:has(.hasWidget),
+    .page:has(.finalScreen) {
         max-width: 1040px;
     }
 
@@ -219,4 +187,12 @@
         grid-column: 2;
         grid-row: 1 / span 6;
     }
+}
+
+/* Dica dos atalhos (LJ.5.3): só aparece com mouse e teclado, depois do cartão, discreta. */
+.shortcutHint {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: center;
 }

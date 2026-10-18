@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { balanceSheet, dre, formatMillions } from '../../../features/lessons/widgets/companyMath'
 import type { InteractiveBalanceWidgetProps } from './types'
 import styles from '../LessonWidget/widgetControls.module.css'
@@ -10,7 +10,7 @@ export type { InteractiveBalanceWidgetProps } from './types'
 // Líquido). O aluno mexe nos custos, nas despesas, nos juros e no imposto e vê
 // cada degrau; no balanço, o patrimônio líquido é o que sobra do ativo depois
 // das dívidas. Valores em milhões de reais, de exemplo.
-export function InteractiveBalanceWidget(props: InteractiveBalanceWidgetProps) {
+export function InteractiveBalanceWidget({ onMetrics, ...props }: InteractiveBalanceWidgetProps) {
     const [costsPct, setCostsPct] = useState(props.costsPct)
     const [expensesPct, setExpensesPct] = useState(props.expensesPct)
     const [interest, setInterest] = useState(-props.financialResult)
@@ -22,6 +22,8 @@ export function InteractiveBalanceWidget(props: InteractiveBalanceWidgetProps) {
 
     const result = dre(props.netRevenue, costsPct, expensesPct, -interest, taxPct)
     const sheet = balanceSheet(cash, fixedAssets, debt, other)
+    const netIncome = result.netIncome
+    useEffect(() => onMetrics?.({ netIncome }), [netIncome, onMetrics])
     const steps = [
         { label: 'Receita líquida', value: result.netRevenue },
         { label: 'Lucro bruto (depois dos custos)', value: result.grossProfit },

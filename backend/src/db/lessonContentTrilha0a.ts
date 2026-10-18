@@ -33,6 +33,13 @@ export const BLOCKS_0_1: LessonBlocks = {
         markup:
           'Antes de continuar, pense: com esses R$ 1.000 em mãos, você deixaria parado ou aplicaria? O que te faria escolher um ou outro?',
       },
+      {
+        type: 'poll',
+        id: 'enquete-bonus',
+        prompt: 'Com R$ 1.000 de bônus, o que você faria?',
+        options: ['Deixaria na conta', 'Poria na poupança', 'Investiria', 'Gastaria'],
+        closing: 'Não existe resposta certa aqui. A seguir: o que investir quer dizer de verdade.',
+      },
     ],
     revelation: [
       {
@@ -92,39 +99,65 @@ export const BLOCKS_0_2: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'simples-3-anos',
-        kind: 'single',
-        prompt: 'Com juros simples de 10% ao ano sobre R$ 1.000, quanto você tem depois de 3 anos?',
-        options: ['R$ 1.100', 'R$ 1.300', 'R$ 1.331', 'R$ 3.000'],
-        answer: 1,
+        id: 'chute-20-anos',
+        kind: 'estimate',
+        prompt:
+          'Chute: quanto viram os R$ 1.000 depois de 20 anos a 10% ao ano?',
+        min: 1000,
+        max: 10000,
+        step: 100,
+        unit: 'brl',
+        answer: 6727.5,
+        tolerancePct: 10,
         explanation:
-          'No regime simples o rendimento é sempre de R$ 100 por ano, sobre os R$ 1.000 iniciais: 1.000 + 3 × 100 = R$ 1.300.',
+          'Viram cerca de R$ 6.727. Com juros simples seriam R$ 3.000. Nos juros compostos os juros também rendem, e é isso que faz a conta disparar.',
       },
     ],
     microDecision: [
       {
         type: 'text',
         markup:
-          'Use a calculadora com o mesmo capital e o mesmo aporte mensal, alternando entre os modos Simples e Composto. Compare o total ao final do período antes de continuar.',
-      },
-      { type: 'widget', id: 'calculadora', widget: 'growth-calculator', props: {} },
-    ],
-    revelation: [
-      {
-        type: 'text',
-        markup:
-          'No regime simples, o montante cresce em linha reta: M = C × (1 + i × n). No composto, cada período rende sobre o saldo já com juros: M = C × (1 + i)ⁿ.' +
-          '\n\n' +
-          'Com R$ 1.000 a 10% em 20 anos, são R$ 3.000 no simples e cerca de R$ 6.727 no composto. A taxa é a mesma, e a curva é outra.',
+          'Os mesmos R$ 1.000 a 10% ao ano rendem de um jeito nos juros simples e de outro nos compostos. Mexa no prazo da calculadora e alterne entre Simples e Composto para ver quando a diferença fica grande.',
       },
       {
         type: 'widget',
-        id: 'dica-tempo',
-        widget: 'callout',
+        id: 'calculadora',
+        widget: 'growth-calculator',
+        props: { initialCapital: 1000, ratePct: 10, periodYears: 1 },
+        goal: {
+          text: 'Ache o prazo em que os juros compostos passam do dobro dos juros simples',
+          metric: 'interestRatio',
+          op: 'gte',
+          value: 2,
+          reveal: 'Os juros sobre juros demoram para aparecer e depois disparam.',
+          showMe: { periodYears: 15, ratePct: 10 },
+        },
+      },
+    ],
+    revelation: [
+      {
+        type: 'widget',
+        id: 'conta-simples-composto',
+        widget: 'formula-walkthrough',
         props: {
-          tone: 'tip',
-          title: 'O tempo é o ingrediente',
-          body: 'Quanto mais cedo você começa, mais períodos de juros sobre juros trabalham a seu favor.',
+          intro: 'O que você viu tem nome: juros sobre juros. R$ 1.000 a 10% ao ano, por 3 anos. A taxa é a mesma, e o resultado muda.',
+          items: [
+            {
+              label: 'Juros simples',
+              formula: 'M = C × (1 + i × n)',
+              legend: 'C é o capital, i é a taxa por período e n é o número de períodos.',
+              numbers: 'M = 1.000 × (1 + 0,10 × 3)',
+              result: 'R$ 1.300',
+            },
+            {
+              label: 'Juros compostos',
+              formula: 'M = C × (1 + i)ⁿ',
+              numbers: 'M = 1.000 × (1 + 0,10)³',
+              result: 'R$ 1.331',
+            },
+          ],
+          note:
+            'Em 20 anos, os mesmos R$ 1.000 viram R$ 3.000 no simples e cerca de R$ 6.727 no composto. Quanto mais cedo você começa, mais períodos de juros sobre juros trabalham a seu favor.',
         },
       },
       {
@@ -160,7 +193,18 @@ export const BLOCKS_0_3: LessonBlocks = {
         markup:
           'Hoje, R$ 100 compram um certo cesto de compras. Daqui a um ano, os preços sobem e o mesmo cesto custa mais. Essa alta geral dos preços é a {{inflação}}.' +
           '\n\n' +
-          'No Brasil, quem mede a inflação é o IBGE, pelo {{IPCA}}. O Banco Central persegue uma meta: 3% ao ano, com tolerância de 1,5 ponto para mais ou para menos.',
+          'No Brasil, quem mede a inflação é o IBGE, pelo {{IPCA}}. O Banco Central persegue uma meta de inflação e compara o IPCA com ela.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-meta-inflacao',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Hoje no Brasil',
+          body:
+            'Em 2026, a meta é de 3% ao ano, com tolerância de 1,5 ponto para mais ou para menos, ou seja, de 1,5% a 4,5%. A meta é definida pelo governo e pode mudar.',
+        },
       },
     ],
     microDecision: [
@@ -180,22 +224,28 @@ export const BLOCKS_0_3: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'inflacao-8',
-        kind: 'single',
+        id: 'chute-preco-10-anos',
+        kind: 'estimate',
         prompt:
-          'Com inflação de 8% em um ano, quanto custa daqui a um ano o que hoje custa R$ 250?',
-        options: ['R$ 258', 'R$ 270', 'R$ 280', 'R$ 2.000'],
-        answer: 1,
-        explanation: '8% de R$ 250 são R$ 20, então o preço vai a R$ 270.',
+          'Chute: com inflação de 5% ao ano, quanto custará em 10 anos o que hoje custa R$ 100?',
+        min: 100,
+        max: 250,
+        step: 5,
+        unit: 'brl',
+        answer: 162.89,
+        tolerancePct: 5,
+        explanation:
+          'Custará cerca de R$ 162,89. Cada ano o aumento incide sobre o preço já reajustado, então 10 anos de 5% somam 62,9%, e não 50%.',
       },
       {
         type: 'check',
         id: 'meta-inflacao',
         kind: 'true_false',
-        prompt: 'A meta de inflação do Brasil é de 3% ao ano, medida pelo IPCA.',
+        prompt:
+          'A meta de inflação é um objetivo que o Banco Central persegue, e não a inflação que já aconteceu.',
         answer: true,
         explanation:
-          'A meta é de 3%, com intervalo de tolerância de 1,5 ponto para mais ou para menos, ou seja, de 1,5% a 4,5%.',
+          'A meta é o alvo. O IPCA mostra a inflação que aconteceu, e o Banco Central compara os dois para decidir o que fazer.',
       },
       { type: 'text', markup: 'Na próxima lição, esse conceito ganha nome: rendimento real.' },
     ],
@@ -209,16 +259,29 @@ export const BLOCKS_0_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Uma aplicação rendeu 8% em um ano. Parece um bom retorno. Mas, nesse ano, a {{inflação}} medida pelo {{IPCA}} foi de 6%.' +
-          '\n\n' +
-          'Os 8% são o rendimento nominal, o que a aplicação anuncia. O rendimento real é o que sobra depois de descontar a inflação.',
+          'Uma aplicação rendeu 8% em um ano. Parece um bom retorno. Mas, nesse ano, a {{inflação}} medida pelo {{IPCA}} foi de 6%.',
+      },
+      {
+        type: 'widget',
+        id: 'rendimento-real',
+        widget: 'real-return',
+        props: { nominalPct: 8, inflationPct: 3, amount: 10000 },
+        caption: 'Mexa nos dois controles',
+        goal: {
+          text: 'Faça a inflação passar o rendimento',
+          metric: 'realReturnPct',
+          op: 'lt',
+          value: 0,
+          reveal: 'Rendeu no papel e perdeu no mercado: a inflação passou o rendimento.',
+          showMe: { inflationPct: 10 },
+        },
       },
     ],
     microDecision: [
       {
         type: 'text',
         markup:
-          'Com 8% de rendimento nominal e 6% de inflação, o rendimento real fica perto de quanto?',
+          'O que você viu tem nome: rendimento real é o que sobra do rendimento nominal, o que a aplicação anuncia, depois de descontar a inflação. Com 8% nominal e 6% de inflação, o rendimento real fica perto de quanto?',
       },
     ],
     revelation: [

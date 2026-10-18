@@ -56,6 +56,30 @@ export interface Lesson {
     // `status: 'available'`, e conta como satisfeita no desbloqueio. O backend
     // sempre envia; opcional aqui só pra `undefined` valer como `false`.
     waived?: boolean
+    // Só em `GET /lessons/:id` de lição ainda não começada (LJ.5.5): uma pergunta de lição anterior concluída.
+    recall?: PracticeQuestion
+    // Só em `GET /lessons/:id` (LJ.2.6): enquetes em que a pessoa já votou, com o resultado quando há votos suficientes.
+    polls?: PollState[]
+}
+
+// Enquete da comunidade (LJ.2.6): o voto da própria pessoa e, só com 20 votos ou mais (LJ-D5), o resultado
+// agregado em percentual inteiro por alternativa. Nunca nome nem lista de quem votou.
+export interface PollState {
+    pollId: string
+    vote: number
+    results?: { total: number; percentages: number[] }
+}
+
+export interface VotePollResult {
+    poll: PollState
+}
+
+// Pergunta de prática (LJ.5.5 "Relembra?", LJ.5.6 revisão): `block` é a pergunta pública da lição de origem,
+// validada no cliente por `parseCheckBlock`.
+export interface PracticeQuestion {
+    lessonId: string
+    lessonTitle: string
+    block: unknown
 }
 
 export interface ListLessonsResult {
@@ -79,6 +103,30 @@ export interface CheckpointState {
     attempts: number
     wrongOptions: number[]
     firstTry: boolean
+    // Só estimativa já respondida (LJ.2.2): restaura a régua depois de sair e voltar.
+    estimate?: EstimateResult
+    // Só ordenar já resolvido (LJ.2.3): a ordem montada, em índices dos itens como o servidor os entregou.
+    sequence?: number[]
+    // Só agrupar já resolvido (LJ.2.4): o grupo escolhido para cada item.
+    groups?: number[]
+    // Só ligar (LJ.2.5): os pares já travados, também no meio do caminho.
+    match?: { pairs: [number, number][] }
+}
+
+// Formatos de várias peças, ao errar (LJ-D2): quantas peças estão certas, sem dizer quais.
+export interface CheckHint {
+    correctCount: number
+    total: number
+}
+
+// Resultado de uma estimativa, devolvido só depois do chute (LJ-D1): `value` é o valor real e
+// `low`/`high` a faixa que conta como "na mosca".
+export interface EstimateResult {
+    guess: number
+    band: 'exact' | 'close' | 'far'
+    value: number
+    low: number
+    high: number
 }
 
 // `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, `.docs/backend/lessons.md`).
@@ -87,8 +135,13 @@ export interface AnswerCheckpointResult {
     attempts: number
     firstTry: boolean
     wrongOptions: number[]
-    // Só em acerto.
+    // Só em acerto; na estimativa vem sempre (ela avança acertando ou não). Em prática (`practice`) de pergunta
+    // só de leitura vem também ao errar.
     explanation?: string
+    estimate?: EstimateResult
+    hint?: CheckHint
+    // Só ligar (LJ-D3): o veredito do par enviado e os pares já travados. `correct` vale para a pergunta inteira.
+    match?: { pairCorrect: boolean; pairs: [number, number][] }
 }
 
 // `POST /lessons/:id/answer` (RC.2.3, `.docs/backend/lessons.md`).
@@ -130,4 +183,10 @@ export interface ReviewLessonResult {
     // ver comentário lá) — mesmo estado "ainda sem consumidor" de
     // `streakMilestone` em `AdvanceLessonResult` quando foi introduzido.
     unlockedAchievements: UnlockedAchievement[]
+}
+
+// `GET /lessons/review/session` (LJ.5.6): `ready` só com as 3 perguntas completas.
+export interface ReviewSession {
+    ready: boolean
+    questions: PracticeQuestion[]
 }

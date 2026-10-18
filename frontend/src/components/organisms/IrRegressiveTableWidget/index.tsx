@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IR_BRACKETS, irBracketForDays, irOnYield } from '../../../features/lessons/widgets/fixedIncomeMath'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { IrRegressiveTableWidgetProps } from './types'
@@ -9,10 +9,12 @@ export type { IrRegressiveTableWidgetProps } from './types'
 // Widget `ir-regressive-table` (RC.3.4a): a tabela regressiva com o prazo
 // ajustável por um controle deslizante; a faixa atual fica destacada (texto em
 // negrito e marcador, não só cor) e o imposto sai calculado.
-export function IrRegressiveTableWidget({ grossYield, initialDays }: IrRegressiveTableWidgetProps) {
+export function IrRegressiveTableWidget({ grossYield, initialDays, onMetrics }: IrRegressiveTableWidgetProps) {
     const [days, setDays] = useState(initialDays)
     const current = irBracketForDays(days)
     const { tax, net } = irOnYield(grossYield, days)
+    const irRatePct = current.ratePct
+    useEffect(() => onMetrics?.({ irRatePct }), [irRatePct, onMetrics])
 
     return (
         <div className={styles.root}>

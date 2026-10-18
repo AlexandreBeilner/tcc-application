@@ -1,0 +1,55 @@
+/* Altura fixa de 14px (a do marco) para o trilho de 4px não mudar o cabeçalho quando há ou não marcos,
+   e para a barra caber na mesma linha do "Sair da lição" no mobile, sem empurrar o conteúdo. */
+.bar {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 14px;
+}
+
+.track {
+    position: absolute;
+    inset: 5px 0;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-500);
+    transition: width 300ms ease-out;
+}
+
+/* Marco no fim do segmento do cartão de pergunta; o centro do ponto fica sobre a posição. */
+.marker {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    box-sizing: border-box;
+    border-radius: var(--radius-full);
+}
+
+.markerPending {
+    background: var(--color-bg-base);
+    border: 2px solid var(--color-border-strong);
+}
+
+.markerFirstTry {
+    background: var(--color-gamify-500);
+    border: 2px solid var(--color-gamify-500);
+}
+
+.markerLater {
+    background: var(--color-text-muted);
+    border: 2px solid var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fill {
+        transition: none;
+    }
+}
