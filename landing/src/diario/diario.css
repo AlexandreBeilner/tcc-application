@@ -686,6 +686,16 @@
         max-width: 920px;
         gap: 20px 32px;
     }
+    /* Sem estatísticas nem dias anteriores (ainda ocultos), a segunda coluna ficaria vazia e o jogo
+       ficaria deslocado para a esquerda: nesse caso volta à coluna única, centralizada. */
+    .dg:not(:has(.dg-stats:not([hidden]), .dg-past:not([hidden]))) {
+        grid-template-columns: minmax(0, 560px);
+        grid-template-areas:
+            'banner'
+            'stage'
+            'note';
+        max-width: 560px;
+    }
     .dg-banner {
         grid-area: banner;
     }
