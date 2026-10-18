@@ -149,7 +149,6 @@ export const BLOCKS_1_2: LessonBlocks = {
           why: 'Assim você vê o efeito de uma decisão de juros sem esperar o calendário real.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra do Tesouro Selic no Mercado.' },
     ],
   },
 }
@@ -463,10 +462,6 @@ export const BLOCKS_1_7: LessonBlocks = {
           here: 'O Tesouro Prefixado do Mercado tem taxa e vencimento definidos pelo catálogo da plataforma.',
           why: 'Assim os números do exemplo ficam estáveis para você praticar.',
         },
-      },
-      {
-        type: 'text',
-        markup: 'Completar esta lição libera a compra do Tesouro Prefixado no Mercado.',
       },
     ],
   },
@@ -853,7 +848,6 @@ export const BLOCKS_1_10: LessonBlocks = {
           why: 'Assim o efeito da inflação aparece sem esperar meses de divulgação.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra do Tesouro IPCA+ no Mercado.' },
     ],
   },
 }
@@ -979,10 +973,6 @@ export const BLOCKS_1_11: LessonBlocks = {
           here: 'O CRI2028 e o CRA2028 do Mercado são títulos de exemplo de uma securitizadora fictícia, com taxa e nota do catálogo.',
           why: 'Assim você pratica a escolha entre retorno e risco sem depender de uma emissão real.',
         },
-      },
-      {
-        type: 'text',
-        markup: 'Completar esta lição libera a compra de CRI e CRA no Mercado e abre a Trilha 2.',
       },
     ],
   },

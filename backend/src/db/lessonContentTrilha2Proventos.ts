@@ -183,11 +183,7 @@ export const BLOCKS_2_10: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O FII distribui rendimentos aos cotistas, em geral todo mês. A lei exige distribuir pelo menos 95% do lucro apurado em regime de caixa, com balanço semestral. Pagar todo mês é prática de mercado.',
-      },
-      {
-        type: 'text',
-        markup: 'No FII o nome é rendimento, ou provento. Dividendo é o termo das ações.',
+          'O FII distribui rendimentos aos cotistas, em geral todo mês. A lei exige distribuir pelo menos 95% do lucro apurado em regime de caixa, com balanço semestral. Pagar todo mês é prática de mercado. No FII o nome é rendimento, ou provento. Dividendo é o termo das ações.',
       },
       {
         type: 'widget',
@@ -229,12 +225,7 @@ export const BLOCKS_2_10: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Para pessoa física, o rendimento do FII é isento de IR quando o fundo tem pelo menos 100 cotistas, as cotas são negociadas em bolsa e você tem menos de 10% delas.',
-      },
-      {
-        type: 'text',
-        markup:
-          'Já o ganho ao vender a cota é tributado. E a isenção de vendas no mês vale só para ações, não para FII.',
+          'Para pessoa física, o rendimento do FII é isento de IR quando o fundo tem pelo menos 100 cotistas, as cotas são negociadas em bolsa e você tem menos de 10% delas. Já o ganho ao vender a cota é tributado. E a isenção de vendas no mês vale só para ações, não para FII.',
       },
       {
         type: 'check',

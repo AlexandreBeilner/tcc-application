@@ -107,7 +107,6 @@ export const BLOCKS_1_4: LessonBlocks = {
           why: 'Assim você pratica com um produto que existe no Mercado, sem depender de um banco real.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra do CDB2027 no Mercado.' },
     ],
   },
 }
@@ -297,7 +296,6 @@ export const BLOCKS_1_6: LessonBlocks = {
           why: 'Assim todos comparam os mesmos produtos e você vê o efeito do IR e do prazo.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra de LCI e LCA no Mercado.' },
     ],
   },
 }
