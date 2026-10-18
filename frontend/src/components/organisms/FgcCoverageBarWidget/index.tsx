@@ -52,7 +52,7 @@ export function FgcCoverageBarWidget({
                         />
                     </label>
                 ) : (
-                    <p>
+                    <p style={{ gridColumn: '1 / -1' }}>
                         Total a distribuir: {formatCurrency(totalAmount)}, divididos por igual: {formatCurrency(each)} em cada instituição.
                     </p>
                 )}
