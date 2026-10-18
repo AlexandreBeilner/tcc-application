@@ -452,6 +452,9 @@ const widgetBlock = z
     }
   })
 
+// "O que ficou" (LJ.1.5): de 2 a 3 frases curtas, cada uma que a pessoa diria a um amigo.
+export const SUMMARY_MAX_CHARS = 120
+
 export const blockSchema = z.union([textBlock, widgetBlock, checkBlock])
 
 export const lessonBlocksSchema = z
@@ -462,6 +465,7 @@ export const lessonBlocksSchema = z
       microDecision: z.array(blockSchema),
       revelation: z.array(blockSchema),
     }),
+    summary: z.array(z.string().min(1).max(SUMMARY_MAX_CHARS)).min(2).max(3).optional(),
   })
   .superRefine((blocks, ctx) => {
     const all = Object.values(blocks.phases).flat()

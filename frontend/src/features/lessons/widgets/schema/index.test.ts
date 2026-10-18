@@ -5,6 +5,7 @@ import { parseLessonBlocks, widgetPropsSchemas } from '.'
 // (`lessonBlocks.test.ts`, `CONTRACT_EXAMPLE`).
 const CONTRACT_EXAMPLE = {
     schemaVersion: 1,
+    summary: ['Juros sobre juros fazem o tempo trabalhar a seu favor.', 'LCI isenta pode vencer o CDB.'],
     phases: {
         scenario: [
             { type: 'text', markup: 'Você tem R$ 1.000 parados.' },
@@ -41,6 +42,17 @@ describe('parseLessonBlocks', () => {
     it('aceita o exemplo do contrato', () => {
         expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(3)
         expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.microDecision).toHaveLength(3)
+    })
+
+    it('mantém o resumo "O que ficou" e aceita a lição sem ele', () => {
+        expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.summary).toHaveLength(2)
+        const { summary: _summary, ...withoutSummary } = CONTRACT_EXAMPLE
+        expect(parseLessonBlocks(withoutSummary)?.summary).toBeUndefined()
+    })
+
+    it('resumo fora do contrato (1 item ou frase longa) derruba o blocks para o texto legado', () => {
+        expect(parseLessonBlocks({ ...CONTRACT_EXAMPLE, summary: ['só uma'] })).toBeNull()
+        expect(parseLessonBlocks({ ...CONTRACT_EXAMPLE, summary: ['a', 'x'.repeat(121)] })).toBeNull()
     })
 
     it.each([

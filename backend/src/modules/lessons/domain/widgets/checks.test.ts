@@ -47,6 +47,12 @@ describe('checks (RC.3.2)', () => {
     })
   })
 
+  it('versão pública mantém o resumo "O que ficou" só quando existe (LJ.1.5)', () => {
+    expect(toPublicBlocks(blocks)).not.toHaveProperty('summary')
+    const withSummary = { ...blocks, summary: ['Uma ideia.', 'Outra ideia.'] }
+    expect(toPublicBlocks(withSummary)?.summary).toEqual(['Uma ideia.', 'Outra ideia.'])
+  })
+
   it('findCheckBlock e checkpointIdsForStep respeitam as fases', () => {
     expect(findCheckBlock(blocks, 'c2')).toBe(trueFalse)
     expect(findCheckBlock(blocks, 'nope')).toBeUndefined()

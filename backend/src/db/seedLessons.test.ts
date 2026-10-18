@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isParallelTrack } from '../modules/lessons/domain/lesson'
 import { importLessonSeed, LESSON_SEEDS, type LessonSeed } from './seedLessons'
 import { lessonBlocksSchema } from '../modules/lessons/infrastructure/content/lessonBlocks'
+import { LESSON_SUMMARIES } from './lessonSummaries'
 import { lessons } from './schema'
 import type { Database } from './client'
 import { checkLessonContent, contentOf } from '../modules/lessons/domain/lessonContent'
@@ -132,6 +133,15 @@ describe('blocks no seed (RC.3.1)', () => {
         expect(result.success, `blocks inválido na lição ${seed.code}`).toBe(true)
       }
     }
+  })
+
+  it('toda lição do seed tem o resumo "O que ficou" (LJ.1.5)', () => {
+    for (const seed of LESSON_SEEDS) {
+      expect(seed.blocks?.summary, `sem summary na lição ${seed.code}`).toBeDefined()
+    }
+    // Nenhum resumo órfão: toda chave do arquivo de resumos é uma lição do seed.
+    const keys = new Set(LESSON_SEEDS.map((s) => s.stableKey))
+    expect(Object.keys(LESSON_SUMMARIES).filter((k) => !keys.has(k))).toEqual([])
   })
 
   // RC.3.4: nenhum texto manda calcular fora; quem pede conta precisa ter um

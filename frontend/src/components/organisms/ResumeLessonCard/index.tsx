@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { durationLabel } from '../../../features/lessons/lessonDuration'
 import { Card } from '../../atoms/Card'
 import type { ResumeLessonCardProps } from './types'
 import styles from './index.module.css'
@@ -21,7 +22,9 @@ export function ResumeLessonCard({ lessons }: ResumeLessonCardProps) {
         <Card accent className={styles.cardLayout} onClick={() => navigate(`/trilha/${nextLesson.id}`)}>
             <span className={styles.eyebrow}>{isInProgress ? 'Retomar lição' : 'Próxima lição'}</span>
             <span className={styles.title}>{nextLesson.title}</span>
-            <span className={styles.track}>{nextLesson.trackName}</span>
+            <span className={styles.track}>
+                {nextLesson.trackName} · {durationLabel(nextLesson)}
+            </span>
         </Card>
     )
 }

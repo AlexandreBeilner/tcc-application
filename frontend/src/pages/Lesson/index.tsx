@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, ChevronLeft } from 'lucide-react'
+import { ArrowLeft, ChevronLeft } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
@@ -26,6 +26,11 @@ import type { CheckBlock, WidgetBlock } from '../../features/lessons/widgets/sch
 import { LessonCardBody } from '../../components/molecules/LessonCardText'
 import { LessonProgressBar } from '../../components/molecules/LessonProgressBar'
 import { lessonProgress, progressMarkers } from '../../features/lessons/lessonProgress'
+import type { MarkerState } from '../../features/lessons/lessonProgress'
+import { lessonScore, scoreSummary, scoreTitle } from '../../features/lessons/lessonScore'
+import { lessonMinutes } from '../../features/lessons/lessonDuration'
+import { nextLessonTeaser } from '../../features/lessons/nextLessonTeaser'
+import { LessonFinish } from '../../components/organisms/LessonFinish'
 import type { AnswerMicroDecisionResult, Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
@@ -72,7 +77,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const navigate = useNavigate()
     const lessonQuery = useLessonQuery(lessonId)
     const lessonsQuery = useLessonsQuery()
-    const advanceLesson = useAdvanceLesson(lessonId)
+    const advanceLesson = useAdvanceLesson(lessonId, { inlineXp: true })
     const reviewLesson = useReviewLesson(lessonId)
     const answerMicroDecision = useAnswerMicroDecision(lessonId)
 
@@ -112,6 +117,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // reavançar até a fase que o servidor já gravou também não chama o POST
     // (evita 422 de intervalo/ordem ao voltar e seguir de novo).
     const serverStep = lesson?.currentStep ?? 0
+    // Fase em que a pessoa retomou a lição (LJ.5.2): guardada na abertura, senão o `currentStep` que o servidor
+    // regrava a cada avanço faria o "Faltam" reaparecer em toda fase.
+    const [resumeStep, setResumeStep] = useState<number | undefined>(undefined)
+    if (lesson && isReview !== undefined && resumeStep === undefined) {
+        setResumeStep(isReview ? 0 : serverStep)
+    }
     const navigation = useLessonNavigation({
         initialStep: isReview ? 0 : serverStep,
         initialReached: isReview ? TOTAL_STEPS - 1 : serverStep,
@@ -235,6 +246,31 @@ function LessonView({ lessonId }: { lessonId: string }) {
         return view.solved ? (view.firstTry ? 'first-try' : 'later') : 'pending'
     })
 
+    // Placar da tela final (LJ.1.4). Em revisão vale o placar gravado pelo servidor (a revisão não regrava
+    // nada); fora dela, o que aconteceu nesta sessão somado ao restaurado.
+    function scoreStateFor(checkpointId: string): MarkerState {
+        const view = isReview
+            ? lesson?.checkpoints?.find((state) => state.checkpointId === checkpointId)
+            : checkpoints.viewFor(checkpointId)
+        return view?.solved ? (view.firstTry ? 'first-try' : 'later') : 'pending'
+    }
+    // Em revisão sem nenhuma resposta gravada (lição concluída antes de existirem as perguntas), "0 de N de
+    // primeira" seria injusto: o placar só aparece se houver o que mostrar.
+    const showScoreInReview = (lesson?.checkpoints?.length ?? 0) > 0
+    const score = lessonScore([scenarioCards, microDecisionCards, revelationCards], scoreStateFor)
+
+    // Tempo estimado (LJ.5.2) no primeiro cartão da lição, ou no primeiro da fase em que foi retomada.
+    const durationHint =
+        !lesson || subStep !== 0
+            ? null
+            : step === 0
+              ? `~${lessonMinutes(lesson)} min`
+              : step < 3 && step === resumeStep
+                ? `Faltam ~${lessonMinutes(lesson, step)} min`
+                : null
+
+    const showScore = score.total > 0 && (!isReview || showScoreInReview)
+
     function handleBack() {
         navigation.back(cardCounts)
     }
@@ -311,6 +347,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
             {lesson && step === 0 && (
                 <section className={cardClassName(scenarioCards[subStep])}>
                     <h1 className={styles.heading}>{lesson.title}</h1>
+                    {durationHint && <span className={styles.duration}>{durationHint}</span>}
                     <CardBody
                         card={scenarioCards[subStep]}
                         renderCheckpoint={renderCheckpoint}
@@ -342,6 +379,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={cardClassName(microDecisionCards[subStep])}>
                     <span className={styles.eyebrow}>Sua aposta</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
+                    {durationHint && <span className={styles.duration}>{durationHint}</span>}
                     <CardBody
                         card={microDecisionCards[subStep]}
                         renderCheckpoint={renderCheckpoint}
@@ -454,6 +492,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 <section className={cardClassName(revelationCards[subStep])}>
                     <span className={styles.eyebrow}>O que acontece</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
+                    {durationHint && <span className={styles.duration}>{durationHint}</span>}
                     {answerSolved && (
                         <span className={styles.answerBadgeCorrect}>
                             {isReview || answer.firstTry
@@ -507,28 +546,35 @@ function LessonView({ lessonId }: { lessonId: string }) {
             )}
 
             {lesson && step === 3 && (
-                <section className={`${styles.card} ${styles.unlock}`}>
-                    <span className={styles.unlockBadge} aria-hidden="true">
-                        <Check size={22} strokeWidth={3} />
-                    </span>
-                    <span className={styles.eyebrow}>Lição concluída</span>
-                    <h1 className={styles.heading}>{lesson.title}</h1>
-                    <p className={styles.body}>{lesson.unlocksDescription || 'Você avançou mais um passo na trilha.'}</p>
-                    <div className={styles.ctaRow}>
-                        <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao passo anterior">
-                            <ChevronLeft size={16} aria-hidden="true" />
-                            Voltar
-                        </Button>
-                        <Button variant="secondary" onClick={goToTrack}>
-                            Voltar pra Trilha
-                        </Button>
-                        {unlockAssetPath && <Button onClick={() => navigate(unlockAssetPath)}>Comprar agora</Button>}
-                        {featureUnlockCta && <Button onClick={() => navigate(featureUnlockCta.path)}>{featureUnlockCta.label}</Button>}
-                        <Button onClick={handleFinish} data-lesson-continue="">
-                            Continuar
-                        </Button>
-                    </div>
-                </section>
+                <div className={styles.finalScreen}>
+                    <LessonFinish
+                        lessonTitle={lesson.title}
+                        resultTitle={scoreTitle(score)}
+                        score={showScore ? { states: score.states, summary: scoreSummary(score) } : undefined}
+                        xpAwarded={isReview ? undefined : advanceLesson.data?.xpAwarded}
+                        summary={blocks?.summary}
+                        nextStepText={lesson.unlocksDescription || 'Você avançou mais um passo na trilha.'}
+                        teaser={nextLessonTeaser(lessons, lesson)}
+                        actions={
+                            <>
+                                <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao passo anterior">
+                                    <ChevronLeft size={16} aria-hidden="true" />
+                                    Voltar
+                                </Button>
+                                <Button variant="secondary" onClick={goToTrack}>
+                                    Voltar pra Trilha
+                                </Button>
+                                {unlockAssetPath && <Button onClick={() => navigate(unlockAssetPath)}>Comprar agora</Button>}
+                                {featureUnlockCta && (
+                                    <Button onClick={() => navigate(featureUnlockCta.path)}>{featureUnlockCta.label}</Button>
+                                )}
+                                <Button onClick={handleFinish} data-lesson-continue="">
+                                    Continuar
+                                </Button>
+                            </>
+                        }
+                    />
+                </div>
             )}
 
             {showShortcutHint && (

@@ -344,6 +344,8 @@ const lessonBlocksSchema = z.object({
         microDecision: z.array(z.union([textBlock, widgetBlock, checkBlock])),
         revelation: z.array(z.union([textBlock, widgetBlock, checkBlock])),
     }),
+    // "O que ficou" (LJ.1.5): mostrado na tela final; lição sem resumo só omite o bloco.
+    summary: z.array(z.string().min(1).max(120)).min(2).max(3).optional(),
 })
 
 export type LessonBlocks = z.infer<typeof lessonBlocksSchema>

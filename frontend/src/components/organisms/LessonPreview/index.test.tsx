@@ -44,10 +44,14 @@ describe('LessonPreview', () => {
     it('mesmos rótulos do player: título da lição em toda fase e nenhum rótulo antigo (LJ.1.2)', () => {
         renderPreview()
 
-        for (const label of ['Sua aposta', 'O que acontece', 'Lição concluída']) {
+        for (const label of ['Sua aposta', 'O que acontece']) {
             fireEvent.click(tab(label))
             expect(screen.getByRole('heading', { name: 'Juros compostos' })).toBeInTheDocument()
         }
+        // A tela final tem o resultado como título e o nome da lição acima dele (LJ.1.4).
+        fireEvent.click(tab('Lição concluída'))
+        expect(screen.getByRole('heading', { name: 'Lição concluída' })).toBeInTheDocument()
+        expect(screen.getByText('Juros compostos')).toBeInTheDocument()
         for (const old of ['Micro-decisão', 'Revelação', 'Desbloqueio', 'Pense antes de continuar', 'Por que isso importa']) {
             expect(screen.queryByText(old)).not.toBeInTheDocument()
         }

@@ -6,6 +6,10 @@ import { lessonBlocksSchema, parseLessonBlocks } from './lessonBlocks'
 // o contrato sem o outro, um deles quebra.
 export const CONTRACT_EXAMPLE = {
   schemaVersion: 1,
+  summary: [
+    'Juros sobre juros fazem o tempo trabalhar a seu favor.',
+    'LCI isenta pode vencer o CDB.',
+  ],
   phases: {
     scenario: [
       { type: 'text', markup: 'Você tem R$ 1.000 parados.' },
@@ -76,6 +80,18 @@ export const CONTRACT_EXAMPLE = {
 describe('lessonBlocksSchema', () => {
   it('aceita o exemplo do contrato', () => {
     expect(lessonBlocksSchema.safeParse(CONTRACT_EXAMPLE).success).toBe(true)
+  })
+
+  it('aceita o resumo "O que ficou" opcional, de 2 a 3 frases de até 120 caracteres', () => {
+    const withSummary = (summary: unknown) => ({ ...CONTRACT_EXAMPLE, summary })
+    expect(lessonBlocksSchema.safeParse(withSummary(['Uma ideia.', 'Outra ideia.'])).success).toBe(
+      true,
+    )
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', 'b', 'c'])).success).toBe(true)
+    expect(lessonBlocksSchema.safeParse(withSummary(['só uma'])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', 'b', 'c', 'd'])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', 'x'.repeat(121)])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(withSummary(['a', ''])).success).toBe(false)
   })
 
   it('aceita os widgets de renda fixa com defaults', () => {

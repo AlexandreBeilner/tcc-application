@@ -6,6 +6,7 @@ import { LESSON_SEEDS } from '../db/seedLessons'
 import { MISSION_SEEDS } from '../db/seedMissions'
 import {
   blockTextFields,
+  summaryTextFields,
   CARD_HARD_LIMIT_CHARS,
   countByKey,
   diffAgainstBaseline,
@@ -42,6 +43,7 @@ function lessonFields(): { all: TextField[]; longText: TextField[] } {
         if (long) longText.push(field)
       }
     }
+    all.push(...summaryTextFields(source, lesson.blocks?.summary))
   }
   return { all, longText }
 }
@@ -149,6 +151,14 @@ describe('conteúdo visível ao usuário (RC.1.1)', () => {
       { type: 'widget', widget: 'platform-note', props: { why: 'veja o TCC' } },
     ]).map((f) => f.field)
     expect(findForbidden(tcc).map((v) => v.ruleId)).toEqual(['tcc'])
+  })
+
+  it('varre o resumo "O que ficou" da raiz do blocks (LJ.1.5)', () => {
+    const ids = findForbidden(summaryTextFields('l', ['o motor decide', 'tudo certo'])).map(
+      (v) => `${v.field}:${v.ruleId}`,
+    )
+    expect(ids).toEqual(['blocks.summary[0]:motor'])
+    expect(summaryTextFields('l', undefined)).toEqual([])
   })
 
   it('texto limpo não dispara nenhuma regra', () => {

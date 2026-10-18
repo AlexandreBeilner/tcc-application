@@ -139,8 +139,9 @@ export function LessonPreview({ content, lessons }: LessonPreviewProps) {
 
             {step === 3 && (
                 <div className={`${styles.card} ${styles.unlock}`}>
-                    <span className={styles.eyebrow}>{STEPS[3]}</span>
-                    <h3 className={styles.heading}>{content.title || 'Título da lição'}</h3>
+                    <span className={styles.eyebrow}>{content.title || 'Título da lição'}</span>
+                    {/* No player o título muda com o desempenho (Na mosca!, Mandou bem!); sem respostas aqui, o neutro. */}
+                    <h3 className={styles.heading}>{STEPS[3]}</h3>
                     <p className={styles.body}>{content.unlocks_description || 'Você avançou mais um passo na trilha.'}</p>
                     <div className={styles.cta}>
                         <Button variant="secondary" disabled>

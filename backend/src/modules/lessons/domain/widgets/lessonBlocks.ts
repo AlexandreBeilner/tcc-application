@@ -86,6 +86,9 @@ export interface LessonBlocks {
     microDecision: LessonBlock[]
     revelation: LessonBlock[]
   }
+  // "O que ficou" (LJ.1.5): 2 a 3 frases curtas mostradas na tela final da lição.
+  // Opcional: lição sem resumo só não mostra o bloco.
+  summary?: string[]
 }
 
 // Versão do bloco que pode ir ao cliente: sem gabarito nem explicação.
@@ -107,6 +110,7 @@ export interface PublicLessonBlocks {
     microDecision: PublicLessonBlock[]
     revelation: PublicLessonBlock[]
   }
+  summary?: string[]
 }
 
 export const TRUE_FALSE_OPTIONS = ['Verdadeiro', 'Falso']
@@ -147,6 +151,7 @@ export function toPublicBlocks(blocks: LessonBlocks | null | undefined): PublicL
       microDecision: blocks.phases.microDecision.map(toPublicBlock),
       revelation: blocks.phases.revelation.map(toPublicBlock),
     },
+    ...(blocks.summary ? { summary: blocks.summary } : {}),
   }
 }
 

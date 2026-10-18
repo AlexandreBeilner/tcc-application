@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Circle, Flag } from 'lucide-react'
+import { durationLabel } from '../../../features/lessons/lessonDuration'
 import { computeTrackPathLayout, TRACK_PATH_WIDTH } from '../../../features/lessons/trackPathLayout'
 import { Locked } from '../../atoms/Locked'
 import type { Lesson } from '../../../services/lessons'
@@ -16,7 +17,7 @@ const STATUS_ICON: Record<'completed' | 'available', typeof Check> = {
 
 export function statusLabel(lesson: Lesson): string {
     if (lesson.status === 'completed') return 'Concluída'
-    if (lesson.status === 'available') return 'Disponível'
+    if (lesson.status === 'available') return `Disponível, ${durationLabel(lesson)}`
     return lesson.unlocksDescription ? `Bloqueada: libera ${lesson.unlocksDescription}` : 'Bloqueada'
 }
 
@@ -146,6 +147,9 @@ export function TrackPath({ lessons, accentColor, expandedHintId, onNodeClick }:
                                     {point.lesson.title}
                                 </span>
                                 {point.lesson.status === 'completed' && <span className={styles.reviewTag}>Rever</span>}
+                                {point.lesson.status === 'available' && (
+                                    <span className={styles.duration}>{durationLabel(point.lesson)}</span>
+                                )}
                                 {/* Aviso inline no próprio nó clicado (não uma única
                                     mensagem no fim da página, como o gráfico
                                     horizontal antigo fazia) — um mapa de 15 lições é alto

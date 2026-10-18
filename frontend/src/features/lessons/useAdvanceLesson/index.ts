@@ -22,7 +22,16 @@ export interface AdvanceLessonVariables {
 // (backlog engajamento I.3); cada item de `unlockedAchievements` dispara o
 // próprio reveal, na fila logo depois do de XP/nível (I.4); `streakMilestone`
 // (7 ou 30 dias) dispara o reveal de marco de streak, por último (I.5).
-export function useAdvanceLesson(lessonId: string): UseMutationResult<AdvanceLessonResult, unknown, AdvanceLessonVariables> {
+export interface UseAdvanceLessonOptions {
+    // O XP da conclusão aparece na própria tela final da lição (LJ.1.4), então o aviso global de "+N XP" não
+    // dispara por cima dele. Nível, conquistas e marco de streak seguem pelo aviso global.
+    inlineXp?: boolean
+}
+
+export function useAdvanceLesson(
+    lessonId: string,
+    { inlineXp = false }: UseAdvanceLessonOptions = {},
+): UseMutationResult<AdvanceLessonResult, unknown, AdvanceLessonVariables> {
     const { token } = useAuth()
     const queryClient = useQueryClient()
     const { show } = useRewardReveal()
@@ -32,7 +41,7 @@ export function useAdvanceLesson(lessonId: string): UseMutationResult<AdvanceLes
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: lessonQueryKey(lessonId) })
             queryClient.invalidateQueries({ queryKey: LESSONS_QUERY_KEY })
-            dispatchRewardReveals(show, data)
+            dispatchRewardReveals(show, inlineXp && !data.leveledUp ? { ...data, xpAwarded: undefined } : data)
         },
     })
 }

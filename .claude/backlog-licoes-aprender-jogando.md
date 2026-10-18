@@ -111,7 +111,7 @@ ao abrir. Se o `platform-note` for o primeiro bloco da fase, continua cartão pr
 - **Entregável:** (2026-10-18) `buildPhaseCards` anexa o `platform-note` ao cartão anterior (`footnotes[]`, aceita duas notas seguidas; como primeiro bloco da fase continua cartão). Novo organismo `PlatformNoteFootnote` (`<details>` fechado, resumo textual no `aria-label`, props inválidas caem no fallback do widget); aberto/fechado fica no estado da lição (sobrevive a Voltar). Cartão `[revelar]` ainda fechado não mostra a nota. `PlatformNote` ganhou `PlatformNoteRows`, reaproveitado. Sem mudança de backend. Os índices de cartão mudaram: o funil antigo da LJ.5.1 deixa de corresponder nas lições com nota (usar janela curta).
 
 
-### LJ.1.4 · Tela final com placar e próximo passo
+### LJ.1.4 · Tela final com placar e próximo passo ✅ concluída
 
 **O que fazer:** a tela final (`step === 3`) passa a mostrar, nesta ordem:
 1. **Resultado em uma linha**, com título variando pelo desempenho: todas de primeira, "Na
@@ -131,7 +131,9 @@ Em revisão (lição já concluída), mostra o placar gravado e omite o XP.
 **Critérios de aceite:** os três breakpoints (desktop com placar e resumo lado a lado, não coluna
 esticada); nenhum valor absoluto de patrimônio; testes do título por desempenho e da revisão.
 
-### LJ.1.5 · Conteúdo: "O que ficou" das 43 lições
+- **Entregável:** (2026-10-18) Tela final nova, organismo `LessonFinish` (+ molécula `LessonScoreboard`): etiqueta com o nome da lição, `h1` com o resultado (`scoreTitle`: todas de primeira "Na mosca!", mais da metade "Mandou bem!", o resto ou sem pergunta "Lição concluída", nunca negativo), placar "N de M de primeira" desenhado como a fileira de marcos da barra, XP em contagem animada (`useCountUp`, valor final de uma vez com `prefers-reduced-motion`), "O que ficou" (some sem `summary`), o texto do que a lição libera, teaser da próxima lição (`nextLessonTeaser`: título e começo do primeiro cartão de texto em uma linha; some se a próxima estiver bloqueada) e os mesmos CTAs de antes (`data-lesson-continue`/`data-lesson-back` preservados). **Coordenação com o `xpRewardReveal`:** `useAdvanceLesson(lessonId, { inlineXp: true })` tira o `xpAwarded` do aviso global na conclusão, porque a contagem da tela já é a celebração; subir de nível ainda dispara o aviso de nível (informação diferente), e conquistas e marco de streak seguem pelo aviso global. Em revisão: placar gravado no servidor (`lesson.checkpoints`) e sem XP; se não houver nenhuma resposta gravada (lição concluída antes de existirem as perguntas), o placar some em vez de mostrar "0 de N de primeira". Desktop >= 1024px: resultado e "O que ficou" lado a lado, próximo passo na largura toda (sem resumo, o resultado ocupa a largura). Funções puras `lessonScore`/`scoreTitle`/`scoreSummary` com teste; `LessonPreview` do admin alinhado (nome da lição em cima, "Lição concluída" como título neutro; o título real depende das respostas, que a prévia não tem). Estilos `.unlock*` antigos saíram de `pages/Lesson`. **Conferência visual (2026-10-18):** desktop 1567 px, mobile 390 e tablet 820 (os dois últimos por iframes na mesma aba, porque `resize_window` não muda o viewport e a captura continua em 1567) e o fluxo real de conclusão com usuário descartável (removido): contagem até "+50 XP", placar, resumo, teaser, "Faltam ~2 min" ao retomar, sem aviso global duplicado. Não vi na tela o ponto âmbar de "de primeira" nem os títulos "Na mosca!"/"Mandou bem!" (só pelos testes).
+
+### LJ.1.5 · Conteúdo: "O que ficou" das 43 lições ✅ concluída
 
 **O que fazer:** campo opcional `summary: string[]` (de 2 a 3 itens, até 120 caracteres cada) na
 raiz de `LessonBlocks` (`schemaVersion` continua 1, o campo é opcional). Validação Zod nos dois
@@ -144,6 +146,8 @@ apostila. "Dinheiro parado perde para a inflação" em vez de "Conceito de poder
 
 **Critérios de aceite:** as 43 lições com resumo; teste do seed exige `summary` em toda lição;
 regras de conteúdo passam sem crescer o baseline; `.docs/backend/lessons.md` documenta o campo.
+
+- **Entregável:** (2026-10-18) `summary?: string[]` (2 a 3 itens, 1 a 120 caracteres) na raiz de `LessonBlocks`: tipo no domínio, Zod no backend (`lessonBlocksSchema`) e no espelho do frontend, `toPublicBlocks` repassa o campo, `CONTRACT_EXAMPLE` dos dois lados ganhou `summary`. Os 43 textos vivem em `backend/src/db/lessonSummaries.ts` (por `stableKey`) e entram no `LESSON_SEEDS` (que agora é o `BASE_LESSON_SEEDS` mapeado com o resumo); só repetem o que a lição já ensina, sem número regulatório novo. Script aditivo `src/db/addLessonSummaries.ts` (`fillSummary` pura, testada: preenche só onde falta, idempotente, preserva edição) aplicado no banco de desenvolvimento (43/43; segunda execução não faz nada). **Desvio do texto da tarefa:** o `summary` fica fora das fases, então em vez de ampliar `blockTextFields` criei `summaryTextFields` ao lado dela em `contentRules.ts`, usada por `visibleContent.test.ts` (mesmas regras de conteúdo proibido, baseline não cresceu). Teste do seed exige `summary` em toda lição e nenhuma chave órfã. `.docs/backend/lessons.md` documenta o campo e o script. Validado ponta a ponta: `docker compose up --build backend`, script no banco e `GET /lessons/:id` devolvendo o `summary`.
 
 ### LJ.1.6 · Sequência de acertos dentro da lição
 
@@ -410,7 +414,7 @@ Se o painel de retenção (frente RT) já existir na branch, a tela entra ao lad
   - **Limites da medição (documentados em `.docs/backend/admin.md`):** conta a partir do deploy; quem retoma a lição no meio entra a partir de onde parou (a queda é truncada em 0); o índice é o do player no momento, então depois de editar o texto de uma lição o histórico antigo deixa de corresponder (usar janela curta). A tela rotula o cartão por fase e posição, sem o texto dele, porque o painel não carrega `blocks` e quem fatia o texto em cartões é o cliente.
   - **Testes/validação:** backend lint, build e `npm test` (4324 passam); integração do adapter contra banco descartável; frontend `tsc`, oxlint, prettier e vitest (4324 passam no total). Ponta a ponta com `docker compose up --build backend` (migration aplicada no boot) e o frontend local: POST contando uma vez, 422 de fase à frente, 400 de payload, tela do funil em desktop (2 colunas) e mobile 400px, e o player reportando o cartão ao avançar. `.docs/backend/lessons.md` e `.docs/backend/admin.md` atualizados.
 
-### LJ.5.2 · Tempo estimado da lição
+### LJ.5.2 · Tempo estimado da lição ✅ concluída
 
 **O que fazer:** função pura que estima a duração pela quantidade de cartões, caracteres e
 interações (texto: caracteres ÷ 15 por segundo; pergunta: 15 s; widget: 30 s; missão: 45 s;
@@ -423,6 +427,8 @@ de quem concluiu, e a função pura vira só o valor de partida.
 
 **Critérios de aceite:** teste da função com lições reais do seed; nada de "min" em texto de
 lição (é dado de interface, não conteúdo).
+
+- **Entregável:** (2026-10-18) `features/lessons/lessonDuration`: `cardSeconds` (texto: caracteres sem marcação ÷ 15; pergunta 15 s; widget de ferramenta 30 s; `callout` e `platform-note` contam como leitura), `lessonMinutes(lesson, fromStep)` (arredonda, mínimo 2; lição sem `blocks` usa o texto legado e a aposta legada conta como uma interação) e `durationLabel` ("~4 min" ou "Faltam ~2 min" quando `currentStep` > 0). **Decisão sobre `footnotes`:** o rodapé "Na plataforma" é recolhido e opcional, então **não** entra na conta (documentado no código). Missão de widget (45 s) entra com a LJ.3. Onde aparece: nó do mapa da trilha (`TrackPath`: linha própria e `statusLabel`, que também alimenta o `LessonNode` de trilha com uma lição só; nó concluído e bloqueado não mostram), `ResumeLessonCard` ("Trilha · ~4 min") e primeiro cartão da lição, com "Faltam" no primeiro cartão da fase em que a pessoa retomou (fase guardada na abertura, para não reaparecer a cada avanço). Teste com três lições reais do seed (fixture `seedLessons.fixture.json`: 0.1, 1.12 e 2.12). Hoje as 43 lições ficam entre 2 e 4 min. A mediana real do funil (LJ.5.1) como substituta da fórmula **não** foi feita: espera haver dados.
 
 ### LJ.5.3 · Gestos e atalhos para avançar ✅ concluída
 

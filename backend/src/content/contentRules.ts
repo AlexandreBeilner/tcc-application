@@ -146,6 +146,15 @@ export function blockTextFields(
   return out
 }
 
+// Frases de "O que ficou" (LJ.1.5), no mesmo formato de `blockTextFields`: o resumo vive na raiz
+// de `blocks`, fora das fases, e é texto visível como qualquer outro.
+export function summaryTextFields(
+  source: string,
+  summary: readonly string[] | undefined,
+): TextField[] {
+  return (summary ?? []).map((text, i) => ({ source, field: `blocks.summary[${i}]`, text }))
+}
+
 export function violationKey(v: Pick<Violation, 'ruleId' | 'source' | 'field'>): string {
   return `${v.ruleId}|${v.source}|${v.field}`
 }
