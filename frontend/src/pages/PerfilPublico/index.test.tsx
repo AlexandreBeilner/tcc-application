@@ -58,6 +58,7 @@ describe('PerfilPublico (tela 8.4)', () => {
                 profitabilityPct: 5.2,
                 window: 'week',
                 completedTracks: [],
+                completedLessonCodes: [],
                 cosmetics: { isPro: false, frame: null, title: null },
             },
         })

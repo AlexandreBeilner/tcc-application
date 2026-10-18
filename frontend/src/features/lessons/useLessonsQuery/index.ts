@@ -6,12 +6,13 @@ import type { ListLessonsResult } from '../../../services/lessons'
 
 export const LESSONS_QUERY_KEY = ['lessons'] as const
 
-export function useLessonsQuery(): UseQueryResult<ListLessonsResult> {
+// `enabled: false` deixa quem só às vezes precisa da lista (o Perfil, só no próprio) fora da requisição.
+export function useLessonsQuery(options: { enabled?: boolean } = {}): UseQueryResult<ListLessonsResult> {
     const { token } = useAuth()
 
     return useQuery({
         queryKey: LESSONS_QUERY_KEY,
         queryFn: () => listLessons(token as string),
-        enabled: token !== null,
+        enabled: token !== null && options.enabled !== false,
     })
 }

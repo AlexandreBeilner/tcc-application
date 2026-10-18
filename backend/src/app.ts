@@ -241,6 +241,7 @@ import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/applicat
 import { GetTracksCompletedWithoutErrorsCountUseCase } from './modules/lessons/application/useCases/getTracksCompletedWithoutErrorsCount'
 import { CountReviewedLessonsUseCase } from './modules/lessons/application/useCases/countReviewedLessons'
 import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
+import { GetCompletedLessonCodesUseCase } from './modules/lessons/application/useCases/getCompletedLessonCodes'
 import { GetCompletedTracksUseCase } from './modules/lessons/application/useCases/getCompletedTracks'
 import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/useCases/findLessonUnlockingKey'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
@@ -1030,7 +1031,10 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessGamificationReader(getProgression),
     createInProcessAchievementsReader(listAchievements),
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
-    createInProcessTrackCompletionReader(new GetCompletedTracksUseCase(lessonRepository)),
+    createInProcessTrackCompletionReader(
+      new GetCompletedTracksUseCase(lessonRepository),
+      new GetCompletedLessonCodesUseCase(lessonRepository),
+    ),
     cosmeticsReader,
   )
 

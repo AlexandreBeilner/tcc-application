@@ -8,6 +8,7 @@ import { computeLevelProgress } from '../../../features/portfolio/levelProgress'
 import { computePodiumSparkline, PODIUM_SPARKLINE_HEIGHT, PODIUM_SPARKLINE_WIDTH } from '../../../features/ranking/podiumSparkline'
 import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
+import { TermCollection } from '../TermCollection'
 import { TrackTrophyCase } from '../TrackTrophyCase'
 import type { PublicProfileCardProps } from './types'
 import { Delta } from '../../atoms/Delta'
@@ -185,6 +186,8 @@ export function PublicProfileCard({
             </dl>
 
             <TrackTrophyCase completedTracks={profile.completedTracks} />
+
+            <TermCollection completedLessonCodes={profile.completedLessonCodes} isOwn={currentUserId === targetUserId} />
 
             <div className={styles.achievements}>
                 <h2 className={styles.achievementsTitle}>Conquistas desbloqueadas</h2>

@@ -51,6 +51,7 @@ describe('MeuPerfil (tela 9.1)', () => {
                 profitabilityPct: 1.4,
                 window: 'week',
                 completedTracks: [],
+                completedLessonCodes: [],
                 cosmetics: { isPro: false, frame: null, title: null },
             },
         })

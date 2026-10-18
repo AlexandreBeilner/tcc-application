@@ -25,7 +25,7 @@ function buildApp() {
   })
   const achievementsReader = createFakeAchievementsReader()
   const profitabilityReader = createFakeProfitabilityReader({ u1: 4.2 })
-  const trackCompletionReader = createFakeTrackCompletionReader({ u1: [0] })
+  const trackCompletionReader = createFakeTrackCompletionReader({ u1: [0] }, { u1: ['0.1', '0.2'] })
   const getPublicProfile = new GetPublicProfileUseCase(
     userDirectory,
     gamificationReader,
@@ -67,7 +67,10 @@ describe('profile routes', () => {
       level: 2,
       profitabilityPct: 4.2,
       completedTracks: [0],
+      completedLessonCodes: ['0.1', '0.2'],
     })
+    // Só estudo: nenhum valor de patrimônio no corpo (RNF09).
+    expect(JSON.stringify(res.body)).not.toMatch(/netWorth|patrimonio|cash/i)
   })
 
   it('GET /users/:id/profile retorna 404 pra id inexistente', async () => {
