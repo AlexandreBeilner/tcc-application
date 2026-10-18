@@ -59,3 +59,9 @@ export function answerCheckpoint(
 export function reviewLesson(token: string, id: string): Promise<ReviewLessonResult> {
     return apiRequest<ReviewLessonResult>(`/lessons/${id}/review`, { token, method: 'POST' })
 }
+
+// Funil por cartão (LJ.5.1): `phase` 0 a 3 (Cenário, Micro-decisão, Revelação, tela final) e a posição
+// do cartão na fase. Fire-and-forget do player; o resultado não muda nada na tela.
+export function recordCardReach(token: string, id: string, phase: number, cardIndex: number): Promise<{ recorded: boolean }> {
+    return apiRequest<{ recorded: boolean }>(`/lessons/${id}/cards/reached`, { token, method: 'POST', body: { phase, cardIndex } })
+}

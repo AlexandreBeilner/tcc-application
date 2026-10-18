@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useLessonQuery } from '../../features/lessons/useLessonQuery'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
+import { useCardReach } from '../../features/lessons/useCardReach'
 import { useCheckpoints } from '../../features/lessons/useCheckpoints'
 import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDecision'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
@@ -109,6 +110,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
         initialReached: isReview ? TOTAL_STEPS - 1 : serverStep,
     })
     const { step, card: subStep, reached } = navigation
+    // Funil por cartão (LJ.5.1): só fora de revisão, e só depois de saber se é revisão.
+    useCardReach(lessonId, { phase: step, card: subStep }, lesson !== undefined && isReview === false)
 
     // Backlog engajamento H.2 + decisão D2 (RC.2.1): a revisão conta quando o
     // usuário chega na Revelação da lição já concluída, não ao só abrir.

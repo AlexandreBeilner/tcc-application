@@ -8,9 +8,11 @@ import { AnswerMicroDecisionUseCase } from '../../application/useCases/answerMic
 import { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import { GetLessonUseCase } from '../../application/useCases/getLesson'
 import { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import { RecordCardReachUseCase } from '../../application/useCases/recordCardReach'
 import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD } from '../../domain/lesson'
 import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
+import { createFakeLessonCardReachRepository } from '../../test/fakes/fakeLessonCardReachRepository'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { createFakeSocialFeedRecorder } from '../../test/fakes/fakeSocialFeedRecorder'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -85,6 +87,10 @@ function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   const reviewLesson = new ReviewLessonUseCase(lessonRepository, createFakeAchievementChecker())
+  const recordCardReach = new RecordCardReachUseCase(
+    lessonRepository,
+    createFakeLessonCardReachRepository(),
+  )
 
   const app = express()
   app.use(express.json())
@@ -96,6 +102,7 @@ function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
       answerMicroDecision,
       answerCheckpoint,
       reviewLesson,
+      recordCardReach,
       authMiddleware,
     }),
   )
@@ -507,6 +514,64 @@ describe('lessons routes', () => {
         ).status,
       ).toBe(404)
       expect((await request(app).post(url).send({ selectedOption: 0 })).status).toBe(401)
+    })
+  })
+
+  describe('POST /lessons/:id/cards/reached (LJ.5.1)', () => {
+    const url = '/lessons/l1/cards/reached'
+
+    it('conta o primeiro envio de um cartão e ignora o repetido', async () => {
+      const { app, tokenIssuer } = buildApp()
+      const auth = authHeader(tokenIssuer)
+
+      const first = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ phase: 0, cardIndex: 0 })
+      const again = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ phase: 0, cardIndex: 0 })
+
+      expect(first.status).toBe(200)
+      expect(first.body).toEqual({ recorded: true })
+      expect(again.body).toEqual({ recorded: false })
+    })
+
+    it('valida payload (400), lição bloqueada ou inexistente (404), fase não alcançada (422) e exige token (401)', async () => {
+      const { app, tokenIssuer } = buildApp()
+      const auth = authHeader(tokenIssuer)
+
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ phase: 9, cardIndex: 0 }))
+          .status,
+      ).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ phase: 0 })).status,
+      ).toBe(400)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/l2/cards/reached')
+            .set('Authorization', auth)
+            .send({ phase: 0, cardIndex: 0 })
+        ).status,
+      ).toBe(404)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/nope/cards/reached')
+            .set('Authorization', auth)
+            .send({ phase: 0, cardIndex: 0 })
+        ).status,
+      ).toBe(404)
+      const ahead = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ phase: 2, cardIndex: 0 })
+      expect(ahead.status).toBe(422)
+      expect(ahead.body.code).toBe('step_out_of_order')
+      expect((await request(app).post(url).send({ phase: 0, cardIndex: 0 })).status).toBe(401)
     })
   })
 })

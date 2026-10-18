@@ -246,6 +246,10 @@ export const router = createBrowserRouter([
                                         lazy: async () => ({ Component: (await import('../pages/AdminConteudoNova')).AdminConteudoNova }),
                                     },
                                     {
+                                        path: '/admin/conteudo/:id/funil',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminConteudoFunil')).AdminConteudoFunil }),
+                                    },
+                                    {
                                         path: '/admin/conteudo/:id',
                                         lazy: async () => ({ Component: (await import('../pages/AdminConteudoLicao')).AdminConteudoLicao }),
                                     },

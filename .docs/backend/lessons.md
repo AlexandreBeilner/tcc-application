@@ -86,6 +86,20 @@ Pergunta intermediária da lição (bloco `check` de `lessons.blocks`, RC.3.2). 
 
 ---
 
+### `POST /lessons/:id/cards/reached`
+
+- **Autenticação:** Bearer token.
+- **Payload:** `{ phase: 0..3, cardIndex: 0..59 }`. `phase` é a fase do player (0 Cenário, 1 Micro-decisão, 2 Revelação, 3 tela final) e `cardIndex` a posição do cartão na fase, contada pelo player (que fatia o texto no cliente).
+- **Sucesso:** `200` → `{ recorded: boolean }`. `true` quando esta pessoa chegou a um cartão além do mais avançado que já tinha alcançado nesta lição; `false` para reenvio e volta a cartão anterior. Lição já concluída é aceita (a tela final só aparece depois de o servidor concluir a lição); a revisão não chega aqui porque o player não reporta em revisão.
+- **Erros:**
+  - `400` — payload inválido (fase ou índice fora dos limites).
+  - `401` — token ausente ou inválido/expirado.
+  - `404` — lição inexistente ou bloqueada.
+  - `422 { code: 'step_out_of_order' }` — `phase` maior que o `currentStep` já gravado (o cliente só reporta uma fase depois de o servidor aceitar o avanço até ela).
+- **Regra:** `RecordCardReachUseCase` (LJ.5.1). Alimenta o funil por cartão do painel (`GET /admin/lessons/:id/card-funnel`, ver `.docs/backend/admin.md`). Guarda o cartão mais avançado por pessoa em `user_lesson_card_progress` (tabela à parte: abrir a lição não cria `user_lesson_progress`, que define "iniciou" e o status do mapa) e só incrementa `lesson_card_reach` (contagem por lição, fase, cartão e dia UTC, sem usuário) quando o cartão está além do gravado, de forma atômica (envios concorrentes contam uma vez). O player chama de forma fire-and-forget: falha de rede não afeta a lição. Quem retoma uma lição no meio entra no funil a partir de onde parou.
+
+---
+
 ### `POST /lessons/:id/review`
 
 - **Autenticação:** Bearer token.

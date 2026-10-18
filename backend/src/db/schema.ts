@@ -309,6 +309,47 @@ export const userLessonProgress = pgTable(
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],
 )
 
+// Cartão mais avançado que o usuário já alcançou no player de uma lição (LJ.5.1): fase (0 a 3) e
+// posição na fase. Só serve pra contar cada pessoa uma vez por cartão em `lesson_card_reach`. Fica
+// fora de `user_lesson_progress` de propósito: abrir uma lição não cria progresso (o "iniciaram" do
+// funil por lição e o status do mapa dependem dessa linha).
+export const userLessonCardProgress = pgTable(
+  'user_lesson_card_progress',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    furthestPhase: smallint('furthest_phase').notNull(),
+    furthestCard: smallint('furthest_card').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.lessonId] })],
+)
+
+// Funil por cartão (LJ.5.1): quantas pessoas chegaram a cada cartão de uma lição, por dia. Só
+// contagem agregada, sem usuário. O índice do cartão é o do player no momento da leitura (a lição
+// reeditada muda o sentido dos índices, então a tela admin lê uma janela de dias, não o histórico).
+export const lessonCardReach = pgTable(
+  'lesson_card_reach',
+  {
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    phase: smallint('phase').notNull(),
+    cardIndex: smallint('card_index').notNull(),
+    day: date('day').notNull(),
+    reachedCount: integer('reached_count').notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.lessonId, table.phase, table.cardIndex, table.day] }),
+    check('lesson_card_reach_phase_chk', sql`${table.phase} BETWEEN 0 AND 3`),
+    check('lesson_card_reach_card_chk', sql`${table.cardIndex} >= 0`),
+  ],
+)
+
 export const friendships = pgTable(
   'friendships',
   {

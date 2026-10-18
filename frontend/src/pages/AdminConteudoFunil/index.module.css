@@ -1,0 +1,198 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1280px;
+}
+
+.back {
+    align-self: flex-start;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: var(--space-1) 0 0;
+    max-width: 64ch;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.windows {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.windowButton {
+    min-height: 44px;
+    padding: 0 var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Selecionado: borda grossa e texto forte, não só cor. */
+.windowActive {
+    border-width: 2px;
+    color: var(--color-text-primary);
+}
+
+.muted {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    margin: 0;
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+.layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Mobile: nome e contagem na primeira linha, barra embaixo. */
+.row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        'label count'
+        'track track';
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+/* A maior queda: tracejado + selo de texto (convenção sólido/tracejado, nunca só cor). */
+.worst {
+    border: 1px dashed var(--color-gamify-500);
+}
+
+.label {
+    grid-area: label;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.badge {
+    padding: 0 var(--space-2);
+    border: 1px dashed var(--color-gamify-500);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+}
+
+.track {
+    grid-area: track;
+    display: block;
+    height: 12px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-base);
+    overflow: hidden;
+}
+
+.fill {
+    display: block;
+    height: 100%;
+    background: var(--color-brand-500);
+    border-radius: var(--radius-sm);
+}
+
+.count {
+    grid-area: count;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.lost {
+    color: var(--color-text-muted);
+}
+
+.summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    align-self: start;
+}
+
+.summaryTitle {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.summaryText {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Tablet: o nome ganha coluna própria à esquerda da barra. */
+@media (min-width: 768px) {
+    .row {
+        grid-template-columns: minmax(180px, 240px) 1fr minmax(120px, auto);
+        grid-template-areas: 'label track count';
+        align-items: center;
+    }
+}
+
+/* Desktop: barras à esquerda e o resumo fixo à direita, não coluna única esticada. */
+@media (min-width: 1024px) {
+    .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: var(--space-6);
+    }
+
+    .summary {
+        position: sticky;
+        top: var(--space-4);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .fill {
+        transition: width 200ms ease-out;
+    }
+}

@@ -377,7 +377,7 @@ próprio widget no teste.
 Itens independentes entre si (exceto onde a dependência está dita). O LJ.5.1 vem primeiro porque é
 o que mede se o resto funcionou.
 
-### LJ.5.1 · Funil por cartão no painel admin (medir antes de mexer)
+### LJ.5.1 · Funil por cartão no painel admin (medir antes de mexer) ✅ concluída
 
 **O que fazer:** gravar quando a pessoa **chega** a cada cartão de uma lição (lição, fase, índice
 do cartão, dia), agregado por dia sem guardar a sequência individual além do necessário: tabela
@@ -394,6 +394,12 @@ Sem isso, não dá para saber se o Lote 1 a 3 melhorou alguma coisa nem qual li�
 **Critérios de aceite:** checklist do backend; só `role = admin` lê; sem dado individual na tela;
 funciona para lição legada sem `blocks`; `.docs/backend/lessons.md` e a doc do admin atualizadas.
 Se o painel de retenção (frente RT) já existir na branch, a tela entra ao lado dele.
+
+- **Entregável:** (2026-10-18) O painel de retenção (frente RT) não existe nesta branch, então a tela é página própria: `/admin/conteudo/:id/funil` (link "Funil" na linha de cada lição da tabela de Conteúdo), com janela de 7/30/90 dias, uma barra por cartão (fase + número), o cartão de maior queda marcado com tracejado e selo "Maior queda" (nunca só cor) e resumo ao lado no desktop (2 colunas a partir de 1024px; no mobile o nome fica sobre a barra). Backend (módulo `lessons`): `POST /lessons/:id/cards/reached` `{ phase 0..3, cardIndex 0..59 }` → `{ recorded }` (`RecordCardReachUseCase`, porta `LessonCardReachRepository`, adapter Drizzle); `GET /admin/lessons/:id/card-funnel?days=` (`GetLessonCardFunnelUseCase` + caso de uso/adapter do `admin`, sem auditoria por ser leitura). Função pura `buildCardFunnel` em `domain/cardReach.ts` (soma os dias, ordena, mede queda por cartão e aponta a maior, em pessoas). Migration `0053_add_lesson_card_reach` (journal `when` 1794500000000, acima da 0052): `lesson_card_reach` (agregado por lição/fase/cartão/dia, sem usuário) e `user_lesson_card_progress` (cartão mais avançado por pessoa).
+  - **Desvio do texto da tarefa (decisão técnica):** o "maior cartão já alcançado" não foi para `user_lesson_progress`, e sim para a tabela própria `user_lesson_card_progress`. Gravar lá obrigaria a criar linha de progresso só por abrir a lição, o que mudaria o "iniciaram" do funil por lição e o status do mapa. O dedupe é um upsert condicionado (`setWhere` com comparação de tupla fase/cartão) dentro de uma transação, então envios concorrentes da mesma pessoa contam uma vez (teste de integração com 8 chamadas simultâneas).
+  - **Regras do servidor:** fase maior que o `currentStep` gravado é `422 step_out_of_order`; lição bloqueada é 404; lição já concluída é aceita de propósito, porque a tela final só aparece depois de o servidor concluir a lição (é assim que ela entra no funil). A revisão não é medida porque o player não reporta quando `isReview`. Frontend: hook `useCardReach` (fire-and-forget, dedupe local, teto 59), ligado em `pages/Lesson`.
+  - **Limites da medição (documentados em `.docs/backend/admin.md`):** conta a partir do deploy; quem retoma a lição no meio entra a partir de onde parou (a queda é truncada em 0); o índice é o do player no momento, então depois de editar o texto de uma lição o histórico antigo deixa de corresponder (usar janela curta). A tela rotula o cartão por fase e posição, sem o texto dele, porque o painel não carrega `blocks` e quem fatia o texto em cartões é o cliente.
+  - **Testes/validação:** backend lint, build e `npm test` (4324 passam); integração do adapter contra banco descartável; frontend `tsc`, oxlint, prettier e vitest (4324 passam no total). Ponta a ponta com `docker compose up --build backend` (migration aplicada no boot) e o frontend local: POST contando uma vez, 422 de fase à frente, 400 de payload, tela do funil em desktop (2 colunas) e mobile 400px, e o player reportando o cartão ao avançar. `.docs/backend/lessons.md` e `.docs/backend/admin.md` atualizados.
 
 ### LJ.5.2 · Tempo estimado da lição
 

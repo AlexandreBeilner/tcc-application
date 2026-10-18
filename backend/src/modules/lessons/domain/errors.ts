@@ -44,3 +44,5 @@ export class InvalidLessonContentError extends Error {}
 export class LessonUnchangedError extends Error {}
 // Revisão que não existe ou é de outra lição (N.23).
 export class LessonRevisionNotFoundError extends Error {}
+// Funil por cartão (LJ.5.1): fase/índice fora dos limites do player.
+export class InvalidCardPositionError extends Error {}

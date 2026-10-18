@@ -1,3 +1,4 @@
+import { GetLessonCardFunnelUseCase } from '../../../lessons/application/useCases/getLessonCardFunnel'
 import {
   ListLessonCatalogUseCase,
   SetLessonPublishedUseCase,
@@ -12,6 +13,7 @@ import {
 } from '../../../lessons/application/useCases/manageLessonContent'
 import type { AssetTypeLookup } from '../../../lessons/application/ports/assetTypeLookup'
 import type { CatalogLesson, LessonFunnelCounts } from '../../../lessons/domain/lessonCatalog'
+import { createFakeLessonCardReachRepository } from '../../../lessons/test/fakes/fakeLessonCardReachRepository'
 import { createFakeLessonCatalogRepository } from '../../../lessons/test/fakes/fakeLessonCatalogRepository'
 import { createInProcessLessonCatalogAdmin } from '../../infrastructure/lessons/inProcessLessonCatalogAdmin'
 
@@ -29,9 +31,11 @@ export function createInMemoryLessonCatalogAdmin(seed: {
       return (seed.assets ?? {})[ticker]
     },
   }
+  const cardReachRepository = createFakeLessonCardReachRepository()
   const validator = new LessonContentValidator(assets)
   const lessonCatalogAdmin = createInProcessLessonCatalogAdmin({
     listLessonCatalog: new ListLessonCatalogUseCase(catalogRepository),
+    getLessonCardFunnel: new GetLessonCardFunnelUseCase(catalogRepository, cardReachRepository),
     setLessonPublished: new SetLessonPublishedUseCase(catalogRepository),
     getLessonForEdit: new GetLessonForEditUseCase(catalogRepository),
     updateLessonContent: new UpdateLessonContentUseCase(catalogRepository, validator),
@@ -39,5 +43,5 @@ export function createInMemoryLessonCatalogAdmin(seed: {
     getLessonRevision: new GetLessonRevisionUseCase(catalogRepository),
     restoreLessonRevision: new RestoreLessonRevisionUseCase(catalogRepository, validator),
   })
-  return { lessonCatalogAdmin, catalogRepository }
+  return { lessonCatalogAdmin, catalogRepository, cardReachRepository }
 }

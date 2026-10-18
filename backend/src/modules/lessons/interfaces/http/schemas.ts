@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_CARD_INDEX, MAX_CARD_PHASE } from '../../domain/cardReach'
 import { LESSON_UNLOCK_STEP } from '../../domain/lesson'
 
 export const answerMicroDecisionBodySchema = z.object({
@@ -17,4 +18,10 @@ export const advanceLessonBodySchema = z.object({
   // Continua aceito e é ignorado, pra cliente antigo não tomar 400; sai do
   // schema numa versão futura.
   selectedOption: z.number().int().min(0).optional(),
+})
+
+// Cartão que o player acabou de mostrar (LJ.5.1): fase (0 a 3) e posição na fase.
+export const recordCardReachBodySchema = z.object({
+  phase: z.number().int().min(0).max(MAX_CARD_PHASE),
+  cardIndex: z.number().int().min(0).max(MAX_CARD_INDEX),
 })

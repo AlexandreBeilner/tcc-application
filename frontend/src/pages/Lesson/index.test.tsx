@@ -5,7 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { ApiError } from '../../services/client'
 import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
-import { advanceLesson, answerCheckpoint, answerMicroDecision, getLesson, listLessons, reviewLesson } from '../../services/lessons'
+import {
+    advanceLesson,
+    answerCheckpoint,
+    answerMicroDecision,
+    getLesson,
+    listLessons,
+    recordCardReach,
+    reviewLesson,
+} from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, getIndicatorHistory, listAssets } from '../../services/market'
 import type { AssetDetail, AssetSummary, IndicatorHistoryEntry } from '../../services/market'
@@ -20,6 +28,7 @@ vi.mock('../../services/lessons', () => ({
     answerMicroDecision: vi.fn(),
     answerCheckpoint: vi.fn(),
     reviewLesson: vi.fn(),
+    recordCardReach: vi.fn().mockResolvedValue({ recorded: true }),
 }))
 vi.mock('../../services/market', () => ({
     listAssets: vi.fn(),
@@ -102,6 +111,25 @@ describe('Lesson (tela 3.2)', () => {
         expect(await screen.findByText('Cenário')).toBeInTheDocument()
         expect(screen.getByText('Diversificação')).toBeInTheDocument()
         expect(screen.getByText('Espalhar capital reduz risco')).toBeInTheDocument()
+    })
+
+    it('funil por cartão: reporta o cartão aberto e o da fase seguinte, e nada em revisão', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+        const { unmount } = renderLesson()
+        await screen.findByText('Cenário')
+        await waitFor(() => expect(recordCardReach).toHaveBeenCalledWith('token-valido', 'lesson-1', 0, 0))
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+        await waitFor(() => expect(recordCardReach).toHaveBeenCalledWith('token-valido', 'lesson-1', 1, 0))
+        unmount()
+
+        vi.mocked(recordCardReach).mockClear()
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 3, status: 'completed' }) })
+        renderLesson()
+        await screen.findByText('Cenário')
+        expect(recordCardReach).not.toHaveBeenCalled()
     })
 
     it('retoma no meio (currentStep vindo do backend), sem voltar ao passo 0', async () => {

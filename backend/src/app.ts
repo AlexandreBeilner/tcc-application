@@ -126,6 +126,7 @@ import {
   CreateLessonAdminUseCase,
   GetLessonForEditAdminUseCase,
   GetLessonRevisionAdminUseCase,
+  GetLessonCardFunnelAdminUseCase,
   ListLessonCatalogAdminUseCase,
   RestoreLessonRevisionAdminUseCase,
   SetLessonPublishedAdminUseCase,
@@ -247,10 +248,13 @@ import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/use
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { HasReviewedOldLessonTodayUseCase } from './modules/lessons/application/useCases/hasReviewedOldLessonToday'
 import { HasMicroDecisionStreakTodayUseCase } from './modules/lessons/application/useCases/hasMicroDecisionStreakToday'
+import { GetLessonCardFunnelUseCase } from './modules/lessons/application/useCases/getLessonCardFunnel'
+import { RecordCardReachUseCase } from './modules/lessons/application/useCases/recordCardReach'
 import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
+import { createDrizzleLessonCardReachRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonCardReachRepository'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createInProcessSocialFeedRecorder } from './modules/lessons/infrastructure/socialfeed/inProcessSocialFeedRecorder'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
@@ -1323,8 +1327,13 @@ export function createApp(deps: AppDeps = {}): Express {
   // (dispensa ao publicar de volta) vivem no módulo `lessons`.
   const lessonCatalogRepository = createDrizzleLessonCatalogRepository(db)
   const lessonContentValidator = new LessonContentValidator(createEngineAssetTypeLookup(engineUrl))
+  const lessonCardReachRepository = createDrizzleLessonCardReachRepository(db)
   const lessonCatalogAdmin = createInProcessLessonCatalogAdmin({
     listLessonCatalog: new ListLessonCatalogUseCase(lessonCatalogRepository),
+    getLessonCardFunnel: new GetLessonCardFunnelUseCase(
+      lessonCatalogRepository,
+      lessonCardReachRepository,
+    ),
     setLessonPublished: new SetLessonPublishedUseCase(lessonCatalogRepository),
     getLessonForEdit: new GetLessonForEditUseCase(lessonCatalogRepository),
     updateLessonContent: new UpdateLessonContentUseCase(
@@ -1342,6 +1351,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createAdminLessonsRouter({
       listLessonCatalog: new ListLessonCatalogAdminUseCase(lessonCatalogAdmin),
       setLessonPublished: new SetLessonPublishedAdminUseCase(lessonCatalogAdmin, recordAdminAction),
+      getLessonCardFunnel: new GetLessonCardFunnelAdminUseCase(lessonCatalogAdmin),
       getLessonForEdit: new GetLessonForEditAdminUseCase(lessonCatalogAdmin),
       updateLessonContent: new UpdateLessonContentAdminUseCase(
         lessonCatalogAdmin,
@@ -1390,6 +1400,7 @@ export function createApp(deps: AppDeps = {}): Express {
       answerMicroDecision,
       answerCheckpoint,
       reviewLesson,
+      recordCardReach: new RecordCardReachUseCase(lessonRepository, lessonCardReachRepository),
       authMiddleware,
     }),
   )

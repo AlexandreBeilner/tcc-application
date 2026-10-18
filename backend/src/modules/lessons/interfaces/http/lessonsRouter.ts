@@ -4,6 +4,7 @@ import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
   CheckpointNotFoundError,
   CheckpointUnsolvedError,
+  InvalidCardPositionError,
   InvalidCheckpointResponseError,
   InvalidMicroDecisionOptionError,
   LessonLockedError,
@@ -19,11 +20,13 @@ import type { AnswerMicroDecisionUseCase } from '../../application/useCases/answ
 import type { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import type { GetLessonUseCase } from '../../application/useCases/getLesson'
 import type { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import type { RecordCardReachUseCase } from '../../application/useCases/recordCardReach'
 import type { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import {
   advanceLessonBodySchema,
   answerCheckpointBodySchema,
   answerMicroDecisionBodySchema,
+  recordCardReachBodySchema,
 } from './schemas'
 
 export interface LessonsRouterDeps {
@@ -33,6 +36,7 @@ export interface LessonsRouterDeps {
   answerMicroDecision: AnswerMicroDecisionUseCase
   answerCheckpoint: AnswerCheckpointUseCase
   reviewLesson: ReviewLessonUseCase
+  recordCardReach: RecordCardReachUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -202,6 +206,43 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
       }
     },
   )
+
+  router.post('/lessons/:id/cards/reached', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    const parsed = recordCardReachBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      const result = await deps.recordCardReach.execute({
+        userId: req.auth.userId,
+        lessonId: req.params.id as string,
+        phase: parsed.data.phase,
+        cardIndex: parsed.data.cardIndex,
+      })
+      res.status(200).json(result)
+    } catch (err) {
+      if (err instanceof LessonNotFoundError || err instanceof LessonLockedError) {
+        res.status(404).json({ error: err.message })
+        return
+      }
+      if (err instanceof InvalidCardPositionError) {
+        res.status(400).json({ error: err.message })
+        return
+      }
+      if (err instanceof LessonStepOutOfOrderError) {
+        res.status(422).json({ error: err.message, code: 'step_out_of_order' })
+        return
+      }
+      throw err
+    }
+  })
 
   router.post('/lessons/:id/review', deps.authMiddleware.authenticate, async (req, res) => {
     if (!req.auth) {

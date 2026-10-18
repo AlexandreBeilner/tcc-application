@@ -381,6 +381,11 @@ export const adminRankingQuerySchema = z
     path: ['window'],
   })
 
+// GET /admin/lessons/:id/card-funnel (LJ.5.1): janela em dias, 30 se omitida.
+export const cardFunnelQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(365).optional(),
+})
+
 // PATCH /admin/lessons/:id/published (N.18).
 export const setLessonPublishedBodySchema = z.object({ published: z.boolean() })
 

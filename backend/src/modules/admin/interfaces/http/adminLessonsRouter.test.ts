@@ -9,6 +9,7 @@ import { emptyFunnel } from '../../../lessons/test/fakes/fakeLessonCatalogReposi
 import { buildCatalogLesson, LESSON_IDS } from '../../../lessons/test/fakes/lessonFixtures'
 import {
   CreateLessonAdminUseCase,
+  GetLessonCardFunnelAdminUseCase,
   GetLessonForEditAdminUseCase,
   GetLessonRevisionAdminUseCase,
   ListLessonCatalogAdminUseCase,
@@ -26,22 +27,23 @@ async function buildApp() {
   const tokenIssuer = createFakeTokenIssuer()
   const auditLog = createFakeAuditLogRepository()
   const record = new RecordAdminActionUseCase(auditLog)
-  const { lessonCatalogAdmin, catalogRepository } = createInMemoryLessonCatalogAdmin({
-    lessons: [
-      buildCatalogLesson({ id: LESSON_IDS.a, code: '0.1', sortOrder: 1 }),
-      buildCatalogLesson({
-        id: LESSON_IDS.b,
-        code: '0.2',
-        sortOrder: 2,
-        microDecisionOptions: ['x', 'y'],
-        microDecisionCorrectOption: 1,
-      }),
-    ],
-    assets: { VALR3: 'acao', LFT2029: 'tesouro_selic' },
-    funnels: {
-      [LESSON_IDS.a]: emptyFunnel({ started: 10, completed: 5, abandonedByStep: [1, 2, 2, 0] }),
-    },
-  })
+  const { lessonCatalogAdmin, catalogRepository, cardReachRepository } =
+    createInMemoryLessonCatalogAdmin({
+      lessons: [
+        buildCatalogLesson({ id: LESSON_IDS.a, code: '0.1', sortOrder: 1 }),
+        buildCatalogLesson({
+          id: LESSON_IDS.b,
+          code: '0.2',
+          sortOrder: 2,
+          microDecisionOptions: ['x', 'y'],
+          microDecisionCorrectOption: 1,
+        }),
+      ],
+      assets: { VALR3: 'acao', LFT2029: 'tesouro_selic' },
+      funnels: {
+        [LESSON_IDS.a]: emptyFunnel({ started: 10, completed: 5, abandonedByStep: [1, 2, 2, 0] }),
+      },
+    })
   const admin = await userRepository.createUser({
     name: 'Admin',
     email: 'admin@example.com',
@@ -61,6 +63,7 @@ async function buildApp() {
     createAdminLessonsRouter({
       listLessonCatalog: new ListLessonCatalogAdminUseCase(lessonCatalogAdmin),
       setLessonPublished: new SetLessonPublishedAdminUseCase(lessonCatalogAdmin, record),
+      getLessonCardFunnel: new GetLessonCardFunnelAdminUseCase(lessonCatalogAdmin),
       getLessonForEdit: new GetLessonForEditAdminUseCase(lessonCatalogAdmin),
       updateLessonContent: new UpdateLessonContentAdminUseCase(lessonCatalogAdmin, record),
       createLesson: new CreateLessonAdminUseCase(lessonCatalogAdmin, record),
@@ -73,6 +76,7 @@ async function buildApp() {
     app,
     auditLog,
     catalogRepository,
+    cardReachRepository,
     auth: (token: string) => ({ Authorization: `Bearer ${token}` }),
     adminId: admin.id,
     adminToken: tokenIssuer.issue({ sub: admin.id, role: 'admin' }),
@@ -84,6 +88,7 @@ describe('permissões', () => {
   it.each([
     ['get', '/admin/lessons'],
     ['patch', `/admin/lessons/${LESSON_IDS.a}/published`],
+    ['get', `/admin/lessons/${LESSON_IDS.a}/card-funnel`],
     ['get', `/admin/lessons/${LESSON_IDS.a}`],
     ['put', `/admin/lessons/${LESSON_IDS.a}`],
     ['post', '/admin/lessons'],
@@ -127,6 +132,71 @@ describe('GET /admin/lessons', () => {
       prerequisite_code: '0.1',
     })
     expect(res.body.lessons[1].funnel.completion_rate).toBeNull()
+  })
+})
+
+describe('GET /admin/lessons/:id/card-funnel', () => {
+  it('devolve as barras por cartão e o cartão de maior queda, sem dado individual', async () => {
+    const { app, adminToken, auth, cardReachRepository } = await buildApp()
+    const today = new Date().toISOString().slice(0, 10)
+    const reach = (userId: string, cardIndex: number) =>
+      cardReachRepository.recordReach({
+        userId,
+        lessonId: LESSON_IDS.a,
+        position: { phase: 0, cardIndex },
+        day: today,
+      })
+    await reach('u1', 0)
+    await reach('u2', 0)
+    await reach('u3', 0)
+    await reach('u1', 1)
+
+    const res = await request(app)
+      .get(`/admin/lessons/${LESSON_IDS.a}/card-funnel?days=7`)
+      .set(auth(adminToken))
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({
+      lesson: { id: LESSON_IDS.a, code: '0.1' },
+      days: 7,
+      bars: [
+        { phase: 0, card_index: 0, reached: 3, lost: 0, lost_rate: null },
+        { phase: 0, card_index: 1, reached: 1, lost: 2, lost_rate: 2 / 3 },
+      ],
+      biggest_drop: { phase: 0, card_index: 1 },
+    })
+    expect(JSON.stringify(res.body)).not.toContain('u1')
+  })
+
+  it('usa 30 dias por padrão, valida a janela (400) e responde 404 pra lição inexistente', async () => {
+    const { app, adminToken, auth } = await buildApp()
+
+    const byDefault = await request(app)
+      .get(`/admin/lessons/${LESSON_IDS.a}/card-funnel`)
+      .set(auth(adminToken))
+    expect(byDefault.body).toMatchObject({ days: 30, bars: [], biggest_drop: null })
+
+    expect(
+      (
+        await request(app)
+          .get(`/admin/lessons/${LESSON_IDS.a}/card-funnel?days=0`)
+          .set(auth(adminToken))
+      ).status,
+    ).toBe(400)
+    expect(
+      (
+        await request(app)
+          .get(`/admin/lessons/${LESSON_IDS.a}/card-funnel?days=abc`)
+          .set(auth(adminToken))
+      ).status,
+    ).toBe(400)
+    expect(
+      (
+        await request(app)
+          .get(`/admin/lessons/${LESSON_IDS.unknown}/card-funnel`)
+          .set(auth(adminToken))
+      ).status,
+    ).toBe(404)
   })
 })
 
