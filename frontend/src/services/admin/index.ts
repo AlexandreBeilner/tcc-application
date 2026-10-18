@@ -2,6 +2,20 @@ import { apiDownload, apiRequest } from '../client'
 import type { DownloadedFile } from '../client'
 import type {
     AchievementCatalog,
+    DailyChangeImpact,
+    DailyDraftResult,
+    DailyEvent,
+    DailyEventInput,
+    DailyMetricsDay,
+    DailyOverview,
+    DailyPatch,
+    DailyPuzzleDetail,
+    DailyQuestion,
+    DailyQuestionInput,
+    DailyReplaceCardInput,
+    DailyStartDateResult,
+    DailyWord,
+    DailyWordInput,
     AdminRanking,
     AdminRankingFilters,
     CatalogAchievement,
@@ -87,6 +101,28 @@ import type {
 } from './types'
 
 export type {
+    DailyAgendaDay,
+    DailyAlertCode,
+    DailyCardOrigin,
+    DailyLearnMore,
+    DailyLearnMoreKind,
+    DailyScope,
+    DailyStatus,
+    DailyTally,
+    DailyChangeImpact,
+    DailyDraftResult,
+    DailyEvent,
+    DailyEventInput,
+    DailyMetricsDay,
+    DailyOverview,
+    DailyPatch,
+    DailyPuzzleDetail,
+    DailyQuestion,
+    DailyQuestionInput,
+    DailyReplaceCardInput,
+    DailyStartDateResult,
+    DailyWord,
+    DailyWordInput,
     UserProStatus,
     GrantUserProInput,
     GrantUserProResult,
@@ -567,6 +603,92 @@ export function getLessonRevision(token: string, lessonId: string, revisionId: s
 
 export function restoreLessonRevision(token: string, lessonId: string, revisionId: string) {
     return apiRequest<LessonSaveResult>(`/admin/lessons/${lessonId}/revisions/${revisionId}/restore`, { token, method: 'POST' })
+}
+
+// Contadores do Diário (DI.7.1): um dia por linha, do mais recente ao mais antigo.
+export function getDailyMetrics(token: string, days = 30) {
+    return apiRequest<{ days: DailyMetricsDay[] }>(`/admin/daily/metrics?days=${days}`, { token })
+}
+
+// Painel do Diário (DI.5.1). Mudar a data da estreia pede senha recente (`withReauth`).
+export function getDailyOverview(token: string) {
+    return apiRequest<DailyOverview>('/admin/daily', { token })
+}
+
+export function prepareDailyDraft(token: string, startDate: string) {
+    return apiRequest<DailyDraftResult>('/admin/daily/draft', { token, method: 'POST', body: { start_date: startDate } })
+}
+
+export function setDailyStartDate(token: string, startDate: string | null) {
+    return apiRequest<DailyStartDateResult>('/admin/daily/start-date', { token, method: 'PUT', body: { start_date: startDate } })
+}
+
+export function publishDailyPuzzles(token: string, numbers?: number[]) {
+    return apiRequest<{ published: number[] }>('/admin/daily/puzzles/publish', { token, method: 'POST', body: numbers ? { numbers } : {} })
+}
+
+export function getDailyPuzzle(token: string, number: number) {
+    return apiRequest<DailyPuzzleDetail>(`/admin/daily/puzzles/${number}`, { token })
+}
+
+export function reviewDailyPuzzle(token: string, number: number) {
+    return apiRequest<{ number: number }>(`/admin/daily/puzzles/${number}/review`, { token, method: 'POST' })
+}
+
+export function replaceDailyCard(token: string, number: number, input: DailyReplaceCardInput) {
+    return apiRequest<{ number: number }>(`/admin/daily/puzzles/${number}/card`, { token, method: 'PUT', body: input })
+}
+
+export function getDailyWords(token: string) {
+    return apiRequest<{ words: DailyWord[] }>('/admin/daily/words', { token })
+}
+
+export function createDailyWord(token: string, input: DailyWordInput) {
+    return apiRequest<{ word: DailyWord }>('/admin/daily/words', { token, method: 'POST', body: input })
+}
+
+export function updateDailyWord(token: string, id: string, patch: DailyPatch<DailyWordInput>) {
+    return apiRequest<{ word: DailyWord } & DailyChangeImpact>(`/admin/daily/words/${id}`, { token, method: 'PATCH', body: patch })
+}
+
+export function getDailyAcceptedWords(token: string) {
+    return apiRequest<{ words: string[] }>('/admin/daily/accepted-words', { token })
+}
+
+export function addDailyAcceptedWord(token: string, word: string) {
+    return apiRequest<{ word: string }>('/admin/daily/accepted-words', { token, method: 'POST', body: { word } })
+}
+
+export function removeDailyAcceptedWord(token: string, word: string) {
+    return apiRequest<{ word: string }>(`/admin/daily/accepted-words/${encodeURIComponent(word)}`, { token, method: 'DELETE' })
+}
+
+export function getDailyQuestions(token: string) {
+    return apiRequest<{ questions: DailyQuestion[] }>('/admin/daily/questions', { token })
+}
+
+export function createDailyQuestion(token: string, input: DailyQuestionInput) {
+    return apiRequest<{ question: DailyQuestion }>('/admin/daily/questions', { token, method: 'POST', body: input })
+}
+
+export function updateDailyQuestion(token: string, id: string, patch: DailyPatch<DailyQuestionInput>) {
+    return apiRequest<{ question: DailyQuestion } & DailyChangeImpact>(`/admin/daily/questions/${id}`, {
+        token,
+        method: 'PATCH',
+        body: patch,
+    })
+}
+
+export function getDailyEvents(token: string) {
+    return apiRequest<{ events: DailyEvent[] }>('/admin/daily/events', { token })
+}
+
+export function createDailyEvent(token: string, input: DailyEventInput) {
+    return apiRequest<{ event: DailyEvent }>('/admin/daily/events', { token, method: 'POST', body: input })
+}
+
+export function updateDailyEvent(token: string, id: string, patch: DailyPatch<DailyEventInput>) {
+    return apiRequest<{ event: DailyEvent } & DailyChangeImpact>(`/admin/daily/events/${id}`, { token, method: 'PATCH', body: patch })
 }
 
 // Comunicados globais e modo de manutenção (N.20). Encerrar a manutenção levanta a pausa de

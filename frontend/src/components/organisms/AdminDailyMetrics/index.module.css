@@ -1,0 +1,156 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.muted {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    margin: 0;
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+.totals {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    margin: 0;
+}
+
+.total {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.totalLabel {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.totalValue {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-primary);
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Mobile: só os cartões. Tablet em diante: só a tabela. */
+.table {
+    display: none;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.card {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.cardDay {
+    color: var(--color-text-primary);
+    font-family: var(--font-family-heading);
+}
+
+.cardList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: var(--space-2) 0 0;
+}
+
+.cardRow {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.cardRow dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+    .totals {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .table {
+        display: table;
+    }
+
+    .cards {
+        display: none;
+    }
+}
+
+@media (min-width: 1024px) {
+    .totals {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+}
+
+.th {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tr:hover {
+    background: var(--color-bg-surface-elevated);
+}
+
+.td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 400;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+}
+
+.zero {
+    color: var(--color-text-muted);
+}

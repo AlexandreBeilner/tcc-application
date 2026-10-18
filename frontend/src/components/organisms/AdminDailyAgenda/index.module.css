@@ -1,0 +1,234 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.muted {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.notice {
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    margin: 0;
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}
+
+/* Mobile: só os cartões. Tablet em diante: só a tabela. */
+.table {
+    display: none;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+@media (min-width: 768px) {
+    .table {
+        display: table;
+    }
+
+    .cards {
+        display: none;
+    }
+}
+
+.th {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tr:hover {
+    background: var(--color-bg-surface-elevated);
+}
+
+.td {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    vertical-align: top;
+}
+
+.name {
+    color: var(--color-text-primary);
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+}
+
+.sub {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.clamp {
+    display: -webkit-box;
+    max-width: 38ch;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-100);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Pendente: borda tracejada, convenção sólido/tracejado (nunca só cor). */
+.dashed {
+    border: 1px dashed var(--color-border-strong);
+    background: transparent;
+    color: var(--color-text-secondary);
+}
+
+.link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--color-link);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.cardHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.coverage {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.coverageGrid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+    .coverageGrid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.coverageCard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.coverageTitle {
+    margin: 0;
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+}
+
+.coverageLine {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 64px 24px;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.barTrack {
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface-elevated);
+}
+
+.barFill {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: var(--color-brand-500);
+}
+
+.barCount {
+    text-align: right;
+    color: var(--color-text-primary);
+}

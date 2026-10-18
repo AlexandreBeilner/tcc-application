@@ -1,4 +1,4 @@
-// Lógica pura do enxugamento de cartões (ponto 057, opção d): tira o cartão final "Completar esta lição
+// Lógica pura do enxugamento de cartões (ponto 061, opção d): tira o cartão final "Completar esta lição
 // libera..." (a tela final já mostra o mesmo, pelo `unlocksDescription`) e funde dois cartões de texto curtos
 // vizinhos da 2.10. Fica fora de `applyTrimCards.ts` para o teste importá-la sem disparar o `main` dele.
 import type { Block, Blocks, Phases } from './widgetGoalsMigration'

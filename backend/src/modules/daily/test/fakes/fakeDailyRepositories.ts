@@ -1,0 +1,369 @@
+import type {
+  DailyMetricsRepository,
+  LoggedGamesRow,
+} from '../../application/ports/dailyMetricsRepository'
+import type { StoredMetric } from '../../domain/metrics'
+import type { DailyResult } from '../../domain/content'
+import { newResult } from '../../domain/resultState'
+import type { DailyResultRepository } from '../../application/ports/dailyResultRepository'
+import type { StreakTouchResult, StreakTracker } from '../../application/ports/streakTracker'
+import type { XpAwardResult, XpAwarder } from '../../application/ports/xpAwarder'
+import type { AcceptedWordRepository } from '../../application/ports/acceptedWordRepository'
+import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
+import type { DailyEventRepository } from '../../application/ports/dailyEventRepository'
+import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
+import type { DailyQuestionRepository } from '../../application/ports/dailyQuestionRepository'
+import type { DailySettingsRepository } from '../../application/ports/dailySettingsRepository'
+import type { DailyWordRepository } from '../../application/ports/dailyWordRepository'
+
+export interface FakeDailySettingsRepository extends DailySettingsRepository {
+  state: { startDate: string | null }
+}
+
+export function createFakeDailySettingsRepository(
+  startDate: string | null = null,
+): FakeDailySettingsRepository {
+  const state = { startDate }
+  return {
+    state,
+    async get() {
+      return { startDate: state.startDate, updatedBy: null, updatedAt: new Date(0) }
+    },
+    async setStartDate(next) {
+      state.startDate = next
+    },
+  }
+}
+
+export function createFakeDailyMetricsRepository(
+  logged: LoggedGamesRow[] = [],
+): DailyMetricsRepository & { counts: Map<string, number> } {
+  const counts = new Map<string, number>()
+  return {
+    counts,
+    async increment(day, metric) {
+      const key = `${day}|${metric}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    },
+    async listStored(from, to) {
+      return [...counts.entries()]
+        .map(([key, count]) => {
+          const [date, metric] = key.split('|')
+          return { date, metric: metric as StoredMetric, count }
+        })
+        .filter((r) => r.date >= from && r.date <= to)
+    },
+    async listLoggedGames(from, to) {
+      return logged.filter((r) => r.date >= from && r.date <= to)
+    },
+  }
+}
+
+export function createFakeDailyWordRepository(
+  initial: DailyWord[] = [],
+): DailyWordRepository & { items: DailyWord[] } {
+  const items = [...initial]
+  return {
+    items,
+    async create(word) {
+      const created = { ...word, id: `w${items.length + 1}` }
+      items.push(created)
+      return created
+    },
+    async findById(id) {
+      return items.find((w) => w.id === id) ?? null
+    },
+    async listActive() {
+      return items.filter((w) => w.active)
+    },
+    async listAll() {
+      return [...items]
+    },
+    async update(id, fields) {
+      const w = items.find((x) => x.id === id)
+      if (!w) return null
+      Object.assign(w, fields)
+      return w
+    },
+  }
+}
+
+export function createFakeDailyQuestionRepository(
+  initial: DailyQuestion[] = [],
+): DailyQuestionRepository & { items: DailyQuestion[] } {
+  const items = [...initial]
+  return {
+    items,
+    async create(item) {
+      const created = { ...item, id: `q${items.length + 1}` }
+      items.push(created)
+      return created
+    },
+    async findById(id) {
+      return items.find((x) => x.id === id) ?? null
+    },
+    async findManyByIds(ids) {
+      return items.filter((x) => ids.includes(x.id))
+    },
+    async listActive() {
+      return items.filter((x) => x.active)
+    },
+    async listAll() {
+      return [...items]
+    },
+    async update(id, fields) {
+      const x = items.find((i) => i.id === id)
+      if (!x) return null
+      // Como o repositório real: editar tira a revisão, a menos que o patch diga o contrário.
+      Object.assign(x, { reviewedAt: null }, fields)
+      return x
+    },
+    async markReviewed(ids, _by, now) {
+      for (const x of items) if (ids.includes(x.id)) x.reviewedAt = now
+    },
+  }
+}
+
+export function createFakeDailyEventRepository(
+  initial: DailyEvent[] = [],
+): DailyEventRepository & { items: DailyEvent[] } {
+  const items = [...initial]
+  return {
+    items,
+    async create(item) {
+      const created = { ...item, id: `e${items.length + 1}` }
+      items.push(created)
+      return created
+    },
+    async findById(id) {
+      return items.find((x) => x.id === id) ?? null
+    },
+    async findManyByIds(ids) {
+      return items.filter((x) => ids.includes(x.id))
+    },
+    async listActive() {
+      return items.filter((x) => x.active)
+    },
+    async listAll() {
+      return [...items]
+    },
+    async update(id, fields) {
+      const x = items.find((i) => i.id === id)
+      if (!x) return null
+      // Como o repositório real: editar tira a revisão, a menos que o patch diga o contrário.
+      Object.assign(x, { reviewedAt: null }, fields)
+      return x
+    },
+    async markReviewed(ids, _by, now) {
+      for (const x of items) if (ids.includes(x.id)) x.reviewedAt = now
+    },
+  }
+}
+
+export interface FakeDailyPuzzleRepository extends DailyPuzzleRepository {
+  items: DailyPuzzle[]
+}
+
+export function createFakeDailyPuzzleRepository(
+  initial: DailyPuzzle[] = [],
+): FakeDailyPuzzleRepository {
+  const items = [...initial]
+  const sorted = () => [...items].sort((a, b) => (a.gameDate < b.gameDate ? -1 : 1))
+  return {
+    items,
+    async create(puzzle) {
+      if (items.some((p) => p.number === puzzle.number || p.gameDate === puzzle.gameDate)) {
+        throw new Error('jogo repetido')
+      }
+      items.push(puzzle)
+    },
+    async findByNumber(number) {
+      return items.find((p) => p.number === number) ?? null
+    },
+    async findByDate(gameDate) {
+      return items.find((p) => p.gameDate === gameDate) ?? null
+    },
+    async listFromDate(fromDate, limit) {
+      return sorted()
+        .filter((p) => p.gameDate >= fromDate)
+        .slice(0, limit)
+    },
+    async listUsing(kind, itemId) {
+      return sorted().filter((p) =>
+        kind === 'word'
+          ? p.wordId === itemId
+          : kind === 'question'
+            ? p.questionId === itemId
+            : p.timelineEventIds.includes(itemId),
+      )
+    },
+    async updateCard(number, change) {
+      const p = items.find((x) => x.number === number)
+      if (!p) return
+      if (change.card === 'word') Object.assign(p, { wordId: change.wordId, wordOrigin: 'manual' })
+      else if (change.card === 'question') {
+        Object.assign(p, { questionId: change.questionId, questionOrigin: 'manual' })
+      } else {
+        Object.assign(p, { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual' })
+      }
+      Object.assign(p, { reviewedBy: null, reviewedAt: null })
+    },
+    async clearReview(numbers) {
+      for (const p of items) {
+        if (numbers.includes(p.number) && p.publishedAt === null) {
+          Object.assign(p, { reviewedBy: null, reviewedAt: null })
+        }
+      }
+    },
+    async publishReviewed(fromDate, now) {
+      const done: number[] = []
+      for (const p of sorted()) {
+        if (p.gameDate >= fromDate && p.reviewedAt !== null && p.publishedAt === null) {
+          p.publishedAt = now
+          done.push(p.number)
+        }
+      }
+      return done
+    },
+    async unpublishFrom(fromDate) {
+      let n = 0
+      for (const p of items) {
+        if (p.gameDate >= fromDate && p.publishedAt !== null) {
+          p.publishedAt = null
+          n += 1
+        }
+      }
+      return n
+    },
+    async markReviewed(number, reviewedBy, now) {
+      const p = items.find((x) => x.number === number)
+      if (p) Object.assign(p, { reviewedBy, reviewedAt: now })
+    },
+    async markPublished(number, now) {
+      const p = items.find((x) => x.number === number)
+      if (p) p.publishedAt = now
+    },
+    async replaceUnpublished(puzzles) {
+      const published = items.filter((p) => p.publishedAt !== null)
+      items.splice(0, items.length, ...published, ...puzzles)
+    },
+  }
+}
+
+export function createFakeAcceptedWordRepository(
+  initial: string[] = [],
+  extras: string[] = [],
+): AcceptedWordRepository & { words: Set<string>; extras: Set<string> } {
+  const words = new Set([...initial, ...extras])
+  const extraSet = new Set(extras)
+  return {
+    words,
+    extras: extraSet,
+    async listExtra() {
+      return [...extraSet].sort()
+    },
+    async removeExtra(word) {
+      if (!extraSet.has(word)) return false
+      extraSet.delete(word)
+      words.delete(word)
+      return true
+    },
+    async isAccepted(word) {
+      return words.has(word)
+    },
+    async addMany(list, source) {
+      let added = 0
+      for (const w of list) {
+        if (!words.has(w)) {
+          words.add(w)
+          if (source === 'extra') extraSet.add(w)
+          added += 1
+        }
+      }
+      return added
+    },
+  }
+}
+
+export interface FakeDailyResultRepository extends DailyResultRepository {
+  items: DailyResult[]
+}
+
+export function createFakeDailyResultRepository(
+  initial: DailyResult[] = [],
+): FakeDailyResultRepository {
+  const items = [...initial]
+  const index = (userId: string, n: number) =>
+    items.findIndex((r) => r.userId === userId && r.puzzleNumber === n)
+  return {
+    items,
+    async find(userId, n) {
+      return items[index(userId, n)] ?? null
+    },
+    async save(result) {
+      const i = index(result.userId, result.puzzleNumber)
+      if (i >= 0) items[i] = result
+      else items.push(result)
+    },
+    async listByUser(userId) {
+      return items
+        .filter((r) => r.userId === userId)
+        .sort((a, b) => a.puzzleNumber - b.puzzleNumber)
+    },
+    // Como o repositório real, `apply` que lança não grava nada. O JS é de thread única e `apply`
+    // é síncrono, então não há intercalação a simular aqui; a trava de linha é testada no banco.
+    async update(userId, n, now, apply) {
+      const current = items[index(userId, n)] ?? newResult(userId, n, now)
+      const { next, value } = apply(current)
+      const i = index(userId, n)
+      if (i >= 0) items[i] = next
+      else items.push(next)
+      return { result: next, value }
+    },
+  }
+}
+
+export interface FakeXpAwarder extends XpAwarder {
+  awarded: { userId: string; amount: number; reason: string }[]
+  nextResult: XpAwardResult
+}
+
+export function createFakeXpAwarder(
+  nextResult: XpAwardResult = { xp: 0, level: 1, leveledUp: false, unlockedAchievements: [] },
+): FakeXpAwarder {
+  const awarded: FakeXpAwarder['awarded'] = []
+  const fake: FakeXpAwarder = {
+    awarded,
+    nextResult,
+    async award(userId, amount, reason) {
+      awarded.push({ userId, amount, reason })
+      return fake.nextResult
+    },
+  }
+  return fake
+}
+
+export interface FakeStreakTracker extends StreakTracker {
+  touchedUserIds: string[]
+  nextResult: StreakTouchResult
+}
+
+export function createFakeStreakTracker(
+  nextResult: StreakTouchResult = {
+    currentStreak: 1,
+    longestStreak: 1,
+    milestoneReached: null,
+    unlockedAchievements: [],
+  },
+): FakeStreakTracker {
+  const touchedUserIds: string[] = []
+  const fake: FakeStreakTracker = {
+    touchedUserIds,
+    nextResult,
+    async touch(userId) {
+      touchedUserIds.push(userId)
+      return fake.nextResult
+    },
+  }
+  return fake
+}

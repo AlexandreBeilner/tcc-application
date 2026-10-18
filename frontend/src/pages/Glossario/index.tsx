@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { glossary } from '../../features/lessons/glossary'
 import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import styles from './index.module.css'
@@ -13,7 +13,9 @@ const normalize = (text: string) =>
 // Página de consulta do glossário (RC.3.5): todos os termos em ordem
 // alfabética, com busca, exemplo e link para a lição que ensina o termo.
 export function Glossario() {
-    const [query, setQuery] = useState('')
+    // `?termo=` vem do "Saiba mais" do Diário (DI.4.2): abre o glossário já filtrado nesse termo.
+    const [searchParams] = useSearchParams()
+    const [query, setQuery] = useState(searchParams.get('termo') ?? '')
     const lessons = useLessonsQuery().data?.lessons ?? []
 
     const needle = normalize(query.trim())

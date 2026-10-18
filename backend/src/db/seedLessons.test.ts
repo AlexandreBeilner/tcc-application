@@ -146,7 +146,7 @@ describe('blocks no seed (RC.3.1)', () => {
   })
 
   // LJ.5.7: o caminho principal (cartões que o player conta; "Na plataforma" e "Saiba mais" colam no
-  // cartão anterior) tem no máximo 15 cartões (teto subido de 12 pelo autor em 2026-10-18, ponto 057).
+  // cartão anterior) tem no máximo 15 cartões (teto subido de 12 pelo autor em 2026-10-18, ponto 061).
   // Lições acima disso entram aqui com a contagem de hoje: catraca, como o baseline de conteúdo. Lição
   // nova ou editada não pode passar de 15 nem crescer, e a que encolher falha até a linha baixar ou sair.
   const MAIN_PATH_CARD_LIMIT = 15

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
@@ -240,7 +240,7 @@ describe('analytics (Cloudflare Web Analytics)', () => {
         assert.equal(analyticsSnippet(''), '')
         const headers = await readFile('src/static/_headers', 'utf8')
         assert.match(headers, /script-src 'self' https:\/\/static\.cloudflareinsights\.com;/)
-        assert.match(headers, /connect-src 'self' https:\/\/cloudflareinsights\.com;/)
+        assert.match(headers, /connect-src 'self' https:\/\/cloudflareinsights\.com {{API_URL}};/)
     })
 })
 
@@ -259,5 +259,90 @@ describe('gráficos determinísticos', () => {
         assert.equal(full.length, (TRAIL_MARKS.length - 1) * 4 + 1)
         const [a, b] = [full[1], full[2]]
         assert.notEqual(a[1], b[1])
+    })
+})
+
+describe('página do Diário Selucra (/diario/)', () => {
+    const API = 'https://api.exemplo.test'
+    let dir
+    let html
+    before(async () => {
+        dir = await mkdtemp(join(tmpdir(), 'landing-diario-'))
+        await buildLanding({ siteUrl: SITE, appUrl: APP, apiUrl: API, outDir: dir })
+        html = await readFile(join(dir, 'diario/index.html'), 'utf8')
+    })
+    after(() => rm(dir, { recursive: true, force: true }))
+
+    it('o conteúdo para busca está no HTML entregue (título, como jogar, o que se aprende, perguntas)', () => {
+        assert.equal((html.match(/<h1[\s>]/g) ?? []).length, 1)
+        assert.match(html, /<h1>Diário Selucra<\/h1>/)
+        for (const id of ['como-jogar', 'o-que-se-aprende', 'duvidas']) assert.match(html, new RegExp(`id="${id}"`))
+        assert.ok((html.match(/<summary>/g) ?? []).length >= 4)
+        assert.match(html, new RegExp(`<link rel="canonical" href="${SITE}/diario/"`))
+    })
+
+    it('sem JS a página explica que o jogo precisa de JavaScript', () => {
+        assert.match(html, /<noscript>[\s\S]*precisa de JavaScript[\s\S]*<\/noscript>/)
+    })
+
+    it('monta o jogo com um bundle próprio, sem a cena da home, e passa a API e o site por atributo', () => {
+        assert.match(html, /<script type="module" src="\/assets\/diario-page-[^"]+\.js"><\/script>/)
+        assert.doesNotMatch(html, /\/assets\/main-/)
+        assert.match(html, new RegExp(`id="diario" data-api="${API}" data-app="${APP}" data-site="${SITE}" data-guides="[^"]*o-que-e-etf`))
+    })
+
+    it('o convite ao terminar começa escondido e leva ao app com origem=diario e ao cadastro', () => {
+        const invite = html.match(/<aside[^>]*id="diario-convite"[\s\S]*?<\/aside>/)[0]
+        assert.match(invite, /\bhidden\b/)
+        assert.match(invite, /Entre no app para ganhar XP e manter sua sequência/)
+        assert.match(invite, new RegExp(`href="${APP}/diario\\?origem=diario"`))
+        assert.match(invite, new RegExp(`href="${APP}/login\\?modo=cadastro&origem=diario"`))
+    })
+
+    it('está no menu da home e do cabeçalho dos guias, e no sitemap', async () => {
+        const home = await readFile(join(dir, 'index.html'), 'utf8')
+        assert.match(home, /<li><a href="\/diario\/">Diário<\/a><\/li>/)
+        assert.match(html, /<li><a href="\/diario\/">Diário<\/a><\/li>/)
+        assert.match(await readFile(join(dir, 'sitemap.xml'), 'utf8'), new RegExp(`<loc>${SITE}/diario/</loc>`))
+    })
+
+    it('SEO: title, description, canonical, Open Graph com imagem própria e Twitter card', async () => {
+        const title = html.match(/<title>(.*?)<\/title>/)[1]
+        const desc = html.match(/name="description"\s+content="([^"]*)"/)[1]
+        assert.ok(title.length <= 65, `title com ${title.length} caracteres`)
+        assert.ok(desc.length >= 100 && desc.length <= 160, `description com ${desc.length} caracteres`)
+        assert.match(html, new RegExp(`og:url" content="${SITE}/diario/"`))
+        assert.match(html, new RegExp(`og:image" content="${SITE}/og-diario.png"`))
+        assert.match(html, new RegExp(`twitter:image" content="${SITE}/og-diario.png"`))
+        assert.ok((await stat(join(dir, 'og-diario.png'))).size > 1000)
+        const home = await readFile(join(dir, 'index.html'), 'utf8')
+        assert.match(home, new RegExp(`og:image" content="${SITE}/og-image.png"`))
+    })
+
+    it('JSON-LD: WebApplication e FAQPage espelhando as perguntas visíveis', () => {
+        const graph = JSON.parse(html.match(LD)[1])['@graph']
+        assert.deepEqual(
+            graph.map((n) => n['@type']),
+            ['WebApplication', 'FAQPage'],
+        )
+        const visible = (html.match(/<summary>/g) ?? []).length
+        const faq = graph.find((n) => n['@type'] === 'FAQPage')
+        assert.equal(faq.mainEntity.length, visible)
+        assert.deepEqual(faq.mainEntity, faqFromHtml(html))
+        assert.equal(graph[0].url, `${SITE}/diario/`)
+    })
+
+    it('CSP libera só a origem da API do Diário e a página não é cacheada por muito tempo', async () => {
+        const headers = await readFile(join(dir, '_headers'), 'utf8')
+        assert.ok(headers.includes(`connect-src 'self' https://cloudflareinsights.com ${API};`), headers)
+        assert.doesNotMatch(headers, /\{\{/)
+        assert.match(headers, /\/diario\/\*\s+Cache-Control: public, max-age=0, must-revalidate/)
+    })
+
+    it('sem preço, PRO, "grátis", travessão nem placeholder', () => {
+        const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ')
+        assert.doesNotMatch(text, /gr[áa]tis|sem cart[ãa]o|\bPRO\b|assinatura|R\$ ?\d/i)
+        assert.doesNotMatch(text, /—/)
+        assert.equal(html.match(/\{\{[A-Za-z_:-]+\}\}/g), null)
     })
 })

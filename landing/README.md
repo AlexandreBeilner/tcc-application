@@ -37,6 +37,7 @@ no GitHub. Os botões da landing levam ao app em `https://app.selucra.com.br`, q
 3. **Variáveis** (Settings, Variables and secrets, Production):
     - `NODE_VERSION` = `22`
     - `CF_ANALYTICS_TOKEN` = o token do Web Analytics (passo 6, só no modo manual). Opcional: sem ele, o build não coloca nenhum script.
+    - `API_URL` só se a API não for `https://api.selucra.com.br` (a página `/diario/` chama `GET /daily/*` nessa origem; em staging, aponte para a API de staging).
     - `SITE_URL` e `APP_URL` só se forem diferentes de `https://selucra.com.br` e `https://app.selucra.com.br` (o padrão já é produção).
 4. **Build watch paths** (projeto, Settings, Build, Build watch paths). Em monorepo o Pages rebuilda a cada commit em qualquer pasta;
    o filtro evita isso. Em **Include paths**, duas linhas: `landing/*` e
@@ -83,6 +84,7 @@ O app em `app.selucra.com.br` é outro projeto do Pages (LW.3.16); a landing nã
 - `src/styles.css`: tokens de `.claude/identidade-visual-tokens.md` (duplicados de `frontend/src/index.css`; mudou um, muda o outro).
 - `src/main.js`: movimento (valor piscando, demo de ordem). `src/scene.js`: cena three.js, carregada por `import()` depois do `load`.
 - `content/aprender/*.json` + `aprender.mjs`: guias evergreen (`/aprender/<slug>/`) e o hub `/aprender/`. Número regulatório nunca é digitado: entra por `{{fact:id}}`, lido de `backend/src/modules/lessons/domain/regulatoryFacts.ts` (o build precisa do repositório inteiro, não só de `landing/`). A build **falha** se o fato não existe, foi conferido só por trecho de busca ou tem mais de 12 meses, e cada guia lista as fontes. Para criar um guia: copie um JSON, escreva (cartão curto, sem travessão, sem preço) e rode `npm test`.
+- `src/diario.html` + `src/diario-page.ts`: página `/diario/` (Diário Selucra). O conteúdo para busca está no HTML; o jogo é o módulo `src/diario/` montado em modo `publico` por um bundle próprio (sem a cena 3D). O convite para o app ao terminar já está no HTML, escondido, e o script o mostra. Variável de build `API_URL`.
 - `svg.mjs`: sparkline e mapa da trilha gerados no build (determinísticos, com altos e baixos).
 - `src/static/`: favicon, ícones, `og-image.png`, `robots.txt`, `_headers`. O `sitemap.xml` é gerado no build. `src/article.html` é o molde dos guias (cabeçalho e rodapé são os da home).
 

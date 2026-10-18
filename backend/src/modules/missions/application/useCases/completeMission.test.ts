@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  DailyNotCompletedTodayError,
   LessonNotCompletedTodayError,
   MicroDecisionStreakNotReachedError,
   MissionNotFoundError,
@@ -7,9 +8,11 @@ import {
 } from '../../domain/errors'
 import {
   MICRO_DECISION_STREAK_MISSION_KEY,
+  PLAY_DAILY_MISSION_KEY,
   REVIEW_OLD_LESSON_MISSION_KEY,
   todayUtc,
 } from '../../domain/mission'
+import { createFakeDailyCompletionChecker } from '../../test/fakes/fakeDailyCompletionChecker'
 import { createFakeLessonCompletionChecker } from '../../test/fakes/fakeLessonCompletionChecker'
 import { createFakeLessonReviewChecker } from '../../test/fakes/fakeLessonReviewChecker'
 import { createFakeMicroDecisionStreakChecker } from '../../test/fakes/fakeMicroDecisionStreakChecker'
@@ -62,16 +65,29 @@ const streakMission = {
   isActive: true,
 }
 
+const dailyMission = {
+  id: 'm5',
+  key: PLAY_DAILY_MISSION_KEY,
+  title: 'Jogue o Diário de hoje',
+  description: null,
+  completionCriteria: 'Fechar hoje o Diário do dia',
+  xpReward: 20,
+  requiresLessonCompletion: false,
+  isActive: true,
+}
+
 function build(
   hasCompletedLesson = false,
   hasReviewedOldLesson = false,
   hasMicroDecisionStreak = false,
+  hasCompletedDaily = false,
 ) {
   const missionRepository = createFakeMissionRepository([
     lessonMission,
     feedMission,
     reviewMission,
     streakMission,
+    dailyMission,
   ])
   const lessonCompletionChecker = createFakeLessonCompletionChecker(hasCompletedLesson)
   const lessonReviewChecker = createFakeLessonReviewChecker(hasReviewedOldLesson)
@@ -83,6 +99,7 @@ function build(
     lessonCompletionChecker,
     lessonReviewChecker,
     microDecisionStreakChecker,
+    createFakeDailyCompletionChecker(hasCompletedDaily),
     xpAwarder,
     streakTracker,
   )
@@ -177,6 +194,25 @@ describe('CompleteMissionUseCase', () => {
     })
     expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 30, reason: 'missao:m4' }])
     expect(streakTracker.touchedUserIds).toEqual(['u1'])
+  })
+
+  it('missão "Jogue o Diário" é rejeitada sem o Diário de hoje concluído', async () => {
+    const { xpAwarder, streakTracker, useCase } = build(false, false, false, false)
+
+    await expect(useCase.execute({ userId: 'u1', missionId: 'm5' })).rejects.toBeInstanceOf(
+      DailyNotCompletedTodayError,
+    )
+    expect(xpAwarder.awarded).toHaveLength(0)
+    expect(streakTracker.touchedUserIds).toHaveLength(0)
+  })
+
+  it('missão "Jogue o Diário" completa com 20 XP quando o Diário de hoje foi concluído', async () => {
+    const { xpAwarder, useCase } = build(false, false, false, true)
+
+    const result = await useCase.execute({ userId: 'u1', missionId: 'm5' })
+
+    expect(result.xpAwarded).toBe(20)
+    expect(xpAwarder.awarded).toEqual([{ userId: 'u1', amount: 20, reason: 'missao:m5' }])
   })
 
   it('missões sem verificação cruzada aceitam o relato do cliente', async () => {

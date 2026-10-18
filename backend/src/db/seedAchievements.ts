@@ -139,6 +139,37 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     criteriaValue: '50',
     isRare: true,
   },
+  // Qualidade no Diário (DI.6.1), nunca volume: só conta jogo concluído dentro do próprio dia.
+  {
+    seedKey: 'daily_word_first_try',
+    name: 'Palavra na Primeira',
+    description: 'Acerte a Palavra do Diário no primeiro palpite.',
+    criteriaType: 'daily_word_first_try',
+    criteriaValue: '1',
+  },
+  {
+    seedKey: 'daily_perfect_day',
+    name: 'Diário Perfeito',
+    description: 'Acerte os três cartões do Diário no mesmo dia.',
+    criteriaType: 'daily_perfect_days',
+    criteriaValue: '1',
+  },
+  {
+    seedKey: 'daily_timeline_streak_7',
+    name: 'Cronologia em Dia',
+    description: 'Acerte a Linha do tempo do Diário 7 dias seguidos.',
+    criteriaType: 'daily_timeline_streak',
+    criteriaValue: '7',
+    isRare: true,
+  },
+  {
+    seedKey: 'daily_perfect_days_10',
+    name: 'Mão Cheia',
+    description: 'Acerte os três cartões do Diário em 10 dias diferentes.',
+    criteriaType: 'daily_perfect_days',
+    criteriaValue: '10',
+    isRare: true,
+  },
 ]
 
 // Idempotente por seedKey (N.19), só insere: nunca atualiza uma conquista que o painel

@@ -11,6 +11,9 @@ export interface DigestCandidate {
   pendingMissions: number
   // Título de uma delas (a de maior recompensa), pra o e-mail dar um exemplo concreto.
   pendingMissionTitle: string | null
+  // Dias da semana que passou em que a pessoa jogou o Diário (0 a 7); `null` quando ainda não há
+  // dado do Diário (nenhum jogo concluído por ninguém na semana), e o e-mail sai sem o trecho.
+  dailyPlayedDays: number | null
 }
 
 export interface WeeklyDigestAudience {

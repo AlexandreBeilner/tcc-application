@@ -1,0 +1,114 @@
+<article class="wrap art diario-page">
+    <nav class="crumbs" aria-label="Você está em">
+        <a href="/">Selucra</a><span aria-hidden="true">/</span><span aria-current="page">Diário Selucra</span>
+    </nav>
+    <header class="art-head">
+        <span class="eyebrow">Jogo diário</span>
+        <h1>Diário Selucra</h1>
+        <p class="lead">
+            Três desafios curtos por dia, iguais para todo mundo: adivinhe a palavra do mercado financeiro, responda uma pergunta de
+            economia e ordene eventos da história do dinheiro no Brasil.
+        </p>
+    </header>
+
+    <section class="diario-game" aria-label="Jogo de hoje">
+        <noscript>
+            <p class="diario-nojs">
+                O Diário Selucra precisa de JavaScript para funcionar. Ative o JavaScript no navegador e recarregue a página para jogar.
+            </p>
+        </noscript>
+        <div id="diario" data-api="{{API_URL}}" data-app="{{APP_URL}}" data-site="{{SITE_URL}}" data-guides="{{GUIDE_SLUGS}}">
+            <p class="diario-loading" role="status">Carregando o jogo de hoje.</p>
+        </div>
+        <aside class="art-cta diario-invite" id="diario-convite" hidden aria-label="Convite para o app">
+            <h2>Entre no app para ganhar XP e manter sua sequência</h2>
+            <p>
+                Você acabou o jogo de hoje. Jogando dentro da Selucra, cada Diário rende XP e conta para a sua sequência de dias. O que você
+                jogou aqui fica neste navegador, mas nada disso é perdido: no app você pode jogar o Diário de hoje de novo.
+            </p>
+            <p class="diario-invite-actions">
+                <a class="btn btn-primary" href="{{APP_URL}}/diario?origem=diario">Jogar no app</a>
+                <a class="btn btn-ghost" href="{{APP_URL}}/login?modo=cadastro&origem=diario">Criar conta</a>
+            </p>
+        </aside>
+    </section>
+
+    <section class="art-sec" id="como-jogar">
+        <h2>Como jogar</h2>
+        <p>Todo dia, às 21h no horário de Brasília, sai um jogo novo com três cartões. Você joga na ordem que quiser.</p>
+        <ul>
+            <li>
+                <strong>Palavra do dia.</strong> Descubra um termo do mercado financeiro em até 6 tentativas. Cada letra recebe um símbolo:
+                no lugar certo, na palavra mas em outro lugar, ou fora da palavra. Acento não conta.
+            </li>
+            <li>
+                <strong>Pergunta do dia.</strong> Uma pergunta de múltipla escolha sobre economia, finanças e mercado, com a explicação da
+                resposta depois que você responde.
+            </li>
+            <li>
+                <strong>Linha do tempo.</strong> Quatro eventos que marcaram a economia, para você colocar do mais antigo ao mais recente.
+                Dá para arrastar ou usar os botões de subir e descer.
+            </li>
+        </ul>
+        <p>
+            Ao terminar, você compartilha o resultado em um cartão de texto, sem spoiler e sem revelar nenhuma resposta. A sua sequência e
+            as suas estatísticas ficam guardadas só no seu navegador.
+        </p>
+    </section>
+
+    <section class="art-sec" id="o-que-se-aprende">
+        <h2>O que você aprende jogando</h2>
+        <p>
+            O conteúdo é centrado no mercado brasileiro: termos como Selic, CDI e debênture, planos econômicos, instituições como o Banco
+            Central e a CVM, produtos de renda fixa e renda variável, e fatos de fora que mexeram com a economia do Brasil. Cada resposta
+            vem com uma explicação curta e, quando existe, um guia para ler mais.
+        </p>
+        <p>O Diário é educacional. Nada nele é recomendação de investimento, e as perguntas não pedem que você compre ou venda nada.</p>
+    </section>
+
+    <section class="art-sec faq" id="duvidas">
+        <h2>Perguntas frequentes</h2>
+        <details>
+            <summary>O que é o Diário Selucra?</summary>
+            <p>
+                É um jogo diário de educação financeira com três cartões: uma palavra do mercado financeiro no estilo Termo, uma pergunta de
+                conhecimentos gerais sobre economia e uma linha do tempo para ordenar. O jogo é o mesmo para todo mundo no mesmo dia.
+            </p>
+        </details>
+        <details>
+            <summary>A que horas sai o jogo novo?</summary>
+            <p>
+                Todo dia às 21h no horário de Brasília, que é a virada do dia em UTC. Se você começar um jogo antes e terminar depois, ele
+                continua seu, mas o jogo novo fica disponível pelo aviso que aparece na tela.
+            </p>
+        </details>
+        <details>
+            <summary>Preciso de conta para jogar?</summary>
+            <p>
+                Não. Nesta página você joga sem login e o progresso fica salvo no seu navegador. Dentro do app da Selucra o Diário também
+                existe, e lá cada jogo rende XP e conta para a sua sequência diária.
+            </p>
+        </details>
+        <details>
+            <summary>O que eu jogo aqui vale XP no app?</summary>
+            <p>
+                Não. O que é jogado sem login fica só neste navegador e não é levado para a sua conta. Mas nada trava: se você jogou aqui,
+                pode jogar o Diário de hoje de novo no app e ganhar o XP normalmente.
+            </p>
+        </details>
+        <details>
+            <summary>Posso jogar os dias anteriores?</summary>
+            <p>
+                Sim. Abaixo do jogo aparece a lista dos últimos dias. Os dias anteriores podem ser jogados quando você quiser, só que sem XP
+                e sem contar para a sequência.
+            </p>
+        </details>
+        <details>
+            <summary>Como funciona o compartilhamento?</summary>
+            <p>
+                Ao terminar, você copia ou compartilha um cartão de texto com os símbolos do Termo e o número do jogo. Ele não mostra a
+                palavra, as respostas nem valores em reais.
+            </p>
+        </details>
+    </section>
+</article>

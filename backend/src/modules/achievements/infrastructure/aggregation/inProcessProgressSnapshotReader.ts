@@ -1,3 +1,4 @@
+import type { GetDailyQualityUseCase } from '../../../daily/application/useCases/getDailyQuality'
 import type { GetProgressionUseCase } from '../../../gamification/application/useCases/getProgression'
 import type { CountCompletedLessonsUseCase } from '../../../lessons/application/useCases/countCompletedLessons'
 import type { GetCurrentMicroDecisionStreakUseCase } from '../../../lessons/application/useCases/getCurrentMicroDecisionStreak'
@@ -27,6 +28,8 @@ export function createInProcessProgressSnapshotReader(deps: {
   countAssembliesParticipated: { count(userId: string): Promise<number> }
   // Indicações válidas (MO.7.2).
   countReferralsQualified: { count(userId: string): Promise<number> }
+  // Qualidade no Diário (DI.6.1), já restrita a jogo concluído no próprio dia.
+  getDailyQuality: GetDailyQualityUseCase
   getNetWorth: NetWorthReader
   sandboxAssetReader: SandboxAssetReader
 }): ProgressSnapshotReader {
@@ -40,6 +43,7 @@ export function createInProcessProgressSnapshotReader(deps: {
         lessonsReviewed,
         assembliesParticipated,
         referralsQualified,
+        dailyQuality,
         sandboxAssetIds,
       ] = await Promise.all([
         deps.getProgression.execute({ userId }),
@@ -49,6 +53,7 @@ export function createInProcessProgressSnapshotReader(deps: {
         deps.countReviewedLessons.execute({ userId }),
         deps.countAssembliesParticipated.count(userId),
         deps.countReferralsQualified.count(userId),
+        deps.getDailyQuality.execute({ userId }),
         deps.sandboxAssetReader.listSandboxAssetIds(),
       ])
 
@@ -68,6 +73,9 @@ export function createInProcessProgressSnapshotReader(deps: {
         lessonsReviewed,
         assembliesParticipated,
         referralsQualified,
+        dailyWordFirstTry: dailyQuality.wordFirstTryGames,
+        dailyPerfectDays: dailyQuality.perfectDays,
+        dailyTimelineStreak: dailyQuality.bestTimelineRun,
       }
     },
   }

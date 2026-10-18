@@ -1,6 +1,7 @@
 import {
     Activity,
     Bot,
+    CalendarCheck,
     CandlestickChart,
     Clock,
     FileText,
@@ -26,6 +27,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     { key: 'bots', label: 'Bots', Icon: Bot, to: '/admin/bots', task: 'N.2' },
     { key: 'users', label: 'Usuários', Icon: Users, to: '/admin/usuarios', task: 'N.16' },
     { key: 'content', label: 'Conteúdo', Icon: FileText, to: '/admin/conteudo', task: 'N.18' },
+    { key: 'daily', label: 'Diário', Icon: CalendarCheck, to: '/admin/diario', task: 'DI.5.1' },
     { key: 'gamification', label: 'Gamificação', Icon: Trophy, to: '/admin/gamificacao', task: 'N.19' },
     { key: 'billing', label: 'Assinaturas', Icon: ReceiptText, to: '/admin/assinaturas', task: 'MO.7.1' },
     { key: 'assemblies', label: 'Assembleias', Icon: Landmark, to: '/admin/assembleias', task: 'MO.6.8' },

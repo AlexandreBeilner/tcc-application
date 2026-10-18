@@ -1,6 +1,7 @@
 import { InvalidMissionError } from './errors'
 import {
   MICRO_DECISION_STREAK_MISSION_KEY,
+  PLAY_DAILY_MISSION_KEY,
   REVIEW_OLD_LESSON_MISSION_KEY,
   type Mission,
 } from './mission'
@@ -16,7 +17,8 @@ export function missionVerification(
   if (mission.requiresLessonCompletion) return 'lesson_completion'
   if (
     mission.key === REVIEW_OLD_LESSON_MISSION_KEY ||
-    mission.key === MICRO_DECISION_STREAK_MISSION_KEY
+    mission.key === MICRO_DECISION_STREAK_MISSION_KEY ||
+    mission.key === PLAY_DAILY_MISSION_KEY
   ) {
     return 'server_check'
   }

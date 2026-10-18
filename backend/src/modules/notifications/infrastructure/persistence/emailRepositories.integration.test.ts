@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
 import { createDrizzleEmailOutboxHealthReader } from '../../../admin/infrastructure/health/emailOutboxHealthReader'
+import { createDrizzleDailyPlayedReader } from './drizzleDailyPlayedReader'
 import { createDrizzleEmailOutboxRepository } from './drizzleEmailOutboxRepository'
 import { createDrizzleEmailPreferencesRepository } from './drizzleEmailPreferencesRepository'
 import { createDrizzleEmailSuppressionRepository } from './drizzleEmailSuppressionRepository'
@@ -451,7 +452,11 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
         },
       ])
 
-      const page = await createDrizzleWeeklyDigestAudience(db, () => NOW).listPage(null, 100)
+      const page = await createDrizzleWeeklyDigestAudience(
+        db,
+        createDrizzleDailyPlayedReader(db),
+        () => NOW,
+      ).listPage(null, 100)
       const mine = page.filter((c) => c.address.startsWith('em71-'))
 
       expect(mine.map((c) => c.userId)).toEqual([ok.id])
@@ -467,6 +472,7 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
       expect(Object.keys(mine[0]).sort()).toEqual(
         [
           'address',
+          'dailyPlayedDays',
           'level',
           'name',
           'pendingMissionTitle',
@@ -477,9 +483,106 @@ describe.skipIf(!databaseUrl)('repositórios de e-mail (banco real)', () => {
       )
     })
 
+    it('conta os dias de Diário da semana passada: só jogo no dia com XP, e nada de missão play_daily', async () => {
+      await db.delete(schema.userMissionProgress)
+      await db.delete(schema.dailyMissions)
+      await db.delete(schema.dailyResults)
+      await db.delete(schema.dailyPuzzles)
+      const four = await create('d4')
+      const none = await create('d0')
+      await db.insert(schema.dailyMissions).values([
+        { key: 'em71_other', title: 'Outra', completionCriteria: 'x', xpReward: 5 },
+        { key: 'play_daily', title: 'Jogue o Diário', completionCriteria: 'x', xpReward: 20 },
+      ])
+
+      const [word] = await db
+        .insert(schema.dailyWords)
+        .values({
+          stableKey: 'em72_w',
+          answer: 'SELIC',
+          display: 'Selic',
+          definition: 'x',
+          category: 'x',
+          scope: 'brasil',
+        })
+        .onConflictDoUpdate({ target: schema.dailyWords.stableKey, set: { active: true } })
+        .returning()
+      const [question] = await db
+        .insert(schema.dailyQuestions)
+        .values({
+          stableKey: 'em72_q',
+          question: 'x?',
+          options: ['a', 'b', 'c', 'd'],
+          correctIndex: 0,
+          explanation: 'x',
+          sourceRef: 'x',
+          category: 'x',
+          scope: 'brasil',
+        })
+        .onConflictDoUpdate({ target: schema.dailyQuestions.stableKey, set: { active: true } })
+        .returning()
+      // Semana de 2026-10-05 (segunda) a 2026-10-11 (domingo); o resumo sai em 2026-10-12.
+      const days = [
+        '2026-10-05',
+        '2026-10-06',
+        '2026-10-07',
+        '2026-10-08',
+        '2026-10-04',
+        '2026-10-12',
+      ]
+      for (const [i, day] of days.entries()) {
+        await db.insert(schema.dailyPuzzles).values({
+          number: 900 + i,
+          gameDate: day,
+          wordId: word.id,
+          questionId: question.id,
+          timelineEventIds: [1, 2, 3, 4].map(() => crypto.randomUUID()),
+        })
+      }
+      const result = (i: number, completedAt: string, xp: number) => ({
+        userId: four.id,
+        puzzleNumber: 900 + i,
+        completedAt: new Date(completedAt),
+        xpAwarded: xp,
+      })
+      await db.insert(schema.dailyResults).values([
+        result(0, '2026-10-05T15:00:00Z', 30),
+        result(1, '2026-10-06T23:30:00Z', 40),
+        result(2, '2026-10-07T10:00:00Z', 50),
+        result(3, '2026-10-09T10:00:00Z', 0), // dia anterior jogado depois: sem XP, não conta
+        result(4, '2026-10-04T12:00:00Z', 20), // semana retrasada
+        result(5, '2026-10-12T12:00:00Z', 20), // hoje, fora da semana que passou
+      ])
+
+      const page = await createDrizzleWeeklyDigestAudience(
+        db,
+        createDrizzleDailyPlayedReader(db),
+        () => NOW,
+      ).listPage(null, 100)
+      const byId = new Map(page.map((c) => [c.userId, c]))
+
+      expect(byId.get(four.id)?.dailyPlayedDays).toBe(3)
+      expect(byId.get(none.id)?.dailyPlayedDays).toBe(0)
+      expect(byId.get(four.id)).toMatchObject({ pendingMissions: 1, pendingMissionTitle: 'Outra' })
+
+      // Sem nenhum jogo concluído na janela por ninguém: sem dado, `null`.
+      await db.delete(schema.dailyResults)
+      const empty = await createDrizzleWeeklyDigestAudience(
+        db,
+        createDrizzleDailyPlayedReader(db),
+        () => NOW,
+      ).listPage(null, 100)
+      expect(empty.find((c) => c.userId === four.id)?.dailyPlayedDays).toBeNull()
+      await db.delete(schema.dailyPuzzles)
+    })
+
     it('pagina por cursor de userId, sem repetir nem pular ninguém', async () => {
       const users = await Promise.all([create('p1'), create('p2'), create('p3')])
-      const audience = createDrizzleWeeklyDigestAudience(db, () => NOW)
+      const audience = createDrizzleWeeklyDigestAudience(
+        db,
+        createDrizzleDailyPlayedReader(db),
+        () => NOW,
+      )
 
       const first = await audience.listPage(null, 2)
       const second = await audience.listPage(first[first.length - 1].userId, 2)

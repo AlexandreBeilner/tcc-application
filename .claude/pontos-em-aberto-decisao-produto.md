@@ -32,8 +32,6 @@ resolver uma entrada, mova pro final da seção "Resolvidos" com a decisão toma
 
 ## Em aberto
 
-Nenhum ponto em aberto no momento.
-
 ## Resolvidos
 
 ### 003 · Calibração inicial de `company_fundamentals` é um número inventado, não pesquisado
@@ -1077,7 +1075,41 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Status:** aberto. Recomendação: (a) agora, e reavaliar (b) quando houver pedido real de gráfico de evolução.
 
 
-### 057 · Lições longas não chegam a 12 cartões só movendo detalhe para "Saiba mais" (LJ.5.7), achado em 2026-10-18
+### 057 · "Neste dia na história" quando não há fato do dia e mês exatos (DI.1.3), achado em 2026-10-17
+
+- **Local:** `backend/src/modules/daily/domain/agenda.ts` (`planDay`), cartão `on_this_day` do `backlog-diario.md`.
+- **Origem:** o cartão se chama "Neste dia", mas o backlog não diz o que fazer quando o banco não tem um fato do dia e mês exatos da data do jogo. Exigir sempre o dia exato deixaria buracos na numeração (um dia sem jogo) e obrigaria a curadoria a cobrir cada dia do calendário; o conteúdo de 30 dias da estreia (DI.1.4) depende da data que o autor escolher.
+- **O que a agenda faz hoje (escolha provisória):** usa o fato do dia exato quando existe; senão, o de data mais próxima no calendário (distância circular, ignorando o ano) e registra o aviso `on_this_day_not_exact` para o admin ver na revisão. Nunca deixa um dia sem jogo por causa disso.
+- **Opções:** (a) manter o fallback e o texto do cartão passa a mostrar a data real do fato ("Em 3 de julho de 1994..."), sem dizer "hoje"; (b) exigir o dia exato e bloquear a agenda/estreia enquanto houver dia sem fato (curadoria cobre os 30 dias da estreia, e depois cada novo dia); (c) tolerância máxima (ex: até 7 dias de distância) e, além dela, o dia fica sem jogo com aviso.
+- **Status:** superado em 2026-10-17. O autor trocou o cartão "Neste dia na história" por uma "Pergunta do dia" de conhecimentos gerais, sem data (DI17 em `backlog-diario.md`). Não há mais busca por dia e mês, então o ponto deixa de existir; o código de fallback por data foi removido.
+
+### 058 · As rotas públicas do Diário servem jogo ainda não publicado? (DI.2.1), achado em 2026-10-17
+
+- **Local:** `backend/src/modules/daily/application/dailyGameLoader.ts` (`DailyGameLoader.load`).
+- **Origem:** DI.2.1. O backlog define `published_at` e a publicação como ação do painel (DI.5.1, ainda não existe), mas não diz se `GET /daily/today` e as outras rotas só devem servir jogo publicado.
+- **O que é:** hoje o `DailyGameLoader` serve **todo jogo materializado**, publicado ou não. Isso não abre brecha para jogo futuro (o acesso por número é decidido antes, seção 3.6) nem antes da estreia (a estreia exige 30 dias revisados, DI11), mas o jogo de **hoje** pode ir ao ar sem o autor ter marcado como revisado se a agenda o materializou e ninguém o revisou.
+- **Por que não foi corrigido:** exigir `published_at` agora deixaria o Diário fora do ar até a DI.5.1, e não dá para testar de ponta a ponta nem estrear sem o painel; é uma escolha de comportamento do autor.
+- **Opções:** (a) manter como está até a DI.5.1 e, nela, o painel só deixa a estreia ser agendada com 30 dias revisados (já previsto), aceitando o risco para dias além deles; (b) servir só jogo com `published_at` (a filtragem é uma linha no loader) e fazer a DI.5.1 publicar em lote ao agendar a estreia; (c) servir só jogo revisado (`reviewed_at`), sem o conceito de publicação para as rotas públicas.
+- **Status:** resolvido em 2026-10-17 na DI.5.1: opção (b). As rotas públicas servem só jogo publicado, e agendar a estreia publica os revisados em lote.
+
+### 059 · Desligar o Diário em emergência depois de no ar (DI.5.1), achado em 2026-10-17
+
+- **Local:** `backend/src/modules/daily/domain/launchSchedule.ts` (`validateStartDateChange`).
+- **Origem:** a DI.5.1 pede "desligar em emergência", mas a seção 3.5 trava a data depois do início e o domínio recusa qualquer mudança, inclusive desligar (`already_started`). A data é a única coluna de estado: `null` desliga e perderia a data.
+- **Hoje:** desligar só funciona enquanto agendado. No ar, a única saída é despublicar por fora do painel.
+- **Opções:** (a) manter assim, emergência é intervenção no banco; (b) coluna `paused` em `daily_settings`: as rotas respondem como desligado sem perder a data nem a numeração, e voltar é só despausar; (c) permitir `null` no ar e exigir a mesma data ao religar.
+- **Status:** adiado, provavelmente fechado (2026-10-17). O autor decidiu não implementar: o painel já corrige o que está errado com o jogo no ar (editar texto, alternativas, gabarito, ano; trocar o cartão do dia), com confirmação explícita para jogo publicado. Isso cobre erro de conteúdo. Limite conhecido: quem já jogou o dia foi avaliado contra o gabarito antigo, e o XP concedido não é recalculado. Só reabrir se surgir um problema que correção não resolva (ex: bug que quebra o jogo inteiro); aí a recomendação é a opção (b), coluna `paused`.
+
+### 060 · Missão diária "Jogue o Diário" e o teto de XP de um dia perfeito (DI.6.1), achado em 2026-10-17
+
+- **Local:** `backend/src/modules/missions/` (catálogo, `CompleteMissionUseCase`) e `backend/src/db/seedMissions.ts`; XP do Diário em `backend/src/modules/daily/domain/xp.ts`.
+- **Origem:** a DI.6.1 trata a missão como opcional e pede para conferir que o XP do Diário somado ao da missão não passa de um teto razoável. Nenhum documento fixa esse teto.
+- **Os números:** o Diário rende de 20 a 50 XP (DI6). Todas as missões de hoje valem 30 e uma lição vale 50, então "lição + missão da lição" = 80 e "Diário perfeito + missão" = 80 com a missão em 30 (70 com a missão em 20). O dia só chega aos 50 acertando os três cartões, e o Diário é a atividade mais curta (cerca de 3 minutos).
+- **Segundo achado (mecânico, mas decide o desenho):** as missões com verificação do servidor (`lesson_complete`, `review_old_lesson`, `micro_decision_streak_today`) **não têm gatilho no frontend** (já registrado em `.docs/backend/missions.md`); só as duas relatadas pelo cliente se concluem sozinhas. Uma missão do Diário só funcionaria se a tela do Diário chamasse `POST /missions/:id/complete` ao fechar o jogo (ou se o backend concluísse a missão dentro do fechamento do jogo, o que acopla `daily` a `missions`).
+- **Opções:** (a) não ter a missão (o Diário já rende XP e conta para o streak; é o que a DI.6.1 entregou); (b) missão de 20 XP (teto de 70 no dia), concluída pela tela do Diário; (c) missão de 30 XP como as outras (teto de 80, igual a lição + missão); (d) fechar a missão no backend, dentro do fechamento do jogo, sem depender da tela.
+- **Status:** resolvido em 2026-10-17: opção (b). Missão `play_daily` de 20 XP (dia perfeito soma 70, abaixo de lição + missão = 80), verificada pelo servidor contra `daily_results` e concluída pela tela do Diário ao fechar o jogo do dia. O valor é editável no painel. O gatilho de tela das outras três missões com verificação do servidor continua sem existir (ponto fora do escopo daqui, já anotado em `.docs/backend/missions.md`).
+
+### 061 · Lições longas não chegam a 12 cartões só movendo detalhe para "Saiba mais" (LJ.5.7), achado em 2026-10-18
 
 - **Local:** as 7 lições com 15 cartões ou mais (2.4, 2.12, F.2, 1.11, 1.12, 2.7.6, 2.10) e o teto de 12 cartões do caminho principal em `seedLessons.test.ts`.
 - **Origem:** o bloco `more` (pergunta nunca vai dentro) foi construído e aplicado, mas quase todo cartão de texto e widget dessas lições tem uma pergunta amarrada a ele, e mover só o texto deixaria a pergunta sem contexto. O que sobrou como detalhe de verdade (pregão e custos na 2.4, frequência do provento na 2.7.6, dedo-duro e limites de hoje na 2.12, taxas de hoje na F.2) tirou 6 cartões: 2.4 17 para 15, 2.12 18 para 16, F.2 17 para 16, 2.7.6 15 para 14; 1.11, 1.12 e 2.10 ficaram como estavam (16, 15, 15). Além disso, 7 lições terminam com um cartão "Completar esta lição libera..." que repete o que a tela final já mostra.
@@ -1085,7 +1117,7 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Status:** (d) decidido e aplicado em 2026-10-18 (cartão final "Completar esta lição libera..." tirado de 6 lições, 2 fusões na 2.10; script `applyTrimCards.ts`). Contagens: 1.5 e 1.7 chegaram a 12; 1.11 15, 1.12 14, 2.10 13, 2.4 15, 2.7.6 14, 2.12 e F.2 16. **Ainda acima de 12:** 2.12, F.2, 2.4, 1.11, 1.12, 2.7.6, 2.10 e mais 7 que já eram 13 ou 14 (0.5, 1.9, 2.11, 3.1, 3.2, F.1 e a 2.10). Falta decidir (a) dividir 2.12 e 2.4, ou (b) subir o teto.
 - **Decisão final (2026-10-18):** o autor escolheu **(b) subir o teto para 15 cartões**. `MAIN_PATH_CARD_LIMIT` passou de 12 para 15 em `seedLessons.test.ts`; a catraca ficou só com 2.12 e F.2 (16 cartões cada), que seguem acima do novo teto e não podem crescer. Dividir lições (a) fica descartado por ora.
 
-### 058 · A revisão de 1 minuto não conta para a missão diária "revise uma lição antiga" (LJ.5.6), achado em 2026-10-18
+### 062 · A revisão de 1 minuto não conta para a missão diária "revise uma lição antiga" (LJ.5.6), achado em 2026-10-18
 
 - **Local:** `ReviewLessonUseCase`/`HasReviewedOldLessonTodayUseCase` (`backend/src/modules/lessons`, regra da H.2 em `backlog-engajamento-gamificacao.md`) e `RecordReviewResultUseCase`.
 - **Origem:** a LJ.5.6 pede que concluir a revisão conte para a missão da H.2 "se a regra dela permitir". Não permite sem mudá-la: a missão verifica `lastReviewedAt` de **uma lição** concluída há 14 dias ou mais, e a revisão de 1 minuto é por **pergunta** (de lições que podem ter sido concluídas ontem). Fazê-la gravar `markReviewed` na lição de origem alteraria também a conquista `lesson_reviewed` e a missão, e deixaria "revisar" valer por três perguntas de lição recente.

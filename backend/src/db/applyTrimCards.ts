@@ -7,7 +7,7 @@ import type { Blocks } from './widgetGoalsMigration'
 
 export { trimCards }
 
-// Migração de conteúdo aditiva (ponto 057, opção d): o seed já não tem o cartão final "Completar esta lição
+// Migração de conteúdo aditiva (ponto 061, opção d): o seed já não tem o cartão final "Completar esta lição
 // libera..." nem os dois cartões curtos da 2.10 em separado, mas nunca sobrescreve lição importada (N.23).
 // Tira e funde só o que casa exatamente com o texto antigo (idempotente, preserva edição).
 // Uso: DATABASE_URL=... npx tsx src/db/applyTrimCards.ts

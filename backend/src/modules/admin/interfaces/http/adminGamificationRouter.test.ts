@@ -157,6 +157,9 @@ describe('GET /admin/gamification/achievements', () => {
       'lesson_reviewed',
       'assemblies_participated',
       'referrals_qualified',
+      'daily_word_first_try',
+      'daily_perfect_days',
+      'daily_timeline_streak',
     ])
     expect(res.body.criteria[0]).toEqual({
       type: 'net_worth',

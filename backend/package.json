@@ -19,7 +19,9 @@
     "db:seed:admin": "tsx src/db/seed.ts",
     "db:seed:lessons": "tsx src/db/seedLessons.ts",
     "db:seed:achievements": "tsx src/db/seedAchievements.ts",
-    "db:seed:missions": "tsx src/db/seedMissions.ts"
+    "db:seed:missions": "tsx src/db/seedMissions.ts",
+    "db:seed:daily": "tsx src/db/seedDaily.ts",
+    "daily:generate-words": "tsx src/scripts/generateDailyAcceptedWords.ts"
   },
   "keywords": [],
   "author": "",

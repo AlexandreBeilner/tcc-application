@@ -7,13 +7,18 @@ import {
   validateMissionPatch,
 } from './catalog'
 import { InvalidMissionError } from './errors'
-import { MICRO_DECISION_STREAK_MISSION_KEY, REVIEW_OLD_LESSON_MISSION_KEY } from './mission'
+import {
+  MICRO_DECISION_STREAK_MISSION_KEY,
+  PLAY_DAILY_MISSION_KEY,
+  REVIEW_OLD_LESSON_MISSION_KEY,
+} from './mission'
 
 describe('missionVerification', () => {
   it.each([
     [{ key: 'lesson_complete', requiresLessonCompletion: true }, 'lesson_completion'],
     [{ key: REVIEW_OLD_LESSON_MISSION_KEY, requiresLessonCompletion: false }, 'server_check'],
     [{ key: MICRO_DECISION_STREAK_MISSION_KEY, requiresLessonCompletion: false }, 'server_check'],
+    [{ key: PLAY_DAILY_MISSION_KEY, requiresLessonCompletion: false }, 'server_check'],
     [{ key: 'feed_read', requiresLessonCompletion: false }, 'client_reported'],
   ])('classifica %j como %s', (mission, expected) => {
     expect(missionVerification(mission)).toBe(expected)

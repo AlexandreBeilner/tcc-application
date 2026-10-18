@@ -42,4 +42,16 @@ describe('describeAchievementProgress', () => {
             '0 de 1 lição revisada',
         )
     })
+
+    it('critérios do Diário', () => {
+        expect(describeAchievementProgress({ criteriaType: 'daily_word_first_try', criteriaValue: 1, progress: 0 })).toBe(
+            '0 de 1 palavra de primeira',
+        )
+        expect(describeAchievementProgress({ criteriaType: 'daily_perfect_days', criteriaValue: 10, progress: 4 })).toBe(
+            '4 de 10 dias perfeitos',
+        )
+        expect(describeAchievementProgress({ criteriaType: 'daily_timeline_streak', criteriaValue: 7, progress: 3 })).toBe(
+            '3 de 7 dias seguidos',
+        )
+    })
 })

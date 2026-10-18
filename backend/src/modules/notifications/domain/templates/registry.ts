@@ -299,9 +299,12 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       weeklyReturnPct: 2.4,
       pendingMissions: 2,
       missionTitle: 'Conclua uma lição',
+      dailyPlayedDays: 4,
     },
     build(payload, { appUrl }) {
       const name = optionalString(payload, 'name')
+      const dailyPlayedDays =
+        typeof payload.dailyPlayedDays === 'number' ? payload.dailyPlayedDays : undefined
       const level = typeof payload.level === 'number' ? payload.level : undefined
       const returnPct =
         typeof payload.weeklyReturnPct === 'number' ? payload.weeklyReturnPct : undefined
@@ -335,7 +338,23 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
             : `Hoje há ${pending} ${pending === 1 ? 'missão esperando' : 'missões esperando'} por você.`,
         })
       }
+      // Trecho do Diário (DI.6.2): dias jogados na semana que passou; quem não jogou nenhum recebe
+      // um convite. Sem dado do Diário, o trecho não aparece.
+      if (dailyPlayedDays !== undefined && dailyPlayedDays > 0) {
+        blocks.push({
+          type: 'paragraph',
+          text: `No Diário, você jogou ${dailyPlayedDays} dos 7 dias da semana.`,
+        })
+      } else if (dailyPlayedDays === 0) {
+        blocks.push({
+          type: 'paragraph',
+          text: 'O Diário é um jogo de 3 minutos, igual para todos: uma palavra, uma pergunta e uma linha do tempo. Que tal conhecer?',
+        })
+      }
       blocks.push({ type: 'button', label: 'Abrir a plataforma', url: `${appUrl}/trilha` })
+      if (dailyPlayedDays !== undefined) {
+        blocks.push({ type: 'button', label: 'Jogar o Diário', url: `${appUrl}/diario` })
+      }
       return {
         subject: 'Seu resumo da semana',
         preheader: 'Seu nível, a evolução da semana e a missão de hoje.',
@@ -436,7 +455,12 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
             type: 'paragraph',
             text: `${name ? `Olá, ${name}. ` : ''}Ela segue de pé até as 21h de hoje (horário de Brasília). Quer fazer uma lição rápida?`,
           },
+          {
+            type: 'paragraph',
+            text: 'Ou, se preferir, o Diário de hoje leva 3 minutos e mantém sua sequência.',
+          },
           { type: 'button', label: 'Fazer uma lição', url: `${appUrl}/trilha` },
+          { type: 'button', label: 'Jogar o Diário', url: `${appUrl}/diario` },
         ],
       }
     },

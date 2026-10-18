@@ -215,6 +215,21 @@ describe('resumo semanal (EM.7.1)', () => {
     expect(text).toContain('O mercado se mexeu')
   })
 
+  it('trecho do Diário (DI.6.2): dias jogados, convite para quem jogou 0, nada sem dado', () => {
+    const played = bodyText('weekly_digest', template.sample)
+    const zero = bodyText('weekly_digest', { ...template.sample, dailyPlayedDays: 0 })
+    const none = bodyText('weekly_digest', { name: 'Ana', level: 3, pendingMissions: 0 })
+
+    expect(played).toContain('você jogou 4 dos 7 dias da semana')
+    expect(zero).toContain('Que tal conhecer?')
+    expect(zero).not.toMatch(/perd|perdeu|falt|deixou de|não jogou/i)
+    expect(none).not.toContain('Diário')
+    for (const text of [played, zero]) {
+      expect(text).not.toContain('—')
+      expect(text).not.toMatch(/R\$|grátis|PRO/)
+    }
+  })
+
   it('sem ranking e sem missão pendente, só o essencial', () => {
     const text = bodyText('weekly_digest', { name: 'Ana', level: 3, pendingMissions: 0 })
 
@@ -279,6 +294,7 @@ describe('lembrete de sequência (EM.7.3)', () => {
     expect(content.subject).toBe('Sua sequência de 12 dias segue de pé')
     expect(text).toContain('segue de pé até as 21h de hoje')
     expect(text).toContain('Quer fazer uma lição rápida?')
+    expect(text).toContain('o Diário de hoje leva 3 minutos e mantém sua sequência')
     expect(JSON.stringify(content)).not.toMatch(
       /perd|última chance|corra|urgente|não deixe|desperdi|falta pouco|restam|—/i,
     )

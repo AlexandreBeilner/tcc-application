@@ -1,14 +1,17 @@
 import {
   LessonNotCompletedTodayError,
+  DailyNotCompletedTodayError,
   MicroDecisionStreakNotReachedError,
   MissionNotFoundError,
   OldLessonNotReviewedTodayError,
 } from '../../domain/errors'
 import {
   MICRO_DECISION_STREAK_MISSION_KEY,
+  PLAY_DAILY_MISSION_KEY,
   REVIEW_OLD_LESSON_MISSION_KEY,
   todayUtc,
 } from '../../domain/mission'
+import type { DailyCompletionChecker } from '../ports/dailyCompletionChecker'
 import type { LessonCompletionChecker } from '../ports/lessonCompletionChecker'
 import type { LessonReviewChecker } from '../ports/lessonReviewChecker'
 import type { MicroDecisionStreakChecker } from '../ports/microDecisionStreakChecker'
@@ -42,6 +45,7 @@ export class CompleteMissionUseCase {
     private readonly lessonCompletionChecker: LessonCompletionChecker,
     private readonly lessonReviewChecker: LessonReviewChecker,
     private readonly microDecisionStreakChecker: MicroDecisionStreakChecker,
+    private readonly dailyCompletionChecker: DailyCompletionChecker,
     private readonly xpAwarder: XpAwarder,
     private readonly streakTracker: StreakTracker,
   ) {}
@@ -93,6 +97,14 @@ export class CompleteMissionUseCase {
         throw new MicroDecisionStreakNotReachedError(
           'sequência de 3 acertos seguidos hoje ainda não alcançada',
         )
+      }
+    }
+
+    // Quarta verificação cruzada real (DI.6.1), mesmo tratamento por `key`.
+    if (mission.key === PLAY_DAILY_MISSION_KEY) {
+      const completed = await this.dailyCompletionChecker.hasCompletedDailyToday(input.userId)
+      if (!completed) {
+        throw new DailyNotCompletedTodayError('o Diário de hoje ainda não foi concluído')
       }
     }
 

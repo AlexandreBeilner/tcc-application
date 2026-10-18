@@ -1,6 +1,21 @@
-import cors from 'cors'
 import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
+import {
+  createDailyAdminUseCases,
+  createDailyCompletionReader,
+  createDailyComposition,
+  createDailyQualityReader,
+} from './modules/daily/composition'
+import { createAdminDailyRouter } from './modules/admin/interfaces/http/adminDailyRouter'
+import {
+  DailyAdminReadsUseCase,
+  DailyContentAdminUseCase,
+  DailyLaunchAdminUseCase,
+  DailyPuzzleAdminUseCase,
+} from './modules/admin/application/useCases/dailyAdmin'
+import { createInProcessDailyAdmin } from './modules/admin/infrastructure/daily/inProcessDailyAdmin'
+import { createApiCors } from './modules/daily/interfaces/http/dailyCors'
+import { createDailyRateLimiter } from './modules/daily/interfaces/http/dailyRateLimit'
 import { createRedisClient } from './infra/redisClient'
 import { readTrustedProxyHops } from './shared/http/trustProxy'
 import { apiSecurityHeaders, JSON_BODY_LIMIT } from './shared/http/securityHeaders'
@@ -290,6 +305,7 @@ import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions
 import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
 import { createInProcessLessonCompletionChecker } from './modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker'
 import { createInProcessLessonReviewChecker } from './modules/missions/infrastructure/lessons/inProcessLessonReviewChecker'
+import { createInProcessDailyCompletionChecker } from './modules/missions/infrastructure/daily/inProcessDailyCompletionChecker'
 import { createInProcessMicroDecisionStreakChecker } from './modules/missions/infrastructure/lessons/inProcessMicroDecisionStreakChecker'
 import { createDrizzleMissionRepository } from './modules/missions/infrastructure/persistence/drizzleMissionRepository'
 import { createMissionsRouter } from './modules/missions/interfaces/http/missionsRouter'
@@ -807,6 +823,7 @@ export function createApp(deps: AppDeps = {}): Express {
       count: (userId) => createDrizzleAssemblyRepository(db).countVotedAssemblies(userId),
     },
     countReferralsQualified: { count: referralsCore.countQualified },
+    getDailyQuality: createDailyQualityReader(db),
     getNetWorth,
     sandboxAssetReader,
   })
@@ -894,6 +911,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessLessonCompletionChecker(hasCompletedLessonToday),
     createInProcessLessonReviewChecker(hasReviewedOldLessonToday),
     createInProcessMicroDecisionStreakChecker(hasMicroDecisionStreakToday),
+    createInProcessDailyCompletionChecker(createDailyCompletionReader(db)),
     createInProcessXpAwarderForMissions(awardXp),
     createInProcessStreakTrackerForMissions(touchStreak),
   )
@@ -1086,7 +1104,13 @@ export function createApp(deps: AppDeps = {}): Express {
   // Um log por requisição, só com logs estruturados ligados (LW.3.5); em desenvolvimento ficaria ruído.
   if (process.env.LOG_FORMAT === 'json') app.use(requestLogger())
   app.use(apiSecurityHeaders())
-  app.use(cors({ origin: frontendUrl }))
+  // Só a origem do app, salvo nas rotas públicas do Diário, que aceitam também a da landing.
+  app.use(
+    createApiCors({
+      appOrigin: frontendUrl,
+      landingOrigin: process.env.LANDING_URL ?? 'https://selucra.com.br',
+    }),
+  )
   if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
   app.use(express.json({ limit: JSON_BODY_LIMIT }))
   app.use(healthRouter)
@@ -1375,6 +1399,17 @@ export function createApp(deps: AppDeps = {}): Express {
       authMiddleware,
     }),
   )
+  // Painel do Diário (DI.5.1): o módulo `daily` decide, o painel audita e expõe.
+  const dailyAdmin = createInProcessDailyAdmin(createDailyAdminUseCases(db))
+  app.use(
+    createAdminDailyRouter({
+      reads: new DailyAdminReadsUseCase(dailyAdmin),
+      launch: new DailyLaunchAdminUseCase(dailyAdmin, recordAdminAction),
+      puzzles: new DailyPuzzleAdminUseCase(dailyAdmin, recordAdminAction),
+      content: new DailyContentAdminUseCase(dailyAdmin, recordAdminAction),
+      authMiddleware,
+    }),
+  )
   app.use(
     createAdminUsersRouter({
       listAdminUsers: new ListAdminUsersUseCase(createDrizzleAdminUserDirectory(db)),
@@ -1433,6 +1468,9 @@ export function createApp(deps: AppDeps = {}): Express {
   app.locals.generateMonthlyRetrospectives = retrospectives.generateMonthly
   // O job que encerra os duelos vencidos é ligado em `server.ts` (nunca em testes de rota).
   app.locals.settleDueDuels = duels.settleDueDuels
+  // Diário (DI.2.1): rotas do jogo sem login, com teto por IP.
+  app.use('/daily', createDailyRateLimiter())
+  app.use(createDailyComposition(db, { authMiddleware, awardXp, touchStreak }).router)
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))
