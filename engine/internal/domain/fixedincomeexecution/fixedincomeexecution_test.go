@@ -51,6 +51,15 @@ func TestPurchase_SaldoInsuficiente(t *testing.T) {
 	}
 }
 
+// Sandbox não mexe no caixa (ponto 063): a compra não exige saldo.
+func TestPurchase_Sandbox_NaoExigeSaldo(t *testing.T) {
+	ctx := PurchaseContext{AccountBalance: 0, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity, IsSandbox: true}
+
+	if _, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow, 0, 0); err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+}
+
 func TestPurchase_PrecificaEBlendaNaPosicao(t *testing.T) {
 	ctx := PurchaseContext{AccountBalance: 5000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
 

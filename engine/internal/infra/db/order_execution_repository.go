@@ -556,8 +556,13 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 		return "", err
 	}
 
+	sandbox, err := isSandboxAsset(ctx, tx, req.AssetID)
+	if err != nil {
+		return "", err
+	}
+
 	for _, fill := range outcome.Fills {
-		if err := applyFillSide(ctx, tx, req.AssetID, req.UserID, req.Side, fill.Quantity, fill.Price); err != nil {
+		if err := applyFillSide(ctx, tx, req.AssetID, req.UserID, req.Side, fill.Quantity, fill.Price, sandbox); err != nil {
 			return "", mapFundsViolation(err)
 		}
 		if !fill.IsSynthetic() {
@@ -565,7 +570,7 @@ func (r *OrderExecutionRepository) Persist(ctx context.Context, req orderexecuti
 			if req.Side == orderbook.SideSell {
 				counterpartySide = orderbook.SideBuy
 			}
-			if err := applyFillSide(ctx, tx, req.AssetID, fill.CounterpartyUserID, counterpartySide, fill.Quantity, fill.Price); err != nil {
+			if err := applyFillSide(ctx, tx, req.AssetID, fill.CounterpartyUserID, counterpartySide, fill.Quantity, fill.Price, sandbox); err != nil {
 				return "", mapFundsViolation(err)
 			}
 			if err := fillRestingOrder(ctx, tx, fill.CounterpartyOrderID, fill.Quantity); err != nil {
@@ -616,10 +621,23 @@ func cancelInvalidResting(ctx context.Context, tx *sql.Tx, orderIDs []string) er
 	return err
 }
 
+// isSandboxAsset diz se o ativo é de ensino (`is_sandbox`, Modo Aprendizado), lido na mesma
+// transação da gravação.
+func isSandboxAsset(ctx context.Context, tx *sql.Tx, assetID string) (bool, error) {
+	var sandbox bool
+	err := tx.QueryRowContext(ctx, `SELECT is_sandbox FROM assets WHERE id = $1`, assetID).Scan(&sandbox)
+	return sandbox, err
+}
+
 // applyFillSide grava o evento e projeta saldo/posição de um dos lados de
 // um Fill — side é o lado desse usuário nesse Fill específico (pode ser o
 // lado da ordem recebida ou o oposto, se for a contraparte real).
-func applyFillSide(ctx context.Context, tx *sql.Tx, assetID, userID string, side orderbook.Side, quantity int, price float64) error {
+//
+// Ativo sandbox (ponto 063) grava o evento e projeta a posição, mas **não mexe no caixa**
+// (`current_balance`, `total_invested`, `total_disinvested`): o Modo Aprendizado não conta pro
+// ranking nem gasta o capital do Mercado Ao Vivo. Quem reconstrói o caixa pelos eventos
+// (integrity, replay do ranking) precisa pular os eventos de ativo sandbox pela mesma regra.
+func applyFillSide(ctx context.Context, tx *sql.Tx, assetID, userID string, side orderbook.Side, quantity int, price float64, sandbox bool) error {
 	eventType := domain.EventSellOrderExecuted
 	if side == orderbook.SideBuy {
 		eventType = domain.EventBuyOrderExecuted
@@ -632,6 +650,10 @@ func applyFillSide(ctx context.Context, tx *sql.Tx, assetID, userID string, side
 		UnitValue: &price,
 	}); err != nil {
 		return err
+	}
+
+	if sandbox {
+		return applyPositionFill(ctx, tx, userID, assetID, side, quantity, price)
 	}
 
 	cost := price * float64(quantity)

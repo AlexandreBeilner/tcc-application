@@ -83,13 +83,14 @@ func TestService_Submit_ExecutaEPersisteOrdemValida(t *testing.T) {
 }
 
 func TestService_Submit_OrdemRejeitadaNaoPersisteNada(t *testing.T) {
-	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserBalance: 1, Sandbox: true}}
+	// Venda sem posição: a rejeição por saldo não vale pra sandbox (ponto 063), a por posição vale.
+	repo := &fakeRepository{loadCtx: Context{ReferencePrice: 25, IncomingUserPosition: 1, Sandbox: true}}
 	svc := NewService(repo)
 
-	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
+	req := Request{UserID: "u1", AssetID: "a1", Side: orderbook.SideSell, Type: orderbook.TypeMarket, Quantity: 10}
 	_, err := svc.Submit(context.Background(), req)
-	if err != ErrInsufficientBalance {
-		t.Fatalf("err = %v, want %v", err, ErrInsufficientBalance)
+	if err != ErrInsufficientPosition {
+		t.Fatalf("err = %v, want %v", err, ErrInsufficientPosition)
 	}
 	if repo.persistCalled {
 		t.Error("Persist não deveria ser chamado quando Execute rejeita a ordem")

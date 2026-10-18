@@ -82,6 +82,7 @@ export function FixedIncomeDetail() {
             assetId,
             ticker: asset!.ticker,
             name: asset!.name,
+            isSandbox: asset!.is_sandbox,
             amount,
             projected: simulateQuery.data,
         })

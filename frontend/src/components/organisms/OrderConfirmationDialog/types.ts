@@ -4,6 +4,8 @@ export interface OrderDraftBase {
     assetId: string
     ticker: string
     name: string
+    // Ativo do Modo Aprendizado: não mexe no caixa (ponto 063), então o resumo não mostra o saldo após a ordem.
+    isSandbox?: boolean
 }
 
 export interface OrderDraftOrder extends OrderDraftBase {

@@ -247,11 +247,18 @@ func (r *FixedIncomeExecutionRepository) PersistPurchase(ctx context.Context, re
 		return err
 	}
 
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE accounts SET current_balance = current_balance - $1, total_invested = total_invested + $1, updated_at = now() WHERE user_id = $2`,
-		req.Amount, req.UserID,
-	); err != nil {
+	// Ativo sandbox não mexe no caixa da conta (ponto 063), só no evento e na posição.
+	sandbox, err := isSandboxAsset(ctx, tx, req.AssetID)
+	if err != nil {
 		return err
+	}
+	if !sandbox {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE accounts SET current_balance = current_balance - $1, total_invested = total_invested + $1, updated_at = now() WHERE user_id = $2`,
+			req.Amount, req.UserID,
+		); err != nil {
+			return err
+		}
 	}
 
 	if _, err := tx.ExecContext(ctx,
@@ -290,11 +297,17 @@ func (r *FixedIncomeExecutionRepository) PersistRedeem(ctx context.Context, req 
 		return err
 	}
 
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE accounts SET current_balance = current_balance + $1, total_disinvested = total_disinvested + $1, updated_at = now() WHERE user_id = $2`,
-		outcome.TotalValue, req.UserID,
-	); err != nil {
+	sandbox, err := isSandboxAsset(ctx, tx, req.AssetID)
+	if err != nil {
 		return err
+	}
+	if !sandbox {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE accounts SET current_balance = current_balance + $1, total_disinvested = total_disinvested + $1, updated_at = now() WHERE user_id = $2`,
+			outcome.TotalValue, req.UserID,
+		); err != nil {
+			return err
+		}
 	}
 
 	if _, err := tx.ExecContext(ctx,

@@ -88,6 +88,21 @@ func consistentSnapshot() Snapshot {
 	}
 }
 
+// Evento de ativo sandbox (ponto 063) move a posição, mas não o caixa.
+func TestReplay_EventoSandboxMoveSoAPosicao(t *testing.T) {
+	r := NewReplay()
+	r.Apply(Event{UserID: "u1", EventType: "initial_deposit", UnitCents: ptrCents(1000000)})
+	r.Apply(Event{UserID: "u1", AssetID: "sand", EventType: "buy_order_executed", Quantity: ptrInt(5), UnitCents: ptrCents(10000), Sandbox: true})
+	r.Apply(Event{UserID: "u1", AssetID: "real", EventType: "buy_order_executed", Quantity: ptrInt(2), UnitCents: ptrCents(10000)})
+
+	if got := r.cash["u1"]; got != 1000000-20000 {
+		t.Errorf("caixa = %d, want %d (só a compra real debita)", got, 1000000-20000)
+	}
+	if got := r.positions[PositionKey{UserID: "u1", AssetID: "sand"}]; got != 5 {
+		t.Errorf("posição sandbox = %d, want 5", got)
+	}
+}
+
 func TestEvaluate_BaseConsistenteNaoTemDivergencia(t *testing.T) {
 	report := Evaluate(consistentSnapshot())
 	if report.Total != 0 || len(report.Divergences) != 0 || report.Truncated {
