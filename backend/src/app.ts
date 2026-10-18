@@ -249,7 +249,9 @@ import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/us
 import { HasReviewedOldLessonTodayUseCase } from './modules/lessons/application/useCases/hasReviewedOldLessonToday'
 import { HasMicroDecisionStreakTodayUseCase } from './modules/lessons/application/useCases/hasMicroDecisionStreakToday'
 import { GetLessonCardFunnelUseCase } from './modules/lessons/application/useCases/getLessonCardFunnel'
+import { GetReviewSessionUseCase } from './modules/lessons/application/useCases/getReviewSession'
 import { RecordCardReachUseCase } from './modules/lessons/application/useCases/recordCardReach'
+import { RecordReviewResultUseCase } from './modules/lessons/application/useCases/recordReviewResult'
 import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
@@ -1401,6 +1403,8 @@ export function createApp(deps: AppDeps = {}): Express {
       answerCheckpoint,
       reviewLesson,
       recordCardReach: new RecordCardReachUseCase(lessonRepository, lessonCardReachRepository),
+      getReviewSession: new GetReviewSessionUseCase(lessonRepository),
+      recordReviewResult: new RecordReviewResultUseCase(lessonRepository),
       authMiddleware,
     }),
   )

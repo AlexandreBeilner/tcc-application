@@ -386,6 +386,13 @@
       "when": 1794600000000,
       "tag": "0054_add_checkpoint_last_response",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794700000000,
+      "tag": "0055_add_checkpoint_review_schedule",
+      "breakpoints": true
     }
   ]
 }

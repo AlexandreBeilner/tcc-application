@@ -34,3 +34,6 @@ export const recordCardReachBodySchema = z.object({
   phase: z.number().int().min(0).max(MAX_CARD_PHASE),
   cardIndex: z.number().int().min(0).max(MAX_CARD_INDEX),
 })
+
+// Resultado de uma pergunta da revisão de 1 minuto (LJ.5.6): acertou sem errar antes.
+export const reviewResultBodySchema = z.object({ correct: z.boolean() })

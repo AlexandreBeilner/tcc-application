@@ -565,3 +565,31 @@ describe('AnswerCheckpointUseCase: prática (LJ.5.5, LJ.5.6)', () => {
     expect(await repo.listCheckpointsForUser('u1', 'l1')).toEqual([])
   })
 })
+
+describe('AnswerCheckpointUseCase: entrada na fila de revisão (LJ.5.6)', () => {
+  const now = new Date('2026-02-01T00:00:00Z')
+  const dueNextDay = new Date('2026-02-02T00:00:00Z')
+
+  it('acertar de primeira não entra na fila', async () => {
+    const { repo, useCase } = build()
+    await answer(useCase, { selectedOption: 1 })
+    const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+    expect(record?.reviewDueAt ?? null).toBeNull()
+  })
+
+  it('acertar depois de errar entra na fila, voltando em 1 dia', async () => {
+    const { repo, useCase } = build()
+    await answer(useCase, { selectedOption: 0 })
+    await answer(useCase, { selectedOption: 1 })
+    const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+    expect(record).toMatchObject({ reviewStage: 0, reviewDueAt: dueNextDay })
+    expect(now.getTime()).toBeLessThan(dueNextDay.getTime())
+  })
+
+  it('o erro sozinho ainda não entra: só a resolução', async () => {
+    const { repo, useCase } = build()
+    await answer(useCase, { selectedOption: 0 })
+    const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+    expect(record?.reviewDueAt ?? null).toBeNull()
+  })
+})

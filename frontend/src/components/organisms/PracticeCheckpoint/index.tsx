@@ -1,5 +1,5 @@
 import { Brain } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCheckpoints } from '../../../features/lessons/useCheckpoints'
 import type { CheckpointView } from '../../../features/lessons/useCheckpoints'
 import { Button } from '../../atoms/Button'
@@ -27,26 +27,28 @@ function showsMiss(view: CheckpointView): boolean {
 export function PracticeCheckpoint({ lessonId, lessonTitle, block, badge, onSettle, onContinue, continueLabel }: PracticeCheckpointProps) {
     const checkpoints = useCheckpoints(lessonId, undefined, true, { practice: true })
     const view = checkpoints.viewFor(block.id)
-    const missedRef = useRef(false)
+    // Houve erro em algum momento (cada formato some com o rastro do erro ao resolver, então guarda-se aqui).
+    const [missedSeen, setMissedSeen] = useState(false)
     const settledRef = useRef(false)
+    // Guardado durante a renderização (e não num efeito): o rastro do erro some da `view` ao resolver.
+    if (showsMiss(view) && !missedSeen) setMissedSeen(true)
 
     useEffect(() => {
-        if (showsMiss(view)) missedRef.current = true
         if (view.solved && !settledRef.current) {
             settledRef.current = true
-            onSettle?.({ solved: true, missed: missedRef.current })
+            onSettle?.({ solved: true, missed: missedSeen })
         }
-    }, [view, onSettle])
+    }, [view, missedSeen, onSettle])
 
     function handleContinue() {
-        if (!view.solved && missedRef.current && !settledRef.current) {
+        if (!view.solved && missedSeen && !settledRef.current) {
             settledRef.current = true
             onSettle?.({ solved: false, missed: true })
         }
         onContinue()
     }
 
-    const missed = missedRef.current || showsMiss(view)
+    const missed = missedSeen
 
     return (
         <div className={styles.practice}>

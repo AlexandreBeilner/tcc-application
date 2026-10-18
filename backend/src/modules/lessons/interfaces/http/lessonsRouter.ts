@@ -20,13 +20,16 @@ import type { AnswerMicroDecisionUseCase } from '../../application/useCases/answ
 import type { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import type { GetLessonUseCase } from '../../application/useCases/getLesson'
 import type { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import type { GetReviewSessionUseCase } from '../../application/useCases/getReviewSession'
 import type { RecordCardReachUseCase } from '../../application/useCases/recordCardReach'
+import type { RecordReviewResultUseCase } from '../../application/useCases/recordReviewResult'
 import type { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import {
   advanceLessonBodySchema,
   answerCheckpointBodySchema,
   answerMicroDecisionBodySchema,
   recordCardReachBodySchema,
+  reviewResultBodySchema,
 } from './schemas'
 
 export interface LessonsRouterDeps {
@@ -37,6 +40,8 @@ export interface LessonsRouterDeps {
   answerCheckpoint: AnswerCheckpointUseCase
   reviewLesson: ReviewLessonUseCase
   recordCardReach: RecordCardReachUseCase
+  getReviewSession: GetReviewSessionUseCase
+  recordReviewResult: RecordReviewResultUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -52,6 +57,49 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
     const lessons = await deps.getTrackMap.execute({ userId: req.auth.userId })
     res.status(200).json({ lessons })
   })
+
+  // Revisão de 1 minuto (LJ.5.6). Declarada antes de `/lessons/:id` por clareza; tem dois segmentos, então não colide.
+  router.get('/lessons/review/session', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    res.status(200).json(await deps.getReviewSession.execute({ userId: req.auth.userId }))
+  })
+
+  router.post(
+    '/lessons/:id/checkpoints/:checkpointId/review',
+    deps.authMiddleware.authenticate,
+    async (req, res) => {
+      if (!req.auth) {
+        res.status(401).json({ error: 'token ausente' })
+        return
+      }
+
+      const parsed = reviewResultBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+        return
+      }
+
+      try {
+        const result = await deps.recordReviewResult.execute({
+          userId: req.auth.userId,
+          lessonId: req.params.id as string,
+          checkpointId: req.params.checkpointId as string,
+          correct: parsed.data.correct,
+        })
+        res.status(200).json(result)
+      } catch (err) {
+        if (err instanceof LessonNotFoundError || err instanceof CheckpointNotFoundError) {
+          res.status(404).json({ error: err.message })
+          return
+        }
+        throw err
+      }
+    },
+  )
 
   router.get('/lessons/:id', deps.authMiddleware.authenticate, async (req, res) => {
     if (!req.auth) {

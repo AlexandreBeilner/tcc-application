@@ -507,6 +507,9 @@ export const userLessonCheckpoints = pgTable(
       | { kind: 'categorize'; groups: number[] }
       | { kind: 'match'; pairs: [number, number][]; misses: number }
     >(),
+    // Revisão espaçada (LJ.5.6): quantas revisões já passou (0 a 3) e quando volta (nulo = fora da fila).
+    reviewStage: smallint('review_stage').notNull().default(0),
+    reviewDueAt: timestamp('review_due_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.lessonId, table.checkpointId] })],

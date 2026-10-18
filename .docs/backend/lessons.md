@@ -69,6 +69,27 @@ Pergunta intermediária da lição (bloco `check` de `lessons.blocks`, RC.3.2). 
 - `GET /lessons/:id` devolve `checkpoints: [{ checkpointId, solved, attempts, wrongOptions, firstTry, estimate?, sequence?, groups?, match? }]` (`estimate` só em estimativa já respondida, para restaurar a régua; `sequence` só em ordenar já resolvido; `groups` só em agrupar já resolvido; `match: { pairs }` só em ligar, inclusive em andamento) (só o que o próprio usuário tentou) e `checkpointsFirstTry` (quantos acertou de primeira) para o player restaurar a tela.
 - **Gate:** `POST /lessons/:id/progress` ao sair de uma fase (passo `s` para `s+1`) exige as `check` dessa fase resolvidas: `422 { code: 'checkpoint_unsolved' }`. Só dispara na transição (quem já passou da fase ou reenvia o passo gravado não é afetado); lição sem `blocks` não tem checkpoint.
 
+### `GET /lessons/review/session`
+
+Revisão de 1 minuto (LJ.5.6): três perguntas que a pessoa resolveu depois de errar e que chegaram ao dia de voltar. **Auth:** Bearer.
+
+- **Sucesso `200`:** `{ ready: boolean, questions: [{ lessonId, lessonTitle, block }] }`. `ready` só é `true` com **exatamente 3 perguntas** (o mínimo para o cartão aparecer no hub é o próprio tamanho da revisão); abaixo disso vem `{ ready: false, questions: [] }`. Nunca há contagem de pendências na resposta (sem cobrança). `block` é a pergunta pública, sem gabarito nem explicação.
+- **Erros:** `401`.
+- **Regra:** `GetReviewSessionUseCase` + `buildReviewSession` (`domain/review.ts`): as vencidas há mais tempo primeiro; pergunta que não existe mais no conteúdo publicado é descartada.
+- **Fila:** `user_lesson_checkpoints.review_stage` (revisões já acertadas, 0 a 3) e `review_due_at` (quando volta; nulo = fora da fila), migration `0055`. Uma pergunta **entra** ao ser resolvida depois de errar (tentativa a mais nos formatos por índice, par recusado em ligar, estimativa fora da tolerância), com `stage 0` e retorno em 1 dia; a migração também enfileirou as que já estavam nessa situação. Retornos em 1, 3 e 7 dias.
+- Para responder, o cliente usa `POST /lessons/:id/checkpoints/:checkpointId/answer` com `practice: true` (leitura, nada é gravado) e depois avisa o resultado na rota abaixo.
+
+### `POST /lessons/:id/checkpoints/:checkpointId/review`
+
+Resultado de uma pergunta da revisão de 1 minuto. **Auth:** Bearer.
+
+- **Payload:** `{ correct: boolean }` (acertou **sem errar antes** nesta revisão).
+- **Sucesso `200`:** `{ recorded: boolean }`. `recorded: false` quando a pergunta não estava vencida (já respondida, ou fora da fila): nada muda.
+- **Erros:** `400` payload inválido; `401`; `404` lição ou pergunta (sem resposta gravada da pessoa) inexistente.
+- **Regra:** `RecordReviewResultUseCase`. Acertar avança o estágio e reagenda (1, 3 e 7 dias; o terceiro acerto tira a pergunta da fila); errar volta ao primeiro estágio (volta em 1 dia), sem perder nada. Só age em pergunta vencida e só uma vez por vencimento (a gravação confere o `review_due_at` lido), então repetir o envio é inofensivo. **Nunca** mexe em XP, streak, missão ou conquista (ver o ponto 058 de `pontos-em-aberto-decisao-produto.md` sobre a missão de revisão).
+
+---
+
 ### `POST /lessons/:id/progress`
 
 - **Autenticação:** Bearer token.

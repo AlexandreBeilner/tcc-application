@@ -81,6 +81,17 @@ export interface LessonRepository {
   listCheckpointsForUser(userId: string, lessonId: string): Promise<CheckpointRecord[]>
   // Todas as perguntas já respondidas pela pessoa, de qualquer lição ("Relembra?", LJ.5.5).
   listAllCheckpointsForUser(userId: string): Promise<UserCheckpointRecord[]>
+  // Perguntas da fila de revisão (LJ.5.6) com `reviewDueAt` até `now`, as vencidas há mais tempo primeiro.
+  listDueReviewsForUser(userId: string, now: Date, limit: number): Promise<UserCheckpointRecord[]>
+  // Reagenda uma revisão só se ela ainda estiver vencida com o `expectedDueAt` lido (duas respostas
+  // concorrentes não avançam duas vezes). `next.dueAt` nulo tira a pergunta da fila. Devolve se gravou.
+  scheduleReview(
+    userId: string,
+    lessonId: string,
+    checkpointId: string,
+    next: { stage: number; dueAt: Date | null },
+    expectedDueAt: Date,
+  ): Promise<boolean>
   // Registra uma tentativa de pergunta intermediária (RC.3.2), atomicamente:
   // cria a linha na primeira tentativa, incrementa `attempts`, acrescenta
   // `choice` (alternativa errada; `null` em erro numérico) a `wrongOptions` e
@@ -97,6 +108,8 @@ export interface LessonRepository {
       // Formatos que resolvem na 1ª resposta mesmo sem acertar (estimativa, LJ-D1): grava
       // `solvedAt` com `correct` falso. Omitido, vale `correct`.
       solved?: boolean
+      // Resolvida depois de errar (LJ.5.6): entra na fila de revisão, voltando neste instante.
+      reviewDueAt?: Date
       lastResponse?: CheckpointLastResponse
     },
   ): Promise<CheckpointRecord>

@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
@@ -120,5 +120,68 @@ describe.skipIf(!databaseUrl)('drizzleLessonRepository.recordCheckpointAnswer (b
     expect(await repo().listAllCheckpointsForUser('00000000-0000-0000-0000-000000000000')).toEqual(
       [],
     )
+  })
+  it('fila de revisão: entra ao resolver com erro, lista só o vencido e reagenda uma vez por vencimento', async () => {
+    const solved = new Date('2026-10-18T12:00:00Z')
+    const due = new Date('2026-10-19T12:00:00Z')
+    await repo().recordCheckpointAnswer(userId, lessonId, 'rev1', {
+      choice: 0,
+      correct: false,
+      answeredAt: solved,
+    })
+    await repo().recordCheckpointAnswer(userId, lessonId, 'rev1', {
+      choice: 1,
+      correct: true,
+      answeredAt: solved,
+      reviewDueAt: due,
+    })
+
+    expect(
+      await repo().listDueReviewsForUser(userId, new Date('2026-10-19T11:00:00Z'), 10),
+    ).toEqual([])
+    const listed = await repo().listDueReviewsForUser(userId, new Date('2026-10-19T13:00:00Z'), 10)
+    expect(listed.map((c) => c.checkpointId)).toEqual(['rev1'])
+    expect(listed[0]).toMatchObject({ lessonId, reviewStage: 0, reviewDueAt: due })
+
+    const next = { stage: 1, dueAt: new Date('2026-10-22T13:00:00Z') }
+    expect(await repo().scheduleReview(userId, lessonId, 'rev1', next, due)).toBe(true)
+    // O mesmo vencimento não vale duas vezes.
+    expect(await repo().scheduleReview(userId, lessonId, 'rev1', next, due)).toBe(false)
+    expect(
+      await repo().listDueReviewsForUser(userId, new Date('2026-10-19T13:00:00Z'), 10),
+    ).toEqual([])
+
+    expect(
+      await repo().scheduleReview(userId, lessonId, 'rev1', { stage: 3, dueAt: null }, next.dueAt),
+    ).toBe(true)
+    const [row] = (await repo().listCheckpointsForUser(userId, lessonId)).filter(
+      (c) => c.checkpointId === 'rev1',
+    )
+    expect(row).toMatchObject({ reviewStage: 3, reviewDueAt: null })
+  })
+  it('reagendar confere o vencimento mesmo quando o banco tem microssegundos', async () => {
+    await repo().recordCheckpointAnswer(userId, lessonId, 'rev-us', {
+      choice: 1,
+      correct: true,
+      answeredAt,
+    })
+    await db.execute(
+      sql`update user_lesson_checkpoints set review_due_at = '2026-10-17 14:21:03.245236+00' where user_id = ${userId} and checkpoint_id = 'rev-us'`,
+    )
+    const [row] = await repo().listDueReviewsForUser(userId, new Date('2026-10-18T00:00:00Z'), 50)
+    const target = (
+      await repo().listDueReviewsForUser(userId, new Date('2026-10-18T00:00:00Z'), 50)
+    ).find((c) => c.checkpointId === 'rev-us')
+    expect(row).toBeDefined()
+
+    expect(
+      await repo().scheduleReview(
+        userId,
+        lessonId,
+        'rev-us',
+        { stage: 1, dueAt: new Date('2026-10-21T00:00:00Z') },
+        target?.reviewDueAt as Date,
+      ),
+    ).toBe(true)
   })
 })

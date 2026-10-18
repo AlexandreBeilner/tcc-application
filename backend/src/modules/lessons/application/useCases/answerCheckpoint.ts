@@ -20,6 +20,7 @@ import type {
   CheckResponse,
   EstimateResult,
 } from '../../domain/widgets/lessonBlocks'
+import { firstReview } from '../../domain/review'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface AnswerCheckpointInput extends CheckResponse {
@@ -126,6 +127,8 @@ export class AnswerCheckpointUseCase {
       return this.answerMatchPair(input, block, correct, existing)
     }
 
+    // Resolvida depois de errar (ou estimativa fora da tolerância): entra na fila de revisão (LJ.5.6).
+    const missedOnSolve = estimate.estimate ? !correct : correct && (existing?.attempts ?? 0) > 0
     const saved = await this.lessonRepository.recordCheckpointAnswer(
       input.userId,
       input.lessonId,
@@ -134,6 +137,7 @@ export class AnswerCheckpointUseCase {
         choice: input.selectedOption ?? null,
         correct,
         answeredAt: this.clock(),
+        ...(missedOnSolve ? { reviewDueAt: firstReview(this.clock()).dueAt as Date } : {}),
         ...(estimate.estimate
           ? {
               solved: true,
@@ -191,6 +195,7 @@ export class AnswerCheckpointUseCase {
         solved: done,
         answeredAt: this.clock(),
         lastResponse: { kind: 'match', pairs, misses },
+        ...(done && misses > 0 ? { reviewDueAt: firstReview(this.clock()).dueAt as Date } : {}),
       },
     )
     return {

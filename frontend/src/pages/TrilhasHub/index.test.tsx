@@ -3,13 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { listLessons } from '../../services/lessons'
+import { getReviewSession, listLessons } from '../../services/lessons'
 import type { Lesson } from '../../services/lessons'
 import { getProgression, getStreak } from '../../services/gamification'
 import { TrilhasHub } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/lessons', () => ({ listLessons: vi.fn() }))
+vi.mock('../../services/lessons', () => ({ listLessons: vi.fn(), getReviewSession: vi.fn() }))
 vi.mock('../../services/gamification', () => ({ getProgression: vi.fn(), getStreak: vi.fn() }))
 
 function renderHub() {
@@ -18,6 +18,7 @@ function renderHub() {
         [
             { path: '/trilha', element: <TrilhasHub /> },
             { path: '/trilha/mapa/:trackNumber', element: <div>tela de mapa da trilha</div> },
+            { path: '/trilha/revisao', element: <div>tela de revisão</div> },
         ],
         { initialEntries: ['/trilha'] },
     )
@@ -72,6 +73,7 @@ describe('TrilhasHub (tela 3.1, backlog engajamento O.1)', () => {
             monthlySalary: 200,
         })
         vi.mocked(getStreak).mockResolvedValue({ currentStreak: 1, longestStreak: 1 })
+        vi.mocked(getReviewSession).mockResolvedValue({ ready: false, questions: [] })
     })
 
     afterEach(() => {
@@ -178,5 +180,36 @@ describe('TrilhasHub (tela 3.1, backlog engajamento O.1)', () => {
         renderHub()
 
         expect(await screen.findByText('Não foi possível carregar as trilhas agora. Tente novamente em instantes.')).toBeInTheDocument()
+    })
+
+    describe('revisão de 1 minuto (LJ.5.6)', () => {
+        const question = (id: string) => ({
+            lessonId: 'lesson-1',
+            lessonTitle: 'O que é investir',
+            block: { type: 'check', id, kind: 'single', prompt: id, options: ['a', 'b'] },
+        })
+
+        it('sem as 3 perguntas vencidas, o cartão não aparece', async () => {
+            vi.mocked(listLessons).mockResolvedValue({ lessons: [lesson({ id: '1', status: 'available' })] })
+
+            renderHub()
+
+            await screen.findByText('Trilhas')
+            await waitFor(() => expect(getReviewSession).toHaveBeenCalled())
+            expect(screen.queryByText('Revisão de 1 minuto')).not.toBeInTheDocument()
+        })
+
+        it('com as 3 vencidas, mostra o convite sem contagem de pendência e abre a revisão', async () => {
+            vi.mocked(listLessons).mockResolvedValue({ lessons: [lesson({ id: '1', status: 'available' })] })
+            vi.mocked(getReviewSession).mockResolvedValue({ ready: true, questions: [question('a'), question('b'), question('c')] })
+
+            renderHub()
+
+            const card = await screen.findByRole('button', { name: /Revisão de 1 minuto/ })
+            expect(card).toHaveTextContent('3 perguntas')
+            expect(card.textContent).not.toMatch(/atrasad|pendente|restam/i)
+            fireEvent.click(card)
+            expect(await screen.findByText('tela de revisão')).toBeInTheDocument()
+        })
     })
 })

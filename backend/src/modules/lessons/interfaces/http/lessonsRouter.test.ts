@@ -8,7 +8,9 @@ import { AnswerMicroDecisionUseCase } from '../../application/useCases/answerMic
 import { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import { GetLessonUseCase } from '../../application/useCases/getLesson'
 import { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import { GetReviewSessionUseCase } from '../../application/useCases/getReviewSession'
 import { RecordCardReachUseCase } from '../../application/useCases/recordCardReach'
+import { RecordReviewResultUseCase } from '../../application/useCases/recordReviewResult'
 import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD } from '../../domain/lesson'
 import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
@@ -71,6 +73,9 @@ const lessonsWithCheck = lessons.map((lesson) =>
 
 // `minStepIntervalMs` 0 por padrão: os testes de rota não são sobre o tempo
 // mínimo entre passos (S.4, coberto no caso de uso e no teste dedicado abaixo).
+// Relógio da revisão de 1 minuto (LJ.5.6): os testes o adiantam para vencer as perguntas.
+let reviewClock = () => new Date()
+
 function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
   const lessonRepository = createFakeLessonRepository(lessonSet)
   const tokenIssuer = createFakeTokenIssuer()
@@ -103,6 +108,8 @@ function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
       answerCheckpoint,
       reviewLesson,
       recordCardReach,
+      getReviewSession: new GetReviewSessionUseCase(lessonRepository, () => reviewClock()),
+      recordReviewResult: new RecordReviewResultUseCase(lessonRepository, () => reviewClock()),
       authMiddleware,
     }),
   )
@@ -976,6 +983,119 @@ describe('lessons routes', () => {
       expect(ahead.status).toBe(422)
       expect(ahead.body.code).toBe('step_out_of_order')
       expect((await request(app).post(url).send({ phase: 0, cardIndex: 0 })).status).toBe(401)
+    })
+  })
+  describe('revisão de 1 minuto (LJ.5.6)', () => {
+    const checks = ['q1', 'q2', 'q3', 'q4']
+    const reviewLessons = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: checks.map((id) => ({
+                  type: 'check' as const,
+                  id,
+                  kind: 'single' as const,
+                  prompt: `Pergunta ${id}`,
+                  options: ['a', 'b'],
+                  answer: 1,
+                  explanation: 'Porque b.',
+                })),
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+
+    async function seedMisses(
+      lessonRepository: ReturnType<typeof buildApp>['lessonRepository'],
+      userId: string,
+    ) {
+      const solvedAt = new Date('2026-10-01T12:00:00Z')
+      for (const id of checks) {
+        await lessonRepository.recordCheckpointAnswer(userId, 'l1', id, {
+          choice: 0,
+          correct: false,
+          answeredAt: solvedAt,
+        })
+        await lessonRepository.recordCheckpointAnswer(userId, 'l1', id, {
+          choice: 1,
+          correct: true,
+          answeredAt: solvedAt,
+          reviewDueAt: new Date('2026-10-02T12:00:00Z'),
+        })
+      }
+    }
+
+    beforeEach(() => {
+      reviewClock = () => new Date('2026-10-05T12:00:00Z')
+    })
+
+    it('GET /lessons/review/session exige token e devolve três perguntas sem gabarito', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, reviewLessons)
+      expect((await request(app).get('/lessons/review/session')).status).toBe(401)
+      await seedMisses(lessonRepository, 'u1')
+
+      const res = await request(app)
+        .get('/lessons/review/session')
+        .set('Authorization', authHeader(tokenIssuer))
+
+      expect(res.status).toBe(200)
+      expect(res.body.ready).toBe(true)
+      expect(res.body.questions).toHaveLength(3)
+      expect(res.body.questions[0]).toMatchObject({ lessonId: 'l1', lessonTitle: 'Lição 0.1' })
+      expect(JSON.stringify(res.body)).not.toContain('Porque b.')
+    })
+
+    it('sem perguntas vencidas, não há revisão', async () => {
+      const { app, tokenIssuer } = buildApp(0, reviewLessons)
+      const res = await request(app)
+        .get('/lessons/review/session')
+        .set('Authorization', authHeader(tokenIssuer))
+      expect(res.body).toEqual({ ready: false, questions: [] })
+    })
+
+    it('POST .../review grava o resultado uma vez e valida o corpo', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, reviewLessons)
+      const auth = authHeader(tokenIssuer)
+      await seedMisses(lessonRepository, 'u1')
+      const url = '/lessons/l1/checkpoints/q1/review'
+
+      expect((await request(app).post(url).set('Authorization', auth).send({})).status).toBe(400)
+      const first = await request(app).post(url).set('Authorization', auth).send({ correct: true })
+      const second = await request(app).post(url).set('Authorization', auth).send({ correct: true })
+
+      expect(first.body).toEqual({ recorded: true })
+      expect(second.body).toEqual({ recorded: false })
+      const q1 = (await lessonRepository.listCheckpointsForUser('u1', 'l1')).find(
+        (c) => c.checkpointId === 'q1',
+      )
+      expect(q1?.reviewStage).toBe(1)
+    })
+
+    it('POST .../review responde 404 para pergunta ou lição inexistente', async () => {
+      const { app, tokenIssuer } = buildApp(0, reviewLessons)
+      const auth = authHeader(tokenIssuer)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/l1/checkpoints/nope/review')
+            .set('Authorization', auth)
+            .send({ correct: true })
+        ).status,
+      ).toBe(404)
+      expect(
+        (
+          await request(app)
+            .post('/lessons/zz/checkpoints/q1/review')
+            .set('Authorization', auth)
+            .send({ correct: true })
+        ).status,
+      ).toBe(404)
     })
   })
 })

@@ -170,3 +170,9 @@ export interface ReviewLessonResult {
     // `streakMilestone` em `AdvanceLessonResult` quando foi introduzido.
     unlockedAchievements: UnlockedAchievement[]
 }
+
+// `GET /lessons/review/session` (LJ.5.6): `ready` só com as 3 perguntas completas.
+export interface ReviewSession {
+    ready: boolean
+    questions: PracticeQuestion[]
+}

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { lessons, userLessonCheckpoints, userLessonProgress } from '../../../../db/schema'
 import type {
@@ -56,6 +56,8 @@ function toCheckpointRecord(row: typeof userLessonCheckpoints.$inferSelect): Che
     wrongOptions: row.wrongOptions,
     solvedAt: row.solvedAt,
     lastResponse: (row.lastResponse as CheckpointLastResponse | null) ?? null,
+    reviewStage: row.reviewStage,
+    reviewDueAt: row.reviewDueAt,
   }
 }
 
@@ -203,10 +205,41 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
       return rows.map((row) => ({ ...toCheckpointRecord(row), lessonId: row.lessonId }))
     },
 
+    async listDueReviewsForUser(userId, now, limit) {
+      const t = userLessonCheckpoints
+      const rows = await db
+        .select()
+        .from(t)
+        .where(and(eq(t.userId, userId), isNotNull(t.solvedAt), lte(t.reviewDueAt, now)))
+        .orderBy(asc(t.reviewDueAt))
+        .limit(limit)
+      return rows.map((row) => ({ ...toCheckpointRecord(row), lessonId: row.lessonId }))
+    },
+
+    async scheduleReview(userId, lessonId, checkpointId, next, expectedDueAt) {
+      const t = userLessonCheckpoints
+      const updated = await db
+        .update(t)
+        .set({ reviewStage: next.stage, reviewDueAt: next.dueAt })
+        .where(
+          and(
+            eq(t.userId, userId),
+            eq(t.lessonId, lessonId),
+            eq(t.checkpointId, checkpointId),
+            // O Postgres guarda microssegundos e o `Date` do JS só milissegundos: compara no mesmo grão.
+            sql`date_trunc('milliseconds', ${t.reviewDueAt}) = ${expectedDueAt.toISOString()}::timestamptz`,
+          ),
+        )
+        .returning({ checkpointId: t.checkpointId })
+      return updated.length > 0
+    },
+
     async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {
       const t = userLessonCheckpoints
       const solvedAt = (answer.solved ?? answer.correct) ? answer.answeredAt : null
       const lastResponse = answer.lastResponse ?? null
+      // Entra na fila de revisão (LJ.5.6) no primeiro estágio; sem isso, não mexe na fila.
+      const review = answer.reviewDueAt ? { reviewStage: 0, reviewDueAt: answer.reviewDueAt } : {}
       const initialWrong =
         answer.correct || answer.choice === null
           ? sql`'{}'::smallint[]`
@@ -221,6 +254,7 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
           wrongOptions: initialWrong,
           solvedAt,
           lastResponse,
+          ...review,
         })
         .onConflictDoUpdate({
           target: [t.userId, t.lessonId, t.checkpointId],
@@ -232,6 +266,7 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
                 : sql`CASE WHEN ${answer.choice} = ANY(${t.wrongOptions}) THEN ${t.wrongOptions} ELSE array_append(${t.wrongOptions}, ${answer.choice}::smallint) END`,
             solvedAt,
             lastResponse,
+            ...review,
           },
           // Já resolvido: não escreve (a resposta vira leitura).
           setWhere: isNull(t.solvedAt),

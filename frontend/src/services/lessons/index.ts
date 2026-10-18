@@ -6,6 +6,7 @@ import type {
     GetLessonResult,
     ListLessonsResult,
     ReviewLessonResult,
+    ReviewSession,
 } from './types'
 
 export type {
@@ -20,6 +21,7 @@ export type {
     CheckpointState,
     EstimateResult,
     ReviewLessonResult,
+    ReviewSession,
     MicroDecisionType,
     UnlockedAchievement,
 } from './types'
@@ -71,4 +73,18 @@ export function reviewLesson(token: string, id: string): Promise<ReviewLessonRes
 // do cartão na fase. Fire-and-forget do player; o resultado não muda nada na tela.
 export function recordCardReach(token: string, id: string, phase: number, cardIndex: number): Promise<{ recorded: boolean }> {
     return apiRequest<{ recorded: boolean }>(`/lessons/${id}/cards/reached`, { token, method: 'POST', body: { phase, cardIndex } })
+}
+
+// Revisão de 1 minuto (LJ.5.6): as 3 perguntas vencidas e o resultado de cada uma. `correct` é "acertou sem errar
+// antes"; a rota só age em pergunta vencida, uma vez por vencimento.
+export function getReviewSession(token: string): Promise<ReviewSession> {
+    return apiRequest<ReviewSession>('/lessons/review/session', { token })
+}
+
+export function recordReviewResult(token: string, id: string, checkpointId: string, correct: boolean): Promise<{ recorded: boolean }> {
+    return apiRequest<{ recorded: boolean }>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/review`, {
+        token,
+        method: 'POST',
+        body: { correct },
+    })
 }

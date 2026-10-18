@@ -207,6 +207,9 @@ export interface CheckpointRecord {
   // Resposta dos formatos que não são por índice (LJ.2.1). Estimativa: o chute e se caiu na
   // tolerância ("na mosca"). `null` em `single`/`true_false`.
   lastResponse?: CheckpointLastResponse | null
+  // Revisão espaçada (LJ.5.6): revisões já acertadas e quando a pergunta volta (`null`/ausente: fora da fila).
+  reviewStage?: number
+  reviewDueAt?: Date | null
 }
 
 // Estimativa: o chute e se caiu na tolerância. Ordenar: a ordem certa que a pessoa montou (só gravada ao
