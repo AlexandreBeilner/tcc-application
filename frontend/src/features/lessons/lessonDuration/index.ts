@@ -9,6 +9,8 @@ import type { Lesson } from '../../../services/lessons'
 export const READING_CHARS_PER_SECOND = 15
 export const CHECK_SECONDS = 15
 export const WIDGET_SECONDS = 30
+// Widget com missão (LJ.3.1): a pessoa tenta até acertar, então leva mais que explorar.
+export const MISSION_SECONDS = 45
 export const MIN_MINUTES = 2
 
 // Widgets que são texto de leitura, não ferramenta para mexer: contam pelos caracteres.
@@ -25,6 +27,7 @@ function stringPropsLength(props: unknown): number {
 export function cardSeconds(card: PlayerCard): number {
     if (card.kind === 'text') return plainLessonText(card.text).length / READING_CHARS_PER_SECOND
     if (card.kind === 'check') return CHECK_SECONDS
+    if (card.block.goal) return MISSION_SECONDS
     return READ_ONLY_WIDGETS.has(card.block.widget) ? stringPropsLength(card.block.props) / READING_CHARS_PER_SECOND : WIDGET_SECONDS
 }
 

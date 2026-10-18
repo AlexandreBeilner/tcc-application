@@ -17,6 +17,25 @@ describe('lessonScore', () => {
     })
 })
 
+describe('lessonScore com missão de widget (LJ.3.1)', () => {
+    const mission = (id: string): PlayerCard => ({
+        kind: 'widget',
+        block: { type: 'widget', id, widget: 'real-return', props: {}, goal: { text: 't', metric: 'm', op: 'lt', value: 0, reveal: 'r' } },
+    })
+    const plainWidget: PlayerCard = { kind: 'widget', block: { type: 'widget', id: 'w', widget: 'callout', props: {} } }
+
+    it('conta a missão junto com as perguntas e ignora widget sem missão', () => {
+        const states: Record<string, 'first-try' | 'later' | 'pending'> = { a: 'first-try', m: 'later' }
+        const score = lessonScore([[check('a'), plainWidget, mission('m')]], (id) => states[id])
+        expect(score).toEqual({ total: 2, firstTry: 1, states: ['first-try', 'later'] })
+    })
+
+    it('estado indefinido tira o cartão da conta (missão em revisão)', () => {
+        const score = lessonScore([[check('a'), mission('m')]], (id) => (id === 'm' ? undefined : 'first-try'))
+        expect(score).toEqual({ total: 1, firstTry: 1, states: ['first-try'] })
+    })
+})
+
 describe('scoreTitle', () => {
     it.each([
         [{ total: 5, firstTry: 5 }, 'Na mosca!'],

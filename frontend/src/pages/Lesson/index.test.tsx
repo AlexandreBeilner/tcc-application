@@ -1429,6 +1429,74 @@ describe('Lesson (tela 3.2)', () => {
         })
     })
 
+    describe('missão de widget (LJ.3.1)', () => {
+        const mission = {
+            type: 'widget',
+            id: 'juro-real',
+            widget: 'real-return',
+            props: { nominalPct: 8, inflationPct: 5, amount: 10000 },
+            goal: {
+                text: 'Deixe o rendimento real negativo',
+                metric: 'realReturnPct',
+                op: 'lt',
+                value: 0,
+                reveal: 'a inflação passou o rendimento.',
+            },
+        }
+        const withMission = (overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                blocks: { schemaVersion: 1, phases: { scenario: [mission], microDecision: [], revelation: [] } },
+                ...overrides,
+            })
+
+        it('o Continuar fica travado até atingir o alvo, que libera e mostra o que se descobriu', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission() })
+
+            renderLesson()
+
+            expect(await screen.findByText(/Missão:/)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+            fireEvent.change(screen.getByLabelText(/Inflação:/), { target: { value: '9' } })
+
+            expect(await screen.findByText(/a inflação passou o rendimento/)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+        })
+
+        it('a missão cumprida entra no placar da tela final; missão que ficou para trás não conta', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission() })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+            const { unmount } = renderLesson()
+            await screen.findByText(/Missão:/)
+            fireEvent.change(screen.getByLabelText(/Inflação:/), { target: { value: '9' } })
+            await screen.findByText(/a inflação passou/)
+            for (const step of [1, 2, 3]) {
+                vi.mocked(advanceLesson).mockResolvedValue({ currentStep: step, completed: step === 3 })
+                fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+                await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', step))
+            }
+            expect(await screen.findByText('1 de 1 de primeira')).toBeInTheDocument()
+            unmount()
+
+            // Retomar na tela final: a missão nunca foi feita nesta sessão, então não entra na conta.
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission({ currentStep: 3 }) })
+            renderLesson()
+            await screen.findByRole('heading', { level: 1, name: 'Lição concluída' })
+            expect(screen.queryByText(/de primeira/)).not.toBeInTheDocument()
+        })
+
+        it('em revisão nada trava', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withMission({ status: 'completed' }) })
+
+            renderLesson()
+
+            expect(await screen.findByText(/Missão:/)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+        })
+    })
+
     describe('tempo estimado (LJ.5.2)', () => {
         const long = { scenarioText: 'a'.repeat(3000), revelationText: 'a'.repeat(1500) }
 

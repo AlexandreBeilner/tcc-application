@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { LessonBlocks, WidgetId } from '../../domain/widgets/lessonBlocks'
+import { WIDGET_MISSION_METRICS } from '../../domain/widgets/widgetGoal'
 
 // Validação do contrato `blocks` (RC.3.1; tipos em `domain/widgets`). Cada fase
 // (Cenário, Micro-decisão, Revelação) vira uma lista de blocos tipados em vez
@@ -239,6 +240,17 @@ const savingsVsSelicProps = z.object({
 // aceitar props que nenhum widget lê.
 const emptyProps = z.object({}).strict()
 
+// Calculadora de juros: valores iniciais opcionais, para a missão (LJ.3.1) partir de um capital já preenchido.
+const growthCalculatorProps = z
+  .object({
+    initialCapital: z.number().min(0).max(10_000_000),
+    monthlyContribution: z.number().min(0).max(1_000_000),
+    ratePct: z.number().min(0).max(100),
+    periodYears: z.number().int().min(1).max(40),
+  })
+  .partial()
+  .strict()
+
 const liveIndicatorProps = z.object({ ticker: z.string().min(1).max(20) })
 const liveMacroProps = z.object({ windowDays: z.number().int().min(7).max(365).optional() })
 
@@ -402,7 +414,7 @@ export const widgetPropsSchemas = {
   }),
   'tax-decision-tree': emptyProps,
   'copom-timeline': emptyProps,
-  'growth-calculator': emptyProps,
+  'growth-calculator': growthCalculatorProps,
   'fixed-income-comparison': emptyProps,
   'live-indicator': liveIndicatorProps,
   'live-macro': liveMacroProps,
@@ -451,6 +463,31 @@ const checkBlock = z.discriminatedUnion('kind', [
 
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })
 
+const widgetGoalSchema = z
+  .object({
+    text: z.string().min(1).max(120),
+    metric: z.string().min(1),
+    op: z.enum(['lt', 'lte', 'gt', 'gte', 'between']),
+    value: z.number().finite().optional(),
+    min: z.number().finite().optional(),
+    max: z.number().finite().optional(),
+    reveal: z.string().min(1).max(280),
+    showMe: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])).optional(),
+  })
+  .superRefine((goal, ctx) => {
+    if (goal.op === 'between') {
+      if (goal.min === undefined || goal.max === undefined || goal.min > goal.max) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['min'],
+          message: 'between exige min e max, com min <= max',
+        })
+      }
+    } else if (goal.value === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['value'], message: `${goal.op} exige value` })
+    }
+  })
+
 const widgetBlock = z
   .object({
     type: z.literal('widget'),
@@ -458,14 +495,34 @@ const widgetBlock = z
     widget: z.enum(WIDGET_IDS),
     props: z.unknown().default({}),
     caption: z.string().min(1).optional(),
+    goal: widgetGoalSchema.optional(),
   })
   .superRefine((block, ctx) => {
-    const result = widgetPropsSchemas[block.widget].safeParse(block.props)
+    const schema = widgetPropsSchemas[block.widget]
+    const result = schema.safeParse(block.props)
     if (!result.success) {
       ctx.addIssue({
         code: 'custom',
         path: ['props'],
         message: `props inválidas para o widget ${block.widget}`,
+      })
+    }
+    if (!block.goal) return
+    if (!WIDGET_MISSION_METRICS[block.widget]?.includes(block.goal.metric)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['goal', 'metric'],
+        message: `o widget ${block.widget} não declara a métrica ${block.goal.metric}`,
+      })
+    }
+    if (
+      block.goal.showMe &&
+      !schema.safeParse({ ...(block.props as object), ...block.goal.showMe }).success
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['goal', 'showMe'],
+        message: `showMe inválido para o widget ${block.widget}`,
       })
     }
   })

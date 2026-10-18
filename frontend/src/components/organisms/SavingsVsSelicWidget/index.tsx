@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { compareSavingsToTesouroSelic, SAVINGS_SELIC_THRESHOLD_PCT } from '../../../features/lessons/widgets/savingsMath'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { SavingsVsSelicWidgetProps } from './types'
@@ -12,12 +12,15 @@ const pct = (value: number, digits = 2) => `${value.toFixed(digits).replace('.',
 // prazo e vê qual regra a poupança usa e quanto ela rende frente ao Tesouro
 // Selic já descontado o imposto de renda. A fronteira de 8,5% aparece como
 // texto, não só como número solto.
-export function SavingsVsSelicWidget({ selicPct, trMonthlyPct, amount, months }: SavingsVsSelicWidgetProps) {
+export function SavingsVsSelicWidget({ selicPct, trMonthlyPct, amount, months, onMetrics }: SavingsVsSelicWidgetProps) {
     const [selic, setSelic] = useState(selicPct)
     const [tr, setTr] = useState(trMonthlyPct)
     const [period, setPeriod] = useState(months)
 
     const result = compareSavingsToTesouroSelic({ amount, selicPct: selic, trMonthlyPct: tr, months: period })
+    // Diferença do Tesouro Selic líquido para a poupança, em % do valor aplicado (positiva quando o Tesouro vence).
+    const gapPct = ((result.tesouroNetFinal - result.savingsFinal) / amount) * 100
+    useEffect(() => onMetrics?.({ savingsGapPct: gapPct }), [gapPct, onMetrics])
     const ruleText =
         result.rule === 'fixed'
             ? `Meta acima de ${pct(SAVINGS_SELIC_THRESHOLD_PCT, 1)}: a poupança rende 0,5% ao mês mais a TR.`

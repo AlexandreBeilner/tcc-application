@@ -6,6 +6,7 @@ import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
 import { useCardReach } from '../../features/lessons/useCardReach'
 import { useCheckpoints } from '../../features/lessons/useCheckpoints'
+import type { MissionOutcome } from '../../features/lessons/useWidgetMission'
 import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDecision'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
@@ -16,6 +17,7 @@ import { Button } from '../../components/atoms/Button'
 import { LockedGate } from '../../components/organisms/LockedGate'
 import { LessonCheckpoint } from '../../components/organisms/LessonCheckpoint'
 import { LessonWidget } from '../../components/organisms/LessonWidget'
+import type { WidgetMissionController } from '../../components/organisms/LessonWidget/types'
 import { PlatformNoteFootnote } from '../../components/organisms/PlatformNoteFootnote'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
@@ -94,6 +96,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const feedbackRef = useRef<HTMLParagraphElement>(null)
     // Rodapés "Na plataforma" (LJ.1.3) que a pessoa abriu nesta lição: Voltar e Continuar não os fecham.
     const [openFootnotes, setOpenFootnotes] = useState<string[]>([])
+    // Missões de widget (LJ.3.1) cumpridas nesta lição, por id do bloco. Só memória: sobrevive a Voltar, não a recarregar.
+    const [missions, setMissions] = useState<Record<string, MissionOutcome>>({})
 
     const lesson = lessonQuery.data?.lesson
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
@@ -248,17 +252,31 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // Quantos cartões tem cada fase, pro Voltar cair no último cartão da anterior.
     const cardCounts = [scenarioCards.length, microDecisionCards.length, revelationCards.length, 1]
 
+    // Missão de widget (LJ.3.1): bloco de widget com `goal`. Em revisão nada trava e nada entra na conta.
+    const missionBlockIds = new Set(
+        [...scenarioCards, ...microDecisionCards, ...revelationCards].flatMap((card) =>
+            card.kind === 'widget' && card.block.goal ? [card.block.id] : [],
+        ),
+    )
+    function isMissionBlock(blockId: string): boolean {
+        return missionBlockIds.has(blockId)
+    }
+
     // Barra única da lição (LJ.1.1): posição nos cartões das três fases mais a tela final, e um marco por
     // pergunta (âmbar se acertada de primeira, neutro se depois).
     const progress = lessonProgress(cardCounts.slice(0, 3), step, subStep)
-    const markers = progressMarkers([scenarioCards, microDecisionCards, revelationCards], (checkpointId) => {
-        const view = checkpoints.viewFor(checkpointId)
+    const markers = progressMarkers([scenarioCards, microDecisionCards, revelationCards], (blockId) => {
+        if (missions[blockId]) return missions[blockId]
+        if (isMissionBlock(blockId)) return isReview ? undefined : 'pending'
+        const view = checkpoints.viewFor(blockId)
         return view.solved ? (view.firstTry ? 'first-try' : 'later') : 'pending'
     })
 
     // Placar da tela final (LJ.1.4). Em revisão vale o placar gravado pelo servidor (a revisão não regrava
     // nada); fora dela, o que aconteceu nesta sessão somado ao restaurado.
-    function scoreStateFor(checkpointId: string): MarkerState {
+    function scoreStateFor(checkpointId: string): MarkerState | undefined {
+        // Missão que ficou para trás (lição retomada depois dela) não conta: só vale o que foi feito nesta sessão.
+        if (isMissionBlock(checkpointId)) return isReview ? undefined : missions[checkpointId]
         const view = isReview
             ? lesson?.checkpoints?.find((state) => state.checkpointId === checkpointId)
             : checkpoints.viewFor(checkpointId)
@@ -287,8 +305,25 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
     // Pergunta intermediária ainda não resolvida segura o Continuar do cartão
     // dela (RC.3.2); em revisão de lição concluída nada trava.
+    // Missão de widget (LJ.3.1, LJ-D4) segura o Continuar do cartão dela do mesmo jeito; fase já alcançada não
+    // pede a missão de novo.
     function checkpointBlocking(card: PlayerCard | undefined): boolean {
-        return !isReview && card?.kind === 'check' && !checkpoints.viewFor(card.block.id).solved
+        if (isReview) return false
+        if (card?.kind === 'check') return !checkpoints.viewFor(card.block.id).solved
+        if (card?.kind === 'widget' && card.block.goal) return step >= reached && !missions[card.block.id]
+        return false
+    }
+
+    function missionFor(card: PlayerCard | undefined) {
+        if (isReview || card?.kind !== 'widget' || !card.block.goal) return undefined
+        const blockId = card.block.id
+        return {
+            outcome: missions[blockId],
+            onComplete: (id: string, outcome: MissionOutcome) => {
+                setMissions((current) => ({ ...current, [id]: outcome }))
+                if (outcome === 'first-try') playLessonCue('goal')
+            },
+        }
     }
 
     function renderCheckpoint(block: CheckBlock) {
@@ -360,6 +395,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     {durationHint && <span className={styles.duration}>{durationHint}</span>}
                     <CardBody
                         card={scenarioCards[subStep]}
+                        mission={missionFor(scenarioCards[subStep])}
                         renderCheckpoint={renderCheckpoint}
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
@@ -392,6 +428,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     {durationHint && <span className={styles.duration}>{durationHint}</span>}
                     <CardBody
                         card={microDecisionCards[subStep]}
+                        mission={missionFor(microDecisionCards[subStep])}
                         renderCheckpoint={renderCheckpoint}
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
@@ -514,6 +551,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     )}
                     <CardBody
                         card={revelationCards[subStep]}
+                        mission={missionFor(revelationCards[subStep])}
                         renderCheckpoint={renderCheckpoint}
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
@@ -613,6 +651,7 @@ function cardClassName(card: PlayerCard | undefined): string {
 // verdade preserva a navegação por teclado (Tab alcança, Enter/Espaço
 // ativa), sem precisar de nenhum tratamento especial.
 function CardBody({
+    mission,
     renderCheckpoint,
     card,
     revealed,
@@ -620,6 +659,7 @@ function CardBody({
     lessons,
     termsSeen,
 }: {
+    mission: WidgetMissionController | undefined
     renderCheckpoint: (block: CheckBlock) => React.ReactNode
     card: PlayerCard
     revealed: boolean
@@ -634,7 +674,7 @@ function CardBody({
     if (card.kind === 'widget') {
         return (
             <div className={styles.widgetStage}>
-                <LessonWidget block={card.block} />
+                <LessonWidget block={card.block} mission={mission} />
             </div>
         )
     }

@@ -1,3 +1,5 @@
+import type { WidgetGoal } from './widgetGoal'
+
 // Tipos do contrato `blocks` do conteúdo visual das lições (RC.3.1, RC.3.2). A
 // validação (Zod) vive em `infrastructure/content/lessonBlocks.ts`: o domínio
 // não importa biblioteca externa. Cada fase vira uma lista de blocos tipados;
@@ -93,7 +95,14 @@ export type EstimateUnit = 'brl' | 'pct' | 'years' | 'none'
 
 export type LessonBlock =
   | { type: 'text'; markup: string }
-  | { type: 'widget'; id: string; widget: WidgetId; props?: unknown; caption?: string }
+  | {
+      type: 'widget'
+      id: string
+      widget: WidgetId
+      props?: unknown
+      caption?: string
+      goal?: WidgetGoal
+    }
   | CheckBlock
 
 export interface LessonBlocks {

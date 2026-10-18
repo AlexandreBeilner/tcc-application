@@ -153,6 +153,20 @@ describe('conteúdo visível ao usuário (RC.1.1)', () => {
     expect(findForbidden(tcc).map((v) => v.ruleId)).toEqual(['tcc'])
   })
 
+  it('varre o texto e a revelação da missão do widget (LJ.3.1)', () => {
+    const fields = blockTextFields('l', 'scenario', [
+      {
+        type: 'widget',
+        widget: 'real-return',
+        props: {},
+        goal: { text: 'ache o motor', reveal: 'sem problema' },
+      },
+    ]).map((f) => f.field)
+    expect(findForbidden(fields).map((v) => `${v.field}:${v.ruleId}`)).toEqual([
+      'blocks.scenario[0].goal.text:motor',
+    ])
+  })
+
   it('varre o resumo "O que ficou" da raiz do blocks (LJ.1.5)', () => {
     const ids = findForbidden(summaryTextFields('l', ['o motor decide', 'tudo certo'])).map(
       (v) => `${v.field}:${v.ruleId}`,

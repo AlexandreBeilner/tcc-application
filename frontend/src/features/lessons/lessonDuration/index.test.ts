@@ -22,6 +22,8 @@ describe('cardSeconds', () => {
     it('pergunta vale 15 s e widget de ferramenta 30 s', () => {
         expect(cardSeconds({ kind: 'check', block: { type: 'check', id: 'q', kind: 'true_false', prompt: 'p' } })).toBe(15)
         expect(cardSeconds({ kind: 'widget', block: { type: 'widget', id: 'w', widget: 'growth-calculator', props: {} } })).toBe(30)
+        const goal = { text: 't', metric: 'interestRatio', op: 'gte', value: 2, reveal: 'r' } as const
+        expect(cardSeconds({ kind: 'widget', block: { type: 'widget', id: 'w', widget: 'growth-calculator', props: {}, goal } })).toBe(45)
     })
 
     it('callout e "Na plataforma" são leitura: contam pelos caracteres do texto', () => {

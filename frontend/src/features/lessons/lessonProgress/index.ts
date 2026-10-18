@@ -28,15 +28,25 @@ export function lessonProgress(phaseCardCounts: number[], step: number, card: nu
     return { current: before + inside + 1, total }
 }
 
-// Um marco por cartão de pergunta, na ordem da lição. `stateFor` recebe o id da pergunta.
-export function progressMarkers(phases: PlayerCard[][], stateFor: (checkpointId: string) => MarkerState): ProgressMarker[] {
+// Id do que vale ponto no cartão: a pergunta, ou o widget com missão (LJ.3.1). Cartão de leitura não tem.
+export function scoredCardId(card: PlayerCard): string | undefined {
+    if (card.kind === 'check') return card.block.id
+    if (card.kind === 'widget' && card.block.goal) return card.block.id
+    return undefined
+}
+
+// Um marco por cartão de pergunta ou de missão, na ordem da lição. `stateFor` recebe o id do bloco; devolver
+// `undefined` tira o cartão da conta (missão em revisão, que não grava nada).
+export function progressMarkers(phases: PlayerCard[][], stateFor: (checkpointId: string) => MarkerState | undefined): ProgressMarker[] {
     const markers: ProgressMarker[] = []
     let position = 0
     for (const cards of phases) {
         for (const card of cards) {
             position += 1
-            if (card.kind === 'check') {
-                markers.push({ position, state: stateFor(card.block.id) })
+            const id = scoredCardId(card)
+            const state = id === undefined ? undefined : stateFor(id)
+            if (state !== undefined) {
+                markers.push({ position, state })
             }
         }
     }

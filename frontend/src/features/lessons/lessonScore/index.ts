@@ -1,4 +1,5 @@
 import type { PlayerCard } from '../playerCards'
+import { scoredCardId } from '../lessonProgress'
 import type { MarkerState } from '../lessonProgress'
 
 export interface LessonScore {
@@ -12,8 +13,13 @@ export interface LessonScore {
 
 // Placar da lição (LJ.1.4): um estado por cartão de pergunta, vindo de `stateFor` (o mesmo que alimenta os
 // marcos da barra da LJ.1.1). Pergunta sem resposta conta como não acertada de primeira.
-export function lessonScore(phases: PlayerCard[][], stateFor: (checkpointId: string) => MarkerState): LessonScore {
-    const states = phases.flat().flatMap((card) => (card.kind === 'check' ? [stateFor(card.block.id)] : []))
+// Missão de widget (LJ.3.1) conta como pergunta; `stateFor` devolve `undefined` para o que não entra na conta.
+export function lessonScore(phases: PlayerCard[][], stateFor: (checkpointId: string) => MarkerState | undefined): LessonScore {
+    const states = phases.flat().flatMap((card) => {
+        const id = scoredCardId(card)
+        const state = id === undefined ? undefined : stateFor(id)
+        return state === undefined ? [] : [state]
+    })
     return { total: states.length, firstTry: states.filter((state) => state === 'first-try').length, states }
 }
 

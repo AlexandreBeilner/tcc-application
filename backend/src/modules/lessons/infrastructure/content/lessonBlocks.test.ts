@@ -525,3 +525,52 @@ describe('formula-walkthrough', () => {
     expect(lessonBlocksSchema.safeParse(doc([{ ...item, result: '' }])).success).toBe(false)
   })
 })
+
+describe('missão de widget (LJ.3.1)', () => {
+  const goal = {
+    text: 'Deixe o rendimento real negativo',
+    metric: 'realReturnPct',
+    op: 'lt',
+    value: 0,
+    reveal: 'Rendeu no papel e perdeu no mercado.',
+    showMe: { nominalPct: 4, inflationPct: 8 },
+  }
+  const blocks = (override: object = {}, widget = 'real-return', props: object = {}) => ({
+    schemaVersion: 1,
+    phases: {
+      scenario: [{ type: 'widget', id: 'w', widget, props, goal: { ...goal, ...override } }],
+      microDecision: [],
+      revelation: [],
+    },
+  })
+
+  it('aceita missão com métrica que o widget declara', () => {
+    expect(lessonBlocksSchema.safeParse(blocks()).success).toBe(true)
+    expect(
+      lessonBlocksSchema.safeParse(
+        blocks(
+          { metric: 'interestRatio', op: 'gte', value: 2, showMe: { periodYears: 15 } },
+          'growth-calculator',
+          { initialCapital: 1000 },
+        ),
+      ).success,
+    ).toBe(true)
+  })
+
+  it.each([
+    ['métrica que o widget não declara', { metric: 'outra' }],
+    ['op sem value', { value: undefined }],
+    ['between sem limites', { op: 'between', value: undefined }],
+    ['between invertido', { op: 'between', min: 2, max: 1 }],
+    ['showMe que quebra as props do widget', { showMe: { nominalPct: 999 } }],
+    ['texto da missão vazio', { text: '' }],
+  ])('rejeita %s', (_name, override) => {
+    expect(lessonBlocksSchema.safeParse(blocks(override)).success).toBe(false)
+  })
+
+  it('rejeita missão em widget sem métricas declaradas', () => {
+    expect(
+      lessonBlocksSchema.safeParse(blocks({}, 'callout', { title: 't', body: 'b' })).success,
+    ).toBe(false)
+  })
+})

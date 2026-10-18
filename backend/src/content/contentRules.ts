@@ -140,6 +140,9 @@ export function blockTextFields(
       const props = (block.props ?? {}) as Record<string, unknown>
       const exempt = block.widget === 'platform-note' ? PLATFORM_NOTE_EXEMPT_RULE_IDS : undefined
       push('caption', block.caption)
+      const goal = (block.goal ?? {}) as Record<string, unknown>
+      push('goal.text', goal.text)
+      push('goal.reveal', goal.reveal)
       for (const [key, value] of Object.entries(props)) push(`props.${key}`, value, false, exempt)
     }
   })

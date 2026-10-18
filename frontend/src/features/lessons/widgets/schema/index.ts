@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { widgetGoalSchema } from '../goal'
 
 // Espelho do contrato `blocks` do backend
 // (`backend/src/modules/lessons/infrastructure/content/lessonBlocks.ts`, RC.3.1).
@@ -306,7 +307,16 @@ export const widgetPropsSchemas = {
         amount: z.number().positive().default(10000),
         months: z.number().int().min(1).max(36).default(12),
     }),
-    'growth-calculator': emptyProps,
+    // Valores iniciais opcionais, para a missão partir de um capital já preenchido (LJ.3.1).
+    'growth-calculator': z
+        .object({
+            initialCapital: z.number().min(0).max(10_000_000),
+            monthlyContribution: z.number().min(0).max(1_000_000),
+            ratePct: z.number().min(0).max(100),
+            periodYears: z.number().int().min(1).max(40),
+        })
+        .partial()
+        .strict(),
     'fixed-income-comparison': emptyProps,
     'live-indicator': z.object({ ticker: z.string().min(1).max(20) }),
     'live-macro': z.object({ windowDays: z.number().int().min(7).max(365).optional() }),
@@ -325,6 +335,8 @@ const widgetBlock = z.object({
     widget: z.string().min(1),
     props: z.unknown().default({}),
     caption: z.string().min(1).optional(),
+    // Missão (LJ.3.1): o Continuar só libera quando a métrica do widget cumpre o alvo.
+    goal: widgetGoalSchema.optional(),
 })
 
 // Pergunta intermediária (RC.3.2), como o servidor a entrega: sem gabarito nem
