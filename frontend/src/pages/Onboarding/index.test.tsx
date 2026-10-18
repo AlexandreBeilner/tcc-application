@@ -1,10 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { completeOnboarding } from '../../services/auth'
 import { updateEmailPreferences } from '../../services/emailPreferences'
 import { useAuth } from '../../features/auth/AuthContext'
+import { getAsset, getAssetBook, listAssets, placeOrder } from '../../services/market'
 import { Onboarding } from '.'
+
+vi.mock('../../services/market', () => ({
+    listAssets: vi.fn(),
+    getAsset: vi.fn(),
+    getAssetBook: vi.fn(),
+    placeOrder: vi.fn(),
+}))
 
 vi.mock('../../services/auth', () => ({
     completeOnboarding: vi.fn(),
@@ -33,7 +42,25 @@ function renderOnboarding() {
         ],
         { initialEntries: ['/onboarding'] },
     )
-    return render(<RouterProvider router={router} />)
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return render(
+        <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+        </QueryClientProvider>,
+    )
+}
+
+// O ativo de treino e o preço do roteiro (OB.1.2): o passo "Aprenda fazendo" lê os dois.
+function mockSandboxMarket() {
+    vi.mocked(listAssets).mockResolvedValue({
+        assets: [{ id: 'sand-id', ticker: 'SAND3', name: 'Ação de Treino', type: 'acao', is_sandbox: true }],
+    })
+    vi.mocked(getAsset).mockResolvedValue({
+        asset: { id: 'sand-id', ticker: 'SAND3', name: 'Ação de Treino', type: 'acao', is_sandbox: true },
+    })
+    vi.mocked(getAssetBook).mockResolvedValue({
+        book: { is_sandbox: true, price: 100, best_bid: null, best_ask: null, mid_price: null, bids: null, asks: null },
+    })
 }
 
 function mockAuth(onboardingCompleted: boolean, setUser = vi.fn()) {
@@ -55,7 +82,14 @@ function mockAuth(onboardingCompleted: boolean, setUser = vi.fn()) {
     })
 }
 
+// No slide "Aprenda fazendo" o botão principal é "Pular esta etapa" até a compra de treino ser resolvida.
+const NEXT = { name: /^(Próximo|Pular esta etapa)$/ }
+
 describe('Onboarding (tela 1.2)', () => {
+    beforeEach(() => {
+        mockSandboxMarket()
+    })
+
     afterEach(() => {
         vi.clearAllMocks()
     })
@@ -69,12 +103,76 @@ describe('Onboarding (tela 1.2)', () => {
         expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
     })
 
+    describe('primeira ação: compra guiada no Modo Aprendizado (OB.1.2)', () => {
+        async function openFirstAction() {
+            mockAuth(false)
+            renderOnboarding()
+            fireEvent.click(screen.getByRole('button', NEXT))
+            await screen.findByText('Passo 1 de 3: O que você vai comprar')
+        }
+
+        async function walkToConfirm() {
+            fireEvent.click(screen.getByRole('button', { name: 'Próximo passo' }))
+            expect(screen.getByText('R$ 100,00')).toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Próximo passo' }))
+            expect(screen.getByText('R$ 500,00')).toBeInTheDocument()
+        }
+
+        it('sucesso: três toques explicados, compra de 5 ações de treino e o aviso para voltar amanhã', async () => {
+            vi.mocked(placeOrder).mockResolvedValue({ order_id: 'o1', filled_quantity: 5, remaining_quantity: 0, fills: [] })
+            await openFirstAction()
+            expect(screen.getByRole('button', { name: 'Pular esta etapa' })).toBeInTheDocument()
+
+            await walkToConfirm()
+            fireEvent.click(screen.getByRole('button', { name: 'Comprar 5 ações' }))
+
+            await waitFor(() =>
+                expect(placeOrder).toHaveBeenCalledWith('token-valido', { asset_id: 'sand-id', side: 'buy', type: 'market', quantity: 5 }),
+            )
+            expect(await screen.findByText('Primeira ação comprada!')).toBeInTheDocument()
+            expect(screen.getByText(/Volte amanhã para ver como foi a sua primeira ação/)).toBeInTheDocument()
+            // Resolvida a compra, o botão principal volta a ser "Próximo".
+            expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
+        })
+
+        it('erro na compra mostra a mensagem e o onboarding segue sem travar', async () => {
+            vi.mocked(placeOrder).mockRejectedValue(new Error('mercado fora do ar'))
+            await openFirstAction()
+
+            await walkToConfirm()
+            fireEvent.click(screen.getByRole('button', { name: 'Comprar 5 ações' }))
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('Não conseguimos fazer a compra agora')
+            fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+            expect(screen.getByText('Aqui o tempo passa mais rápido')).toBeInTheDocument()
+        })
+
+        it('pular a etapa segue para o próximo slide sem comprar nada', async () => {
+            await openFirstAction()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Pular esta etapa' }))
+
+            expect(screen.getByText('Aqui o tempo passa mais rápido')).toBeInTheDocument()
+            expect(placeOrder).not.toHaveBeenCalled()
+        })
+
+        it('sem o ativo de treino no catálogo, avisa e deixa pular', async () => {
+            vi.mocked(listAssets).mockResolvedValue({ assets: [] })
+            mockAuth(false)
+            renderOnboarding()
+            fireEvent.click(screen.getByRole('button', NEXT))
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('O Modo Aprendizado não está disponível agora')
+            expect(screen.getByRole('button', { name: 'Pular esta etapa' })).toBeInTheDocument()
+        })
+    })
+
     it('o terceiro slide explica o tempo acelerado e o fim de semana fechado (S.12)', () => {
         mockAuth(false)
 
         renderOnboarding()
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+        fireEvent.click(screen.getByRole('button', NEXT))
+        fireEvent.click(screen.getByRole('button', NEXT))
 
         expect(screen.getByText('Aqui o tempo passa mais rápido')).toBeInTheDocument()
         expect(screen.getByText(/5 dias a cada dia real/)).toBeInTheDocument()
@@ -86,9 +184,9 @@ describe('Onboarding (tela 1.2)', () => {
         mockAuth(false)
 
         renderOnboarding()
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Próximo' }))
+        fireEvent.click(screen.getByRole('button', NEXT))
+        fireEvent.click(screen.getByRole('button', NEXT))
+        fireEvent.click(screen.getByRole('button', NEXT))
 
         expect(screen.getByText('Seu salário cresce com você')).toBeInTheDocument()
         expect(screen.getByText(/5º dia útil do mês/)).toBeInTheDocument()
@@ -96,7 +194,6 @@ describe('Onboarding (tela 1.2)', () => {
         expect(screen.getByRole('button', { name: 'Próximo' })).toBeInTheDocument()
     })
 
-    const NEXT = { name: 'Próximo' }
     const advanceToEmailStep = () => {
         for (let i = 0; i < 5; i++) fireEvent.click(screen.getByRole('button', NEXT))
     }
