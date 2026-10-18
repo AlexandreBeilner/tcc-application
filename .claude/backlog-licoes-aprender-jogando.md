@@ -33,18 +33,19 @@
 | Edição de conteúdo | painel `/admin/conteudo` | edita os campos de texto legados, **não** os `blocks`; mudança de bloco hoje é seed + script de aplicação no banco |
 | Seed | `seedLessons.ts` | só importa lição que falta, nunca sobrescreve (N.23); conteúdo novo em lição existente exige script aditivo, no molde de `convertNumericChecks.ts` |
 
-## Decisões que o autor precisa fechar (com recomendação)
+## Decisões do autor
 
-Estas escolhas mudam o comportamento e não estão em nenhum documento. Cada tarefa que depende de
-uma delas diz qual; registrar a resposta aqui (✅ + data) antes de começar a tarefa.
+Estas escolhas mudam o comportamento e não estavam em nenhum documento. **Todas fechadas pelo
+autor em 2026-10-17**: as cinco primeiras seguiram a recomendação; a LJ-D6 não.
 
-| # | Pergunta | Recomendação |
+| # | Pergunta | Decisão |
 |---|---|---|
-| LJ-D1 | A **estimativa** (2.2) segue a regra "errar não avança"? | **Não.** A estimativa é previsão, não prova: a pessoa chuta, sempre avança e vê a distância do valor real. A graça está na surpresa, e travar até acertar mata a surpresa (a pessoa ia chutar até cair na faixa). Conta no placar como "na mosca" quando cai na tolerância. |
-| LJ-D2 | Nos formatos com várias peças (ordenar, agrupar, ligar), errar mostra **quanto** acertou? | **Sim, só a contagem** ("3 de 5 no lugar certo"), sem dizer quais. Com várias peças, "errado" sem nenhuma pista vira tentativa às cegas; a contagem mantém o desafio sem entregar o gabarito (respeita o espírito da D3 da revisão). |
-| LJ-D3 | Em **ligar pares**, o par errado é recusado na hora? | **Sim**, par a par (o par errado treme e se desfaz), como no Duolingo. É o único formato em que a checagem por peça é natural; o placar conta "de primeira" só se nenhum par falhou. |
-| LJ-D4 | A **missão de widget** (Lote 3) trava o Continuar? | **Sim, como checkpoint**, com uma saída: depois de 2 minutos mexendo sem atingir (sem cronômetro visível) ou 6 interações, aparece "Me mostra" que leva os controles ao valor-alvo e explica. Ninguém fica preso, e quem tenta sozinho tem a vitória. |
-| LJ-D5 | A **enquete** mostra o resultado com quantos votos? | **Só com 20 votos ou mais** na opção agregada; antes disso, "Você está entre os primeiros a responder". Nunca nome, nunca lista de quem votou (RNF09 continua intacta: é opinião, não patrimônio). |
+| LJ-D1 ✅ | A **estimativa** (2.2) segue a regra "errar não avança"? | **Não.** A estimativa é previsão, não prova: a pessoa chuta, sempre avança e vê a distância do valor real. A graça está na surpresa, e travar até acertar mata a surpresa (a pessoa ia chutar até cair na faixa). Conta no placar como "na mosca" quando cai na tolerância. |
+| LJ-D2 ✅ | Nos formatos com várias peças (ordenar, agrupar, ligar), errar mostra **quanto** acertou? | **Sim, só a contagem** ("3 de 5 no lugar certo"), sem dizer quais. Com várias peças, "errado" sem nenhuma pista vira tentativa às cegas; a contagem mantém o desafio sem entregar o gabarito (respeita o espírito da D3 da revisão). |
+| LJ-D3 ✅ | Em **ligar pares**, o par errado é recusado na hora? | **Sim**, par a par (o par errado treme e se desfaz), como no Duolingo. É o único formato em que a checagem por peça é natural; o placar conta "de primeira" só se nenhum par falhou. |
+| LJ-D4 ✅ | A **missão de widget** (Lote 3) trava o Continuar? | **Sim, como checkpoint**, com uma saída: depois de 2 minutos mexendo sem atingir (sem cronômetro visível) ou 6 interações, aparece "Me mostra" que leva os controles ao valor-alvo e explica. Ninguém fica preso, e quem tenta sozinho tem a vitória. |
+| LJ-D5 ✅ | A **enquete** mostra o resultado com quantos votos? | **Só com 20 votos ou mais** na opção agregada; antes disso, "Você está entre os primeiros a responder". Nunca nome, nunca lista de quem votou (RNF09 continua intacta: é opinião, não patrimônio). |
+| LJ-D6 ✅ | Na **coleção de termos** (LJ.5.9), o que o perfil público mostra? | **Contagem e as cartas ganhas** (o autor escolheu mostrar mais que a recomendação, que era só a contagem). Termo aprendido não é dado financeiro, então a RNF09 não se aplica; as cartas que faltam continuam aparecendo só no próprio perfil. |
 
 ---
 
@@ -157,7 +158,7 @@ de maior efeito (estimativa) e por último o que exige tabela nova (enquete).
 
 ### LJ.2.1 · Fundação: checkpoint com vários formatos
 
-**Depende de:** LJ-D1, LJ-D2, LJ-D3 fechadas.
+**Decisões aplicáveis:** LJ-D1, LJ-D2, LJ-D3 (fechadas).
 
 **O que fazer (backend):**
 - `CheckBlock` ganha os `kind` `estimate`, `order`, `categorize` e `match` (contrato de cada um
@@ -241,7 +242,7 @@ Só nesse formato a resposta vai par a par ao servidor: `POST .../answer` com
 
 ### LJ.2.6 · Enquete da comunidade (`poll`)
 
-**Depende de:** LJ-D5.
+**Decisão aplicável:** LJ-D5 (fechada).
 
 **O que fazer:** novo **tipo de bloco** `poll` (não é `check`, não tem resposta certa):
 `{ type: 'poll', id, prompt, options: string[] (2 a 4) }`. Tabela nova `lesson_poll_votes`
@@ -297,7 +298,7 @@ cartão no teto, nenhum termo antes da definição); testes de conteúdo sem cre
 
 ### LJ.3.1 · Fundação: missão (`goal`) nos widgets
 
-**Depende de:** LJ-D4.
+**Decisão aplicável:** LJ-D4 (fechada).
 
 **O que fazer:**
 - Prop opcional `goal` em todo widget de conta: `{ text: string, metric: string, op: 'lt' | 'lte'
@@ -505,9 +506,9 @@ ganha abre a definição e o atalho "Rever a lição".
 **Por quê:** dá posse ao que foi aprendido (Impulso 4) e cria um motivo visível para completar a
 trilha, sem nenhuma recompensa nova de XP.
 
-**Critérios de aceite:** derivado do progresso (sem tabela nova); no perfil público aparece só a
-contagem, não a lista (decisão conservadora; registrar em pontos em aberto se o autor quiser
-mostrar mais); três breakpoints; testes da derivação.
+**Critérios de aceite:** derivado do progresso (sem tabela nova); no perfil público aparecem a
+contagem e as cartas já ganhas (LJ-D6), nunca as que faltam; três breakpoints; testes da
+derivação, incluindo a rota do perfil público.
 
 ### LJ.5.10 · Compartilhar o resultado
 
@@ -528,14 +529,13 @@ Era R$ 6.727."), e o link de convite da pessoa (`/convidar`).
 2. LJ.1.1, LJ.1.2, LJ.1.3, **LJ.5.3** (ritmo e navegação: efeito em todas as lições)
 3. LJ.1.5 e LJ.1.4 (placar precisa do resumo para ficar completo), **LJ.5.2**
 4. LJ.1.6, **LJ.5.4**
-5. Fechar LJ-D1 a LJ-D5
-6. LJ.2.1, LJ.2.2 e a linha "Estimativa" da LJ.2.7 (o formato de maior efeito, já na 0.2)
-7. LJ.3.1, LJ.3.2, LJ.3.3 (Trilha 0 inteira jogável)
-8. **LJ.5.7, LJ.5.8** (conteúdo: lições longas e ganchos)
-9. LJ.2.3, LJ.2.4, LJ.2.5, o resto da LJ.2.7
-10. **LJ.5.5, LJ.5.6** (memória: "Relembra?" e revisão espaçada)
-11. LJ.2.6 (tabela nova), **LJ.5.9, LJ.5.10**
-12. LJ.3.4
+5. LJ.2.1, LJ.2.2 e a linha "Estimativa" da LJ.2.7 (o formato de maior efeito, já na 0.2)
+6. LJ.3.1, LJ.3.2, LJ.3.3 (Trilha 0 inteira jogável)
+7. **LJ.5.7, LJ.5.8** (conteúdo: lições longas e ganchos)
+8. LJ.2.3, LJ.2.4, LJ.2.5, o resto da LJ.2.7
+9. **LJ.5.5, LJ.5.6** (memória: "Relembra?" e revisão espaçada)
+10. LJ.2.6 (tabela nova), **LJ.5.9, LJ.5.10**
+11. LJ.3.4
 
 ## Resumo de contagem
 
@@ -545,5 +545,5 @@ Era R$ 6.727."), e o link de convite da pessoa (`/convidar`).
 | 2 Perguntas que são jogo | 7 (LJ.2.1 a LJ.2.7) |
 | 3 Widgets com missão | 4 (LJ.3.1 a LJ.3.4) |
 | 5 O resto que melhora a experiência | 10 (LJ.5.1 a LJ.5.10) |
-| Decisões em aberto | 5 (LJ-D1 a LJ-D5) |
+| Decisões | 6 (LJ-D1 a LJ-D6), todas fechadas em 2026-10-17 |
 | Fora deste backlog | personagem da Trilha 0 (proposta 4.1), à espera do teste do autor |
