@@ -1243,7 +1243,9 @@ async function main() {
   process.exit(0)
 }
 
-if (process.env.VITEST === undefined) {
+// Só roda quando o arquivo é o ponto de entrada: outros scripts (ex.: convertNumericChecks) importam
+// `LESSON_SEEDS` daqui e não podem disparar o seed, que termina o processo com `process.exit`.
+if (process.env.VITEST === undefined && /seedLessons\.(ts|js)$/.test(process.argv[1] ?? '')) {
   main().catch((err) => {
     console.error('erro ao rodar seed de lições:', err)
     process.exit(1)
