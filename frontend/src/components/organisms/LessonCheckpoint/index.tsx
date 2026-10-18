@@ -48,6 +48,7 @@ export function LessonCheckpoint({ block, view, pending, error, isReview, onSubm
                                 .filter(Boolean)
                                 .join(' ')}
                             disabled={isWrong || view.solved}
+                            data-lesson-option=""
                             onClick={() => setSelected(index)}
                         >
                             {option}
@@ -59,7 +60,7 @@ export function LessonCheckpoint({ block, view, pending, error, isReview, onSubm
 
             {view.lastAttemptWrong && !view.solved && (
                 <p ref={feedbackRef} tabIndex={-1} role="alert" className={styles.feedback}>
-                    'Ainda não. Essa alternativa foi descartada, escolha outra.'
+                    Ainda não. Essa alternativa foi descartada, escolha outra.
                 </p>
             )}
 
@@ -84,7 +85,7 @@ export function LessonCheckpoint({ block, view, pending, error, isReview, onSubm
 
             {!view.solved && (
                 <div>
-                    <Button onClick={handleSubmit} disabled={!canSubmit}>
+                    <Button onClick={handleSubmit} disabled={!canSubmit} data-lesson-submit="">
                         Responder
                     </Button>
                 </div>

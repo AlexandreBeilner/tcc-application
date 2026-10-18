@@ -54,7 +54,7 @@ autor em 2026-10-17**: as cinco primeiras seguiram a recomendação; a LJ-D6 nã
 Só frontend (exceto a LJ.1.5, conteúdo). Vale para as 43 lições de uma vez e é reversível.
 Ordem: 1.1 e 1.2 primeiro (mexem no mesmo cabeçalho), depois 1.3, 1.4 e 1.6, por fim 1.5.
 
-### LJ.1.1 · Barra de progresso contínua
+### LJ.1.1 · Barra de progresso contínua ✅ concluída
 
 **O que fazer:** trocar os 4 segmentos do topo e os `LessonCardDots` de cada fase por **uma barra
 única** que avança a cada cartão da lição inteira (Cenário + Micro-decisão + Revelação + tela
@@ -72,7 +72,10 @@ Olhando a barra, a pessoa vê o próprio desempenho e quanto falta, num só elem
 - Os três breakpoints conferidos; no mobile a barra não empurra o conteúdo.
 - Testes: função pura de posição (fases vazias, fase com 1 cartão, revisão) e render da barra.
 
-### LJ.1.2 · Rótulos humanos nas fases
+- **Entregável:** (2026-10-18) Barra única no cabeçalho, na mesma linha do "Sair da lição" (no mobile não empurra o conteúdo). Função pura `lessonProgress` e `progressMarkers` em `features/lessons/lessonProgress`; molécula `LessonProgressBar` (`role="progressbar"`, "Cartão X de Y", marcos vazados/âmbar/neutro, `prefers-reduced-motion` sem transição). A tela final conta como último cartão. `LessonCardDots` saiu do player (a prévia do admin ainda usa). Só a pergunta do bloco `check` ganha marco; a aposta legada da Micro-decisão não. Corrigido de passagem um erro de tipo que vinha da LJ.5.1 (`LessonCardFunnel` não importado em `services/admin`).
+
+
+### LJ.1.2 · Rótulos humanos nas fases ✅ concluída
 
 **O que fazer:** sair do vocabulário de apostila. Hoje: eyebrow "Cenário", "Micro-decisão",
 "Revelação" e títulos fixos "Pense antes de continuar" e "Por que isso importa". Proposta:
@@ -86,7 +89,10 @@ Manter o `LessonPreview` do painel admin com os mesmos rótulos (é a prévia do
 **Critérios de aceite:** nenhum rótulo antigo sobra no player nem na prévia; testes de página
 atualizados; nada de travessão.
 
-### LJ.1.3 · "Na plataforma" vira rodapé recolhido
+- **Entregável:** (2026-10-18) Título da lição em todas as fases; etiquetas "Sua aposta", "O que acontece" e "Lição concluída" (Cenário sem etiqueta). A tela final mantém só a etiqueta e o título da lição; o título com o resultado vem na LJ.1.4. `LessonPreview` com os mesmos rótulos nas abas (a aba do Cenário continua "Cenário", é só navegação do painel). O rótulo de campo "Revelação" do editor de lição não mudou.
+
+
+### LJ.1.3 · "Na plataforma" vira rodapé recolhido ✅ concluída
 
 **O que fazer:** em `buildPhaseCards`, quando um bloco `platform-note` vem depois de outro bloco
 da mesma fase, ele **não vira cartão próprio**: é anexado ao cartão anterior como `footnote`. O
@@ -101,6 +107,9 @@ ao abrir. Se o `platform-note` for o primeiro bloco da fase, continua cartão pr
 - O `<details>` lembra se foi aberto só durante a lição (estado local).
 - A regra de conteúdo (`PLATFORM_NOTE_EXEMPT_RULE_IDS`) segue valendo, sem mudança no backend.
 - Teste do `buildPhaseCards` cobrindo: nota no meio, nota como primeiro bloco, duas notas seguidas.
+
+- **Entregável:** (2026-10-18) `buildPhaseCards` anexa o `platform-note` ao cartão anterior (`footnotes[]`, aceita duas notas seguidas; como primeiro bloco da fase continua cartão). Novo organismo `PlatformNoteFootnote` (`<details>` fechado, resumo textual no `aria-label`, props inválidas caem no fallback do widget); aberto/fechado fica no estado da lição (sobrevive a Voltar). Cartão `[revelar]` ainda fechado não mostra a nota. `PlatformNote` ganhou `PlatformNoteRows`, reaproveitado. Sem mudança de backend. Os índices de cartão mudaram: o funil antigo da LJ.5.1 deixa de corresponder nas lições com nota (usar janela curta).
+
 
 ### LJ.1.4 · Tela final com placar e próximo passo
 
@@ -415,7 +424,7 @@ de quem concluiu, e a função pura vira só o valor de partida.
 **Critérios de aceite:** teste da função com lições reais do seed; nada de "min" em texto de
 lição (é dado de interface, não conteúdo).
 
-### LJ.5.3 · Gestos e atalhos para avançar
+### LJ.5.3 · Gestos e atalhos para avançar ✅ concluída
 
 **O que fazer:** no mobile, **deslizar para a esquerda** avança e para a direita volta (só quando
 o Continuar estaria habilitado, ou seja, nunca pula checkpoint ou missão). No desktop, **Enter** e
@@ -426,6 +435,9 @@ deslizante ou widget com foco.
 **Critérios de aceite:** dica discreta dos atalhos na primeira lição só no desktop ("Dica: Enter
 avança"), uma vez por pessoa (preferência local); gestos não brigam com o scroll vertical nem com
 widgets arrastáveis (ordenar, agrupar); testes dos atalhos.
+
+- **Entregável:** (2026-10-18) `lessonShortcuts` (decisão pura de tecla e de gesto) + hook `useLessonShortcuts` (clica nos botões reais `data-lesson-*`, então herda o `disabled` e nunca pula pergunta): setas, Enter (responde se há alternativa marcada, senão avança), 1 a 4 escolhem alternativa; deslizar à esquerda avança e à direita volta (60 px, 2:1 horizontal, até 800 ms; ignora pinça, widget, campo e área com rolagem horizontal). Nada dispara em campo, widget com foco (`data-lesson-widget` na figura do widget), com modificador ou com janela aberta por cima. Enter em botão fica com o botão. Dica "Dica: Enter avança..." só com mouse e teclado, uma vez por pessoa (`selucra:lesson-shortcut-hint-seen`, try/catch). Corrigido de passagem: o aviso de erro do `LessonCheckpoint` saía com aspas literais.
+
 
 ### LJ.5.4 · Som e vibração no acerto (opcional)
 

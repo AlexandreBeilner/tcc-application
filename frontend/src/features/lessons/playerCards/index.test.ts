@@ -32,6 +32,50 @@ describe('buildPhaseCards', () => {
     })
 })
 
+describe('buildPhaseCards: "Na plataforma" como rodapé (LJ.1.3)', () => {
+    const note = (id: string) => ({ type: 'widget' as const, id, widget: 'platform-note', props: { brazil: 'a', here: 'b', why: 'c' } })
+    const widget = { type: 'widget' as const, id: 'w', widget: 'callout', props: {} }
+
+    it('nota depois de outro bloco vira rodapé do cartão anterior, sem cartão próprio', () => {
+        const cards = buildPhaseCards([{ type: 'text', markup: 'a\n\nb' }, note('n1'), { type: 'text', markup: 'c' }], '')
+
+        expect(cards).toEqual([
+            { kind: 'text', text: 'a', hidden: false },
+            { kind: 'text', text: 'b', hidden: false, footnotes: [note('n1')] },
+            { kind: 'text', text: 'c', hidden: false },
+        ])
+    })
+
+    it('nota depois de widget ou de pergunta também gruda no cartão deles', () => {
+        const check = { type: 'check' as const, id: 'q', kind: 'true_false' as const, prompt: 'p' }
+        const cards = buildPhaseCards([widget, note('n1'), check, note('n2')], '')
+
+        expect(cards).toEqual([
+            { kind: 'widget', block: widget, footnotes: [note('n1')] },
+            { kind: 'check', block: check, footnotes: [note('n2')] },
+        ])
+    })
+
+    it('nota como primeiro bloco da fase continua cartão próprio', () => {
+        expect(buildPhaseCards([note('n1'), { type: 'text', markup: 'a' }], '')).toEqual([
+            { kind: 'widget', block: note('n1') },
+            { kind: 'text', text: 'a', hidden: false },
+        ])
+    })
+
+    it('duas notas seguidas ficam as duas no mesmo cartão, na ordem', () => {
+        const cards = buildPhaseCards([{ type: 'text', markup: 'a' }, note('n1'), note('n2')], '')
+
+        expect(cards).toEqual([{ kind: 'text', text: 'a', hidden: false, footnotes: [note('n1'), note('n2')] }])
+    })
+
+    it('a nota de uma fase não gruda no último cartão da fase anterior', () => {
+        const phase2 = buildPhaseCards([note('n1')], '')
+
+        expect(phase2).toEqual([{ kind: 'widget', block: note('n1') }])
+    })
+})
+
 describe('termsSeenBeforeEachCard', () => {
     const text = (t: string): PlayerCard => ({ kind: 'text', text: t, hidden: false })
 

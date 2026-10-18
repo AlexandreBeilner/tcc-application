@@ -8,7 +8,8 @@ import { LessonCardBody, LessonCardDots } from '../../molecules/LessonCardText'
 import type { LessonRef } from '../../molecules/LessonCardText'
 import styles from './index.module.css'
 
-const STEPS = ['Cenário', 'Micro-decisão', 'Revelação', 'Desbloqueio'] as const
+// Mesmos rótulos do player (LJ.1.2): o Cenário não tem etiqueta no cartão, só nome de aba aqui.
+const STEPS = ['Cenário', 'Sua aposta', 'O que acontece', 'Lição concluída'] as const
 
 interface LessonPreviewProps {
     content: AdminLessonContent
@@ -66,10 +67,8 @@ export function LessonPreview({ content, lessons }: LessonPreviewProps) {
 
             {step < 3 && card && (
                 <div className={styles.card}>
-                    <span className={styles.eyebrow}>{STEPS[step]}</span>
-                    <h3 className={styles.heading}>
-                        {step === 0 ? content.title || 'Título da lição' : step === 1 ? 'Pense antes de continuar' : 'Por que isso importa'}
-                    </h3>
+                    {step > 0 && <span className={styles.eyebrow}>{STEPS[step]}</span>}
+                    <h3 className={styles.heading}>{content.title || 'Título da lição'}</h3>
 
                     {step === 2 && selected !== null && hasBet && correct !== null && options !== null && (
                         <span className={selected === correct ? styles.badgeCorrect : styles.badgeAlmost}>
@@ -140,8 +139,8 @@ export function LessonPreview({ content, lessons }: LessonPreviewProps) {
 
             {step === 3 && (
                 <div className={`${styles.card} ${styles.unlock}`}>
-                    <span className={styles.eyebrow}>Desbloqueio</span>
-                    <h3 className={styles.heading}>Lição concluída</h3>
+                    <span className={styles.eyebrow}>{STEPS[3]}</span>
+                    <h3 className={styles.heading}>{content.title || 'Título da lição'}</h3>
                     <p className={styles.body}>{content.unlocks_description || 'Você avançou mais um passo na trilha.'}</p>
                     <div className={styles.cta}>
                         <Button variant="secondary" disabled>

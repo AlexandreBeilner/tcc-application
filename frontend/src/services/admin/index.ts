@@ -9,6 +9,7 @@ import type {
     AdminLesson,
     AdminLessonContent,
     AdminLessonForEdit,
+    LessonCardFunnel,
     LessonCreateInput,
     LessonCreateResult,
     LessonRevisionContent,

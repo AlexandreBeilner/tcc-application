@@ -9,10 +9,13 @@ import { useCheckpoints } from '../../features/lessons/useCheckpoints'
 import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDecision'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
+import { useLessonShortcuts } from '../../features/lessons/useLessonShortcuts'
+import { useShortcutHint } from '../../features/lessons/useShortcutHint'
 import { Button } from '../../components/atoms/Button'
 import { LockedGate } from '../../components/organisms/LockedGate'
 import { LessonCheckpoint } from '../../components/organisms/LessonCheckpoint'
 import { LessonWidget } from '../../components/organisms/LessonWidget'
+import { PlatformNoteFootnote } from '../../components/organisms/PlatformNoteFootnote'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
@@ -20,7 +23,9 @@ import { buildPhaseCards, termsSeenBeforeEachCard } from '../../features/lessons
 import type { PlayerCard } from '../../features/lessons/playerCards'
 import { parseLessonBlocks } from '../../features/lessons/widgets/schema'
 import type { CheckBlock, WidgetBlock } from '../../features/lessons/widgets/schema'
-import { LessonCardBody, LessonCardDots } from '../../components/molecules/LessonCardText'
+import { LessonCardBody } from '../../components/molecules/LessonCardText'
+import { LessonProgressBar } from '../../components/molecules/LessonProgressBar'
+import { lessonProgress, progressMarkers } from '../../features/lessons/lessonProgress'
 import type { AnswerMicroDecisionResult, Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
@@ -81,6 +86,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const [localWrongOptions, setLocalWrongOptions] = useState<number[]>([])
     const [lastAttemptWrong, setLastAttemptWrong] = useState(false)
     const feedbackRef = useRef<HTMLParagraphElement>(null)
+    // Rodapés "Na plataforma" (LJ.1.3) que a pessoa abriu nesta lição: Voltar e Continuar não os fecham.
+    const [openFootnotes, setOpenFootnotes] = useState<string[]>([])
 
     const lesson = lessonQuery.data?.lesson
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
@@ -161,22 +168,9 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const isMicroDecisionLastCard = subStep >= microDecisionCards.length - 1
     const isRevelationLastCard = subStep >= revelationCards.length - 1
 
-    // Setas esquerda/direita acionam Voltar/Continuar (RC.2.2), exceto com o
-    // foco num campo de entrada (slider, input) ou com modificador. Clica nos
-    // botões reais, então herdam o `disabled` e qualquer gate.
-    useEffect(() => {
-        function handleKeyDown(event: KeyboardEvent) {
-            if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-            const target = event.target as HTMLElement | null
-            if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
-            const selector = event.key === 'ArrowLeft' ? '[data-lesson-back]' : event.key === 'ArrowRight' ? '[data-lesson-continue]' : null
-            if (!selector) return
-            const button = document.querySelector<HTMLButtonElement>(selector)
-            if (button && !button.disabled) button.click()
-        }
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [])
+    // Teclado e gestos (RC.2.2, LJ.5.3): clicam nos botões reais, então herdam o `disabled` de cada gate.
+    useLessonShortcuts()
+    const showShortcutHint = useShortcutHint(lesson !== undefined && step < TOTAL_STEPS - 1)
 
     // Depois de um erro o aviso (`role="alert"`) recebe o foco: o botão que
     // estava focado acabou de ficar desativado.
@@ -233,6 +227,14 @@ function LessonView({ lessonId }: { lessonId: string }) {
     // Quantos cartões tem cada fase, pro Voltar cair no último cartão da anterior.
     const cardCounts = [scenarioCards.length, microDecisionCards.length, revelationCards.length, 1]
 
+    // Barra única da lição (LJ.1.1): posição nos cartões das três fases mais a tela final, e um marco por
+    // pergunta (âmbar se acertada de primeira, neutro se depois).
+    const progress = lessonProgress(cardCounts.slice(0, 3), step, subStep)
+    const markers = progressMarkers([scenarioCards, microDecisionCards, revelationCards], (checkpointId) => {
+        const view = checkpoints.viewFor(checkpointId)
+        return view.solved ? (view.firstTry ? 'first-try' : 'later') : 'pending'
+    })
+
     function handleBack() {
         navigation.back(cardCounts)
     }
@@ -261,6 +263,24 @@ function LessonView({ lessonId }: { lessonId: string }) {
         navigation.reveal()
     }
 
+    // Notas "Na plataforma" coladas ao cartão (LJ.1.3). Um cartão `[revelar]` ainda fechado não as mostra,
+    // senão a nota entregaria o que o botão "Ver resultado" esconde.
+    function renderFootnotes(card: PlayerCard | undefined) {
+        if (!card?.footnotes || (card.kind === 'text' && card.hidden && !navigation.isRevealed)) return null
+        return card.footnotes.map((note) => (
+            <PlatformNoteFootnote
+                key={note.id}
+                block={note}
+                open={openFootnotes.includes(note.id)}
+                onToggle={(open) =>
+                    setOpenFootnotes((current) =>
+                        open ? [...current.filter((id) => id !== note.id), note.id] : current.filter((id) => id !== note.id),
+                    )
+                }
+            />
+        ))
+    }
+
     function handleFinish() {
         const nextLesson = lessonsQuery.data?.lessons.find((candidate) => candidate.sortOrder === (lesson?.sortOrder ?? 0) + 1)
         navigate(nextLesson ? `/trilha/${nextLesson.id}` : '/trilha')
@@ -273,16 +293,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     <ArrowLeft size={16} aria-hidden="true" />
                     Sair da lição
                 </button>
-                <div className={styles.steps}>
-                    {Array.from({ length: TOTAL_STEPS }, (_, index) => (
-                        <span
-                            key={index}
-                            className={[styles.stepSeg, index < step && styles.done, index === step && styles.current]
-                                .filter(Boolean)
-                                .join(' ')}
-                        />
-                    ))}
-                </div>
+                {lesson && <LessonProgressBar current={progress.current} total={progress.total} markers={markers} />}
             </div>
 
             {lessonQuery.isError && lockedLesson && (
@@ -299,7 +310,6 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
             {lesson && step === 0 && (
                 <section className={cardClassName(scenarioCards[subStep])}>
-                    <span className={styles.eyebrow}>Cenário</span>
                     <h1 className={styles.heading}>{lesson.title}</h1>
                     <CardBody
                         card={scenarioCards[subStep]}
@@ -309,7 +319,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         lessons={lessons}
                         termsSeen={termsSeenBefore.get(scenarioCards[subStep])}
                     />
-                    {scenarioCards.length > 1 && <LessonCardDots total={scenarioCards.length} current={subStep} />}
+                    {renderFootnotes(scenarioCards[subStep])}
                     <div className={styles.ctaRow}>
                         {navigation.canGoBack && (
                             <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao cartão anterior">
@@ -330,8 +340,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
             {lesson && step === 1 && (
                 <section className={cardClassName(microDecisionCards[subStep])}>
-                    <span className={styles.eyebrow}>Micro-decisão</span>
-                    <h1 className={styles.heading}>Pense antes de continuar</h1>
+                    <span className={styles.eyebrow}>Sua aposta</span>
+                    <h1 className={styles.heading}>{lesson.title}</h1>
                     <CardBody
                         card={microDecisionCards[subStep]}
                         renderCheckpoint={renderCheckpoint}
@@ -340,7 +350,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         lessons={lessons}
                         termsSeen={termsSeenBefore.get(microDecisionCards[subStep])}
                     />
-                    {microDecisionCards.length > 1 && <LessonCardDots total={microDecisionCards.length} current={subStep} />}
+                    {renderFootnotes(microDecisionCards[subStep])}
 
                     {isMicroDecisionLastCard && (
                         <>
@@ -369,6 +379,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                                                         .filter(Boolean)
                                                         .join(' ')}
                                                     disabled={isWrong || questionSolved}
+                                                    data-lesson-option=""
                                                     onClick={() => setSelectedOption(index)}
                                                 >
                                                     {option}
@@ -405,6 +416,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                                         <div className={styles.ctaRow}>
                                             <Button
                                                 onClick={handleAnswer}
+                                                data-lesson-submit=""
                                                 disabled={selectedOption === undefined || answerMicroDecision.isPending}
                                             >
                                                 Responder
@@ -440,8 +452,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
             {lesson && step === 2 && (
                 <section className={cardClassName(revelationCards[subStep])}>
-                    <span className={styles.eyebrow}>Revelação</span>
-                    <h1 className={styles.heading}>Por que isso importa</h1>
+                    <span className={styles.eyebrow}>O que acontece</span>
+                    <h1 className={styles.heading}>{lesson.title}</h1>
                     {answerSolved && (
                         <span className={styles.answerBadgeCorrect}>
                             {isReview || answer.firstTry
@@ -459,7 +471,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         lessons={lessons}
                         termsSeen={termsSeenBefore.get(revelationCards[subStep])}
                     />
-                    {revelationCards.length > 1 && <LessonCardDots total={revelationCards.length} current={subStep} />}
+                    {renderFootnotes(revelationCards[subStep])}
 
                     {isRevelationLastCard && !revelationHasBlocks && isLiveIndicator && lesson.microDecisionAssetTicker && (
                         <LessonWidget
@@ -499,8 +511,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
                     <span className={styles.unlockBadge} aria-hidden="true">
                         <Check size={22} strokeWidth={3} />
                     </span>
-                    <span className={styles.eyebrow}>Desbloqueio</span>
-                    <h1 className={styles.heading}>Lição concluída</h1>
+                    <span className={styles.eyebrow}>Lição concluída</span>
+                    <h1 className={styles.heading}>{lesson.title}</h1>
                     <p className={styles.body}>{lesson.unlocksDescription || 'Você avançou mais um passo na trilha.'}</p>
                     <div className={styles.ctaRow}>
                         <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao passo anterior">
@@ -517,6 +529,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         </Button>
                     </div>
                 </section>
+            )}
+
+            {showShortcutHint && (
+                <p className={styles.shortcutHint} role="note">
+                    Dica: Enter avança, as setas navegam e 1 a 4 escolhem a alternativa.
+                </p>
             )}
 
             {advanceLesson.isError && (

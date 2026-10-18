@@ -108,9 +108,32 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        expect(await screen.findByText('Cenário')).toBeInTheDocument()
-        expect(screen.getByText('Diversificação')).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { level: 1, name: 'Diversificação' })).toBeInTheDocument()
+        // O Cenário não tem etiqueta (LJ.1.2).
+        expect(screen.queryByText('Cenário')).not.toBeInTheDocument()
         expect(screen.getByText('Espalhar capital reduz risco')).toBeInTheDocument()
+    })
+
+    it('o título da lição vale em todas as fases e nenhum rótulo antigo sobra (LJ.1.2)', async () => {
+        vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 0 }) })
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
+
+        renderLesson()
+        const heading = () => screen.getByRole('heading', { level: 1 })
+        await screen.findByRole('heading', { level: 1, name: 'Diversificação' })
+
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
+        expect(heading()).toHaveTextContent('Diversificação')
+
+        vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 2, completed: false })
+        fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        expect(await screen.findByText('O que acontece')).toBeInTheDocument()
+        expect(heading()).toHaveTextContent('Diversificação')
+
+        for (const old of ['Cenário', 'Micro-decisão', 'Revelação', 'Desbloqueio', 'Pense antes de continuar', 'Por que isso importa']) {
+            expect(screen.queryByText(old)).not.toBeInTheDocument()
+        }
     })
 
     it('funil por cartão: reporta o cartão aberto e o da fase seguinte, e nada em revisão', async () => {
@@ -118,7 +141,7 @@ describe('Lesson (tela 3.2)', () => {
         vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 1, completed: false })
 
         const { unmount } = renderLesson()
-        await screen.findByText('Cenário')
+        await screen.findByRole('heading', { level: 1 })
         await waitFor(() => expect(recordCardReach).toHaveBeenCalledWith('token-valido', 'lesson-1', 0, 0))
 
         fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
@@ -128,7 +151,7 @@ describe('Lesson (tela 3.2)', () => {
         vi.mocked(recordCardReach).mockClear()
         vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 3, status: 'completed' }) })
         renderLesson()
-        await screen.findByText('Cenário')
+        await screen.findByRole('heading', { level: 1 })
         expect(recordCardReach).not.toHaveBeenCalled()
     })
 
@@ -137,7 +160,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        expect(await screen.findByText('Revelação')).toBeInTheDocument()
+        expect(await screen.findByText('O que acontece')).toBeInTheDocument()
         expect(screen.getByText('Diversificar reduz o risco não sistemático')).toBeInTheDocument()
     })
 
@@ -150,7 +173,7 @@ describe('Lesson (tela 3.2)', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
 
         await waitFor(() => expect(advanceLesson).toHaveBeenCalledWith('token-valido', 'lesson-1', 1))
-        expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+        expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
     })
 
     it('passo de micro-decisão (reflection, sem opções reais) não exige nenhum gate: Continuar já vem habilitado (backlog engajamento M.1)', async () => {
@@ -309,7 +332,7 @@ describe('Lesson (tela 3.2)', () => {
             renderLesson()
 
             fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
             expect(screen.getByRole('button', { name: 'Sim' })).not.toBeDisabled()
             expect(advanceLesson).not.toHaveBeenCalled()
@@ -321,7 +344,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Revelação')
+        await screen.findByText('O que acontece')
         expect(screen.queryByText('Você acertou')).not.toBeInTheDocument()
         expect(screen.queryByText(/Quase\./)).not.toBeInTheDocument()
     })
@@ -397,7 +420,7 @@ describe('Lesson (tela 3.2)', () => {
 
         fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
 
-        expect(await screen.findByText('Desbloqueio')).toBeInTheDocument()
+        expect(await screen.findByText('Lição concluída')).toBeInTheDocument()
         expect(screen.getByText('Tesouro Selic')).toBeInTheDocument()
     })
 
@@ -428,7 +451,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Desbloqueio')
+        await screen.findByText('Lição concluída')
         expect(screen.queryByRole('button', { name: 'Comprar agora' })).not.toBeInTheDocument()
     })
 
@@ -463,9 +486,9 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        expect(await screen.findByText('Cenário')).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-        expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+        expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
         expect(advanceLesson).not.toHaveBeenCalled()
     })
 
@@ -474,13 +497,13 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Cenário')
+        await screen.findByRole('heading', { level: 1 })
         expect(reviewLesson).not.toHaveBeenCalled()
 
         fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-        await screen.findByText('Micro-decisão')
+        await screen.findByText('Sua aposta')
         fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-        await screen.findByText('Revelação')
+        await screen.findByText('O que acontece')
         await waitFor(() => expect(reviewLesson).toHaveBeenCalledExactlyOnceWith('token-valido', 'lesson-1'))
         expect(advanceLesson).not.toHaveBeenCalled()
     })
@@ -490,7 +513,7 @@ describe('Lesson (tela 3.2)', () => {
 
         renderLesson()
 
-        await screen.findByText('Cenário')
+        await screen.findByRole('heading', { level: 1 })
         expect(reviewLesson).not.toHaveBeenCalled()
     })
 
@@ -510,7 +533,7 @@ describe('Lesson (tela 3.2)', () => {
         renderLesson('lesson-1')
 
         fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
-        await waitFor(() => expect(screen.getByText('Cenário')).toBeInTheDocument())
+        await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument())
         expect(getLesson).toHaveBeenLastCalledWith('token-valido', 'lesson-2')
     })
 
@@ -701,7 +724,7 @@ describe('Lesson (tela 3.2)', () => {
 
             renderLesson()
 
-            await screen.findByText('Cenário')
+            await screen.findByRole('heading', { level: 1 })
             expect(screen.queryByRole('button', { name: /^Voltar ao/ })).not.toBeInTheDocument()
         })
 
@@ -729,14 +752,14 @@ describe('Lesson (tela 3.2)', () => {
 
             fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
             fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(advanceLesson).toHaveBeenCalledTimes(1)
 
             fireEvent.click(voltar())
             expect(await screen.findByText('Último do cenário.')).toBeInTheDocument()
 
             fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(advanceLesson).toHaveBeenCalledTimes(1)
         })
 
@@ -754,17 +777,53 @@ describe('Lesson (tela 3.2)', () => {
             expect(await screen.findByText('Primeiro cartão.')).toBeInTheDocument()
         })
 
+        it('Enter avança o cartão e não pula a pergunta travada (LJ.5.3)', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({ currentStep: 0, scenarioText: 'Primeiro cartão.\n\nSegundo cartão.' }),
+            })
+
+            renderLesson()
+
+            await screen.findByText('Primeiro cartão.')
+            fireEvent.keyDown(window, { key: 'Enter' })
+            expect(await screen.findByText('Segundo cartão.')).toBeInTheDocument()
+        })
+
+        it('número escolhe a alternativa da pergunta e Enter responde (LJ.5.3)', async () => {
+            const check = { type: 'check', id: 'q1', kind: 'single', prompt: 'Qual rende mais?', options: ['LCI', 'CDB'] }
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: lesson({
+                    currentStep: 0,
+                    blocks: { schemaVersion: 1, phases: { scenario: [check], microDecision: [], revelation: [] } },
+                }),
+            })
+            vi.mocked(answerCheckpoint).mockResolvedValue({ correct: true, attempts: 1, firstTry: true, wrongOptions: [] })
+
+            renderLesson()
+
+            await screen.findByText('Qual rende mais?')
+            // Enter sem alternativa marcada não pula a pergunta.
+            fireEvent.keyDown(window, { key: 'Enter' })
+            expect(answerCheckpoint).not.toHaveBeenCalled()
+
+            fireEvent.keyDown(window, { key: '2' })
+            expect(screen.getByRole('button', { name: 'CDB' })).toHaveAttribute('aria-pressed', 'true')
+            fireEvent.keyDown(window, { key: 'Enter' })
+
+            await waitFor(() => expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-1', 'q1', { selectedOption: 1 }))
+        })
+
         it('lição retomada no meio deixa voltar às fases anteriores e reavançar sem POST', async () => {
             vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
 
             renderLesson()
 
-            await screen.findByText('Revelação')
+            await screen.findByText('O que acontece')
             fireEvent.click(voltar())
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
 
             fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-            expect(await screen.findByText('Revelação')).toBeInTheDocument()
+            expect(await screen.findByText('O que acontece')).toBeInTheDocument()
             expect(advanceLesson).not.toHaveBeenCalled()
         })
 
@@ -773,10 +832,10 @@ describe('Lesson (tela 3.2)', () => {
 
             renderLesson()
 
-            await screen.findByText('Revelação')
+            await screen.findByText('O que acontece')
             fireEvent.click(voltar())
 
-            expect(await screen.findByText('Micro-decisão')).toBeInTheDocument()
+            expect(await screen.findByText('Sua aposta')).toBeInTheDocument()
             expect(screen.getByRole('button', { name: 'Sim' })).toBeDisabled()
             expect(screen.getByRole('button', { name: 'Continuar' })).not.toBeDisabled()
         })
@@ -859,6 +918,60 @@ describe('Lesson (tela 3.2)', () => {
 
             expect(await screen.findByRole('group', { name: /Calculadora de juros/ })).toBeInTheDocument()
             expect(screen.getAllByRole('group', { name: /Calculadora de juros/ })).toHaveLength(1)
+        })
+    })
+
+    describe('"Na plataforma" como rodapé recolhido (LJ.1.3)', () => {
+        const note = {
+            type: 'widget',
+            id: 'n1',
+            widget: 'platform-note',
+            props: { brazil: 'Regra real.', here: 'Regra aqui.', why: 'Porque sim.' },
+        }
+        const withNote = (scenario: unknown[]) =>
+            lesson({ currentStep: 0, blocks: { schemaVersion: 1, phases: { scenario, microDecision: [], revelation: [] } } })
+
+        it('a nota depois de um texto não vira cartão: o Continuar já sai da fase e o rodapé nasce fechado', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withNote([{ type: 'text', markup: 'Primeiro texto.' }, note]) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Primeiro texto.')).toBeInTheDocument()
+            const footnote = screen.getByRole('group', { name: /^Na plataforma\./ })
+            expect(footnote).not.toHaveAttribute('open')
+            // Um cartão só: a barra mostra "Cartão 1 de 4" (1 de Cenário, 1 de aposta, 1 de revelação, final).
+            expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Cartão 1 de 4')
+        })
+
+        it('abrir mostra as três linhas e o rodapé segue aberto ao voltar ao cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withNote([{ type: 'text', markup: 'Primeiro texto.' }, note, { type: 'text', markup: 'Segundo texto.' }]),
+            })
+
+            renderLesson()
+            await screen.findByText('Primeiro texto.')
+            fireEvent.click(screen.getByText('Na plataforma'))
+
+            expect(await screen.findByText('Regra real.')).toBeVisible()
+            expect(screen.getByText('Regra aqui.')).toBeInTheDocument()
+            expect(screen.getByText('Porque sim.')).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Segundo texto.')).toBeInTheDocument()
+            expect(screen.queryByText('Na plataforma')).not.toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Voltar ao cartão anterior' }))
+            expect(await screen.findByText('Primeiro texto.')).toBeInTheDocument()
+            expect(screen.getByRole('group', { name: /^Na plataforma\./ })).toHaveAttribute('open')
+        })
+
+        it('como primeiro bloco da fase continua cartão próprio, com a nota por inteiro', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withNote([note, { type: 'text', markup: 'Depois.' }]) })
+
+            renderLesson()
+
+            expect(await screen.findByText('Regra real.')).toBeVisible()
+            expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Cartão 1 de 5')
         })
     })
 

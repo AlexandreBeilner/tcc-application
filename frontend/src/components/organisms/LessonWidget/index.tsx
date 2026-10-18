@@ -30,7 +30,7 @@ export function LessonWidget({ block }: LessonWidgetProps) {
     const Component = definition.component as React.ComponentType<Record<string, unknown>>
 
     return (
-        <figure className={styles.widget} role="group" aria-label={definition.summary(parsed.data as never)}>
+        <figure className={styles.widget} role="group" aria-label={definition.summary(parsed.data as never)} data-lesson-widget="">
             <WidgetBoundary fallback={fallback}>
                 <Component {...(parsed.data as Record<string, unknown>)} />
             </WidgetBoundary>
