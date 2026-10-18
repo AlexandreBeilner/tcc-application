@@ -15,7 +15,7 @@ export const BLOCKS_2_7_1: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Empresa de capital aberto presta contas ao mercado: publica o {{ITR e DFP}}, com os resultados de cada trimestre e do ano. É dali que saem os números que você vai aprender a ler.',
+          'Todo trimestre, uma empresa de capital aberto abre as contas para qualquer pessoa ver. Ela publica o {{ITR e DFP}}, com os resultados de cada trimestre e do ano. É dali que saem os números que você vai aprender a ler.',
       },
       {
         type: 'text',
@@ -351,7 +351,7 @@ export const BLOCKS_2_7_5: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O preço de uma ação sozinho não diz se ela está cara. R$ 20 pode ser muito para quem lucra pouco por ação e pouco para quem lucra muito.',
+          'Uma ação de R$ 10 pode estar mais cara que uma de R$ 100. Como? O preço sozinho não diz se ela está cara: R$ 20 pode ser muito para quem lucra pouco por ação e pouco para quem lucra muito.',
       },
       {
         type: 'text',
@@ -448,7 +448,7 @@ export const BLOCKS_2_7_7: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Além de se valorizar, uma ação pode pagar parte do lucro aos sócios em dinheiro, os dividendos. O {{Dividend Yield}} resume quanto isso representa frente ao preço.',
+          'Duas ações custam R$ 10. Uma paga R$ 1 por ano em dividendos, a outra paga R$ 0,10. Qual rende mais como renda? O {{Dividend Yield}} resume quanto os dividendos representam frente ao preço.',
       },
       {
         type: 'text',
@@ -543,7 +543,7 @@ export const BLOCKS_2_8: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Empresas se agrupam em setores, como mineração, bancos, varejo, energia e tecnologia. Cada setor reage de um jeito à economia e aos juros.',
+          'Quando a economia esfria, algumas empresas sentem logo e outras quase não notam. Por quê? Empresas se agrupam em setores, como mineração, bancos, varejo, energia e tecnologia, e cada setor reage de um jeito à economia e aos juros.',
       },
       {
         type: 'text',
@@ -621,7 +621,7 @@ export const BLOCKS_2_9: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Um {{ETF}} é um fundo que reproduz um índice e é negociado na bolsa como uma ação. Com uma cota, você tem uma fatia de uma cesta inteira de ativos.',
+          'Dá para ter um pedacinho de várias empresas com uma única compra? Dá, com um {{ETF}}: um fundo que reproduz um índice e é negociado na bolsa como uma ação. Com uma cota, você tem uma fatia de uma cesta inteira de ativos.',
       },
       {
         type: 'text',
@@ -858,7 +858,7 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Ganhar vendendo uma ação ou uma cota pode gerar imposto. Quanto, depende de três coisas: o que você vendeu, se comprou e vendeu no mesmo dia e quanto vendeu no mês.',
+          'Você vendeu uma ação com lucro. A Receita quer uma parte? Depende de três coisas: o que você vendeu, se comprou e vendeu no mesmo dia e quanto vendeu no mês.',
       },
       {
         type: 'text',

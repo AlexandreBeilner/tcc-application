@@ -16,7 +16,7 @@ export const BLOCKS_1_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O CDB (Certificado de Depósito Bancário) é um empréstimo que você faz ao banco. Em troca, ele devolve o dinheiro com juros.' +
+          'Quem pede dinheiro emprestado ao banco paga juros. E quando é o banco que pede o seu? O CDB (Certificado de Depósito Bancário) é isso: um empréstimo que você faz ao banco, que devolve o dinheiro com juros.' +
           '\n\n' +
           'A remuneração costuma ser um percentual do {{CDI}}. 100% do CDI rende o mesmo que o CDI; 110% rende um pouco mais.',
       },
@@ -118,7 +118,7 @@ export const BLOCKS_1_5: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Um CDB rendeu R$ 1.000 de lucro. Antes de chegar à sua conta, uma parte vai para o Imposto de Renda (IR).' +
+          'Dois amigos aplicaram o mesmo valor no mesmo CDB. Um pagou 22,5% de Imposto de Renda (IR) sobre o lucro, o outro pagou 15%. O que um fez diferente do outro?' +
           '\n\n' +
           'O IR é retido na fonte: o banco desconta e paga por você, e não sobra nada para pagar depois.' +
           '\n\n' +
@@ -193,7 +193,7 @@ export const BLOCKS_1_6: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'LCI (Letra de Crédito Imobiliário) e LCA (Letra de Crédito do Agronegócio) financiam o setor imobiliário e o agronegócio. Têm a cobertura do {{FGC}}, como o CDB.' +
+          'Por que uma aplicação que rende menos no papel pode render mais no seu bolso? Parte da resposta está nas letras de crédito: LCI (Letra de Crédito Imobiliário) e LCA (Letra de Crédito do Agronegócio) financiam o setor imobiliário e o agronegócio, e têm a cobertura do {{FGC}}, como o CDB.' +
           '\n\n' +
           'Para pessoa física, o rendimento delas é isento de IR. O do CDB paga IR.',
       },

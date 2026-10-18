@@ -17,7 +17,7 @@ export const BLOCKS_2_7_6: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{dividendo}} é a parte do lucro que a empresa paga em dinheiro aos acionistas. O quanto ela distribui é o {{payout}}. Se o estatuto não disser outra coisa, a lei manda distribuir metade do lucro líquido ajustado.',
+          'A empresa lucrou, e o sócio recebe dinheiro na conta sem vender nada. É o {{dividendo}}: a parte do lucro que a empresa paga em dinheiro aos acionistas. O quanto ela distribui é o {{payout}}. Se o estatuto não disser outra coisa, a lei manda distribuir metade do lucro líquido ajustado.',
       },
       {
         type: 'text',
@@ -149,7 +149,7 @@ export const BLOCKS_2_10: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Um {{FII}} reúne o dinheiro de muitos investidores, os cotistas, para aplicar no mercado imobiliário. Você compra cotas na bolsa, como compra uma ação.',
+          'Dá para receber renda de imóveis sem comprar um imóvel inteiro? Dá, com um {{FII}}, que reúne o dinheiro de muitos investidores, os cotistas, para aplicar no mercado imobiliário. Você compra cotas na bolsa, como compra uma ação.',
       },
       {
         type: 'text',

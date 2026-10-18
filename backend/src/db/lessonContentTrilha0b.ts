@@ -14,7 +14,7 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Toda aplicação de renda fixa e todo empréstimo têm um ponto de partida: o preço do dinheiro. No Brasil, essa referência é a {{Selic}}, a taxa básica de juros.' +
+          'Por que um empréstimo custa tanto e uma aplicação rende tão pouco? Os dois partem do mesmo número: o preço do dinheiro. No Brasil, essa referência é a {{Selic}}, a taxa básica de juros.' +
           '\n\n' +
           'Quem define a meta da Selic é o Copom, comitê do Banco Central. Ele se reúne 8 vezes por ano, e a meta vale até a próxima reunião.',
       },
@@ -141,7 +141,7 @@ export const BLOCKS_POUPANCA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'A poupança é o investimento mais popular do Brasil: o dinheiro fica à mão, e o rendimento cai uma vez por mês, no aniversário do depósito.',
+          'Seu dinheiro rende na poupança, mas rende mais que a inflação? Depende. Ela é o investimento mais popular do Brasil: o dinheiro fica à mão, e o rendimento cai uma vez por mês, no aniversário do depósito.',
       },
       {
         type: 'widget',

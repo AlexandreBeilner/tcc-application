@@ -262,7 +262,7 @@ export const BLOCKS_RESERVA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Antes de investir para ganhar, vem o seguro contra o imprevisto: a reserva de emergência. É o dinheiro para um conserto, um problema de saúde ou uma perda de renda, sem precisar se endividar.',
+          'Se o seu salário atrasasse dois meses, o que você faria? Antes de investir para ganhar, vem o seguro contra o imprevisto: a reserva de emergência. É o dinheiro para um conserto, um problema de saúde ou uma perda de renda, sem precisar se endividar.',
       },
       {
         type: 'check',
@@ -369,7 +369,7 @@ export const BLOCKS_1_7: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O governo também vende títulos com a taxa travada na compra: o Tesouro Prefixado, nome técnico LTN. Ele promete pagar R$ 1.000 por título no vencimento, sem pagar nada no meio do caminho.',
+          'E se você pudesse travar hoje quanto vai receber daqui a alguns anos, sem surpresa? O governo vende títulos assim: o Tesouro Prefixado, nome técnico LTN. Ele promete pagar R$ 1.000 por título no vencimento, sem pagar nada no meio do caminho.',
       },
       {
         type: 'text',
@@ -610,7 +610,7 @@ export const BLOCKS_1_9: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{IPCA}} é o termômetro oficial da inflação no Brasil. Todo mês, o IBGE mede quanto custa uma cesta de bens e serviços, de comida a transporte, consumida por famílias urbanas com renda de 1 a 40 salários mínimos.',
+          'Quanto o seu carrinho de compras ficou mais caro neste ano? Quem responde é o {{IPCA}}, o termômetro oficial da inflação no Brasil. Todo mês, o IBGE mede quanto custa uma cesta de bens e serviços, de comida a transporte, consumida por famílias urbanas com renda de 1 a 40 salários mínimos.',
       },
       {
         type: 'check',
@@ -720,7 +720,7 @@ export const BLOCKS_1_10: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O Tesouro IPCA+ paga a inflação mais uma taxa fixa, por exemplo IPCA + 6% ao ano. A parte da inflação corrige o valor do título, e a parte fixa é o seu ganho acima da inflação.',
+          'E se o seu investimento acompanhasse a inflação sozinho, para você nunca perder poder de compra? É o Tesouro IPCA+: paga a inflação mais uma taxa fixa, por exemplo IPCA + 6% ao ano. A parte da inflação corrige o valor do título, e a parte fixa é o seu ganho acima da inflação.',
       },
       {
         type: 'text',

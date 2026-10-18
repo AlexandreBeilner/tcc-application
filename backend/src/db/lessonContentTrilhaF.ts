@@ -14,7 +14,7 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Investir começa pela sobra: o que resta da sua renda depois de pagar o mês. Sem saber quanto sobra, não dá para decidir quanto aplicar.',
+          'O salário entra, o mês passa e, no fim, sobra quanto? Investir começa pela sobra: o que resta da sua renda depois de pagar o mês. Sem saber quanto sobra, não dá para decidir quanto aplicar.',
       },
       {
         type: 'text',
@@ -143,7 +143,7 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Os {{juros compostos}} que fazem um investimento crescer trabalham contra você quando é você quem deve. A dívida cresce sobre um saldo que já inclui os juros dos meses anteriores.',
+          'O mesmo efeito que faz R$ 1.000 crescerem num investimento faz uma dívida de R$ 1.000 virar bola de neve. Os {{juros compostos}} trabalham contra você quando é você quem deve: a dívida cresce sobre um saldo que já inclui os juros dos meses anteriores.',
       },
       {
         type: 'text',

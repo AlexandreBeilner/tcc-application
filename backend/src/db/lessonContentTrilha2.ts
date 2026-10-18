@@ -171,7 +171,7 @@ export const BLOCKS_2_1: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Uma ação é uma fração do capital de uma empresa. Quem compra ações vira sócio: não empresta dinheiro, como na renda fixa, e passa a dividir o resultado do negócio.',
+          'Você toparia ser dono de um pedacinho de uma empresa grande? É o que uma ação oferece: uma fração do capital da empresa. Quem compra ações vira sócio: não empresta dinheiro, como na renda fixa, e passa a dividir o resultado do negócio.',
       },
       {
         type: 'text',
@@ -276,7 +276,7 @@ export const BLOCKS_2_2: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Para ter ações na bolsa, a empresa precisa abrir o capital. O {{IPO}}, a oferta pública inicial, é a primeira vez que ela oferece ações ao público.',
+          'Um dia, uma empresa que era só dos fundadores passa a ter milhares de sócios. Como isso acontece? Ela abre o capital, e o {{IPO}}, a oferta pública inicial, é a primeira vez que ela oferece ações ao público.',
       },
       {
         type: 'check',
@@ -386,7 +386,7 @@ export const BLOCKS_2_3: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Todo ticker tem quatro letras, que lembram o nome da empresa, e um número que diz o tipo da ação. A empresa escolhe as letras. O número segue um padrão da B3.',
+          'Dois códigos quase iguais na tela, um terminado em 3 e outro em 4. O que o número final está dizendo? Todo ticker tem quatro letras, que lembram o nome da empresa, e um número que diz o tipo da ação. A empresa escolhe as letras. O número segue um padrão da B3.',
       },
       {
         type: 'text',
@@ -483,7 +483,7 @@ export const BLOCKS_2_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O preço de uma ação reage a notícias. Algumas atingem a economia inteira, como uma decisão sobre a Selic. Outras atingem só um setor, o grupo de empresas do mesmo ramo, como a quebra de uma safra.',
+          'Uma decisão sobre a Selic abala a bolsa inteira. A quebra de uma safra abala só algumas empresas. O preço de uma ação reage a notícias: umas atingem a economia inteira, outras só um setor, o grupo de empresas do mesmo ramo.',
       },
       {
         type: 'check',
@@ -570,7 +570,7 @@ export const BLOCKS_2_5: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O preço de uma ação não é decidido pela empresa nem por você. É o preço do último negócio, aquele em que um comprador e um vendedor se acertaram.',
+          'Quem decide o preço de uma ação? Nem a empresa, nem você. É o preço do último negócio, aquele em que um comprador e um vendedor se acertaram.',
       },
       {
         type: 'check',

@@ -537,6 +537,8 @@ Texto pelo seed e script aditivo; checklist da diretriz em cada lição.
 **Critérios de aceite:** nenhuma lição abre com "X é..."; nenhum termo antes da definição;
 testes de conteúdo sem crescer baseline.
 
+- **Entregável:** (2026-10-18) Dos 43 primeiros cartões, **25 abriam com definição ou afirmação seca e foram reescritos** (pergunta, situação ou contraste, com a definição seguindo no mesmo cartão para o total de cartões não crescer); os outros 18 já abriam com situação, pergunta ou número e ficaram como estavam. Os 25 textos (antigo e novo) vivem em `src/db/lessonHooks.ts`; o seed tem o novo, e o script aditivo `src/db/applyLessonHooks.ts` (`applyLessonHook` pura, só troca texto que casa exatamente com o antigo e tem guarda porque o gancho novo contém o antigo) foi aplicado no banco de desenvolvimento (25 trocas; segunda execução não faz nada). Os exemplos do backlog entraram: 1.6 (dois amigos, 22,5% e 15%), 2.7.5 (ação de R$ 10 mais cara que a de R$ 100) e 3.4 (vendeu na baixa e subiu 40%). Termos continuam definidos antes do uso (os ganchos só usam `{{termo}}` já existente ou palavra comum) e nenhum número regulatório novo entrou além de 22,5% e 15% do IR na 1.6, que são os valores da lição (fato de IR do CDB). Testes: cada gancho está no seed e o antigo não sobrou, teto de 420 e sem travessão, e "nenhuma lição abre com definição" (regex `O/Um/Uma ... é ...` no primeiro parágrafo). Conteúdo de texto apenas: não conferi na tela.
+
 ### LJ.5.9 · Coleção de termos no Perfil
 
 **O que fazer:** cada termo do glossário (`features/lessons/glossary`) vira uma **carta** que a

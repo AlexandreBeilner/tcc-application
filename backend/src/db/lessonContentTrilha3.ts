@@ -490,7 +490,7 @@ export const BLOCKS_VIESES: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Conhecer produtos e contas não basta. Na hora do susto, a emoção decide mais rápido que a razão, e os atalhos da mente nos levam a erros previsíveis, os vieses.',
+          'Você vende uma ação na baixa e ela sobe 40% no mês seguinte. Quanto isso dói, de 0 a 10? Conhecer produtos e contas não basta: na hora do susto, a emoção decide mais rápido que a razão, e os atalhos da mente nos levam a erros previsíveis, os vieses.',
       },
       {
         type: 'text',
