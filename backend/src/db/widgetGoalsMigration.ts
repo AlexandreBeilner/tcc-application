@@ -32,6 +32,8 @@ export function applyWidgetGoals(
         target[at] = {
           ...target[at],
           props: { ...(target[at].props as object), ...(seedBlock.props as object) },
+          // A legenda acompanha a missão quando o seed a reescreveu (ela descrevia os controles de antes).
+          ...(seedBlock.caption === undefined ? {} : { caption: seedBlock.caption }),
           goal: seedBlock.goal,
         }
         changed += 1

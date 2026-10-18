@@ -50,6 +50,20 @@ describe('applyWidgetGoals', () => {
     expect(blocks.summary).toEqual(['editado'])
   })
 
+  it('troca a legenda quando o seed a reescreveu junto com a missão, e mantém a do banco quando o seed não tem', () => {
+    const existing = { type: 'widget', id: 'w', widget: 'real-return', props: {}, caption: 'velha' }
+    const withCaption = { phases: { revelation: [{ ...seedWidget, caption: 'nova' }] } }
+
+    expect(
+      applyWidgetGoals({ phases: { revelation: [existing] } }, withCaption).blocks.phases
+        ?.revelation?.[0].caption,
+    ).toBe('nova')
+    expect(
+      applyWidgetGoals({ phases: { revelation: [existing] } }, seed).blocks.phases?.revelation?.[0]
+        .caption,
+    ).toBe('velha')
+  })
+
   it('insere o widget que ainda não existe depois do bloco que o antecede no seed (texto casa pelo conteúdo)', () => {
     const text = { type: 'text', markup: 'antes' }
     const current = {

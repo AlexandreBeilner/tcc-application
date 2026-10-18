@@ -151,6 +151,7 @@ export const widgetPropsSchemas = {
         amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),
         institutions: z.number().int().min(1).max(6).default(1),
         sameConglomerate: z.boolean().default(false),
+        totalAmount: z.number().positive().max(5_000_000).optional(),
     }),
     'bond-price-calculator': z.object({
         ratePct: z.number().min(6).max(18).default(11.75),

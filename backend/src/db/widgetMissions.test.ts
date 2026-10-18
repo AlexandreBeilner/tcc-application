@@ -26,6 +26,14 @@ const EXPECTED: Expected[] = [
     op: 'lte',
     value: 12,
   },
+  {
+    lesson: '1.5',
+    id: 'barra-fgc',
+    widget: 'fgc-coverage-bar',
+    metric: 'uncoveredAmount',
+    op: 'lte',
+    value: 0,
+  },
 ]
 
 function goalsOf(code: string) {

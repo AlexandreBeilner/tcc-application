@@ -25,6 +25,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'monthsToReach', op: 'lte', value: 12 },
         showMe: { monthlyContribution: 1500 },
     },
+    {
+        lesson: '1.5',
+        widget: 'fgc-coverage-bar',
+        initial: { amountPerInstitution: 300000, institutions: 2, sameConglomerate: false, totalAmount: 600000 },
+        goal: { metric: 'uncoveredAmount', op: 'lte', value: 0 },
+        showMe: { institutions: 3 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props.
@@ -62,5 +69,17 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(
             metricsOf('emergency-fund-calculator', { monthlyCost: 3000, incomeType: 'variable', monthlyContribution: 0 }).monthsToReach,
         ).toBe(Infinity)
+    })
+
+    it('1.5: com o total fixo em R$ 600 mil, só fecha dividindo em 3 ou mais instituições diferentes', () => {
+        const uncovered = (institutions: number, sameConglomerate: boolean) =>
+            metricsOf('fgc-coverage-bar', { amountPerInstitution: 0, institutions, sameConglomerate, totalAmount: 600000 }).uncoveredAmount
+        // 2 x 300 mil: R$ 50 mil de cada fora do limite de R$ 250 mil.
+        expect(uncovered(2, false)).toBe(100000)
+        // 3 x 200 mil e 6 x 100 mil cabem no limite por instituição e no teto de R$ 1 milhão.
+        expect(uncovered(3, false)).toBe(0)
+        expect(uncovered(6, false)).toBe(0)
+        // No mesmo conglomerado os valores se somam antes do limite: sobram R$ 350 mil de fora.
+        expect(uncovered(3, true)).toBe(350000)
     })
 })

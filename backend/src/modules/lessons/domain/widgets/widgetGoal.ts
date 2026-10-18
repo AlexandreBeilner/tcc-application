@@ -26,6 +26,7 @@ export interface WidgetGoal {
 // (`features/lessons/widgets/goal`), e o teste do widget quebra se a métrica for renomeada.
 export const WIDGET_MISSION_METRICS: Partial<Record<WidgetId, readonly string[]>> = {
   'emergency-fund-calculator': ['monthsToReach'],
+  'fgc-coverage-bar': ['uncoveredAmount'],
   'growth-calculator': ['interestRatio'],
   'real-return': ['realReturnPct'],
   'savings-vs-selic': ['savingsGapPct'],

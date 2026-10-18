@@ -26,6 +26,7 @@ export interface MissionWidgetProps {
 // Métricas que cada widget com missão declara. O teste de cada widget quebra se ele renomear uma delas.
 export const WIDGET_MISSION_METRICS: Partial<Record<string, readonly string[]>> = {
     'emergency-fund-calculator': ['monthsToReach'],
+    'fgc-coverage-bar': ['uncoveredAmount'],
     'growth-calculator': ['interestRatio'],
     'real-return': ['realReturnPct'],
     'savings-vs-selic': ['savingsGapPct'],

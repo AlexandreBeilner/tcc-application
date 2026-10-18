@@ -180,6 +180,8 @@ const fgcCoverageBarProps = z.object({
   amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),
   institutions: z.number().int().min(1).max(6).default(1),
   sameConglomerate: z.boolean().default(false),
+  // Missão: total fixo a distribuir entre as instituições (ignora `amountPerInstitution`).
+  totalAmount: z.number().positive().max(5_000_000).optional(),
 })
 
 // Régua de rating (RC.3.4b): a escala é convenção das agências; a prop só

@@ -74,8 +74,22 @@ export const BLOCKS_1_4: LessonBlocks = {
         type: 'widget',
         id: 'barra-fgc',
         widget: 'fgc-coverage-bar',
-        props: { amountPerInstitution: 200000, institutions: 2, sameConglomerate: true },
-        caption: 'Mude os valores e veja o que o FGC cobre e o que fica de fora.',
+        props: {
+          amountPerInstitution: 300000,
+          institutions: 2,
+          sameConglomerate: false,
+          totalAmount: 600000,
+        },
+        caption: 'Mude o número de instituições e veja o que o FGC cobre e o que fica de fora.',
+        goal: {
+          text: 'Distribua os R$ 600 mil sem deixar nada fora da cobertura',
+          metric: 'uncoveredAmount',
+          op: 'lte',
+          value: 0,
+          reveal:
+            'O limite vale por instituição (ou conglomerado), então dividir o mesmo dinheiro em mais lugares faz cada parte caber na cobertura. Em instituições do mesmo conglomerado, a divisão não ajuda: elas contam como uma só.',
+          showMe: { institutions: 3 },
+        },
       },
       {
         type: 'text',
