@@ -49,9 +49,18 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
         type: 'widget',
         id: 'monte-seu-orcamento',
         widget: 'budget-split',
-        props: {},
+        props: { leisure: 700 },
         caption:
           'Mexa nas categorias e veja a sobra mudar. Se passar da renda, o orçamento fecha no vermelho.',
+        goal: {
+          text: 'Feche o mês com 10% da renda de sobra',
+          metric: 'surplusPct',
+          op: 'gte',
+          value: 10,
+          reveal:
+            'A sobra nasce de gastar menos ou de ganhar mais. É ela, e não a renda, que limita quanto dá para aportar todo mês.',
+          showMe: { leisure: 500 },
+        },
       },
       {
         type: 'text',

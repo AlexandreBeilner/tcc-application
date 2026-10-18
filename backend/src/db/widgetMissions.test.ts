@@ -115,6 +115,14 @@ const EXPECTED: Expected[] = [
     op: 'lt',
     value: 40,
   },
+  {
+    lesson: 'F.1',
+    id: 'monte-seu-orcamento',
+    widget: 'budget-split',
+    metric: 'surplusPct',
+    op: 'gte',
+    value: 10,
+  },
 ]
 
 function goalsOf(code: string) {

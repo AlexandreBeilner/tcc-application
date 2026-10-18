@@ -38,6 +38,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<WidgetId, readonly string[]>
   'roe-lab': ['roeMinusSelicPp'],
   'fee-drag': ['differenceBRL'],
   'allocation-donut': ['maxSharePct'],
+  'budget-split': ['surplusPct'],
   'real-return': ['realReturnPct'],
   'savings-vs-selic': ['savingsGapPct'],
 }

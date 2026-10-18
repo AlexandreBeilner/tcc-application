@@ -95,6 +95,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'maxSharePct', op: 'lt', value: 40 },
         showMe: { postFixedPct: 35, longerFixedPct: 30, fiiPct: 15, stocksPct: 20 },
     },
+    {
+        lesson: 'F.1',
+        widget: 'budget-split',
+        initial: { leisure: 700 },
+        goal: { metric: 'surplusPct', op: 'gte', value: 10 },
+        showMe: { leisure: 500 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props, validadas pelo schema como o player faz
@@ -233,6 +240,16 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(maxShare({ postFixedPct: 25, longerFixedPct: 25, fiiPct: 25, stocksPct: 25 })).toBe(25)
         // Quatro sliders em 30% somam 120%: o donut é proporcional, mas a carteira não está montada.
         expect(maxShare({ postFixedPct: 30, longerFixedPct: 30, fiiPct: 30, stocksPct: 30 })).toBe(Infinity)
+    })
+
+    it('F.1: com renda de 4.000, lazer de 700 deixa 5% de sobra (R$ 200) e cortar R$ 200 chega a exatamente 10%', () => {
+        const surplus = (leisure: number) => metricsOf('budget-split', { leisure }).surplusPct
+        // Moradia 1.500 + alimentação 800 + transporte 400 + dívidas 200 + outros 200 + lazer.
+        expect(surplus(300)).toBeCloseTo(15, 6)
+        expect(surplus(700)).toBeCloseTo(5, 6)
+        expect(surplus(550)).toBeCloseTo(8.75, 6)
+        expect(surplus(500)).toBeGreaterThanOrEqual(10)
+        expect(surplus(450)).toBeGreaterThan(10)
     })
 
     describe('2.4: ordem limitada de compra executada (o widget só informa depois de "Enviar ordem")', () => {
