@@ -31,6 +31,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<string, readonly string[]>> 
     'ir-regressive-table': ['irRatePct'],
     'equivalent-rate': ['cdbGapPct'],
     'bond-price-calculator': ['unitPrice'],
+    'mtm-seesaw': ['priceChangePct'],
     'real-return': ['realReturnPct'],
     'savings-vs-selic': ['savingsGapPct'],
 }

@@ -549,6 +549,15 @@ export const BLOCKS_1_8: LessonBlocks = {
         widget: 'mtm-seesaw',
         props: { contractRatePct: 11.75, yearsToMaturity: 2, indexer: 'prefixed' },
         caption: 'Mova a taxa de mercado e o prazo. O que acontece com o preço?',
+        goal: {
+          text: 'Faça o seu título perder mais de 5% do valor antes do vencimento',
+          metric: 'priceChangePct',
+          op: 'lt',
+          value: -5,
+          reveal:
+            'Taxa de mercado maior derruba o preço do título, e a queda é maior quando o vencimento está mais longe. A perda só se realiza se você vender antes: segurando até o fim, você recebe os R$ 1.000 combinados.',
+          showMe: { marketRatePct: 17 },
+        },
       },
       {
         type: 'check',

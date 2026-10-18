@@ -146,6 +146,7 @@ export const widgetPropsSchemas = {
         contractRatePct: z.number().min(2).max(25).default(11.75),
         yearsToMaturity: z.number().min(0.25).max(10).default(2),
         indexer: z.enum(['prefixed', 'ipca-plus', 'selic']).default('prefixed'),
+        marketRatePct: z.number().min(2).max(25).optional(),
     }),
     'fgc-coverage-bar': z.object({
         amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),

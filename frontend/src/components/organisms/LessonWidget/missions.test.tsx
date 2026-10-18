@@ -53,6 +53,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'unitPrice', op: 'lt', value: 800 },
         showMe: { years: 2.5 },
     },
+    {
+        lesson: '1.9',
+        widget: 'mtm-seesaw',
+        initial: { contractRatePct: 11.75, yearsToMaturity: 2, indexer: 'prefixed' },
+        goal: { metric: 'priceChangePct', op: 'lt', value: -5 },
+        showMe: { marketRatePct: 17 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props.
@@ -131,5 +138,15 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(price(2.5)).toBeCloseTo(757.4, 0)
         // Taxa maior no prazo de 2 anos também derruba o preço: 12% dão R$ 797,19.
         expect(price(2, 12)).toBeLessThan(800)
+    })
+
+    it('1.9: com 2 anos, a taxa a 14% tira só cerca de 3,9% do preço e não basta; a 17% tira cerca de 8,8%', () => {
+        const change = (marketRatePct: number, yearsToMaturity = 2) =>
+            metricsOf('mtm-seesaw', { contractRatePct: 11.75, yearsToMaturity, indexer: 'prefixed', marketRatePct }).priceChangePct
+        expect(change(11.75)).toBeCloseTo(0, 6)
+        expect(change(14)).toBeCloseTo(-3.9, 1)
+        expect(change(17)).toBeCloseTo(-8.8, 1)
+        // O vencimento longo oscila mais com a mesma taxa: 10 anos a 14% perdem mais de 5%.
+        expect(change(14, 10)).toBeLessThan(-5)
     })
 })

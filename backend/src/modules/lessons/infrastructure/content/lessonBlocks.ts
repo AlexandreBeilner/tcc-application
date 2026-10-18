@@ -171,6 +171,8 @@ const mtmSeesawProps = z.object({
   contractRatePct: z.number().min(2).max(25).default(11.75),
   yearsToMaturity: z.number().min(0.25).max(10).default(2),
   indexer: z.enum(['prefixed', 'ipca-plus', 'selic']).default('prefixed'),
+  // Taxa de mercado de partida (missão); sem ela, começa na taxa contratada.
+  marketRatePct: z.number().min(2).max(25).optional(),
 })
 
 // Barra de cobertura do FGC (RC.3.4b): valor por instituição, quantas

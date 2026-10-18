@@ -59,6 +59,14 @@ const EXPECTED: Expected[] = [
     op: 'lt',
     value: 800,
   },
+  {
+    lesson: '1.9',
+    id: 'gangorra-marcacao',
+    widget: 'mtm-seesaw',
+    metric: 'priceChangePct',
+    op: 'lt',
+    value: -5,
+  },
 ]
 
 function goalsOf(code: string) {
