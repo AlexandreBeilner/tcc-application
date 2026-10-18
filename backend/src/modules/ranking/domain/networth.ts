@@ -128,9 +128,10 @@ export function replay(
 
       case 'buy_order_executed': {
         const cost = quantity * unitValue
-        tradesExecuted += 1
-        // Sandbox não mexe no caixa nem nos fluxos de capital (ponto 063).
+        // Sandbox não mexe no caixa, nos fluxos de capital nem na contagem de operações (ponto 063:
+        // "Primeira Operação" e "operou" nos duelos são do Mercado Ao Vivo).
         if (isLive(event.assetId)) {
+          tradesExecuted += 1
           cash -= cost
           investedCost += cost
           classFlows.variableIncome.investedCost += cost
@@ -146,8 +147,8 @@ export function replay(
 
       case 'sell_order_executed': {
         const proceeds = quantity * unitValue
-        tradesExecuted += 1
         if (isLive(event.assetId)) {
+          tradesExecuted += 1
           cash += proceeds
           disinvestedProceeds += proceeds
           classFlows.variableIncome.disinvestedProceeds += proceeds

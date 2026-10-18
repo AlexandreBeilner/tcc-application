@@ -160,7 +160,8 @@ describe('replay', () => {
     expect(snapshot.cash).toBe(10000 - 5 * 50)
     // Só o ativo de Mercado Ao Vivo entra na valorização.
     expect(snapshot.variableIncomeValue).toBe(5 * 60)
-    expect(snapshot.tradesExecuted).toBe(2)
+    // Só a operação do Mercado Ao Vivo conta (conquista "Primeira Operação", duelos).
+    expect(snapshot.tradesExecuted).toBe(1)
   })
 
   it('compra de renda fixa sandbox não entra na valorização nem mexe no caixa', () => {
