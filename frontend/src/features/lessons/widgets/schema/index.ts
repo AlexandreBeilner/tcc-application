@@ -377,7 +377,15 @@ const orderCheckBlock = z.object({
     highLabel: z.string().min(1).optional(),
 })
 
-const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock, orderCheckBlock])
+// Agrupar (LJ.2.4): grupos e itens na ordem de autoria; o grupo certo de cada item fica no servidor.
+const categorizeCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('categorize'),
+    groups: z.array(z.string().min(1)).min(2).max(3),
+    items: z.array(z.string().min(1)).min(3).max(6),
+})
+
+const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock, orderCheckBlock, categorizeCheckBlock])
 
 // "Saiba mais" (LJ.5.7): detalhe recolhido, colado ao cartão anterior. Só texto e widget (sem pergunta).
 const moreBlock = z.object({
@@ -409,6 +417,7 @@ export type MoreBlock = Extract<LessonBlock, { type: 'more' }>
 export type ChoiceBlock = Extract<CheckBlock, { kind: 'single' | 'true_false' }>
 export type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>
 export type OrderBlock = Extract<CheckBlock, { kind: 'order' }>
+export type CategorizeBlock = Extract<CheckBlock, { kind: 'categorize' }>
 
 // Ausente ou fora do contrato vira `null` (o player usa o texto legado).
 export function parseLessonBlocks(raw: unknown): LessonBlocks | null {

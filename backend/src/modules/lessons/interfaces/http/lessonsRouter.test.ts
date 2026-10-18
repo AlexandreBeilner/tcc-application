@@ -709,6 +709,85 @@ describe('lessons routes', () => {
     })
   })
 
+  describe('agrupar (LJ.2.4)', () => {
+    const lessonsWithCategorize = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'g1',
+                    kind: 'categorize' as const,
+                    prompt: 'Renda fixa ou variável?',
+                    groups: ['Renda fixa', 'Renda variável'],
+                    items: ['Tesouro Selic', 'Ação', 'CDB', 'FII'],
+                    answer: [0, 1, 0, 1],
+                    explanation: 'Porque o retorno é conhecido ou não.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/g1/answer'
+
+    it('GET devolve grupos e itens sem gabarito; errar devolve a contagem; acertar restaura os grupos', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCategorize)
+      const auth = authHeader(tokenIssuer)
+
+      const before = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(before.body.lesson.blocks.phases.scenario[0]).toEqual({
+        type: 'check',
+        id: 'g1',
+        kind: 'categorize',
+        prompt: 'Renda fixa ou variável?',
+        groups: ['Renda fixa', 'Renda variável'],
+        items: ['Tesouro Selic', 'Ação', 'CDB', 'FII'],
+      })
+
+      const wrong = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ groups: [1, 1, 1, 1] })
+      expect(wrong.body).toMatchObject({ correct: false, hint: { correctCount: 2, total: 4 } })
+      expect(wrong.body.explanation).toBeUndefined()
+
+      const hit = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ groups: [0, 1, 0, 1] })
+      expect(hit.body).toMatchObject({
+        correct: true,
+        explanation: 'Porque o retorno é conhecido ou não.',
+      })
+
+      const after = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(after.body.lesson.checkpoints[0]).toMatchObject({
+        solved: true,
+        attempts: 2,
+        groups: [0, 1, 0, 1],
+      })
+    })
+
+    it('400 pra grupo fora do intervalo, resposta curta e formato trocado', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithCategorize)
+      const auth = authHeader(tokenIssuer)
+      const post = (body: unknown) => request(app).post(url).set('Authorization', auth).send(body)
+
+      expect((await post({ groups: [0, 1, 0, 2] })).status).toBe(400)
+      expect((await post({ groups: [0, 1] })).status).toBe(400)
+      expect((await post({ groups: [-1, 1, 0, 1] })).status).toBe(400)
+      expect((await post({ sequence: [0, 1, 2, 3] })).status).toBe(400)
+    })
+  })
+
   describe('POST /lessons/:id/cards/reached (LJ.5.1)', () => {
     const url = '/lessons/l1/cards/reached'
 

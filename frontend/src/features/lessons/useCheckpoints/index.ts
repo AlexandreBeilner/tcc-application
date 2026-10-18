@@ -42,6 +42,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             lastAttemptWrong: false,
             ...(restored.estimate ? { estimate: restored.estimate } : {}),
             ...(restored.sequence ? { sequence: restored.sequence } : {}),
+            ...(restored.groups ? { groups: restored.groups } : {}),
         }
     }
 
@@ -75,6 +76,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
                           lastAttemptWrong: false,
                           ...(result.estimate ? { estimate: result.estimate } : {}),
                           ...('sequence' in response ? { sequence: response.sequence } : {}),
+                          ...('groups' in response ? { groups: response.groups } : {}),
                       }
                     : {
                           solved: false,

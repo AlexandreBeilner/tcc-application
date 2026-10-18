@@ -1,0 +1,203 @@
+.check {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.eyebrow {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-gamify-500);
+}
+
+.prompt {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+.board {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.pile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.legend {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.chips {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+/* Alvo de toque de 44 px. */
+.chip {
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    min-height: 44px;
+    color: var(--color-text-primary);
+    background: var(--color-bg-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    text-align: left;
+}
+
+.chip:hover:not(:disabled) {
+    border-color: var(--color-border-strong);
+}
+
+.chip:focus-visible,
+.groupTitle:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+}
+
+.chip:disabled {
+    cursor: default;
+    color: var(--color-text-primary);
+}
+
+.selected {
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+}
+
+/* Mobile: grupos empilhados como caixas abaixo da pilha de itens. */
+.groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    min-height: 96px;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+}
+
+/* Com um item escolhido, os grupos viram alvos: a borda sólida marca onde tocar (nunca só cor). */
+.ready {
+    border-style: solid;
+    border-color: var(--color-brand-500);
+}
+
+.groupTitle {
+    align-self: flex-start;
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-text-primary);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    cursor: default;
+}
+
+.groupTitle:not(:disabled) {
+    cursor: pointer;
+    border-color: var(--color-brand-500);
+    background: var(--color-brand-100);
+}
+
+.groupTitle:disabled {
+    color: var(--color-text-primary);
+}
+
+.empty {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.fit {
+    animation: fit 360ms ease both;
+    animation-delay: calc(var(--i) * 110ms);
+}
+
+@keyframes fit {
+    from {
+        border-color: var(--color-border);
+        transform: translateY(6px);
+    }
+    60% {
+        border-color: var(--color-gain-500);
+    }
+    to {
+        border-color: var(--color-gain-500);
+        transform: none;
+    }
+}
+
+.feedback {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.solved {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.badge {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-gain-500);
+}
+
+.explanation {
+    margin: 0;
+    font-size: var(--font-size-base);
+    color: var(--color-text-secondary);
+}
+
+/* Tablet e desktop: pilha à esquerda e grupos lado a lado, em colunas iguais. */
+@media (min-width: 768px) {
+    .groups {
+        flex-direction: row;
+    }
+
+    .group {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+@media (min-width: 1024px) {
+    .board {
+        max-width: 720px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fit {
+        animation: none;
+        border-color: var(--color-gain-500);
+    }
+}

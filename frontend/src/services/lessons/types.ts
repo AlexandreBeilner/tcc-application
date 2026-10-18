@@ -83,6 +83,8 @@ export interface CheckpointState {
     estimate?: EstimateResult
     // Só ordenar já resolvido (LJ.2.3): a ordem montada, em índices dos itens como o servidor os entregou.
     sequence?: number[]
+    // Só agrupar já resolvido (LJ.2.4): o grupo escolhido para cada item.
+    groups?: number[]
 }
 
 // Formatos de várias peças, ao errar (LJ-D2): quantas peças estão certas, sem dizer quais.

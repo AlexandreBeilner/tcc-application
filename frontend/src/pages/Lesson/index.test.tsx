@@ -1187,6 +1187,83 @@ describe('Lesson (tela 3.2)', () => {
             })
         })
 
+        describe('agrupar (LJ.2.4)', () => {
+            const categorize = {
+                type: 'check',
+                id: 'g1',
+                kind: 'categorize',
+                prompt: 'Renda fixa ou variável?',
+                groups: ['Renda fixa', 'Renda variável'],
+                items: ['Tesouro Selic', 'Ação', 'CDB'],
+            }
+
+            it('só envia com todos os itens agrupados; errar mostra a contagem e acertar libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([categorize]) })
+                vi.mocked(answerCheckpoint)
+                    .mockResolvedValueOnce({
+                        correct: false,
+                        attempts: 1,
+                        firstTry: false,
+                        wrongOptions: [],
+                        hint: { correctCount: 2, total: 3 },
+                    })
+                    .mockResolvedValueOnce({
+                        correct: true,
+                        attempts: 2,
+                        firstTry: false,
+                        wrongOptions: [],
+                        explanation: 'O retorno é conhecido ou não.',
+                    })
+
+                renderLesson()
+                await screen.findByText('Renda fixa ou variável?')
+                const send = screen.getByRole('button', { name: 'Responder' })
+                expect(send).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+                const place = (item: string, group: string) => {
+                    fireEvent.click(screen.getByRole('button', { name: item }))
+                    fireEvent.click(screen.getByRole('button', { name: `Colocar ${item} em ${group}` }))
+                }
+                place('Tesouro Selic', 'Renda fixa')
+                place('Ação', 'Renda fixa')
+                expect(send).toBeDisabled()
+                place('CDB', 'Renda fixa')
+                expect(send).toBeEnabled()
+
+                fireEvent.click(send)
+                expect(await screen.findByRole('alert')).toHaveTextContent('2 de 3 no lugar certo.')
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'g1', { groups: [0, 0, 0] })
+                expect(screen.queryByText('O retorno é conhecido ou não.')).not.toBeInTheDocument()
+
+                // Troca de grupo antes de reenviar.
+                place('Ação', 'Renda variável')
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'g1', { groups: [0, 1, 0] })
+                expect(screen.getByText('O retorno é conhecido ou não.')).toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('restaura os grupos quando a pergunta já foi resolvida', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([categorize], {
+                        checkpoints: [
+                            { checkpointId: 'g1', solved: true, attempts: 1, wrongOptions: [], firstTry: true, groups: [0, 1, 0] },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+                expect(screen.getByRole('list', { name: 'Itens em Renda variável' })).toHaveTextContent('Ação')
+                expect(screen.getByRole('list', { name: 'Itens em Renda fixa' })).toHaveTextContent('Tesouro Selic')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+        })
+
         it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {
             vi.mocked(getLesson).mockResolvedValue({
                 lesson: withChecks([check], {

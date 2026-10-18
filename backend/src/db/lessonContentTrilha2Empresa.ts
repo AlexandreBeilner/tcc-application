@@ -559,13 +559,20 @@ export const BLOCKS_2_8: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'setor-defensivo',
-        kind: 'single',
-        prompt: 'Qual destes setores é tipicamente defensivo?',
-        options: ['Moda de luxo', 'Distribuição de energia', 'Venda de carros novos'],
-        answer: 1,
+        id: 'ciclico-ou-defensivo',
+        kind: 'categorize',
+        prompt: 'Cada setor é cíclico ou defensivo?',
+        groups: ['Cíclico', 'Defensivo'],
+        items: [
+          'Distribuição de energia',
+          'Construção de imóveis',
+          'Moda de luxo',
+          'Saneamento básico',
+          'Venda de carros novos',
+        ],
+        answer: [1, 0, 0, 1, 0],
         explanation:
-          'Energia é gasta em qualquer fase da economia. Moda de luxo e carros novos são os primeiros cortes quando o orçamento aperta.',
+          'Energia e água se consomem em qualquer fase da economia. Imóveis, luxo e carros novos são os primeiros cortes quando o orçamento aperta.',
       },
       {
         type: 'text',
@@ -906,14 +913,21 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'isencao-so-acoes',
-        kind: 'single',
+        id: 'isento-ou-tributado',
+        kind: 'categorize',
         prompt:
-          'Você vendeu R$ 15.000 em cotas de ETF, com lucro, no mês. O ganho é isento?',
-        options: ['Sim, está abaixo do limite', 'Não, a isenção vale só para ações', 'Só se for FII'],
-        answer: 1,
+          'Vale a regra: vendas de até R$ 20 mil em ações no mês, em dias diferentes, têm o lucro isento. Cada venda abaixo, com lucro, é isenta ou paga imposto?',
+        groups: ['Isento', 'Paga imposto'],
+        items: [
+          'Vender R$ 15.000 em ações no mês',
+          'Vender R$ 30.000 em ações no mês',
+          'Vender R$ 15.000 em cotas de ETF',
+          'Vender R$ 12.000 em ações, em dois dias diferentes',
+          'Comprar e vender a mesma ação no mesmo dia',
+        ],
+        answer: [0, 1, 1, 0, 1],
         explanation:
-          'A isenção de vendas no mês vale para ações. ETF e FII pagam imposto sobre o lucro.',
+          'A isenção vale só para ações, até o limite do mês e fora do day trade. Acima do limite, ETF e day trade pagam imposto sobre o lucro.',
       },
       {
         type: 'text',

@@ -22,13 +22,19 @@ export const BLOCKS_1_1: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'tipo-hibrido',
-        kind: 'single',
-        prompt: 'Um título paga 6% ao ano mais o IPCA. Que tipo de regra é essa?',
-        options: ['Prefixada', 'Pós-fixada, só a Selic', 'Híbrida'],
-        answer: 2,
+        id: 'tipos-de-regra',
+        kind: 'categorize',
+        prompt: 'Que tipo de regra de remuneração é cada título?',
+        groups: ['Prefixada', 'Pós-fixada', 'Híbrida'],
+        items: [
+          'Paga 6% ao ano mais o IPCA',
+          'Paga 100% da Selic',
+          'Paga 11% ao ano, travado na compra',
+          'Paga 110% do CDI',
+        ],
+        answer: [2, 1, 0, 1],
         explanation:
-          'Tem uma parte fixa (6%) e uma parte que acompanha a inflação (IPCA). Por isso é híbrida.',
+          'Prefixada trava a taxa na compra. Pós-fixada acompanha um indexador, como a Selic ou o CDI. Híbrida soma uma parte fixa à inflação.',
       },
     ],
     microDecision: [

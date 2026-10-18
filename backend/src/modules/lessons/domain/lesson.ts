@@ -211,7 +211,9 @@ export interface CheckpointRecord {
 // Estimativa: o chute e se caiu na tolerância. Ordenar: a ordem certa que a pessoa montou (só gravada ao
 // resolver, para restaurar a tela).
 export type CheckpointLastResponse =
-  { kind: 'estimate'; value: number; hit: boolean } | { kind: 'order'; sequence: number[] }
+  | { kind: 'estimate'; value: number; hit: boolean }
+  | { kind: 'order'; sequence: number[] }
+  | { kind: 'categorize'; groups: number[] }
 
 // Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
 // o gabarito nunca vai aqui.
@@ -225,6 +227,8 @@ export interface CheckpointState {
   estimate?: EstimateResult
   // Só ordenar já resolvido: a ordem montada (índices dos itens como o cliente os recebeu).
   sequence?: number[]
+  // Só agrupar já resolvido: o grupo de cada item.
+  groups?: number[]
 }
 
 export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
@@ -244,12 +248,19 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   waived: boolean
 }
 
-function sequenceStateFor(
+function responseStateFor(
   record: CheckpointRecord,
-): { sequence: number[] } | Record<string, never> {
-  return record.solvedAt !== null && record.lastResponse?.kind === 'order'
-    ? { sequence: record.lastResponse.sequence }
-    : {}
+): { sequence: number[] } | { groups: number[] } | Record<string, never> {
+  if (record.solvedAt === null) {
+    return {}
+  }
+  if (record.lastResponse?.kind === 'order') {
+    return { sequence: record.lastResponse.sequence }
+  }
+  if (record.lastResponse?.kind === 'categorize') {
+    return { groups: record.lastResponse.groups }
+  }
+  return {}
 }
 
 function estimateStateFor(
@@ -295,7 +306,7 @@ export function buildLessonView(
       record.attempts === 1 &&
       (record.lastResponse?.kind === 'estimate' ? record.lastResponse.hit : true),
     ...estimateStateFor(lesson, record),
-    ...sequenceStateFor(record),
+    ...responseStateFor(record),
   }))
 
   return {

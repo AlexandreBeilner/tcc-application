@@ -324,4 +324,89 @@ describe('AnswerCheckpointUseCase', () => {
       ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
     })
   })
+  describe('agrupar (LJ-D2)', () => {
+    const block = {
+      type: 'check' as const,
+      id: 'g1',
+      kind: 'categorize' as const,
+      prompt: 'Renda fixa ou variável?',
+      groups: ['Renda fixa', 'Renda variável'],
+      items: ['Tesouro Selic', 'Ação', 'CDB', 'FII', 'LCI'],
+      answer: [0, 1, 0, 1, 0],
+      explanation: 'porque o retorno é conhecido ou não',
+    }
+    const lesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: { scenario: [block], microDecision: [], revelation: [] },
+      },
+    }
+
+    function buildCategorize() {
+      const repo = createFakeLessonRepository([lesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const send = (useCase: AnswerCheckpointUseCase, groups: number[]) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'g1', groups })
+
+    it('errar devolve só a contagem, sem explicação, e não resolve', async () => {
+      const { repo, useCase } = buildCategorize()
+
+      const result = await send(useCase, [0, 0, 0, 1, 0])
+
+      expect(result).toEqual({
+        correct: false,
+        attempts: 1,
+        firstTry: false,
+        wrongOptions: [],
+        hint: { correctCount: 4, total: 5 },
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).toBeNull()
+    })
+
+    it('acertar resolve, devolve a explicação e guarda os grupos para restaurar', async () => {
+      const { repo, useCase } = buildCategorize()
+
+      const result = await send(useCase, [0, 1, 0, 1, 0])
+
+      expect(result).toMatchObject({
+        correct: true,
+        firstTry: true,
+        explanation: 'porque o retorno é conhecido ou não',
+      })
+      expect(result.hint).toBeUndefined()
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.lastResponse).toEqual({ kind: 'categorize', groups: [0, 1, 0, 1, 0] })
+    })
+
+    it('errar antes de acertar tira o "de primeira"', async () => {
+      const { useCase } = buildCategorize()
+      await send(useCase, [1, 1, 1, 1, 1])
+
+      expect(await send(useCase, [0, 1, 0, 1, 0])).toMatchObject({
+        correct: true,
+        attempts: 2,
+        firstTry: false,
+      })
+    })
+
+    it('rejeita grupo inexistente, resposta curta e resposta de outro formato', async () => {
+      const { useCase } = buildCategorize()
+
+      await expect(send(useCase, [0, 1, 0, 1, 2])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+      await expect(send(useCase, [0, 1, 0])).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({
+          userId: 'u1',
+          lessonId: 'l1',
+          checkpointId: 'g1',
+          sequence: [0, 1, 2, 3, 4],
+        }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+  })
 })

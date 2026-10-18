@@ -1,4 +1,5 @@
 import { ChoiceCheckpoint } from '../ChoiceCheckpoint'
+import { CategorizeCheckpoint } from '../CategorizeCheckpoint'
 import { EstimateCheckpoint } from '../EstimateCheckpoint'
 import { OrderCheckpoint } from '../OrderCheckpoint'
 import type { LessonCheckpointProps } from './types'
@@ -15,6 +16,8 @@ export function LessonCheckpoint({ block, ...rest }: LessonCheckpointProps) {
             return <ChoiceCheckpoint block={block} {...rest} />
         case 'estimate':
             return <EstimateCheckpoint block={block} {...rest} />
+        case 'categorize':
+            return <CategorizeCheckpoint block={block} {...rest} />
         case 'order':
             return <OrderCheckpoint block={block} {...rest} />
     }

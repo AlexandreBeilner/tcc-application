@@ -25,6 +25,20 @@ export const GAME_SWAPS: GameSwap[] = [
   { stableKey: '1.5', kind: 'order', oldId: 'ir-90-dias', newId: 'ordem-aliquotas' },
   { stableKey: '2.2', kind: 'order', oldId: 'dinheiro-no-secundario', newId: 'etapas-da-oferta' },
   { stableKey: '2.6.1', kind: 'order', oldId: 'ebit-x-lucro', newId: 'ordem-do-resultado' },
+  { stableKey: '1.1', kind: 'categorize', oldId: 'tipo-hibrido', newId: 'tipos-de-regra' },
+  { stableKey: '2.8', kind: 'categorize', oldId: 'setor-defensivo', newId: 'ciclico-ou-defensivo' },
+  {
+    stableKey: 'imposto-renda-variavel',
+    kind: 'categorize',
+    oldId: 'isencao-so-acoes',
+    newId: 'isento-ou-tributado',
+  },
+  {
+    stableKey: 'orcamento-para-onde-vai',
+    kind: 'categorize',
+    oldId: 'regra-50-30-20',
+    newId: 'grupos-50-30-20',
+  },
 ]
 
 async function main() {

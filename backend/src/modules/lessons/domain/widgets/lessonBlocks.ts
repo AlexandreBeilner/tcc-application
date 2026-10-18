@@ -103,6 +103,17 @@ export type CheckBlock =
       highLabel?: string
       explanation: string
     }
+  // Agrupar (LJ.2.4): `answer[i]` é o índice (de `groups`) a que o item `i` pertence.
+  | {
+      type: 'check'
+      id: string
+      kind: 'categorize'
+      prompt: string
+      groups: string[]
+      items: string[]
+      answer: number[]
+      explanation: string
+    }
 
 export type EstimateUnit = 'brl' | 'pct' | 'years' | 'none'
 
@@ -151,8 +162,9 @@ export interface PublicCheckBlock {
   options?: string[]
   // Só `estimate`: a régua do controle. O valor real e a tolerância ficam no servidor.
   range?: { min: number; max: number; step: number; unit: EstimateUnit }
-  // Só `order`: `options` não é usado; os itens vão embaralhados (ver `shuffledIndices`).
+  // `order`: itens embaralhados (ver `shuffledIndices`). `categorize`: itens na ordem de autoria e os grupos.
   items?: string[]
+  groups?: string[]
   lowLabel?: string
   highLabel?: string
 }
@@ -194,6 +206,16 @@ function toPublicBlock(block: LessonBlock): PublicLessonBlock {
       kind: 'estimate',
       prompt: block.prompt,
       range: { min: block.min, max: block.max, step: block.step, unit: block.unit },
+    }
+  }
+  if (block.kind === 'categorize') {
+    return {
+      type: 'check',
+      id: block.id,
+      kind: 'categorize',
+      prompt: block.prompt,
+      groups: block.groups,
+      items: block.items,
     }
   }
   if (block.kind === 'order') {
@@ -265,6 +287,8 @@ export interface CheckResponse {
   value?: number
   // Ordenar: índices dos itens como o cliente os recebeu (embaralhados), de cima para baixo.
   sequence?: number[]
+  // Agrupar: o grupo escolhido para cada item, na ordem dos itens.
+  groups?: number[]
 }
 
 // Quantas peças a resposta acertou, para a dica de contagem dos formatos de várias peças (LJ-D2).
@@ -329,10 +353,20 @@ export function scoreOrder(block: OrderBlock, sequence: number[]): CheckHint {
   return { correctCount, total: block.items.length }
 }
 
+type CategorizeBlock = Extract<CheckBlock, { kind: 'categorize' }>
+
+export function scoreCategorize(block: CategorizeBlock, groups: number[]): CheckHint {
+  const correctCount = groups.filter((group, item) => group === block.answer[item]).length
+  return { correctCount, total: block.items.length }
+}
+
 // Formatos de várias peças: a contagem devolvida ao errar (LJ-D2). `undefined` nos demais.
 export function hintFor(block: CheckBlock, response: CheckResponse): CheckHint | undefined {
   if (block.kind === 'order' && response.sequence) {
     return scoreOrder(block, response.sequence)
+  }
+  if (block.kind === 'categorize' && response.groups) {
+    return scoreCategorize(block, response.groups)
   }
   return undefined
 }
@@ -394,6 +428,14 @@ export function isValidCheckResponse(block: CheckBlock, response: CheckResponse)
       sequence.every((i) => Number.isInteger(i) && i >= 0 && i < block.items.length)
     )
   }
+  if (block.kind === 'categorize') {
+    const { groups } = response
+    return (
+      Array.isArray(groups) &&
+      groups.length === block.items.length &&
+      groups.every((g) => Number.isInteger(g) && g >= 0 && g < block.groups.length)
+    )
+  }
   const optionCount = block.kind === 'single' ? block.options.length : TRUE_FALSE_OPTIONS.length
   return (
     typeof response.selectedOption === 'number' &&
@@ -410,6 +452,10 @@ export function isCheckCorrect(block: CheckBlock, response: CheckResponse): bool
   }
   if (block.kind === 'order') {
     const { correctCount, total } = scoreOrder(block, response.sequence as number[])
+    return correctCount === total
+  }
+  if (block.kind === 'categorize') {
+    const { correctCount, total } = scoreCategorize(block, response.groups as number[])
     return correctCount === total
   }
   if (block.kind === 'single') {

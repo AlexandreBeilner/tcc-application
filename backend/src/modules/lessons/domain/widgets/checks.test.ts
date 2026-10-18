@@ -6,6 +6,7 @@ import {
   isCheckCorrect,
   isValidCheckResponse,
   resolvesOnFirstAnswer,
+  scoreCategorize,
   scoreOrder,
   shuffledIndices,
   toPublicBlocks,
@@ -253,6 +254,55 @@ describe('checks (RC.3.2)', () => {
 
     it('ordenar não resolve na primeira resposta (errar não avança)', () => {
       expect(resolvesOnFirstAnswer(order)).toBe(false)
+    })
+  })
+  describe('agrupar (LJ.2.4)', () => {
+    const categorize: CheckBlock = {
+      type: 'check',
+      id: 'g1',
+      kind: 'categorize',
+      prompt: 'Renda fixa ou variável?',
+      groups: ['Renda fixa', 'Renda variável'],
+      items: ['Tesouro Selic', 'Ação', 'CDB', 'FII', 'LCI'],
+      answer: [0, 1, 0, 1, 0],
+      explanation: 'por quê g1',
+    }
+
+    it('versão pública leva grupos e itens, sem gabarito nem explicação', () => {
+      const json = JSON.stringify(
+        toPublicBlocks({ ...blocks, phases: { ...blocks.phases, scenario: [categorize] } }),
+      )
+
+      expect(json).toContain('"groups":["Renda fixa","Renda variável"]')
+      expect(json).toContain('"items":["Tesouro Selic","Ação","CDB","FII","LCI"]')
+      expect(json).not.toContain('"answer"')
+      expect(json).not.toContain('por quê')
+    })
+
+    it.each([
+      [[0, 1, 0, 1, 0], 5],
+      [[1, 1, 0, 1, 0], 4],
+      [[1, 0, 1, 0, 1], 0],
+      [[0, 1, 1, 1, 1], 3],
+    ])('scoreCategorize %j acerta %i de 5', (groups, correctCount) => {
+      expect(scoreCategorize(categorize as never, groups)).toEqual({ correctCount, total: 5 })
+      expect(isCheckCorrect(categorize, { groups })).toBe(correctCount === 5)
+    })
+
+    it.each([
+      [{ groups: [0, 1, 0, 1, 0] }, true],
+      [{ groups: [0, 1, 0, 1] }, false],
+      [{ groups: [0, 1, 0, 1, 2] }, false],
+      [{ groups: [0, 1, 0, 1, -1] }, false],
+      [{ groups: [0, 1, 0, 1, 0.5] }, false],
+      [{ sequence: [0, 1, 2, 3, 4] }, false],
+      [{}, false],
+    ])('isValidCheckResponse do agrupar %#', (response, expected) => {
+      expect(isValidCheckResponse(categorize, response)).toBe(expected)
+    })
+
+    it('não resolve na primeira resposta (errar não avança)', () => {
+      expect(resolvesOnFirstAnswer(categorize)).toBe(false)
     })
   })
 })

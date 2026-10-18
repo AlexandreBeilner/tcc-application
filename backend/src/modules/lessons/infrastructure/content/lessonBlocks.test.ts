@@ -522,6 +522,45 @@ describe('lessonBlocksSchema', () => {
     })
   })
 
+  describe('agrupar (LJ.2.4)', () => {
+    const categorize = {
+      type: 'check',
+      id: 'g1',
+      kind: 'categorize',
+      prompt: 'Renda fixa ou variável?',
+      groups: ['Renda fixa', 'Renda variável'],
+      items: ['Tesouro Selic', 'Ação', 'CDB', 'FII'],
+      answer: [0, 1, 0, 1],
+      explanation: 'Porque sim.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita agrupar completo e com três grupos', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(categorize)).success).toBe(true)
+      expect(
+        lessonBlocksSchema.safeParse(
+          withCheck({ ...categorize, groups: ['a', 'b', 'c'], answer: [0, 1, 2, 0] }),
+        ).success,
+      ).toBe(true)
+    })
+
+    it.each([
+      ['1 grupo', { groups: ['a'], answer: [0, 0, 0, 0] }],
+      ['4 grupos', { groups: ['a', 'b', 'c', 'd'], answer: [0, 1, 2, 3] }],
+      ['2 itens', { items: ['a', 'b'], answer: [0, 1] }],
+      ['gabarito de outro tamanho', { answer: [0, 1, 0] }],
+      ['grupo inexistente no gabarito', { answer: [0, 1, 0, 2] }],
+      ['grupo sem nenhum item', { answer: [0, 0, 0, 0] }],
+    ])('rejeita agrupar inválido: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...categorize, ...patch })).success).toBe(
+        false,
+      )
+    })
+  })
+
   it('rejeita mais de 7 checkpoints por lição', () => {
     const checks = Array.from({ length: 8 }, (_, i) => ({
       type: 'check',

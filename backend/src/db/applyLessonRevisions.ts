@@ -182,7 +182,8 @@ export const REVISIONS: LessonRevision[] = [
         'Os dividendos das ações também têm regra própria: a empresa retém parte do imposto quando paga muito a uma mesma pessoa no mês. Abaixo desse limite, não há retenção.',
       ],
     ],
-    checks: ['isencao-so-acoes', 'imposto-acima-do-limite', 'dividendo-limite'],
+    // `isencao-so-acoes` virou o agrupar `isento-ou-tributado` (LJ.2.7, `applyGameChecks.ts`).
+    checks: ['imposto-acima-do-limite', 'dividendo-limite'],
     inserts: [
       {
         id: 'hoje-isencao-dividendos',

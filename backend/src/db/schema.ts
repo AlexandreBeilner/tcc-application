@@ -500,9 +500,11 @@ export const userLessonCheckpoints = pgTable(
       .default(sql`'{}'::smallint[]`),
     solvedAt: timestamp('solved_at', { withTimezone: true }),
     // Resposta dos formatos que não são por índice (LJ.2.1); hoje só a estimativa:
-    // `{ kind: 'estimate', value, hit }` ou `{ kind: 'order', sequence }`. Nulo em `single`/`true_false`.
+    // `{ kind: 'estimate', value, hit }` ou `{ kind: 'order', sequence }` ou `{ kind: 'categorize', groups }`. Nulo em `single`/`true_false`.
     lastResponse: jsonb('last_response').$type<
-      { kind: 'estimate'; value: number; hit: boolean } | { kind: 'order'; sequence: number[] }
+      | { kind: 'estimate'; value: number; hit: boolean }
+      | { kind: 'order'; sequence: number[] }
+      | { kind: 'categorize'; groups: number[] }
     >(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

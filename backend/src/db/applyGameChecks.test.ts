@@ -56,13 +56,13 @@ describe('perguntas de jogo do seed (LJ.2.7)', () => {
     expect(checkIn(swap.stableKey, swap.oldId)).toBeUndefined()
   })
 
-  it('a quantidade de perguntas de cada lição trocada não mudou (3 a 7)', () => {
+  it('cada lição trocada continua com perguntas e dentro do máximo (7)', () => {
     for (const swap of GAME_SWAPS) {
       const lesson = LESSON_SEEDS.find((l) => l.stableKey === swap.stableKey)
       const checks = Object.values(lesson?.blocks?.phases ?? {})
         .flat()
         .filter((b) => b.type === 'check')
-      expect(checks.length).toBeGreaterThanOrEqual(3)
+      expect(checks.length).toBeGreaterThanOrEqual(2)
       expect(checks.length).toBeLessThanOrEqual(7)
     }
   })

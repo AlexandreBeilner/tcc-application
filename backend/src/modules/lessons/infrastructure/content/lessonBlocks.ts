@@ -477,6 +477,23 @@ const checkBlock = z.discriminatedUnion('kind', [
         b.answer.every((i) => i < b.items.length),
       { path: ['answer'], message: 'answer precisa ser uma permutação dos itens' },
     ),
+  // Agrupar (LJ.2.4): 2 ou 3 grupos, 3 a 6 itens; `answer[i]` é o grupo do item `i`.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('categorize'),
+      groups: z.array(z.string().min(1)).min(2).max(3),
+      items: z.array(z.string().min(1)).min(3).max(6),
+      answer: z.array(z.number().int().min(0)),
+    })
+    .refine(
+      (b) => b.answer.length === b.items.length && b.answer.every((g) => g < b.groups.length),
+      { path: ['answer'], message: 'answer precisa dar um grupo válido a cada item' },
+    )
+    .refine((b) => new Set(b.answer).size === b.groups.length, {
+      path: ['answer'],
+      message: 'todo grupo precisa receber ao menos um item',
+    }),
 ])
 
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })

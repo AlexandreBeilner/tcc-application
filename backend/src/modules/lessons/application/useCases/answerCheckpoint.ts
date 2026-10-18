@@ -120,6 +120,9 @@ export class AnswerCheckpointUseCase {
         ...(correct && block.kind === 'order' && input.sequence
           ? { lastResponse: { kind: 'order' as const, sequence: input.sequence } }
           : {}),
+        ...(correct && block.kind === 'categorize' && input.groups
+          ? { lastResponse: { kind: 'categorize' as const, groups: input.groups } }
+          : {}),
       },
     )
 

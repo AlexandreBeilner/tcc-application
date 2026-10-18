@@ -44,14 +44,14 @@ export function answerMicroDecision(token: string, id: string, selectedOption: n
 }
 
 // `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, LJ.2.1): `selectedOption`
-// (única escolha ou verdadeiro/falso), `value` (estimativa) ou `sequence` (ordenar). A explicação só
+// (única escolha ou verdadeiro/falso), `value` (estimativa), `sequence` (ordenar) ou `groups` (agrupar). A explicação só
 // vem no acerto, exceto na estimativa, que avança acertando ou não; ao errar um formato de várias
 // peças vem só a contagem (`hint`).
 export function answerCheckpoint(
     token: string,
     id: string,
     checkpointId: string,
-    response: { selectedOption: number } | { value: number } | { sequence: number[] },
+    response: { selectedOption: number } | { value: number } | { sequence: number[] } | { groups: number[] },
 ): Promise<AnswerCheckpointResult> {
     return apiRequest<AnswerCheckpointResult>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/answer`, {
         token,

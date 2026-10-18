@@ -84,12 +84,20 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'regra-50-30-20',
-        kind: 'true_false',
-        prompt: 'A regra 50/30/20 é uma norma oficial que todo orçamento precisa seguir.',
-        answer: false,
+        id: 'grupos-50-30-20',
+        kind: 'categorize',
+        prompt: 'Na regra 50/30/20, em que grupo entra cada gasto?',
+        groups: ['Necessidades', 'Desejos', 'Poupar'],
+        items: [
+          'Aluguel',
+          'Assinatura de streaming',
+          'Reserva de emergência',
+          'Mercado',
+          'Jantar com amigos',
+        ],
+        answer: [0, 1, 2, 0, 1],
         explanation:
-          'É uma regra de bolso popular, um ponto de partida. O que importa é gastar menos do que se recebe.',
+          'Aluguel e mercado são necessidades, streaming e jantar são desejos, e a reserva é poupança. A regra é um ponto de partida popular, não uma norma que todo orçamento precise seguir.',
       },
       {
         type: 'text',
