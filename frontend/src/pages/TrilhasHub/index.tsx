@@ -10,6 +10,7 @@ import { ProgressionSummary } from '../../components/organisms/ProgressionSummar
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
 import { ReviewSessionCard } from '../../components/organisms/ReviewSessionCard'
 import { TrackCard } from '../../components/organisms/TrackCard'
+import { FirstActionResultCard } from '../../components/organisms/FirstActionResultCard'
 import { InstallInvite } from '../../components/molecules/InstallInvite'
 import { InstallPrompt } from '../../components/organisms/InstallPrompt'
 import { SalaryIndicator } from '../../components/molecules/SalaryIndicator'
@@ -58,6 +59,9 @@ export function TrilhasHub() {
                             Glossário
                         </Link>
                     </header>
+
+                    {/* OB.1.2: resultado da primeira ação do onboarding, só depois que o roteiro andou. */}
+                    <FirstActionResultCard />
 
                     {lessonsQuery.isError && (
                         <p className={styles.error} role="alert">

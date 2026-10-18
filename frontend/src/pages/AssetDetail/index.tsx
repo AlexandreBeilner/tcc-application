@@ -103,6 +103,7 @@ export function AssetDetail() {
             assetId,
             ticker: asset!.ticker,
             name: asset!.name,
+            isSandbox: asset!.is_sandbox,
             side,
             quantity,
             unitPrice: asset!.current_price as number,

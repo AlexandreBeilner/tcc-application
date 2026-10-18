@@ -141,6 +141,26 @@ func TestExecute_OrdemAMercadoSandboxAindaUsaLiquidezSintetica(t *testing.T) {
 	}
 }
 
+// TestExecute_CompraSandboxNaoExigeSaldo: o Modo Aprendizado não mexe no caixa (ponto 063), então
+// comprar com saldo zero ou menor que o custo funciona; o mesmo pedido no Mercado Ao Vivo é rejeitado.
+func TestExecute_CompraSandboxNaoExigeSaldo(t *testing.T) {
+	incoming := orderbook.Order{ID: "buy-1", Side: orderbook.SideBuy, Type: orderbook.TypeMarket, Quantity: 10}
+
+	out, err := Execute(incoming, Context{ReferencePrice: 25, IncomingUserBalance: 0, Sandbox: true})
+	if err != nil {
+		t.Fatalf("sandbox: err = %v, want nil", err)
+	}
+	if out.FilledQuantity != 10 {
+		t.Errorf("FilledQuantity = %d, want 10", out.FilledQuantity)
+	}
+
+	limit := orderbook.Order{ID: "buy-2", Side: orderbook.SideBuy, Type: orderbook.TypeLimit, Price: 25, Quantity: 10}
+	resting := []RestingOrder{{ID: "s1", UserID: "other", Side: orderbook.SideSell, Type: orderbook.TypeLimit, Price: 25, RemainingQuantity: 10}}
+	if _, err := Execute(limit, Context{ReferencePrice: 25, IncomingUserBalance: 0, Resting: resting}); !errors.Is(err, ErrInsufficientBalance) {
+		t.Errorf("mercado ao vivo: err = %v, want ErrInsufficientBalance", err)
+	}
+}
+
 // TestExecute_OrdemAMercadoSandboxPreferemContrapartesReaisAntesDaLiquidezSintetica
 // confirma que, mesmo em sandbox, contraparte real (se existir) tem
 // prioridade sobre a liquidez sintética.

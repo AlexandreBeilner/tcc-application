@@ -60,6 +60,9 @@ type Event struct {
 	EventType string
 	Quantity  *int
 	UnitCents *int64
+	// Sandbox marca evento de ativo de ensino (`is_sandbox`, ponto 063): ele move a posição,
+	// mas não o caixa, porque o Modo Aprendizado nunca mexe em `accounts.current_balance`.
+	Sandbox bool
 }
 
 // CashDeltaCents é o efeito do evento no caixa da conta, em centavos. `known` é falso pra um
@@ -143,6 +146,9 @@ func (r *Replay) Apply(e Event) {
 	}
 	// Toda conta que tem evento entra no mapa, mesmo com efeito zero: é a diferença entre
 	// "conta sem histórico" e "conta cujo histórico soma zero".
+	if e.Sandbox {
+		delta = 0
+	}
 	r.cash[e.UserID] += delta
 	if e.AssetID != "" {
 		if d := PositionDelta(e.EventType, e.Quantity); d != 0 {

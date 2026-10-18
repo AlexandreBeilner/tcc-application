@@ -102,7 +102,8 @@ func (r *IntegrityRepository) Load(ctx context.Context, replay *integrity.Replay
 		return s, fmt.Errorf("ler ordens em repouso: %w", err)
 	}
 
-	rows, err = tx.QueryContext(ctx, `SELECT user_id, asset_id, event_type::text, quantity, ROUND(unit_value * 100)::bigint FROM market_events`)
+	rows, err = tx.QueryContext(ctx, `SELECT e.user_id, e.asset_id, e.event_type::text, e.quantity, ROUND(e.unit_value * 100)::bigint, COALESCE(a.is_sandbox, false)
+		FROM market_events e LEFT JOIN assets a ON a.id = e.asset_id`)
 	if err != nil {
 		return s, fmt.Errorf("ler eventos: %w", err)
 	}
@@ -113,7 +114,7 @@ func (r *IntegrityRepository) Load(ctx context.Context, replay *integrity.Replay
 			quantity  sql.NullInt64
 			unitCents sql.NullInt64
 		)
-		if err := rows.Scan(&e.UserID, &assetID, &e.EventType, &quantity, &unitCents); err != nil {
+		if err := rows.Scan(&e.UserID, &assetID, &e.EventType, &quantity, &unitCents, &e.Sandbox); err != nil {
 			_ = rows.Close()
 			return s, err
 		}

@@ -80,9 +80,9 @@ func (r *AdminReadRepository) Overview(ctx context.Context) (adminview.Overview,
 	}
 
 	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*), COALESCE(SUM(quantity * unit_value), 0)
-		 FROM market_events
-		 WHERE event_type = 'buy_order_executed' AND simulated_day = $1`,
+		`SELECT COUNT(*), COALESCE(SUM(e.quantity * e.unit_value), 0)
+		 FROM market_events e JOIN assets a ON a.id = e.asset_id
+		 WHERE e.event_type = 'buy_order_executed' AND e.simulated_day = $1 AND NOT a.is_sandbox`,
 		o.SimulatedDay,
 	).Scan(&o.Trades, &o.Volume); err != nil {
 		return o, err

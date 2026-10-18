@@ -120,6 +120,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Acesso:** apenas na primeira sessão após cadastro (1.1).
 - **Conteúdo:** 2–3 telas curtas (carrossel), tom leve: "Você começa com R$10.000 simulados", "Aprenda fazendo, não lendo", "Compita com amigos, não só com estranhos" (gancho pro sistema social).
 - **Pergunta de e-mail (EM.6.1, D8):** o último passo do carrossel pergunta se a pessoa quer e-mails opcionais ("Amigos" e "Resumo e lembretes"), **tudo desmarcado**. "Começar" grava só o que foi marcado; "Pular" nunca liga nada. Falha ao gravar não trava o onboarding (o padrão é desligado). Avisos de segurança da conta sempre são enviados e a pergunta diz isso.
+- **Primeira ação (OB.1.2):** o slide "Aprenda fazendo, não lendo" tem uma compra guiada de 5 ações de treino (`SAND3`, Modo Aprendizado) em três toques, cada termo definido antes de aparecer (ação, ticker, preço, quantidade, total). Sem resolver a compra, o botão principal é "Pular esta etapa"; erro na compra ou ativo indisponível mostra a mensagem e o onboarding segue. Não gasta o saldo do mercado ao vivo nem conta pro ranking (ponto 063). O resultado aparece no próximo acesso, na tela 3.1.
 - **Ações:** CTA final "Começar" → **4.1 Mapa da Trilha** (não direto pro Portfólio — força o primeiro contato com a lição 0.1).
 - **Estados especiais:** pulável ("pular" leva direto ao Portfólio, mas não recomendado como padrão).
 - **Dados envolvidos:** nenhum dado persistido além de uma flag `onboarding_completed` em `users` (campo a acrescentar).
@@ -164,6 +165,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ### 3.1 Mapa da Trilha
 - **Objetivo:** dar corpo visual à progressão pedagógica (RF11) — é a tela que substitui a ausência total de UI pra esse conceito hoje.
+- **Cartão "Sua primeira ação" (OB.1.2, OA1):** no topo da tela, só quando a compra de treino do onboarding existe e o roteiro de preço já andou (ex: "+3,0%"), com "Ver por que o preço mexe" (lição 2.5, ou o convite de desbloqueio dela) e "Entendi" (dispensa de vez, por pessoa). Fica aqui, e não no Portfólio, porque o Portfólio só abre na lição 0.1.
 - **Acesso:** nav primária ("Trilha"), ou via atalho do Portfólio (2.1).
 - **Conteúdo:**
   - As 4 trilhas (Fundamentos, Renda Fixa, Renda Variável, Estratégia) mais a Trilha F paralela (Finanças do dia a dia, sem desbloqueio, em qualquer ordem) como seções/módulos expansíveis.

@@ -28,6 +28,27 @@ describe('StatementList', () => {
         expect(screen.getByLabelText('saída de R$ 300,00')).toHaveTextContent('−R$ 300,00')
     })
 
+    it('evento de ativo do Modo Aprendizado mostra o valor neutro, sem seta de caixa (ponto 063)', () => {
+        render(
+            <StatementList
+                events={[
+                    {
+                        id: 'e1',
+                        event_type: 'buy_order_executed',
+                        asset_id: 'sand',
+                        quantity: 5,
+                        unit_value: 100,
+                        timestamp: '2026-01-01T12:00:00Z',
+                    },
+                ]}
+                sandboxAssetIds={new Set(['sand'])}
+            />,
+        )
+        expect(screen.getByText('Modo Aprendizado')).toBeInTheDocument()
+        expect(screen.queryByLabelText('saída de R$ 500,00')).not.toBeInTheDocument()
+        expect(screen.getByText('R$ 500,00')).toBeInTheDocument()
+    })
+
     it('mostra o valor total (unit_value já é o total) quando o evento não tem quantidade', () => {
         render(
             <StatementList events={[{ id: 'e1', event_type: 'initial_deposit', unit_value: 10000, timestamp: '2026-01-01T12:00:00Z' }]} />,

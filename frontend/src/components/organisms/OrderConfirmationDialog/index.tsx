@@ -207,7 +207,7 @@ function buildRows(draft: OrderDraft, currentPrice: number | undefined, cashBala
             { label: 'Preço unitário', value: formatCurrency(unit) },
             { label: 'Total', value: formatCurrency(total), variant: 'total' },
         ]
-        if (cashBalance !== undefined) {
+        if (cashBalance !== undefined && !draft.isSandbox) {
             const remaining = draft.side === 'buy' ? cashBalance - total : cashBalance + total
             rows.push({ label: 'Saldo em caixa após a ordem', value: formatCurrency(remaining), variant: 'muted' })
         }
@@ -223,7 +223,7 @@ function buildRows(draft: OrderDraft, currentPrice: number | undefined, cashBala
             rows.push({ label: 'Alíquota de IR projetada', value: formatPercentage(draft.projected.tax_rate) })
             rows.push({ label: 'Valor líquido projetado', value: formatCurrency(draft.projected.net_projected_value), variant: 'total' })
         }
-        if (cashBalance !== undefined) {
+        if (cashBalance !== undefined && !draft.isSandbox) {
             rows.push({ label: 'Saldo em caixa após o aporte', value: formatCurrency(cashBalance - draft.amount), variant: 'muted' })
         }
         return rows

@@ -37,14 +37,15 @@ function eventLabel(event: MarketEvent): string {
 
 // Colore o valor do extrato com sinal e seta (MO.9.4). Tipo sem direção de dinheiro aparece sem
 // sinal, em vez de adivinhar.
-function amountCell(event: MarketEvent, totalValue: number | undefined) {
+function amountCell(event: MarketEvent, totalValue: number | undefined, isSandbox: boolean) {
     if (totalValue === undefined) return '—'
     const direction = cashDirection(event.event_type)
-    if (direction === null) return formatCurrency(totalValue)
+    // Modo Aprendizado não mexe no caixa: valor neutro, sem sinal de dinheiro.
+    if (direction === null || isSandbox) return formatCurrency(totalValue)
     return <Delta amount={direction === 'in' ? totalValue : -totalValue} kind="flow" variant="text" />
 }
 
-export function StatementList({ events, assetLabels = {} }: StatementListProps) {
+export function StatementList({ events, assetLabels = {}, sandboxAssetIds }: StatementListProps) {
     if (events.length === 0) {
         return <p className={styles.empty}>Você ainda não tem nenhuma transação registrada.</p>
     }
@@ -53,13 +54,17 @@ export function StatementList({ events, assetLabels = {} }: StatementListProps) 
         <ul className={styles.list}>
             {events.map((event) => {
                 const totalValue = eventTotalValue(event)
+                const isSandbox = event.asset_id !== undefined && (sandboxAssetIds?.has(event.asset_id) ?? false)
                 return (
                     <li key={event.id}>
                         <details className={styles.item}>
                             <summary className={styles.summary}>
-                                <span className={styles.type}>{eventLabel(event)}</span>
+                                <span className={styles.type}>
+                                    {eventLabel(event)}
+                                    {isSandbox && <span className={styles.learning}>Modo Aprendizado</span>}
+                                </span>
                                 <span className={styles.date}>{dateFormatter.format(new Date(event.timestamp))}</span>
-                                <span className={`${styles.amount} tabular-nums`}>{amountCell(event, totalValue)}</span>
+                                <span className={`${styles.amount} tabular-nums`}>{amountCell(event, totalValue, isSandbox)}</span>
                             </summary>
                             <div className={styles.details}>
                                 {event.asset_id && (

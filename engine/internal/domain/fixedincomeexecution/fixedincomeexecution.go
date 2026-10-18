@@ -409,7 +409,8 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time, vnaBase, monthlyI
 	if req.Amount < ctx.MinimumInvestment {
 		return PurchaseOutcome{}, ErrBelowMinimumInvestment
 	}
-	if req.Amount > ctx.AccountBalance {
+	// Ativo sandbox não mexe no caixa da conta (ponto 063): a compra não exige saldo.
+	if !ctx.IsSandbox && req.Amount > ctx.AccountBalance {
 		return PurchaseOutcome{}, ErrInsufficientBalance
 	}
 
