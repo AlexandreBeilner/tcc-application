@@ -1104,6 +1104,89 @@ describe('Lesson (tela 3.2)', () => {
             })
         })
 
+        describe('ordenar (LJ.2.3)', () => {
+            const order = {
+                type: 'check',
+                id: 'o1',
+                kind: 'order',
+                prompt: 'Do menos ao mais arriscado',
+                items: ['CDB', 'Ação pequena', 'Tesouro Selic'],
+                lowLabel: 'Menos risco',
+                highLabel: 'Mais risco',
+            }
+            const rows = () => screen.getAllByRole('listitem').map((row) => row.textContent ?? '')
+
+            it('começa na ordem embaralhada do servidor, com os rótulos de ponta e o Continuar travado', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([order]) })
+
+                renderLesson()
+
+                expect(await screen.findByText('Menos risco')).toBeInTheDocument()
+                expect(screen.getByText('Mais risco')).toBeInTheDocument()
+                expect(rows()[0]).toContain('CDB')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Subir CDB' })).toBeDisabled()
+                expect(screen.getByRole('button', { name: 'Descer Tesouro Selic' })).toBeDisabled()
+            })
+
+            it('sobe e desce pelos botões, errar mostra só a contagem e acertar libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([order]) })
+                vi.mocked(answerCheckpoint)
+                    .mockResolvedValueOnce({
+                        correct: false,
+                        attempts: 1,
+                        firstTry: false,
+                        wrongOptions: [],
+                        hint: { correctCount: 1, total: 3 },
+                    })
+                    .mockResolvedValueOnce({
+                        correct: true,
+                        attempts: 2,
+                        firstTry: false,
+                        wrongOptions: [],
+                        explanation: 'O risco cresce com a incerteza.',
+                    })
+
+                renderLesson()
+                await screen.findByText('Menos risco')
+
+                fireEvent.click(screen.getByRole('button', { name: 'Subir Tesouro Selic' }))
+                expect(rows()[1]).toContain('Tesouro Selic')
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByRole('alert')).toHaveTextContent('1 de 3 no lugar certo.')
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'o1', { sequence: [0, 2, 1] })
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+                expect(screen.queryByText('O risco cresce com a incerteza.')).not.toBeInTheDocument()
+
+                fireEvent.click(screen.getByRole('button', { name: 'Subir Tesouro Selic' }))
+                expect(rows()[0]).toContain('Tesouro Selic')
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+                expect(await screen.findByText('Acertou na 2ª tentativa.')).toBeInTheDocument()
+                expect(screen.getByText('O risco cresce com a incerteza.')).toBeInTheDocument()
+                expect(screen.queryByRole('button', { name: /^Subir/ })).not.toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('restaura a ordem montada quando a pergunta já foi resolvida', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([order], {
+                        checkpoints: [
+                            { checkpointId: 'o1', solved: true, attempts: 1, wrongOptions: [], firstTry: true, sequence: [2, 0, 1] },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+                expect(rows()[0]).toContain('Tesouro Selic')
+                expect(rows()[2]).toContain('Ação pequena')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+        })
+
         it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {
             vi.mocked(getLesson).mockResolvedValue({
                 lesson: withChecks([check], {

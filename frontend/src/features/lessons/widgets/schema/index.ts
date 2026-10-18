@@ -368,7 +368,16 @@ const estimateCheckBlock = z.object({
     }),
 })
 
-const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock])
+// Ordenar (LJ.2.3): o servidor entrega os itens já embaralhados e nunca a ordem certa.
+const orderCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('order'),
+    items: z.array(z.string().min(1)).min(3).max(6),
+    lowLabel: z.string().min(1).optional(),
+    highLabel: z.string().min(1).optional(),
+})
+
+const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock, orderCheckBlock])
 
 // "Saiba mais" (LJ.5.7): detalhe recolhido, colado ao cartão anterior. Só texto e widget (sem pergunta).
 const moreBlock = z.object({
@@ -397,8 +406,9 @@ export type WidgetBlock = Extract<LessonBlock, { type: 'widget' }>
 export type CheckBlock = Extract<LessonBlock, { type: 'check' }>
 export type MoreBlock = Extract<LessonBlock, { type: 'more' }>
 // Perguntas de alternativas (única escolha e verdadeiro/falso), as que têm `selectedOption`.
-export type ChoiceBlock = Exclude<CheckBlock, { kind: 'estimate' }>
+export type ChoiceBlock = Extract<CheckBlock, { kind: 'single' | 'true_false' }>
 export type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>
+export type OrderBlock = Extract<CheckBlock, { kind: 'order' }>
 
 // Ausente ou fora do contrato vira `null` (o player usa o texto legado).
 export function parseLessonBlocks(raw: unknown): LessonBlocks | null {

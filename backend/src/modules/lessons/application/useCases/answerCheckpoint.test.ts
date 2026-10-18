@@ -6,6 +6,7 @@ import {
   LessonNotFoundError,
 } from '../../domain/errors'
 import type { LessonSummary } from '../../domain/lesson'
+import { toPublicBlocks } from '../../domain/widgets/lessonBlocks'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { AnswerCheckpointUseCase } from './answerCheckpoint'
 
@@ -236,6 +237,90 @@ describe('AnswerCheckpointUseCase', () => {
 
       await expect(
         useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'c1', value: 1 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+  })
+  describe('ordenar (LJ-D2)', () => {
+    const orderBlock = {
+      type: 'check' as const,
+      id: 'o1',
+      kind: 'order' as const,
+      prompt: 'Do menos ao mais arriscado',
+      items: ['Tesouro Selic', 'CDB', 'FII', 'Ação pequena'],
+      answer: [0, 1, 2, 3],
+      explanation: 'porque o risco cresce',
+    }
+    const orderLesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: { scenario: [orderBlock], microDecision: [], revelation: [] },
+      },
+    }
+    // Índices (como o cliente os recebe, embaralhados) da ordem certa.
+    const shown = (
+      toPublicBlocks(orderLesson.blocks)?.phases.scenario[0] as unknown as { items: string[] }
+    ).items
+    const right = orderBlock.items.map((item) => shown.indexOf(item))
+    const swapped = [right[1], right[0], right[2], right[3]] as number[]
+
+    function buildOrder() {
+      const repo = createFakeLessonRepository([orderLesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const send = (useCase: AnswerCheckpointUseCase, sequence: number[]) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'o1', sequence })
+
+    it('errar devolve só a contagem: sem explicação e sem dizer quais itens', async () => {
+      const { repo, useCase } = buildOrder()
+
+      const result = await send(useCase, swapped)
+
+      expect(result).toEqual({
+        correct: false,
+        attempts: 1,
+        firstTry: false,
+        wrongOptions: [],
+        hint: { correctCount: 2, total: 4 },
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).toBeNull()
+    })
+
+    it('acertar de primeira resolve, devolve a explicação e guarda a ordem para restaurar', async () => {
+      const { repo, useCase } = buildOrder()
+
+      const result = await send(useCase, right)
+
+      expect(result).toMatchObject({
+        correct: true,
+        firstTry: true,
+        explanation: 'porque o risco cresce',
+      })
+      expect(result.hint).toBeUndefined()
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).not.toBeNull()
+      expect(record.lastResponse).toEqual({ kind: 'order', sequence: right })
+    })
+
+    it('errar antes de acertar tira o "de primeira" e mantém as tentativas', async () => {
+      const { useCase } = buildOrder()
+      await send(useCase, swapped)
+
+      const result = await send(useCase, right)
+
+      expect(result).toMatchObject({ correct: true, attempts: 2, firstTry: false })
+    })
+
+    it('rejeita sequência repetida, curta ou resposta por índice', async () => {
+      const { useCase } = buildOrder()
+
+      await expect(send(useCase, [0, 0, 1, 2])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+      await expect(send(useCase, [0, 1, 2])).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'o1', selectedOption: 0 }),
       ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
     })
   })

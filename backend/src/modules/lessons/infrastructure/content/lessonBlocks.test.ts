@@ -484,6 +484,44 @@ describe('lessonBlocksSchema', () => {
     })
   })
 
+  describe('ordenar (LJ.2.3)', () => {
+    const order = {
+      type: 'check',
+      id: 'o1',
+      kind: 'order',
+      prompt: 'Do menos ao mais arriscado',
+      items: ['Tesouro Selic', 'CDB', 'FII', 'Ação pequena'],
+      answer: [0, 1, 2, 3],
+      lowLabel: 'Menos risco',
+      highLabel: 'Mais risco',
+      explanation: 'Quanto mais incerto o retorno, maior o risco.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita ordenar completo e sem rótulos de ponta', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(order)).success).toBe(true)
+      expect(
+        lessonBlocksSchema.safeParse(
+          withCheck({ ...order, lowLabel: undefined, highLabel: undefined }),
+        ).success,
+      ).toBe(true)
+    })
+
+    it.each([
+      ['2 itens', { items: ['a', 'b'], answer: [0, 1] }],
+      ['7 itens', { items: ['a', 'b', 'c', 'd', 'e', 'f', 'g'], answer: [0, 1, 2, 3, 4, 5, 6] }],
+      ['gabarito de outro tamanho', { answer: [0, 1, 2] }],
+      ['gabarito com repetição', { answer: [0, 1, 1, 3] }],
+      ['gabarito fora dos itens', { answer: [0, 1, 2, 4] }],
+      ['item vazio', { items: ['a', '', 'c', 'd'] }],
+    ])('rejeita ordenar inválido: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...order, ...patch })).success).toBe(false)
+    })
+  })
+
   it('rejeita mais de 7 checkpoints por lição', () => {
     const checks = Array.from({ length: 8 }, (_, i) => ({
       type: 'check',

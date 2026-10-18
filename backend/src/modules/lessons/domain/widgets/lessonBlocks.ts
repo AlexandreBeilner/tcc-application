@@ -90,6 +90,19 @@ export type CheckBlock =
       tolerancePct: number
       explanation: string
     }
+  // Ordenar (LJ.2.3): `items` nasce na ordem de autoria e `answer[k]` é o índice (de `items`) que
+  // pertence à posição `k`, de cima para baixo. O cliente recebe os itens embaralhados.
+  | {
+      type: 'check'
+      id: string
+      kind: 'order'
+      prompt: string
+      items: string[]
+      answer: number[]
+      lowLabel?: string
+      highLabel?: string
+      explanation: string
+    }
 
 export type EstimateUnit = 'brl' | 'pct' | 'years' | 'none'
 
@@ -138,6 +151,10 @@ export interface PublicCheckBlock {
   options?: string[]
   // Só `estimate`: a régua do controle. O valor real e a tolerância ficam no servidor.
   range?: { min: number; max: number; step: number; unit: EstimateUnit }
+  // Só `order`: `options` não é usado; os itens vão embaralhados (ver `shuffledIndices`).
+  items?: string[]
+  lowLabel?: string
+  highLabel?: string
 }
 
 export type PublicLessonBlock = Exclude<LessonBlock, CheckBlock> | PublicCheckBlock
@@ -177,6 +194,18 @@ function toPublicBlock(block: LessonBlock): PublicLessonBlock {
       kind: 'estimate',
       prompt: block.prompt,
       range: { min: block.min, max: block.max, step: block.step, unit: block.unit },
+    }
+  }
+  if (block.kind === 'order') {
+    const shuffle = orderShuffle(block)
+    return {
+      type: 'check',
+      id: block.id,
+      kind: 'order',
+      prompt: block.prompt,
+      items: shuffle.map((authored) => block.items[authored] as string),
+      ...(block.lowLabel ? { lowLabel: block.lowLabel } : {}),
+      ...(block.highLabel ? { highLabel: block.highLabel } : {}),
     }
   }
   return {
@@ -234,6 +263,78 @@ export function checkpointIdsForStep(
 export interface CheckResponse {
   selectedOption?: number
   value?: number
+  // Ordenar: índices dos itens como o cliente os recebeu (embaralhados), de cima para baixo.
+  sequence?: number[]
+}
+
+// Quantas peças a resposta acertou, para a dica de contagem dos formatos de várias peças (LJ-D2).
+export interface CheckHint {
+  correctCount: number
+  total: number
+}
+
+// Embaralhamento determinístico (semente = id do checkpoint): a revisão mostra a mesma ordem e o
+// cliente nunca recebe o gabarito. Mulberry32 sobre um hash FNV-1a da semente.
+function seededRandom(seed: string, salt: number): () => number {
+  let hash = 2166136261 ^ salt
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = Math.imul(hash ^ seed.charCodeAt(i), 16777619)
+  }
+  let state = hash >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// Permutação de `0..n-1` que não satisfaz `isSolved`. O mesmo `seed` dá sempre a mesma resposta.
+export function shuffledIndices(
+  n: number,
+  seed: string,
+  isSolved: (permutation: number[]) => boolean = () => false,
+): number[] {
+  for (let salt = 0; salt < 50; salt += 1) {
+    const random = seededRandom(seed, salt)
+    const permutation = Array.from({ length: n }, (_, i) => i)
+    for (let i = n - 1; i > 0; i -= 1) {
+      const j = Math.floor(random() * (i + 1))
+      ;[permutation[i], permutation[j]] = [permutation[j] as number, permutation[i] as number]
+    }
+    if (!isSolved(permutation)) {
+      return permutation
+    }
+  }
+  // Improvável: rotaciona uma posição, o que nunca deixa `0..n-1` igual a si mesmo (n >= 2).
+  return Array.from({ length: n }, (_, i) => (i + 1) % n)
+}
+
+type OrderBlock = Extract<CheckBlock, { kind: 'order' }>
+
+// `shuffle[j]` é o índice de autoria do item que o cliente vê na posição `j`. Nunca nasce já resolvido.
+function orderShuffle(block: OrderBlock): number[] {
+  return shuffledIndices(block.items.length, block.id, (permutation) =>
+    permutation.every((authored, position) => authored === block.answer[position]),
+  )
+}
+
+// Posições que a ordem enviada acertou. `sequence[k]` é o item (como o cliente o recebeu) na posição `k`.
+export function scoreOrder(block: OrderBlock, sequence: number[]): CheckHint {
+  const shuffle = orderShuffle(block)
+  const correctCount = sequence.filter(
+    (publicIndex, position) => shuffle[publicIndex] === block.answer[position],
+  ).length
+  return { correctCount, total: block.items.length }
+}
+
+// Formatos de várias peças: a contagem devolvida ao errar (LJ-D2). `undefined` nos demais.
+export function hintFor(block: CheckBlock, response: CheckResponse): CheckHint | undefined {
+  if (block.kind === 'order' && response.sequence) {
+    return scoreOrder(block, response.sequence)
+  }
+  return undefined
 }
 
 // Quanto o chute passou perto: dentro da tolerância, até 2x a tolerância, ou longe.
@@ -284,6 +385,15 @@ export function isValidCheckResponse(block: CheckBlock, response: CheckResponse)
       response.value <= block.max
     )
   }
+  if (block.kind === 'order') {
+    const { sequence } = response
+    return (
+      Array.isArray(sequence) &&
+      sequence.length === block.items.length &&
+      new Set(sequence).size === sequence.length &&
+      sequence.every((i) => Number.isInteger(i) && i >= 0 && i < block.items.length)
+    )
+  }
   const optionCount = block.kind === 'single' ? block.options.length : TRUE_FALSE_OPTIONS.length
   return (
     typeof response.selectedOption === 'number' &&
@@ -297,6 +407,10 @@ export function isValidCheckResponse(block: CheckBlock, response: CheckResponse)
 export function isCheckCorrect(block: CheckBlock, response: CheckResponse): boolean {
   if (block.kind === 'estimate') {
     return classifyEstimate(block, response.value as number).band === 'exact'
+  }
+  if (block.kind === 'order') {
+    const { correctCount, total } = scoreOrder(block, response.sequence as number[])
+    return correctCount === total
   }
   if (block.kind === 'single') {
     return response.selectedOption === block.answer

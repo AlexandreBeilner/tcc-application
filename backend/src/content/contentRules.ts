@@ -144,6 +144,13 @@ export function blockTextFields(
       push('prompt', block.prompt)
       push('explanation', block.explanation)
       if (Array.isArray(block.options)) block.options.forEach((o, j) => push(`options[${j}]`, o))
+      // Formatos de várias peças (LJ.2.3 a LJ.2.5): as listas de texto também são visíveis.
+      for (const list of ['items', 'groups', 'left', 'right'] as const) {
+        const entries = block[list]
+        if (Array.isArray(entries)) entries.forEach((o, j) => push(`${list}[${j}]`, o))
+      }
+      push('lowLabel', block.lowLabel)
+      push('highLabel', block.highLabel)
     } else if (block.type === 'widget') {
       const props = (block.props ?? {}) as Record<string, unknown>
       const exempt = block.widget === 'platform-note' ? PLATFORM_NOTE_EXEMPT_RULE_IDS : undefined

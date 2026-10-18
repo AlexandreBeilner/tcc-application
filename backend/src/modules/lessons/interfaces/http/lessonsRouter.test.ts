@@ -612,6 +612,103 @@ describe('lessons routes', () => {
     })
   })
 
+  describe('ordenar (LJ.2.3)', () => {
+    const items = ['Tesouro Selic', 'CDB', 'FII', 'Ação pequena']
+    const lessonsWithOrder = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'o1',
+                    kind: 'order' as const,
+                    prompt: 'Do menos ao mais arriscado',
+                    items,
+                    answer: [0, 1, 2, 3],
+                    lowLabel: 'Menos risco',
+                    highLabel: 'Mais risco',
+                    explanation: 'Porque o risco cresce.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/o1/answer'
+
+    async function shownItems(app: ReturnType<typeof buildApp>['app'], auth: string) {
+      const res = await request(app).get('/lessons/l1').set('Authorization', auth)
+      return res.body.lesson.blocks.phases.scenario[0] as {
+        items: string[]
+        lowLabel: string
+        answer?: unknown
+      }
+    }
+
+    it('GET devolve os itens embaralhados e os rótulos, sem gabarito', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithOrder)
+
+      const block = await shownItems(app, authHeader(tokenIssuer))
+
+      expect([...block.items].sort()).toEqual([...items].sort())
+      expect(block.items).not.toEqual(items)
+      expect(block.lowLabel).toBe('Menos risco')
+      expect(block).not.toHaveProperty('answer')
+    })
+
+    it('errar devolve a contagem sem explicação; acertar libera a explicação e GET restaura a ordem', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithOrder)
+      const auth = authHeader(tokenIssuer)
+      const shown = (await shownItems(app, auth)).items
+      const right = items.map((item) => shown.indexOf(item))
+
+      const wrong = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ sequence: [...right].reverse() })
+      expect(wrong.status).toBe(200)
+      expect(wrong.body).toMatchObject({ correct: false, hint: { correctCount: 0, total: 4 } })
+      expect(wrong.body.explanation).toBeUndefined()
+
+      const hit = await request(app).post(url).set('Authorization', auth).send({ sequence: right })
+      expect(hit.body).toMatchObject({
+        correct: true,
+        attempts: 2,
+        explanation: 'Porque o risco cresce.',
+      })
+
+      const after = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(after.body.lesson.checkpoints).toEqual([
+        {
+          checkpointId: 'o1',
+          solved: true,
+          attempts: 2,
+          wrongOptions: [],
+          firstTry: false,
+          sequence: right,
+        },
+      ])
+    })
+
+    it('400 pra sequência repetida, curta ou de outro formato', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithOrder)
+      const auth = authHeader(tokenIssuer)
+      const post = (body: unknown) => request(app).post(url).set('Authorization', auth).send(body)
+
+      expect((await post({ sequence: [0, 0, 1, 2] })).status).toBe(400)
+      expect((await post({ sequence: [0, 1, 2] })).status).toBe(400)
+      expect((await post({ sequence: 'x' })).status).toBe(400)
+      expect((await post({ value: 3 })).status).toBe(400)
+    })
+  })
+
   describe('POST /lessons/:id/cards/reached (LJ.5.1)', () => {
     const url = '/lessons/l1/cards/reached'
 

@@ -350,14 +350,20 @@ export const BLOCKS_2_2: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'dinheiro-no-secundario',
-        kind: 'single',
-        prompt:
-          'Você compra uma ação na bolsa, meses depois do IPO. O dinheiro vai principalmente para:',
-        options: ['O caixa da empresa', 'O investidor que vendeu a ação', 'O Banco Central'],
-        answer: 1,
+        id: 'etapas-da-oferta',
+        kind: 'order',
+        prompt: 'Coloque as etapas de um IPO na ordem em que acontecem.',
+        items: [
+          'Os investidores dizem quantas ações querem e o preço máximo que aceitam',
+          'A oferta fecha no preço de corte',
+          'As ações novas são vendidas e o dinheiro entra na empresa',
+          'As ações passam a ser negociadas entre investidores',
+        ],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Primeiro',
+        highLabel: 'Por último',
         explanation:
-          'No mercado secundário a ação já existe e muda de dono. Quem recebe é o investidor que vendeu, descontados os custos da operação.',
+          'O bookbuilding mede a demanda, o preço de corte fecha a oferta e a venda das ações novas é o mercado primário. Só depois vem o mercado secundário, em que o dinheiro vai para o investidor que vendeu, não para a empresa.',
       },
       {
         type: 'text',

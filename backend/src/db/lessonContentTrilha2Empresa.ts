@@ -50,13 +50,20 @@ export const BLOCKS_2_7_1: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'ebit-x-lucro',
-        kind: 'single',
-        prompt: 'Em geral, o EBIT de uma empresa é maior ou menor que o lucro líquido?',
-        options: ['Maior', 'Menor', 'Sempre igual'],
-        answer: 0,
+        id: 'ordem-do-resultado',
+        kind: 'order',
+        prompt: 'Coloque as linhas do resultado na ordem em que a conta desce, da receita ao que sobra.',
+        items: [
+          'Receita líquida (o que a empresa vendeu)',
+          'Lucro bruto (depois dos custos)',
+          'EBIT (lucro da operação, antes de juros e imposto)',
+          'Lucro líquido (o que sobra no fim)',
+        ],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Começa aqui',
+        highLabel: 'Termina aqui',
         explanation:
-          'O EBIT vem antes de juros e imposto, então em geral é maior. Com muita receita financeira ou crédito fiscal pode inverter, por isso a pergunta diz "em geral".',
+          'Da receita saem os custos (lucro bruto), depois as despesas da operação (EBIT) e, por fim, juros e imposto (lucro líquido). Por isso o EBIT, em geral, é maior que o lucro líquido.',
       },
       {
         type: 'check',

@@ -81,6 +81,14 @@ export interface CheckpointState {
     firstTry: boolean
     // Só estimativa já respondida (LJ.2.2): restaura a régua depois de sair e voltar.
     estimate?: EstimateResult
+    // Só ordenar já resolvido (LJ.2.3): a ordem montada, em índices dos itens como o servidor os entregou.
+    sequence?: number[]
+}
+
+// Formatos de várias peças, ao errar (LJ-D2): quantas peças estão certas, sem dizer quais.
+export interface CheckHint {
+    correctCount: number
+    total: number
 }
 
 // Resultado de uma estimativa, devolvido só depois do chute (LJ-D1): `value` é o valor real e
@@ -102,6 +110,7 @@ export interface AnswerCheckpointResult {
     // Só em acerto; na estimativa vem sempre (ela avança acertando ou não).
     explanation?: string
     estimate?: EstimateResult
+    hint?: CheckHint
 }
 
 // `POST /lessons/:id/answer` (RC.2.3, `.docs/backend/lessons.md`).

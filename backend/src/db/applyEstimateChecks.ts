@@ -2,6 +2,8 @@ import { eq } from 'drizzle-orm'
 import { createDb } from './client'
 import { lessons } from './schema'
 import { LESSON_SEEDS } from './seedLessons'
+import { swapForCheck } from './swapChecks'
+import type { Blocks, Phases } from './swapChecks'
 
 // Migração de conteúdo única (LJ.2.7): quatro perguntas de alternativas viraram estimativa
 // (`kind: 'estimate'`) no seed, mas o seed nunca sobrescreve uma lição já importada (N.23), então
@@ -28,28 +30,12 @@ export const ESTIMATE_SWAPS: EstimateSwap[] = [
   { stableKey: 'custos-de-investir', oldId: 'retorno-liquido', newId: 'chute-taxa-30-anos' },
 ]
 
-type Block = { type?: string; kind?: string; id?: string }
-type Phases = Record<string, Block[] | undefined>
-type Blocks = { phases?: Phases } & Record<string, unknown>
-
 export function swapForEstimate(
   current: Blocks,
   seed: { phases?: Phases },
-  { oldId, newId }: Pick<EstimateSwap, 'oldId' | 'newId'>,
+  swap: Pick<EstimateSwap, 'oldId' | 'newId'>,
 ): { blocks: Blocks; replaced: number } {
-  const replacement = Object.values(seed.phases ?? {})
-    .flatMap((list) => list ?? [])
-    .find((b) => b.type === 'check' && b.id === newId && b.kind === 'estimate')
-  let replaced = 0
-  const phases: Phases = {}
-  for (const [phase, list] of Object.entries(current.phases ?? {})) {
-    phases[phase] = (list ?? []).map((block) => {
-      if (!replacement || replaced > 0 || block.type !== 'check' || block.id !== oldId) return block
-      replaced += 1
-      return replacement
-    })
-  }
-  return { blocks: { ...current, phases }, replaced }
+  return swapForCheck(current, seed, { ...swap, kind: 'estimate' })
 }
 
 async function main() {

@@ -8,11 +8,17 @@ import { buildProgression } from '../../domain/lesson'
 import {
   classifyEstimate,
   findCheckBlock,
+  hintFor,
   isCheckCorrect,
   isValidCheckResponse,
   resolvesOnFirstAnswer,
 } from '../../domain/widgets/lessonBlocks'
-import type { CheckBlock, CheckResponse, EstimateResult } from '../../domain/widgets/lessonBlocks'
+import type {
+  CheckBlock,
+  CheckHint,
+  CheckResponse,
+  EstimateResult,
+} from '../../domain/widgets/lessonBlocks'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface AnswerCheckpointInput extends CheckResponse {
@@ -32,6 +38,8 @@ export interface AnswerCheckpointResult {
   explanation?: string
   // Só estimativa (LJ-D1): sempre devolvido na resposta, porque ela avança acertando ou não.
   estimate?: EstimateResult
+  // Formatos de várias peças, só ao errar (LJ-D2): quantas peças estão certas, sem dizer quais.
+  hint?: CheckHint
 }
 
 // Pergunta intermediária da lição (`check`, RC.3.2): mesmas regras da pergunta
@@ -77,6 +85,8 @@ export class AnswerCheckpointUseCase {
     const solves = correct || resolvesOnFirstAnswer(block)
     const explanation = solves ? { explanation: block.explanation } : {}
     const estimate = estimateFor(block, input)
+    const hint = correct ? undefined : hintFor(block, input)
+    const extras = { ...estimate, ...(hint ? { hint } : {}) }
 
     if (readOnly) {
       return {
@@ -85,7 +95,7 @@ export class AnswerCheckpointUseCase {
         firstTry: correct && (existing?.attempts ?? 0) <= 1,
         wrongOptions: [],
         ...explanation,
-        ...estimate,
+        ...extras,
       }
     }
 
@@ -107,6 +117,9 @@ export class AnswerCheckpointUseCase {
               },
             }
           : {}),
+        ...(correct && block.kind === 'order' && input.sequence
+          ? { lastResponse: { kind: 'order' as const, sequence: input.sequence } }
+          : {}),
       },
     )
 
@@ -116,7 +129,7 @@ export class AnswerCheckpointUseCase {
       firstTry: correct && saved.attempts === 1,
       wrongOptions: saved.wrongOptions,
       ...explanation,
-      ...estimate,
+      ...extras,
     }
   }
 }

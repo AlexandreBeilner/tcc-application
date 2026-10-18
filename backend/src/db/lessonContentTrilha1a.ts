@@ -133,12 +133,16 @@ export const BLOCKS_1_5: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'ir-90-dias',
-        kind: 'single',
-        prompt: 'Com 90 dias de aplicação, qual é a alíquota de IR?',
-        options: ['15%', '22,5%', '17,5%'],
-        answer: 1,
-        explanation: 'Até 180 dias a alíquota é de 22,5%, a mais alta da tabela.',
+        id: 'ordem-aliquotas',
+        kind: 'order',
+        prompt:
+          'Resgates de um mesmo CDB, com prazos diferentes. Ordene do que paga mais IR para o que paga menos.',
+        items: ['Resgate com 90 dias', 'Resgate com 250 dias', 'Resgate com 400 dias', 'Resgate com 800 dias'],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Paga mais IR',
+        highLabel: 'Paga menos IR',
+        explanation:
+          'Quanto mais tempo o dinheiro fica aplicado, menor a alíquota: 22,5% até 180 dias, 20% até 360, 17,5% até 720 e 15% acima disso.',
       },
     ],
     microDecision: [

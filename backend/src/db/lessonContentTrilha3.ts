@@ -209,12 +209,15 @@ export const BLOCKS_3_2: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'mais-risco-mais-retorno',
-        kind: 'true_false',
-        prompt: 'Assumir mais risco garante um retorno maior.',
-        answer: false,
+        id: 'ordem-de-risco',
+        kind: 'order',
+        prompt: 'Coloque estes investimentos do menos ao mais arriscado.',
+        items: ['Tesouro Selic', 'CDB de banco médio', 'FII', 'Ação de empresa pequena'],
+        answer: [0, 1, 2, 3],
+        lowLabel: 'Menos risco',
+        highLabel: 'Mais risco',
         explanation:
-          'Mais risco só abre a possibilidade de retorno maior. Também pode render menos, ou dar prejuízo.',
+          'O Tesouro Selic é dívida do governo e oscila pouco. O CDB depende do banco. FII e ação oscilam com o mercado, e a empresa pequena sofre mais. Mais risco só abre a possibilidade de retorno maior: também pode render menos, ou dar prejuízo.',
       },
       {
         type: 'text',

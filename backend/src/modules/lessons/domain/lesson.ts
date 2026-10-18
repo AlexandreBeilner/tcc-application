@@ -208,11 +208,10 @@ export interface CheckpointRecord {
   lastResponse?: CheckpointLastResponse | null
 }
 
-export interface CheckpointLastResponse {
-  kind: 'estimate'
-  value: number
-  hit: boolean
-}
+// Estimativa: o chute e se caiu na tolerância. Ordenar: a ordem certa que a pessoa montou (só gravada ao
+// resolver, para restaurar a tela).
+export type CheckpointLastResponse =
+  { kind: 'estimate'; value: number; hit: boolean } | { kind: 'order'; sequence: number[] }
 
 // Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
 // o gabarito nunca vai aqui.
@@ -224,6 +223,8 @@ export interface CheckpointState {
   firstTry: boolean
   // Só estimativa já respondida: o chute, o valor real e a faixa (restaura a régua da tela).
   estimate?: EstimateResult
+  // Só ordenar já resolvido: a ordem montada (índices dos itens como o cliente os recebeu).
+  sequence?: number[]
 }
 
 export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
@@ -243,12 +244,24 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   waived: boolean
 }
 
+function sequenceStateFor(
+  record: CheckpointRecord,
+): { sequence: number[] } | Record<string, never> {
+  return record.solvedAt !== null && record.lastResponse?.kind === 'order'
+    ? { sequence: record.lastResponse.sequence }
+    : {}
+}
+
 function estimateStateFor(
   lesson: LessonSummary,
   record: CheckpointRecord,
 ): { estimate: EstimateResult } | Record<string, never> {
   const block = findCheckBlock(lesson.blocks, record.checkpointId)
-  if (!record.lastResponse || record.solvedAt === null || block?.kind !== 'estimate') {
+  if (
+    record.lastResponse?.kind !== 'estimate' ||
+    record.solvedAt === null ||
+    block?.kind !== 'estimate'
+  ) {
     return {}
   }
   return {
@@ -278,8 +291,11 @@ export function buildLessonView(
     wrongOptions: record.wrongOptions,
     // Estimativa resolve na 1ª resposta mesmo longe do valor: "de primeira" é a que caiu na mosca.
     firstTry:
-      record.solvedAt !== null && record.attempts === 1 && (record.lastResponse?.hit ?? true),
+      record.solvedAt !== null &&
+      record.attempts === 1 &&
+      (record.lastResponse?.kind === 'estimate' ? record.lastResponse.hit : true),
     ...estimateStateFor(lesson, record),
+    ...sequenceStateFor(record),
   }))
 
   return {

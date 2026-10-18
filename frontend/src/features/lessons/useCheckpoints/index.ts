@@ -41,6 +41,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             firstTry: restored.firstTry,
             lastAttemptWrong: false,
             ...(restored.estimate ? { estimate: restored.estimate } : {}),
+            ...(restored.sequence ? { sequence: restored.sequence } : {}),
         }
     }
 
@@ -73,6 +74,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
                           streakMilestone: milestone,
                           lastAttemptWrong: false,
                           ...(result.estimate ? { estimate: result.estimate } : {}),
+                          ...('sequence' in response ? { sequence: response.sequence } : {}),
                       }
                     : {
                           solved: false,
@@ -84,6 +86,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
                                   : [...before.wrongOptions, tried],
                           firstTry: false,
                           lastAttemptWrong: true,
+                          ...(result.hint ? { hint: result.hint } : {}),
                       },
         }))
     }

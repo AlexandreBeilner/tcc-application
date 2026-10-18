@@ -459,6 +459,24 @@ const checkBlock = z.discriminatedUnion('kind', [
       path: ['answer'],
       message: 'answer fora da régua',
     }),
+  // Ordenar (LJ.2.3): 3 a 6 itens; `answer` é uma permutação de `0..n-1`. Os rótulos de ponta
+  // ("Menos risco", "Mais risco") ficam fixos no topo e no pé da lista.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('order'),
+      items: z.array(z.string().min(1)).min(3).max(6),
+      answer: z.array(z.number().int().min(0)),
+      lowLabel: z.string().min(1).max(40).optional(),
+      highLabel: z.string().min(1).max(40).optional(),
+    })
+    .refine(
+      (b) =>
+        b.answer.length === b.items.length &&
+        new Set(b.answer).size === b.answer.length &&
+        b.answer.every((i) => i < b.items.length),
+      { path: ['answer'], message: 'answer precisa ser uma permutação dos itens' },
+    ),
 ])
 
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })
