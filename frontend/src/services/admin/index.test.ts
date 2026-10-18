@@ -43,6 +43,7 @@ import {
     cancelAdminOrdersBatch,
     listAdminOrders,
     getAdminOverview,
+    getAdminRetention,
     getMarketMonitorAsset,
     getScheduler,
     getSystemHealth,
@@ -181,6 +182,14 @@ describe('services/admin', () => {
         await getSystemHealth('token')
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/admin/system/health')
+        expect(init.headers.Authorization).toBe('Bearer token')
+    })
+
+    it('getAdminRetention faz GET /admin/retention com semanas e dias', async () => {
+        const fetchMock = mockFetchOnce({})
+        await getAdminRetention('token', { weeks: 12, days: 60 })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/admin/retention?weeks=12&days=60')
         expect(init.headers.Authorization).toBe('Bearer token')
     })
 

@@ -9,6 +9,7 @@ import {
     LayoutDashboard,
     ReceiptText,
     ScrollText,
+    TrendingUp,
     Trophy,
     Users,
 } from 'lucide-react'
@@ -28,6 +29,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     { key: 'users', label: 'Usuários', Icon: Users, to: '/admin/usuarios', task: 'N.16' },
     { key: 'content', label: 'Conteúdo', Icon: FileText, to: '/admin/conteudo', task: 'N.18' },
     { key: 'daily', label: 'Diário', Icon: CalendarCheck, to: '/admin/diario', task: 'DI.5.1' },
+    { key: 'retention', label: 'Retenção', Icon: TrendingUp, to: '/admin/retencao', task: 'RT.1.3' },
     { key: 'gamification', label: 'Gamificação', Icon: Trophy, to: '/admin/gamificacao', task: 'N.19' },
     { key: 'billing', label: 'Assinaturas', Icon: ReceiptText, to: '/admin/assinaturas', task: 'MO.7.1' },
     { key: 'assemblies', label: 'Assembleias', Icon: Landmark, to: '/admin/assembleias', task: 'MO.6.8' },

@@ -1528,3 +1528,71 @@ export interface DailyMetricsDay {
     signups: number
     logins: number
 }
+
+// Painel de retenção (RT.1.2, `.docs/backend/admin.md#painel-de-retenção-tarefa-rt12`). Só números
+// agregados, nenhuma pessoa identificada.
+export type RetentionCellStatus = 'complete' | 'partial' | 'in_progress' | 'no_data'
+
+export interface RetentionCell {
+    status: RetentionCellStatus
+    // 0 a 1; nulo quando ninguém da coorte foi medido (em andamento ou sem dado).
+    rate: number | null
+    measured: number
+    size: number
+}
+
+export type RetentionDays = Record<'d1' | 'd7' | 'd30', RetentionCell>
+
+export interface RetentionCohort {
+    // Segunda-feira da semana de cadastro (AAAA-MM-DD, UTC).
+    cohort_week: string
+    size: number
+    returned: RetentionDays
+    studied: RetentionDays
+}
+
+export interface RetentionTrackingStart {
+    presence: string | null
+    activity: string | null
+}
+
+export interface RetentionActiveDay {
+    day: string
+    returned: number | null
+    studied: number | null
+    mau: number | null
+    dau_mau: number | null
+}
+
+export type RetentionMilestone = 'first_return' | 'first_lesson' | 'first_trade' | 'first_fixed_income' | 'first_daily'
+
+export interface RetentionMilestoneSummary {
+    milestone: RetentionMilestone
+    granularity: 'day' | 'second'
+    reached: number
+    reached_rate: number | null
+    median_seconds: number | null
+}
+
+export interface RetentionMilestoneCohort {
+    cohort_week: string
+    size: number
+    status: 'complete' | 'in_progress'
+    rates: Record<RetentionMilestone, number | null>
+}
+
+export interface AdminRetention {
+    cohorts: { tracking_since: RetentionTrackingStart; cohorts: RetentionCohort[] }
+    active: { tracking_since: RetentionTrackingStart; days: RetentionActiveDay[] }
+    milestones: {
+        tracking_since: string | null
+        eligible: number
+        milestones: RetentionMilestoneSummary[]
+        cohorts: RetentionMilestoneCohort[]
+    }
+}
+
+export interface AdminRetentionParams {
+    weeks: number
+    days: number
+}

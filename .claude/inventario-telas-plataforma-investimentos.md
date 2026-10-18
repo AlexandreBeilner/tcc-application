@@ -580,6 +580,14 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** texto com `<` ou `>` recusado na tela e no servidor; fim antes do início; segunda manutenção em aberto (409); integridade sem verificação anterior, em andamento, falha, zero divergências, mais de 200 divergências (lista cortada, contagens exatas); exportação com período invertido, arquivo cortado pelo teto, senha não confirmada; carregando; erro de carga.
 - **Dados envolvidos:** `announcements`; `GET/POST/PATCH /admin/announcements`, `POST /admin/announcements/:id/end`, `POST /admin/maintenance`, `GET /announcements`, `POST/GET /admin/integrity/check` e `GET /admin/exports/:dataset` (`.docs/backend/admin.md`, `.docs/backend/announcements.md`, `.docs/engine/admin.md`).
 
+### 10.18 Retenção
+- **Objetivo:** medir se as novidades funcionam (RT.1.3, Fase A de `backlog-retencao-onboarding-ofensiva.md`). Rota `/admin/retencao`, seção "Retenção"; também aberta pelo cartão "Retenção" da 10.1. Só números agregados: nenhuma lista de pessoas, nenhum patrimônio (RP4, RNF09).
+- **Conteúdo:** filtros de janela (coortes de 8, 12, 26 ou 52 semanas; gráfico de 30, 60, 90 ou 180 dias); cartão **Ontem** (voltaram, estudaram, ativos em 30 dias, DAU/MAU); **tabela de coortes** (linha = semana de cadastro, colunas = dia 1, 7 e 30 nas duas medidas, "voltou" = qualquer acesso no dia e "estudou" = lição ou missão concluída), com cor por faixa em cada coluna (verde acima da régua, vermelho abaixo, legenda na tela), célula tracejada para "em andamento" (o dia ainda não chegou) e "sem dado" (antes do início do registro), nunca 0%, e asterisco quando só parte da coorte pôde ser medida; **gráfico de ativos por dia** (voltaram e estudaram) e **gráfico de DAU/MAU**, com os valores reais de cada dia ligados em reta, sem suavização, e dia sem registro em branco; **tempo até cada marco** (voltou depois do cadastro, primeira lição, primeira operação real, primeira renda fixa, primeiro Diário: mediana e quantos chegaram) e, recolhida, a % de cada coorte em cada marco.
+- **Ações:** trocar as janelas; passar o cursor, tocar ou usar as setas do teclado no gráfico para ver o valor de um dia. Só leitura.
+- **Estados especiais:** carregando; erro de carga; sem nenhum registro de presença ainda (tudo "sem dado", com a explicação); coorte recente (em andamento, parcial); MAU e DAU/MAU só aparecem depois de 30 dias de registro; marcos só contam quem se cadastrou depois do início do registro.
+- **Responsividade:** mobile em uma coluna, com a tabela rolando na horizontal e a semana fixa à esquerda; tablet com os cartões de marco em duas colunas; desktop com os gráficos à esquerda e os marcos como coluna lateral fixa.
+- **Dados envolvidos:** `GET /admin/retention` (`.docs/backend/admin.md`).
+
 ## 11. Resumo — todas as telas numeradas
 
 | # | Tela | Grupo |
@@ -632,8 +640,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.15 | Gamificação | Admin |
 | 10.16 | Catálogo de ativos | Admin |
 | 10.17 | Sistema | Admin |
+| 10.18 | Retenção | Admin |
 
-**Total: 41 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 42 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 
