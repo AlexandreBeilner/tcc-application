@@ -41,7 +41,6 @@ import {
   GetAdminPuzzleUseCase,
   PublishPuzzlesUseCase,
   ReplacePuzzleCardUseCase,
-  ReviewPuzzleUseCase,
 } from './application/useCases/admin/puzzles'
 import { createDailyRouter } from './interfaces/http/dailyRouter'
 import { createDrizzleAcceptedWordRepository } from './infrastructure/persistence/drizzleAcceptedWordRepository'
@@ -91,7 +90,6 @@ export function createDailyAdminUseCases(db: Database) {
       accepted,
     ),
     getPuzzle: new GetAdminPuzzleUseCase(puzzles, words, questions, events),
-    reviewPuzzle: new ReviewPuzzleUseCase(puzzles, words, questions, events),
     publishPuzzles: new PublishPuzzlesUseCase(puzzles),
     replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions, events),
     prepareDraft: new PrepareLaunchDraftUseCase(settings, puzzles, materialize),

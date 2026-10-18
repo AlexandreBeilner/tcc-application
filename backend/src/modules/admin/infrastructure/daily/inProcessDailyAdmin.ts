@@ -22,7 +22,6 @@ import type {
   GetAdminPuzzleUseCase,
   PublishPuzzlesUseCase,
   ReplacePuzzleCardUseCase,
-  ReviewPuzzleUseCase,
 } from '../../../daily/application/useCases/admin/puzzles'
 import {
   DailyAdminConflictError,
@@ -40,7 +39,6 @@ export interface InProcessDailyAdminDeps {
   overview: GetDailyAdminOverviewUseCase
   metrics: GetDailyMetricsUseCase
   getPuzzle: GetAdminPuzzleUseCase
-  reviewPuzzle: ReviewPuzzleUseCase
   publishPuzzles: PublishPuzzlesUseCase
   replaceCard: ReplacePuzzleCardUseCase
   prepareDraft: PrepareLaunchDraftUseCase
@@ -82,10 +80,9 @@ export function createInProcessDailyAdmin(deps: InProcessDailyAdminDeps): DailyA
     overview: () => guarded(() => deps.overview.execute()),
     metrics: (days) => guarded(() => deps.metrics.execute({ days })),
     getPuzzle: (number) => guarded(() => deps.getPuzzle.execute(number)),
-    reviewPuzzle: (actorId, number) => guarded(() => deps.reviewPuzzle.execute(actorId, number)),
     publishPuzzles: (numbers) => guarded(() => deps.publishPuzzles.execute(numbers)),
-    replaceCard: (actorId, number, input, confirm) =>
-      guarded(() => deps.replaceCard.execute(actorId, number, input, confirm)),
+    replaceCard: (number, input, confirm) =>
+      guarded(() => deps.replaceCard.execute(number, input, confirm)),
     prepareDraft: (startDate) => guarded(() => deps.prepareDraft.execute(startDate)),
     setStartDate: (actorId, next) => guarded(() => deps.setStartDate.execute(actorId, next)),
     listWords: () => guarded(() => deps.listWords.execute()),

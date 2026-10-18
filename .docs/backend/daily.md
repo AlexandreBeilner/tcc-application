@@ -14,7 +14,7 @@ Módulo: `backend/src/modules/daily/`. Jogo diário com três cartões, igual pa
 - **Resposta que fecha o jogo** traz `completion` (só logado): `{ "correctCards": 0-3, "xpAwarded": number }`. **Só o jogo do dia, concluído antes da virada, vale XP** (DI6: 20 + 10 por cartão certo, de 20 a 50) e toca o streak principal (DI4); nesse caso `completion` traz também `level`, `leveledUp`, `streakMilestone` (`7`, `30` ou `null`) e `unlockedAchievements` (`{ id, name, description }[]`, inclui as conquistas por qualidade do Diário, DI.6.1: ver `.docs/backend/achievements.md`), para o teatro de recompensa. Dia anterior, ou jogo começado num dia e concluído depois da virada, fecha com `xpAwarded: 0`, sem `level` e sem tocar streak.
 - **CORS:** estas rotas (as quatro de jogo e `POST /daily/metrics`) aceitam também a origem da landing (`LANDING_URL`, padrão `https://selucra.com.br`), sem credenciais. O resto da API continua só com a origem do app (`FRONTEND_URL`).
 - **Rate limit:** 120 requisições por minuto por IP (IP real atrás do proxy, `TRUSTED_PROXY_HOPS`), `429` com `Retry-After`.
-- **Conteúdo servido: só jogo publicado** (ponto 058, decisão (b), 2026-10-17). A agenda materializa, o admin revisa e publica no painel (seção "Painel" abaixo). Jogo materializado e não publicado responde como se não existisse: hoje é `503 game_unavailable`, dia anterior é `404`.
+- **Conteúdo servido: só jogo publicado** (ponto 058, decisão (b), 2026-10-17). A agenda materializa e, com o Diário agendado ou no ar, **o jogo já nasce publicado** (só o rascunho de estreia espera o admin agendar; o botão "Publicar pendentes" cobre o que sobrar). **Não há etapa de revisão** (decisão de 2026-10-18): o conteúdo nasce pronto, criado e conferido pela skill `diario-conteudo` (`.claude/skills/diario-conteudo/`); as colunas `reviewed_at`/`reviewed_by` ficam no banco só como legado e nada as lê (seção "Painel" abaixo). Jogo materializado e não publicado responde como se não existisse: hoje é `503 game_unavailable`, dia anterior é `404`.
 
 ---
 
@@ -143,15 +143,15 @@ A ordem de `timeline.events` é a de exibição (embaralhada de propósito). `is
 
 ## Painel (`/admin/daily`, DI.5.1)
 
-Rotas em `backend/src/modules/admin/interfaces/http/adminDailyRouter.ts`; as regras vivem em `modules/daily/application/useCases/admin/` e o módulo `admin` só audita e expõe (mesmo desenho do painel das lições). **Todas exigem Bearer token + `role: 'admin'`** (`401`/`403`). Aqui, e só aqui, o gabarito aparece: o admin precisa dele para revisar. Corpo e resposta em snake_case.
+Rotas em `backend/src/modules/admin/interfaces/http/adminDailyRouter.ts`; as regras vivem em `modules/daily/application/useCases/admin/` e o módulo `admin` só audita e expõe (mesmo desenho do painel das lições). **Todas exigem Bearer token + `role: 'admin'`** (`401`/`403`). Aqui, e só aqui, o gabarito aparece: o admin precisa dele para conferir. Corpo e resposta em snake_case.
 
-Erros comuns: `400` formato (Zod); `404` item ou jogo inexistente; `409 { error, code }` estado que não deixa (`already_started`, `not_in_future`, `insufficient_content`, `not_reviewed`, `confirmation_required`, `duplicate`, `word_in_use`); `422 { error, code: "invalid_daily_content", problems: string[] }` regra de conteúdo (fonte, ano, travessão, lista aceita, categoria). Toda escrita é auditada (`daily.*`, `result = failed` na recusa, com a mensagem), com chave estável e nomes de campo, nunca o texto.
+Erros comuns: `400` formato (Zod); `404` item ou jogo inexistente; `409 { error, code }` estado que não deixa (`already_started`, `not_in_future`, `insufficient_content`, `confirmation_required`, `duplicate`, `word_in_use`); `422 { error, code: "invalid_daily_content", problems: string[] }` regra de conteúdo (fonte, ano, travessão, lista aceita, categoria). Toda escrita é auditada (`daily.*`, `result = failed` na recusa, com a mensagem), com chave estável e nomes de campo, nunca o texto.
 
 ### `GET /admin/daily`
 
-- **Sucesso:** `200` com tudo da tela principal: `status` (`off` | `scheduled` | `live`), `start_date`, `today` (UTC), `can_change_start`, `agenda_from`, `reviewed_days_ahead` e `published_days_ahead` (dias **consecutivos** a partir de `agenda_from`), `min_days_to_schedule` (30), `low_cover_threshold` (14), `alerts`, `days[]`, `coverage` e `bank`.
-  - `alerts`: `low_reviewed_cover` (estreia agendada ou no ar com menos de 14 dias revisados à frente), `scheduled_below_minimum` (agendado com menos de 30 revisados), `today_not_published` (no ar e o jogo de hoje não existe ou não está publicado).
-  - `days[]`: `{ number, date, reviewed, published, origins: { word, question, timeline }, word, question, events[] }`, com categoria e marcador `brasil`/`fora` de cada cartão. Até 45 dias a partir de `agenda_from` (hoje no ar; a estreia quando agendado; o primeiro rascunho quando desligado).
+- **Sucesso:** `200` com tudo da tela principal: `status` (`off` | `scheduled` | `live`), `start_date`, `today` (UTC), `can_change_start`, `agenda_from`, `ready_days_ahead` e `published_days_ahead` (dias **consecutivos** a partir de `agenda_from`), `min_days_to_schedule` (30), `low_cover_threshold` (14), `alerts`, `days[]`, `coverage` e `bank`.
+  - `alerts`: `low_ready_cover` (estreia agendada ou no ar com menos de 14 dias prontos à frente), `scheduled_below_minimum` (agendado com menos de 30 dias prontos), `today_not_published` (no ar e o jogo de hoje não existe ou não está publicado).
+  - `days[]`: `{ number, date, published, origins: { word, question, timeline }, word, question, events[] }`, com categoria e marcador `brasil`/`fora` de cada cartão. Até 45 dias a partir de `agenda_from` (hoje no ar; a estreia quando agendado; o primeiro rascunho quando desligado).
   - `coverage`: `{ window_days: 30, word, trivia, timeline }`, cada um `{ total, brasil, fora, by_category }` (a Linha do tempo conta eventos).
   - `bank`: itens ativos (`words`, `questions`, `events`) e `accepted_extra`.
 
@@ -165,47 +165,42 @@ Erros comuns: `400` formato (Zod); `404` item ou jogo inexistente; `409 { error,
 ### `POST /admin/daily/draft`
 
 - **Payload:** `{ "start_date": "AAAA-MM-DD" }`.
-- **Sucesso:** `200` → `{ start_date, created, warnings: [{ date, code }] }`. Gera o rascunho de 30 dias para uma estreia **candidata**, sem gravar a data (sem isso não haveria como agendar: a agenda só materializa depois da estreia gravada, e a estreia só grava com dias revisados). Se a data difere da agendada, os jogos publicados saem do ar (jogo publicado não se renumera).
+- **Sucesso:** `200` → `{ start_date, created, warnings: [{ date, code }] }`. Gera o rascunho de 30 dias para uma estreia **candidata**, sem gravar a data (sem isso não haveria como agendar: a agenda só materializa depois da estreia gravada, e a estreia só grava com dias prontos). Se a data difere da agendada, os jogos publicados saem do ar (jogo publicado não se renumera).
 - **Erros:** `409 already_started` (Diário no ar), `409 not_in_future` (data de hoje ou passada), `400`.
 
 ### `PUT /admin/daily/start-date`
 
 - **Autenticação extra:** **senha recente** (`401 { error: "reauth_required" }`, N.22): é a ação que decide quando o jogo vai ao ar.
 - **Payload:** `{ "start_date": "AAAA-MM-DD" | null }` (`null` desliga).
-- **Sucesso:** `200` → `{ start_date, status, published: number[] }`. Grava a data, realinha (renumera) os jogos não publicados mantendo a revisão e **publica em lote os revisados** (ponto 058). Antes de gravar, tudo é tirado do ar, porque a data pode ter andado.
-- **Erros:** `409 already_started` (depois do início a data não muda mais, nem desliga), `409 not_in_future`, `409 insufficient_content` (exige **30 dias consecutivos** de jogos revisados a partir da data).
+- **Sucesso:** `200` → `{ start_date, status, published: number[] }`. Grava a data, realinha (renumera) os jogos não publicados e **publica todos em lote** (ponto 058). Antes de gravar, tudo é tirado do ar, porque a data pode ter andado.
+- **Erros:** `409 already_started` (depois do início a data não muda mais, nem desliga), `409 not_in_future`, `409 insufficient_content` (exige **30 dias consecutivos** de jogos prontos a partir da data).
 
 ### `POST /admin/daily/puzzles/publish`
 
-- **Payload:** `{ "numbers"?: number[] }`. Sem `numbers`, publica todo jogo revisado que ainda não está no ar.
+- **Payload:** `{ "numbers"?: number[] }`. Sem `numbers`, publica todo jogo que ainda não está no ar.
 - **Sucesso:** `200` → `{ published: number[] }` (os que passaram a estar no ar nesta chamada).
-- **Erros:** `409 not_reviewed` (com `numbers`, jogo sem revisão), `404`.
+- **Erros:** `404` (com `numbers`, jogo inexistente).
 
 ### `GET /admin/daily/puzzles/:number`
 
-- **Sucesso:** `200` → prévia do dia **como o jogador verá**, mais o gabarito: `{ number, date, is_today_or_past, reviewed_at, published_at, origins, word, question, events (na ordem de exibição), correct_order (ids por ano), warnings }`. Vale para qualquer jogo materializado, futuro inclusive. As rotas públicas nunca fazem isto.
+- **Sucesso:** `200` → prévia do dia **como o jogador verá**, mais o gabarito: `{ number, date, is_today_or_past, published_at, origins, word, question, events (na ordem de exibição), correct_order (ids por ano), warnings }`. Vale para qualquer jogo materializado, futuro inclusive. As rotas públicas nunca fazem isto.
 - **Erros:** `404` (inexistente ou número malformado).
-
-### `POST /admin/daily/puzzles/:number/review`
-
-- **Sucesso:** `200` → `{ number }`. Marca o dia como revisado e estampa a revisão na pergunta e nos eventos dele (foi o que o admin viu).
-- **Erros:** `404`; `422` se um item do dia está desativado (troque o cartão antes).
 
 ### `PUT /admin/daily/puzzles/:number/card`
 
 - **Payload:** `{ card: "word", word_id }` | `{ card: "question", question_id }` | `{ card: "timeline", event_ids: [4 ids] }`, mais `confirm_published?: boolean` (padrão `false`).
-- **Sucesso:** `200` → `{ number }`. Troca o cartão, marca a origem como `manual` e **zera a revisão do dia**. A Linha do tempo exige 4 eventos ativos de anos distintos e é embaralhada como a da agenda (nunca já na ordem certa).
-- **Erros:** `409 confirmation_required` (jogo publicado sem `confirm_published`; confirmado, a edição vale como revisão de quem confirmou), `404`, `422` (item desativado, eventos que não são 4 ou sem anos distintos).
+- **Sucesso:** `200` → `{ number }`. Troca o cartão e marca a origem como `manual`. A Linha do tempo exige 4 eventos ativos de anos distintos e é embaralhada como a da agenda (nunca já na ordem certa).
+- **Erros:** `409 confirmation_required` (jogo publicado sem `confirm_published`), `404`, `422` (item desativado, eventos que não são 4 ou sem anos distintos).
 
 ### Conteúdo: palavras, perguntas e eventos
 
-`GET /admin/daily/words`, `/questions`, `/events` → `{ words | questions | events: [...] }`, **todos**, desativados inclusive. `POST` cria (`201`); `PATCH /:id` edita (parcial, ao menos um campo, mais `confirm_published?`) e responde `{ word | question | event, affected_puzzles: number[], cleared_reviews: number[] }`.
+`GET /admin/daily/words`, `/questions`, `/events` → `{ words | questions | events: [...] }`, **todos**, desativados inclusive. `POST` cria (`201`); `PATCH /:id` edita (parcial, ao menos um campo, mais `confirm_published?`) e responde `{ word | question | event, affected_puzzles: number[] }`.
 
 - **Campos comuns:** `category` (lista fechada de `content/categories.ts`), `scope` (`brasil` | `fora`), `learn_more` (`{ kind: lesson|glossary|guide, ref } | null`), `active` (só no `PATCH`; é o desativar).
 - **Palavra:** `display`, `definition`. A **resposta** (`answer`) é a identidade da palavra e **não muda**: no `PATCH`, `display` precisa continuar sendo a mesma palavra. No `POST`, a resposta precisa estar na lista aceita (VERO ou extra) e não pode repetir (`409 duplicate`).
 - **Pergunta:** `question`, `options` (2 a 6), `correct_index`, `explanation` (até 280), `source_ref` (**obrigatória**: fonte primária).
 - **Evento:** `year` (1500 a 2200), `label` (o nome curto não pode conter o ano), `explanation`, `source_ref` (**obrigatória**).
-- **Regras de impacto no `PATCH`:** editar o que o jogador vê (texto, alternativas, gabarito, ano, fonte) **zera a revisão** do item e dos dias não publicados que o usam (`cleared_reviews`); se algum dia que o usa já está publicado, exige `confirm_published: true` (`409 confirmation_required`). Desativar não tira o item de um jogo já montado: `affected_puzzles` lista onde ele ainda aparece para o admin trocar.
+- **Regras de impacto no `PATCH`:** editar o que o jogador vê (texto, alternativas, gabarito, ano, fonte) não derruba nada; se algum dia que o usa já está publicado, exige `confirm_published: true` (`409 confirmation_required`). Desativar não tira o item de um jogo já montado: `affected_puzzles` lista onde ele ainda aparece para o admin trocar.
 
 ### Lista extra de palavras aceitas
 

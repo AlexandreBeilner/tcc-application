@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { dailyPuzzles } from '../../../../db/schema'
 import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
@@ -82,35 +82,20 @@ export function createDrizzleDailyPuzzleRepository(db: Database): DailyPuzzleRep
     },
 
     async updateCard(number, change) {
-      const cleared = { reviewedBy: null, reviewedAt: null }
       const set =
         change.card === 'word'
-          ? { wordId: change.wordId, wordOrigin: 'manual', ...cleared }
+          ? { wordId: change.wordId, wordOrigin: 'manual' }
           : change.card === 'question'
-            ? { questionId: change.questionId, questionOrigin: 'manual', ...cleared }
-            : { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual', ...cleared }
+            ? { questionId: change.questionId, questionOrigin: 'manual' }
+            : { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual' }
       await db.update(dailyPuzzles).set(set).where(eq(dailyPuzzles.number, number))
     },
 
-    async clearReview(numbers) {
-      if (numbers.length === 0) return
-      await db
-        .update(dailyPuzzles)
-        .set({ reviewedBy: null, reviewedAt: null })
-        .where(and(inArray(dailyPuzzles.number, [...numbers]), isNull(dailyPuzzles.publishedAt)))
-    },
-
-    async publishReviewed(fromDate, now) {
+    async publishPending(fromDate, now) {
       const rows = await db
         .update(dailyPuzzles)
         .set({ publishedAt: now })
-        .where(
-          and(
-            gte(dailyPuzzles.gameDate, fromDate),
-            isNotNull(dailyPuzzles.reviewedAt),
-            isNull(dailyPuzzles.publishedAt),
-          ),
-        )
+        .where(and(gte(dailyPuzzles.gameDate, fromDate), isNull(dailyPuzzles.publishedAt)))
         .returning({ number: dailyPuzzles.number })
       return rows.map((r) => r.number).sort((a, b) => a - b)
     },
@@ -122,13 +107,6 @@ export function createDrizzleDailyPuzzleRepository(db: Database): DailyPuzzleRep
         .where(and(gte(dailyPuzzles.gameDate, fromDate), isNotNull(dailyPuzzles.publishedAt)))
         .returning({ number: dailyPuzzles.number })
       return rows.length
-    },
-
-    async markReviewed(number, reviewedBy, now) {
-      await db
-        .update(dailyPuzzles)
-        .set({ reviewedBy, reviewedAt: now })
-        .where(eq(dailyPuzzles.number, number))
     },
 
     async markPublished(number, now) {

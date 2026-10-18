@@ -24,7 +24,6 @@ const meta: DailyQuestion = {
     learn_more: null,
     category: 'instituicoes',
     scope: 'brasil',
-    reviewed_at: '2026-10-20T12:00:00Z',
     active: true,
 }
 
@@ -44,12 +43,11 @@ beforeEach(() => {
 })
 
 describe('AdminDailyQuestions', () => {
-    it('mostra a pergunta com a fonte e o estado da revisão', async () => {
+    it('mostra a pergunta com a fonte', async () => {
         renderPanel()
 
         expect(await screen.findByText('Quem fixa a meta de inflação?')).toBeInTheDocument()
         expect(screen.getByText('Fonte: Decreto 3.088/1999')).toBeInTheDocument()
-        expect(screen.getByText('Revisada')).toBeInTheDocument()
     })
 
     it('só deixa salvar com fonte, duas alternativas e explicação', async () => {
@@ -82,14 +80,14 @@ describe('AdminDailyQuestions', () => {
         )
     })
 
-    it('editar zera a revisão dos dias e avisa quais', async () => {
-        vi.mocked(updateDailyQuestion).mockResolvedValue({ question: meta, affected_puzzles: [5], cleared_reviews: [5] })
+    it('editar avisa em quais jogos a pergunta aparece', async () => {
+        vi.mocked(updateDailyQuestion).mockResolvedValue({ question: meta, affected_puzzles: [5] })
         renderPanel()
 
         fireEvent.click(await screen.findByRole('button', { name: 'Editar' }))
         fireEvent.change(screen.getByLabelText('Explicação'), { target: { value: 'O Conselho Monetário Nacional fixa a meta.' } })
         fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
 
-        expect(await screen.findByRole('status')).toHaveTextContent('A revisão dos jogos #5 foi zerada.')
+        expect(await screen.findByRole('status')).toHaveTextContent('Aparece nos jogos #5.')
     })
 })

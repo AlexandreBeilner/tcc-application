@@ -20,7 +20,6 @@ const event = (id: string, year: number, label: string): DailyEvent => ({
     learn_more: null,
     category: 'planos-e-moeda',
     scope: 'brasil',
-    reviewed_at: null,
     active: true,
 })
 

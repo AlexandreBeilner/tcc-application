@@ -77,22 +77,12 @@ export function createDrizzleDailyEventRepository(db: Database): DailyEventRepos
         .set({
           ...rest,
           ...(learnMore !== undefined ? learnMoreColumns(learnMore) : {}),
-          // Editar tira a revisão, a menos que o painel diga o contrário.
-          ...(fields.reviewedAt === undefined ? { reviewedAt: null, reviewedBy: null } : {}),
           updatedBy,
           updatedAt: new Date(),
         })
         .where(eq(dailyEvents.id, id))
         .returning()
       return row ? toEvent(row) : null
-    },
-
-    async markReviewed(ids, reviewedBy, now) {
-      if (ids.length === 0) return
-      await db
-        .update(dailyEvents)
-        .set({ reviewedBy, reviewedAt: now })
-        .where(inArray(dailyEvents.id, [...ids]))
     },
   }
 }

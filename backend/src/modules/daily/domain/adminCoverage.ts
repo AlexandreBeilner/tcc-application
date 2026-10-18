@@ -1,14 +1,14 @@
 import type { ContentScope } from './content'
 import { addDays } from './gameDay'
 
-// Abaixo disto o painel avisa (DI.5.1): o conteúdo revisado e à frente está acabando.
-export const LOW_REVIEWED_COVER_DAYS = 14
+// Abaixo disto o painel avisa (DI.5.1): o conteúdo pronto e à frente está acabando.
+export const LOW_READY_COVER_DAYS = 14
 
 // Janela da contagem por categoria e marcador (seção 3.3).
 export const COVERAGE_WINDOW_DAYS = 30
 
 // Quantos dias seguidos, a partir de `from`, têm jogo com `ok` verdadeiro. Um buraco ou um dia
-// ainda não revisado encerra a contagem: a estreia precisa de dias consecutivos, não de soma.
+// sem jogo encerra a contagem: a estreia precisa de dias consecutivos, não de soma.
 export function consecutiveDaysFrom(
   from: string,
   days: readonly { gameDate: string; ok: boolean }[],

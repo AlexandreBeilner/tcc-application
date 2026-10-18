@@ -29,8 +29,7 @@ const EVENT_YEAR_MIN = 1500
 const EVENT_YEAR_MAX = 2200
 
 // O que editar um item faz com os jogos que o usam: avisa quais são (desativar não tira o item de
-// um jogo já montado), pede confirmação se algum está publicado e zera a revisão dos que ainda não
-// foram ao ar, porque o revisor viu o texto antigo.
+// um jogo já montado) e pede confirmação se algum está publicado.
 class ContentImpact {
   constructor(private readonly puzzles: DailyPuzzleRepository) {}
 
@@ -49,12 +48,6 @@ class ContentImpact {
       )
     }
     return using
-  }
-
-  async invalidate(using: { number: number; publishedAt: Date | null }[]): Promise<number[]> {
-    const unpublished = using.filter((p) => p.publishedAt === null).map((p) => p.number)
-    await this.puzzles.clearReview(unpublished)
-    return unpublished
   }
 }
 
@@ -162,8 +155,7 @@ export class UpdateAdminWordUseCase {
     )
     const using = await this.impact.check('word', id, shownChanged, confirmPublished)
     const item = (await this.words.update(id, patch, actorId)) as DailyWord
-    const clearedReviews = shownChanged ? await this.impact.invalidate(using) : []
-    return { item, affectedPuzzles: using.map((p) => p.number), clearedReviews, changedFields }
+    return { item, affectedPuzzles: using.map((p) => p.number), changedFields }
   }
 }
 
@@ -320,11 +312,8 @@ export class UpdateAdminQuestionUseCase {
     )
     const shownChanged = changedFields.some((k) => QUESTION_SHOWN_FIELDS.includes(k))
     const using = await this.impact.check('question', id, shownChanged, confirmPublished)
-    // Só mexer em campo mostrado tira a revisão; ligar/desligar ou mudar categoria não.
-    const fields = shownChanged ? patch : { ...patch, reviewedAt: current.reviewedAt }
-    const item = (await this.questions.update(id, fields, actorId)) as DailyQuestion
-    const clearedReviews = shownChanged ? await this.impact.invalidate(using) : []
-    return { item, affectedPuzzles: using.map((p) => p.number), clearedReviews, changedFields }
+    const item = (await this.questions.update(id, patch, actorId)) as DailyQuestion
+    return { item, affectedPuzzles: using.map((p) => p.number), changedFields }
   }
 }
 
@@ -406,9 +395,7 @@ export class UpdateAdminEventUseCase {
     )
     const shownChanged = changedFields.some((k) => EVENT_SHOWN_FIELDS.includes(k))
     const using = await this.impact.check('event', id, shownChanged, confirmPublished)
-    const fields = shownChanged ? patch : { ...patch, reviewedAt: current.reviewedAt }
-    const item = (await this.events.update(id, fields, actorId)) as DailyEvent
-    const clearedReviews = shownChanged ? await this.impact.invalidate(using) : []
-    return { item, affectedPuzzles: using.map((p) => p.number), clearedReviews, changedFields }
+    const item = (await this.events.update(id, patch, actorId)) as DailyEvent
+    return { item, affectedPuzzles: using.map((p) => p.number), changedFields }
   }
 }

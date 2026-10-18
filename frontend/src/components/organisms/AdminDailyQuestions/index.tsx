@@ -42,7 +42,6 @@ function impactNotice(result: DailyChangeImpact): string {
             `Aparece nos jogos ${formatNumbers(result.affected_puzzles)}. Desativar não tira do jogo já montado; troque o cartão se for o caso.`,
         )
     }
-    if (result.cleared_reviews.length > 0) parts.push(`A revisão dos jogos ${formatNumbers(result.cleared_reviews)} foi zerada.`)
     return parts.join(' ')
 }
 
@@ -129,7 +128,7 @@ export function AdminDailyQuestions() {
         if (editing === 'new') {
             create.mutate(fields, {
                 onSuccess: () => {
-                    setNotice('Pergunta criada. Ela entra na agenda sem revisão.')
+                    setNotice('Pergunta criada. Ela entra na agenda.')
                     setEditing(null)
                 },
                 onError: fail,
@@ -277,9 +276,6 @@ export function AdminDailyQuestions() {
                                 <span className={styles.text}>Fonte: {q.source_ref}</span>
                             </div>
                             <div className={styles.itemSide}>
-                                <span className={q.reviewed_at ? styles.badge : `${styles.badge} ${styles.dashed}`}>
-                                    {q.reviewed_at ? 'Revisada' : 'Sem revisão'}
-                                </span>
                                 {!q.active && <span className={`${styles.badge} ${styles.dashed}`}>Desativada</span>}
                                 <button type="button" className={styles.link} onClick={() => open(q)}>
                                     Editar

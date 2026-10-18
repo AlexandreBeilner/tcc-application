@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADMIN, buildAdminWorld, reviewAll } from '../../../test/adminWorld'
+import { ADMIN, buildAdminWorld } from '../../../test/adminWorld'
 import { DailyAdminConflictError, DailyAdminInvalidError } from '../../../domain/errors'
 
 const TODAY = '2026-10-20T12:00:00Z'
@@ -31,30 +31,29 @@ describe('PrepareLaunchDraftUseCase', () => {
 })
 
 describe('SetStartDateUseCase', () => {
-  it('recusa agendar sem 30 dias revisados à frente', async () => {
+  it('recusa agendar sem 30 dias prontos à frente', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
-    await w.prepareDraft.execute(START)
     await expect(w.setStartDate.execute(ADMIN, START)).rejects.toMatchObject({
       code: 'insufficient_content',
     })
     expect(w.settings.state.startDate).toBeNull()
   })
 
-  it('29 dias revisados ainda não bastam; o buraco encerra a contagem', async () => {
+  it('um buraco na agenda encerra a contagem dos dias prontos', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
     await w.prepareDraft.execute(START)
-    await reviewAll(w)
-    const middle = w.puzzles.items.find((p) => p.number === 15)!
-    middle.reviewedAt = null
+    w.puzzles.items.splice(
+      w.puzzles.items.findIndex((p) => p.number === 15),
+      1,
+    )
     await expect(w.setStartDate.execute(ADMIN, START)).rejects.toMatchObject({
       code: 'insufficient_content',
     })
   })
 
-  it('agenda com 30 dias revisados e publica os revisados em lote', async () => {
+  it('agenda com 30 dias prontos e publica todos em lote', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
     await w.prepareDraft.execute(START)
-    await reviewAll(w)
     const result = await w.setStartDate.execute(ADMIN, START)
     expect(result.status).toBe('scheduled')
     expect(result.published).toHaveLength(30)
@@ -69,16 +68,14 @@ describe('SetStartDateUseCase', () => {
     })
   })
 
-  it('muda a data enquanto futura: renumera e mantém as revisões', async () => {
+  it('muda a data enquanto futura: renumera e republica', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
     await w.prepareDraft.execute(START)
-    await reviewAll(w)
     await w.setStartDate.execute(ADMIN, START)
 
-    // Dois dias antes: precisa de rascunho e revisão dos dias novos.
+    // Dois dias antes: precisa de rascunho dos dias novos.
     const earlier = '2026-11-08'
     await w.prepareDraft.execute(earlier)
-    await reviewAll(w)
     const result = await w.setStartDate.execute(ADMIN, earlier)
     expect(result.status).toBe('scheduled')
     expect(w.settings.state.startDate).toBe(earlier)
@@ -91,7 +88,6 @@ describe('SetStartDateUseCase', () => {
   it('desliga enquanto agendado e tira tudo do ar', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
     await w.prepareDraft.execute(START)
-    await reviewAll(w)
     await w.setStartDate.execute(ADMIN, START)
     const result = await w.setStartDate.execute(ADMIN, null)
     expect(result).toEqual({ startDate: null, status: 'off', published: [] })

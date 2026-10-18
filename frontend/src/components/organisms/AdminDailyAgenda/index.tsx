@@ -20,9 +20,6 @@ function stateBadges(day: DailyAgendaDay) {
     const manual = Object.values(day.origins).some((origin) => origin === 'manual')
     return (
         <span className={styles.badges}>
-            <span className={day.reviewed ? styles.badge : `${styles.badge} ${styles.dashed}`}>
-                {day.reviewed ? 'Revisado' : 'Sem revisão'}
-            </span>
             <span className={day.published ? styles.badge : `${styles.badge} ${styles.dashed}`}>
                 {day.published ? 'Publicado' : 'Fora do ar'}
             </span>
@@ -55,17 +52,17 @@ function CoverageCard({ title, tally }: { title: string; tally: DailyTally }) {
     )
 }
 
-// Agenda dos próximos dias (DI.5.1): cada jogo com o que cada cartão traz, o estado (revisado,
-// publicado, trocado à mão) e a cobertura por categoria e marcador Brasil/fora da janela de 30 dias
+// Agenda dos próximos dias (DI.5.1): cada jogo com o que cada cartão traz, o estado (publicado,
+// trocado à mão) e a cobertura por categoria e marcador Brasil/fora da janela de 30 dias
 // (seção 3.3). Tabela no tablet em diante, cartões no mobile.
 export function AdminDailyAgenda({ overview }: AdminDailyAgendaProps) {
     const { days, coverage } = overview
     const publish = usePublishDailyPuzzlesMutation()
     const [notice, setNotice] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
-    const pendingPublish = days.filter((day) => day.reviewed && !day.published).length
+    const pendingPublish = days.filter((day) => !day.published).length
 
-    function publishReviewed() {
+    function publishPending() {
         publish.mutate(undefined, {
             onSuccess: (result) => {
                 setError(null)
@@ -82,8 +79,8 @@ export function AdminDailyAgenda({ overview }: AdminDailyAgendaProps) {
         <section className={styles.root} aria-label="Agenda do Diário">
             <div className={styles.head}>
                 <h2 className={styles.title}>Agenda</h2>
-                <Button variant="secondary" disabled={publish.isPending || pendingPublish === 0} onClick={publishReviewed}>
-                    {publish.isPending ? 'Publicando…' : `Publicar revisados (${pendingPublish})`}
+                <Button variant="secondary" disabled={publish.isPending || pendingPublish === 0} onClick={publishPending}>
+                    {publish.isPending ? 'Publicando…' : `Publicar pendentes (${pendingPublish})`}
                 </Button>
             </div>
 

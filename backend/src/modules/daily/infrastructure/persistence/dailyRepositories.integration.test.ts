@@ -278,33 +278,26 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       await expect(seedPuzzle(7, '2026-11-03')).rejects.toThrow()
     })
 
-    it('revisar e publicar gravam quem e quando', async () => {
+    it('publicar grava quando', async () => {
       await seedPuzzle(1, '2026-11-03')
-      await puzzles().markReviewed(1, userId, NOW)
       await puzzles().markPublished(1, NOW)
-      expect(await puzzles().findByNumber(1)).toMatchObject({
-        reviewedBy: userId,
-        reviewedAt: NOW,
-        publishedAt: NOW,
-      })
+      expect(await puzzles().findByNumber(1)).toMatchObject({ publishedAt: NOW })
     })
 
-    it('replaceUnpublished troca só os não publicados, com a revisão que vier', async () => {
+    it('replaceUnpublished troca só os não publicados', async () => {
       await seedPuzzle(1, '2026-11-03', NOW)
       await seedPuzzle(2, '2026-11-04')
       await seedPuzzle(3, '2026-11-05')
       const [second] = await puzzles().listFromDate('2026-11-04', 1)
 
-      await puzzles().replaceUnpublished([
-        { ...second, number: 9, reviewedBy: userId, reviewedAt: NOW },
-      ])
+      await puzzles().replaceUnpublished([{ ...second, number: 9 }])
 
       const all = await puzzles().listFromDate('2026-11-01', 10)
       expect(all.map((p) => [p.number, p.gameDate])).toEqual([
         [1, '2026-11-03'],
         [9, '2026-11-04'],
       ])
-      expect(all[1]).toMatchObject({ reviewedBy: userId, reviewedAt: NOW, publishedAt: null })
+      expect(all[1]).toMatchObject({ number: 9, publishedAt: null })
       expect(all[0].publishedAt).toEqual(NOW)
     })
 
@@ -347,7 +340,6 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       const first = await build().execute()
       expect(first.created).toEqual([1, 2, 3, 4])
       expect((await build().execute()).created).toEqual([])
-      await puzzles().markReviewed(2, userId, NOW)
 
       await settings.setStartDate('2026-11-11', userId, NOW)
       const moved = await build().execute()
@@ -359,7 +351,6 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
         [3, '2026-11-13'],
         [4, '2026-11-14'],
       ])
-      expect(list[0].reviewedBy).toBe(userId)
     })
   })
 
@@ -505,22 +496,15 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       expect(await words().update('00000000-0000-4000-8000-000000000000', {}, userId)).toBeNull()
     })
 
-    it('pergunta e evento: editar tira a revisão, markReviewed marca, e o patch pode preservá-la', async () => {
+    it('pergunta e evento: editar muda os campos e preserva o resto', async () => {
       const q = await questions().create(questionInput('q1'))
       const e = await events().create(eventInput('e1', 1994))
-      await questions().markReviewed([q.id], userId, NOW)
-      await events().markReviewed([e.id], userId, NOW)
-      expect((await questions().findById(q.id))?.reviewedAt).toEqual(NOW)
 
-      await questions().update(q.id, { active: false, reviewedAt: NOW }, userId)
-      expect((await questions().findById(q.id))?.reviewedAt).toEqual(NOW)
+      await questions().update(q.id, { active: false }, userId)
+      expect((await questions().findById(q.id))?.active).toBe(false)
       await questions().update(q.id, { question: 'Outra?' }, userId)
-      expect(await questions().findById(q.id)).toMatchObject({
-        question: 'Outra?',
-        reviewedAt: null,
-      })
+      expect(await questions().findById(q.id)).toMatchObject({ question: 'Outra?', active: false })
       await events().update(e.id, { label: 'Outro' }, userId)
-      expect((await events().findById(e.id))?.reviewedAt).toBeNull()
       expect((await events().listAll()).map((x) => x.label)).toEqual(['Outro'])
     })
 
@@ -549,11 +533,8 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       expect(await puzzles().listUsing('event', '00000000-0000-4000-8000-000000000000')).toEqual([])
     })
 
-    it('jogos: updateCard marca manual e zera a revisão; clearReview poupa o publicado', async () => {
+    it('jogos: updateCard troca o cartão e marca a origem como manual', async () => {
       await seedPuzzle(1, '2026-11-03')
-      await seedPuzzle(2, '2026-11-04', NOW)
-      await puzzles().markReviewed(1, userId, NOW)
-      await puzzles().markReviewed(2, userId, NOW)
       const other = await words().create(wordInput('OUTRAX'))
 
       await puzzles().updateCard(1, { card: 'word', wordId: other.id })
@@ -561,26 +542,18 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
         wordId: other.id,
         wordOrigin: 'manual',
         questionOrigin: 'generated',
-        reviewedAt: null,
-        reviewedBy: null,
       })
-
-      await puzzles().clearReview([1, 2])
-      expect((await puzzles().findByNumber(2))?.reviewedAt).toEqual(NOW)
     })
 
-    it('jogos: publishReviewed publica só os revisados e unpublishFrom tira do ar por data', async () => {
+    it('jogos: publishPending publica os que faltam e unpublishFrom tira do ar por data', async () => {
       await seedPuzzle(1, '2026-11-03')
       await seedPuzzle(2, '2026-11-04')
-      await seedPuzzle(3, '2026-11-05')
-      await puzzles().markReviewed(1, userId, NOW)
-      await puzzles().markReviewed(3, userId, NOW)
+      await seedPuzzle(3, '2026-11-05', NOW)
 
-      expect(await puzzles().publishReviewed('1970-01-01', NOW)).toEqual([1, 3])
-      expect((await puzzles().findByNumber(2))?.publishedAt).toBeNull()
-      expect(await puzzles().publishReviewed('1970-01-01', NOW)).toEqual([])
+      expect(await puzzles().publishPending('1970-01-01', NOW)).toEqual([1, 2])
+      expect(await puzzles().publishPending('1970-01-01', NOW)).toEqual([])
 
-      expect(await puzzles().unpublishFrom('2026-11-04')).toBe(1)
+      expect(await puzzles().unpublishFrom('2026-11-04')).toBe(2)
       expect((await puzzles().findByNumber(1))?.publishedAt).toEqual(NOW)
       expect((await puzzles().findByNumber(3))?.publishedAt).toBeNull()
     })

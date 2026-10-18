@@ -16,7 +16,6 @@ import {
     publishDailyPuzzles,
     removeDailyAcceptedWord,
     replaceDailyCard,
-    reviewDailyPuzzle,
     setDailyStartDate,
     updateDailyEvent,
     updateDailyQuestion,
@@ -105,9 +104,6 @@ export function useSetDailyStartDateMutation(): UseMutationResult<DailyStartDate
 
 export const usePublishDailyPuzzlesMutation = (): UseMutationResult<{ published: number[] }, unknown, number[] | undefined> =>
     useDailyMutation((token, numbers: number[] | undefined) => publishDailyPuzzles(token, numbers))
-
-export const useReviewDailyPuzzleMutation = (): UseMutationResult<{ number: number }, unknown, number> =>
-    useDailyMutation((token, number: number) => reviewDailyPuzzle(token, number))
 
 export interface ReplaceDailyCardVariables {
     number: number

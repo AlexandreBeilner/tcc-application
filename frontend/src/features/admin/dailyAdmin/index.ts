@@ -56,9 +56,8 @@ export const DAILY_ORIGIN_LABELS: Record<DailyCardOrigin, string> = {
 }
 
 export const DAILY_ALERT_MESSAGES: Record<DailyAlertCode, string> = {
-    low_reviewed_cover: 'Menos de 14 dias revisados à frente. Revise mais dias antes que o conteúdo acabe.',
-    scheduled_below_minimum:
-        'A estreia está agendada, mas há menos de 30 dias seguidos revisados a partir dela. Algo foi editado depois de agendar.',
+    low_ready_cover: 'Menos de 14 dias prontos à frente. Crie mais conteúdo antes que ele acabe.',
+    scheduled_below_minimum: 'A estreia está agendada, mas há menos de 30 dias seguidos de jogos prontos a partir dela.',
     today_not_published: 'O jogo de hoje não está publicado. Quem abrir o Diário vê o jogo como indisponível.',
 }
 

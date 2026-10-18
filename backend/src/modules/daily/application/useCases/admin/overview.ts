@@ -1,6 +1,6 @@
 import {
   COVERAGE_WINDOW_DAYS,
-  LOW_REVIEWED_COVER_DAYS,
+  LOW_READY_COVER_DAYS,
   addToTally,
   consecutiveDaysFrom,
   emptyTally,
@@ -54,9 +54,9 @@ export class GetDailyAdminOverviewUseCase {
     const eventById = new Map(allEvents.map((e) => [e.id, e]))
 
     const days = puzzles.map((p) => toDay(p, wordById, questionById, eventById))
-    const reviewedDaysAhead = consecutiveDaysFrom(
+    const readyDaysAhead = consecutiveDaysFrom(
       agendaFrom,
-      puzzles.map((p) => ({ gameDate: p.gameDate, ok: p.reviewedAt !== null })),
+      puzzles.map((p) => ({ gameDate: p.gameDate, ok: true })),
     )
     const publishedDaysAhead = consecutiveDaysFrom(
       agendaFrom,
@@ -64,10 +64,10 @@ export class GetDailyAdminOverviewUseCase {
     )
 
     const alerts: AdminAlertCode[] = []
-    if (state.status !== 'off' && reviewedDaysAhead < LOW_REVIEWED_COVER_DAYS) {
-      alerts.push('low_reviewed_cover')
+    if (state.status !== 'off' && readyDaysAhead < LOW_READY_COVER_DAYS) {
+      alerts.push('low_ready_cover')
     }
-    if (state.status === 'scheduled' && reviewedDaysAhead < MIN_CONTENT_DAYS_AHEAD) {
+    if (state.status === 'scheduled' && readyDaysAhead < MIN_CONTENT_DAYS_AHEAD) {
       alerts.push('scheduled_below_minimum')
     }
     if (state.status === 'live' && puzzles[0]?.gameDate !== today)
@@ -82,10 +82,10 @@ export class GetDailyAdminOverviewUseCase {
       today,
       canChangeStart: state.status !== 'live',
       agendaFrom,
-      reviewedDaysAhead,
+      readyDaysAhead,
       publishedDaysAhead,
       minDaysToSchedule: MIN_CONTENT_DAYS_AHEAD,
-      lowCoverThreshold: LOW_REVIEWED_COVER_DAYS,
+      lowCoverThreshold: LOW_READY_COVER_DAYS,
       alerts,
       days,
       coverage: tally(puzzles, agendaFrom, wordById, questionById, eventById),
@@ -110,7 +110,6 @@ function toDay(
   return {
     number: p.number,
     date: p.gameDate,
-    reviewed: p.reviewedAt !== null,
     published: p.publishedAt !== null,
     origins: { word: p.wordOrigin, question: p.questionOrigin, timeline: p.timelineOrigin },
     word: word ? { display: word.display, category: word.category, scope: word.scope } : null,

@@ -61,6 +61,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'billing.grant_promotional',
   'daily.start_date',
   'daily.draft',
+  // Legado: a revisão manual saiu do painel, mas as linhas antigas de auditoria seguem legíveis.
   'daily.puzzle_review',
   'daily.puzzle_publish',
   'daily.puzzle_card',

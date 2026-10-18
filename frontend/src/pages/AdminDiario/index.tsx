@@ -7,7 +7,7 @@ import { useDailyOverviewQuery } from '../../features/admin/useAdminDaily'
 import styles from './index.module.css'
 
 // Tela "Diário" (DI.5.1): a estreia, a agenda dos próximos dias e a cobertura do conteúdo. É por aqui
-// que o autor agenda a data de estreia, revisa e publica os jogos. Desktop: agenda larga à esquerda e
+// que o autor agenda a data de estreia e publica os jogos. Desktop: agenda larga à esquerda e
 // o controle da estreia fixo à direita; abaixo de 1200px tudo empilha, com a estreia primeiro.
 export function AdminDiario() {
     const overviewQuery = useDailyOverviewQuery()
@@ -19,7 +19,7 @@ export function AdminDiario() {
                 <div>
                     <h1 className={styles.title}>Diário</h1>
                     <p className={styles.subtitle}>
-                        Estreia, agenda e revisão dos jogos. Nada vai ao ar sem revisão e publicação, e o gabarito só aparece aqui.
+                        Estreia e agenda dos jogos. Nada vai ao ar sem publicação, e o gabarito só aparece aqui.
                     </p>
                 </div>
                 <Link to="/admin/diario/conteudo" className={styles.contentLink}>
