@@ -61,7 +61,8 @@ export const BLOCKS_2_7_1: LessonBlocks = {
         type: 'check',
         id: 'ordem-do-resultado',
         kind: 'order',
-        prompt: 'Coloque as linhas do resultado na ordem em que a conta desce, da receita ao que sobra.',
+        prompt:
+          'Coloque as linhas do resultado na ordem em que a conta desce, da receita ao que sobra.',
         items: [
           'Receita líquida (o que a empresa vendeu)',
           'Lucro bruto (depois dos custos)',
@@ -734,12 +735,14 @@ export const BLOCKS_2_9: LessonBlocks = {
         type: 'check',
         id: 'etf-sem-isencao',
         kind: 'single',
-        prompt:
-          'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
-        options: ['Sim, como nas ações', 'Não, a isenção do mês vale só para ações', 'Só se o ETF distribuir dividendos'],
+        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
+        options: [
+          'Sim, como nas ações',
+          'Não, a isenção do mês vale só para ações',
+          'Só se o ETF distribuir dividendos',
+        ],
         answer: 1,
-        explanation:
-          'A isenção de vendas no mês vale para ações, não para ETF nem FII.',
+        explanation: 'A isenção de vendas no mês vale para ações, não para ETF nem FII.',
       },
       {
         type: 'widget',
@@ -977,8 +980,7 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
           'Você vendeu R$ 30.000 em ações no mês, acima do limite de isenção, com lucro de R$ 4.000, em operações de swing trade com alíquota de 15%. Quanto paga de imposto, em reais?',
         options: ['R$ 0', 'R$ 600', 'R$ 800', 'R$ 4.500'],
         answer: 1,
-        explanation:
-          'Passou do limite, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
+        explanation: 'Passou do limite, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
       },
       {
         type: 'text',
@@ -1041,8 +1043,7 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
             props: {
               tone: 'info',
               title: 'Valores de hoje',
-              body:
-                'A isenção vale para vendas de até R$ 20 mil em ações no mês. Nos dividendos, desde 2026 a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Esses valores são definidos em lei e podem mudar.',
+              body: 'A isenção vale para vendas de até R$ 20 mil em ações no mês. Nos dividendos, desde 2026 a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Esses valores são definidos em lei e podem mudar.',
             },
           },
         ],

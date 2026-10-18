@@ -256,8 +256,7 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
             props: {
               tone: 'info',
               title: 'Taxas de hoje',
-              body:
-                'Em 2026, a média do Banco Central para o rotativo do cartão ficou perto de 15% ao mês, mais de 400% ao ano, e a do cheque especial, perto de 7% ao mês. Essas taxas mudam com o tempo.',
+              body: 'Em 2026, a média do Banco Central para o rotativo do cartão ficou perto de 15% ao mês, mais de 400% ao ano, e a do cheque especial, perto de 7% ao mês. Essas taxas mudam com o tempo.',
             },
           },
         ],

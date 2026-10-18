@@ -125,8 +125,7 @@ export const BLOCKS_1_2: LessonBlocks = {
         props: {
           tone: 'info',
           title: 'Valores de hoje',
-          body:
-            'A B3 cobra 0,20% ao ano de custódia sobre o Tesouro Direto. No Tesouro Selic, não cobra nada sobre os primeiros R$ 10 mil. Esses valores podem mudar.',
+          body: 'A B3 cobra 0,20% ao ano de custódia sobre o Tesouro Direto. No Tesouro Selic, não cobra nada sobre os primeiros R$ 10 mil. Esses valores podem mudar.',
         },
       },
       {
@@ -137,8 +136,7 @@ export const BLOCKS_1_2: LessonBlocks = {
           'No Tesouro Selic, a B3 não cobra custódia sobre os primeiros R$ 10 mil. Você tem R$ 8.000 nele. Quanto paga de custódia por ano?',
         options: ['R$ 0', 'R$ 16', 'R$ 80', 'R$ 160'],
         answer: 0,
-        explanation:
-          'Todo o seu valor está dentro da parte isenta, então a custódia é zero.',
+        explanation: 'Todo o seu valor está dentro da parte isenta, então a custódia é zero.',
       },
       {
         type: 'text',
@@ -676,7 +674,8 @@ export const BLOCKS_1_9: LessonBlocks = {
         id: 'conta-acumulado',
         widget: 'formula-walkthrough',
         props: {
-          intro: 'Um pouco mais: 2,01%. Cada mês incide sobre preços já reajustados, como nos juros compostos.',
+          intro:
+            'Um pouco mais: 2,01%. Cada mês incide sobre preços já reajustados, como nos juros compostos.',
           items: [
             {
               label: 'Inflação acumulada',
@@ -796,7 +795,8 @@ export const BLOCKS_1_10: LessonBlocks = {
         id: 'conta-ipca-mais',
         widget: 'formula-walkthrough',
         props: {
-          intro: 'Os dois efeitos se multiplicam. Com IPCA de 5% e taxa de 6% ao ano, o retorno do ano é de 11,3%, e não 11%.',
+          intro:
+            'Os dois efeitos se multiplicam. Com IPCA de 5% e taxa de 6% ao ano, o retorno do ano é de 11,3%, e não 11%.',
           items: [
             {
               label: 'Retorno do Tesouro IPCA+',

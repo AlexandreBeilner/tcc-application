@@ -101,8 +101,7 @@ export const BLOCKS_0_2: LessonBlocks = {
         type: 'check',
         id: 'chute-20-anos',
         kind: 'estimate',
-        prompt:
-          'Chute: quanto viram os R$ 1.000 depois de 20 anos a 10% ao ano?',
+        prompt: 'Chute: quanto viram os R$ 1.000 depois de 20 anos a 10% ao ano?',
         min: 1000,
         max: 10000,
         step: 100,
@@ -140,7 +139,8 @@ export const BLOCKS_0_2: LessonBlocks = {
         id: 'conta-simples-composto',
         widget: 'formula-walkthrough',
         props: {
-          intro: 'O que você viu tem nome: juros sobre juros. R$ 1.000 a 10% ao ano, por 3 anos. A taxa é a mesma, e o resultado muda.',
+          intro:
+            'O que você viu tem nome: juros sobre juros. R$ 1.000 a 10% ao ano, por 3 anos. A taxa é a mesma, e o resultado muda.',
           items: [
             {
               label: 'Juros simples',
@@ -156,8 +156,7 @@ export const BLOCKS_0_2: LessonBlocks = {
               result: 'R$ 1.331',
             },
           ],
-          note:
-            'Em 20 anos, os mesmos R$ 1.000 viram R$ 3.000 no simples e cerca de R$ 6.727 no composto. Quanto mais cedo você começa, mais períodos de juros sobre juros trabalham a seu favor.',
+          note: 'Em 20 anos, os mesmos R$ 1.000 viram R$ 3.000 no simples e cerca de R$ 6.727 no composto. Quanto mais cedo você começa, mais períodos de juros sobre juros trabalham a seu favor.',
         },
       },
       {
@@ -202,8 +201,7 @@ export const BLOCKS_0_3: LessonBlocks = {
         props: {
           tone: 'info',
           title: 'Hoje no Brasil',
-          body:
-            'Em 2026, a meta é de 3% ao ano, com tolerância de 1,5 ponto para mais ou para menos, ou seja, de 1,5% a 4,5%. A meta é definida pelo governo e pode mudar.',
+          body: 'Em 2026, a meta é de 3% ao ano, com tolerância de 1,5 ponto para mais ou para menos, ou seja, de 1,5% a 4,5%. A meta é definida pelo governo e pode mudar.',
         },
       },
     ],

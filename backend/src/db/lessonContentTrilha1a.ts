@@ -55,8 +55,7 @@ export const BLOCKS_1_4: LessonBlocks = {
         props: {
           tone: 'info',
           title: 'Valores de hoje',
-          body:
-            'O FGC protege até R$ 250 mil por CPF e por conglomerado financeiro, e o teto total é de R$ 1 milhão por CPF a cada 4 anos. Esses valores são definidos por regra e podem mudar.',
+          body: 'O FGC protege até R$ 250 mil por CPF e por conglomerado financeiro, e o teto total é de R$ 1 milhão por CPF a cada 4 anos. Esses valores são definidos por regra e podem mudar.',
         },
       },
       {
@@ -65,7 +64,11 @@ export const BLOCKS_1_4: LessonBlocks = {
         kind: 'single',
         prompt:
           'Você tem CDBs em dois bancos do mesmo conglomerado financeiro. O limite do FGC vale:',
-        options: ['Separado para cada banco', 'Uma vez só para o conglomerado inteiro', 'Não existe limite'],
+        options: [
+          'Separado para cada banco',
+          'Uma vez só para o conglomerado inteiro',
+          'Não existe limite',
+        ],
         answer: 1,
         explanation:
           'O limite vale por CPF e por conglomerado financeiro, não por banco. Dois bancos do mesmo conglomerado dividem a mesma cobertura.',
@@ -160,7 +163,12 @@ export const BLOCKS_1_5: LessonBlocks = {
         kind: 'order',
         prompt:
           'Resgates de um mesmo CDB, com prazos diferentes. Ordene do que paga mais IR para o que paga menos.',
-        items: ['Resgate com 90 dias', 'Resgate com 250 dias', 'Resgate com 400 dias', 'Resgate com 800 dias'],
+        items: [
+          'Resgate com 90 dias',
+          'Resgate com 250 dias',
+          'Resgate com 400 dias',
+          'Resgate com 800 dias',
+        ],
         answer: [0, 1, 2, 3],
         lowLabel: 'Paga mais IR',
         highLabel: 'Paga menos IR',

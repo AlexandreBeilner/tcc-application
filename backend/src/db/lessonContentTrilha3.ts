@@ -509,7 +509,8 @@ export const BLOCKS_VIESES: LessonBlocks = {
         id: 'enquete-queda-sem-noticia',
         prompt: 'Sua ação caiu 30% e não saiu notícia nenhuma. O que você faz?',
         options: ['Vendo para não perder mais', 'Seguro e espero', 'Compro mais'],
-        closing: 'Não existe resposta certa só pelo susto. A seguir: os erros que a emoção costuma causar.',
+        closing:
+          'Não existe resposta certa só pelo susto. A seguir: os erros que a emoção costuma causar.',
       },
       {
         type: 'text',
