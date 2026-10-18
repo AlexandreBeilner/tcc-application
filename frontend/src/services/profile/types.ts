@@ -30,6 +30,8 @@ export interface PublicProfile {
     // trilha (ex: `[0, 1]`), nunca patrimônio (RNF09 continua estrutural).
     // Consumido pelo organism `TrackTrophyCase` (F.3).
     completedTracks: number[]
+    // Códigos das lições concluídas (LJ.5.9): o cliente cruza com o glossário para a coleção de termos.
+    completedLessonCodes: string[]
     cosmetics: PublicCosmetics
 }
 

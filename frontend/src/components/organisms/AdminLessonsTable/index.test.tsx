@@ -156,6 +156,7 @@ describe('AdminLessonsTable', () => {
         const [t0] = await tables()
 
         expect(t0.getByRole('link', { name: 'Editar' })).toHaveAttribute('href', '/admin/conteudo/l1')
+        expect(t0.getByRole('link', { name: 'Funil' })).toHaveAttribute('href', '/admin/conteudo/l1/funil')
         expect(screen.getByRole('link', { name: 'Nova lição' })).toHaveAttribute('href', '/admin/conteudo/nova')
     })
 

@@ -88,6 +88,17 @@ function UsersCard({ overview }: { overview: AdminOverview }) {
     )
 }
 
+function RetentionCard() {
+    return (
+        <StatCard title="Retenção" to="/admin/retencao" linkLabel="Abrir painel">
+            <StatFact
+                label="O que mostra"
+                value="Quem volta nos dias 1, 7 e 30, DAU/MAU e o tempo até a primeira lição e a primeira operação"
+            />
+        </StatCard>
+    )
+}
+
 // Tela 10.1 (N.5): entrada do painel admin. Saúde dos componentes no topo e, abaixo,
 // o estado do mercado, do tempo, da negociação e dos usuários, atualizados sozinhos.
 // Cada fonte falha sozinha: o backend devolve `null` na seção que caiu, e a tela
@@ -117,6 +128,7 @@ export function AdminVisaoGeral() {
                     <TimeCard overview={overviewQuery.data} />
                     <TradingCard overview={overviewQuery.data} />
                     <UsersCard overview={overviewQuery.data} />
+                    <RetentionCard />
                 </div>
             ) : overviewQuery.isError ? (
                 <p className={styles.error} role="alert">

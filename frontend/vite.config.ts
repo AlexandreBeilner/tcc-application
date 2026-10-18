@@ -42,6 +42,8 @@ const BACKEND_ROUTE_NAMESPACES = [
     'leagues',
     // MO.5.3 — API dos duelos (`/duels`); as páginas são `/duelos`, sem colisão.
     'duels',
+    // DI.4.1 — API do jogo diário (`/daily`); a página é `/diario`, sem colisão.
+    'daily',
     // MO.5.4 — API da retrospectiva (`/retrospectives`); a página é `/retrospectiva`, sem colisão.
     'retrospectives',
     // MO.6.6 — API das assembleias de acionistas (`/assemblies`); as páginas são `/assembleias`, sem colisão.
@@ -89,9 +91,9 @@ export default defineConfig({
             injectRegister: false,
             manifest: false,
             injectManifest: {
-                // App shell: JS e CSS com hash, a fonte latina, ícones e a página offline. `index.html` fica de fora
+                // App shell: JS e CSS com hash, a fonte latina, ícones, os sons das lições e a página offline. `index.html` fica de fora
                 // (navegação vai à rede primeiro). `latin-ext` só baixa quando um caractere raro aparece.
-                globPatterns: ['**/*.{js,css,woff2,png,svg,ico}', 'offline.html'],
+                globPatterns: ['**/*.{js,css,woff2,png,svg,ico,wav}', 'offline.html'],
                 globIgnores: [
                     '**/*latin-ext*',
                     '**/Purchases.es-*.js',
@@ -103,6 +105,9 @@ export default defineConfig({
         }),
     ],
     server: {
+        // DI.3.1: o módulo do Diário mora em `landing/src/diario/` (um jogo só para a landing e o app) e o dev server
+        // só serve arquivos de dentro do projeto por padrão; liberar a raiz do repositório deixa o app importá-lo.
+        fs: { allow: ['..'] },
         proxy: {
             // `(/|\?|$)` — não só `/` (path) ou fim de string, mas também `?`
             // (query string colada direto no namespace, sem segmento de path

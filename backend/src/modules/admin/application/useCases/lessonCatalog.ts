@@ -3,6 +3,7 @@ import type {
   LessonContentView,
   LessonCreateOutcome,
   LessonForEditView,
+  LessonCardFunnelView,
   LessonCatalogItem,
   LessonPublicationResult,
   LessonRevisionDetail,
@@ -15,6 +16,15 @@ export class ListLessonCatalogAdminUseCase {
 
   execute(): Promise<LessonCatalogItem[]> {
     return this.lessonCatalog.list()
+  }
+}
+
+// Funil por cartão de uma lição (LJ.5.1). Leitura, sem auditoria (não mexe em nada).
+export class GetLessonCardFunnelAdminUseCase {
+  constructor(private readonly lessonCatalog: LessonCatalogAdmin) {}
+
+  execute(lessonId: string, days?: number): Promise<LessonCardFunnelView> {
+    return this.lessonCatalog.cardFunnel(lessonId, days)
   }
 }
 

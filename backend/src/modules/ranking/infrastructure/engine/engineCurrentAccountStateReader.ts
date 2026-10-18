@@ -126,9 +126,9 @@ export function createEngineCurrentAccountStateReader(
         tradesExecuted: 0,
         total: cash + variableIncomeValue + fixedIncomeValue,
         // investedCost/disinvestedProceeds/dividendsReceived (tarefa T.1) são
-        // lidos direto dos acumuladores crus do motor (`accounts`), sem
-        // filtro de sandbox — mesma convenção do replay (`domain/networth.ts`,
-        // ver comentário em `Snapshot`), pra bater com o mesmo instante.
+        // lidos direto dos acumuladores do motor (`accounts`), que não recebem
+        // nada de ativo sandbox (ponto 063) — mesma convenção do replay
+        // (`domain/networth.ts`, ver comentário em `Snapshot`).
         investedCost: account.total_invested,
         disinvestedProceeds: account.total_disinvested,
         dividendsReceived: account.total_dividends_received,

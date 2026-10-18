@@ -30,7 +30,10 @@ function build() {
     ],
   })
   const profitabilityReader = createFakeProfitabilityReader({ u1: 12.5 })
-  const trackCompletionReader = createFakeTrackCompletionReader({ u1: [0, 1] })
+  const trackCompletionReader = createFakeTrackCompletionReader(
+    { u1: [0, 1] },
+    { u1: ['0.1', '0.2'] },
+  )
   const useCase = new GetPublicProfileUseCase(
     userDirectory,
     gamificationReader,
@@ -64,6 +67,7 @@ describe('GetPublicProfileUseCase', () => {
       profitabilityPct: 12.5,
       window: 'week',
       completedTracks: [0, 1],
+      completedLessonCodes: ['0.1', '0.2'],
       cosmetics: { isPro: false, frame: null, title: null },
     })
   })

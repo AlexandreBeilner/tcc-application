@@ -1,0 +1,52 @@
+.seal {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    align-self: flex-start;
+    margin: 0;
+    padding: var(--space-1) var(--space-3);
+    border-radius: 999px;
+    background: var(--color-gamify-100);
+    color: var(--color-gamify-500);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    animation: sealIn 360ms ease-out;
+}
+
+.flame {
+    flex: none;
+}
+
+/* Aos 5 a chama ganha brilho e o selo respira uma vez. */
+.big {
+    box-shadow: 0 0 0 1px var(--color-gamify-500);
+}
+
+.big .flame {
+    filter: drop-shadow(0 0 4px var(--color-gamify-500));
+    animation: glow 1.4s ease-in-out 2;
+}
+
+@keyframes sealIn {
+    from {
+        opacity: 0;
+        transform: scale(0.85);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes glow {
+    50% {
+        filter: drop-shadow(0 0 9px var(--color-gamify-500));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .seal,
+    .big .flame {
+        animation: none;
+    }
+}

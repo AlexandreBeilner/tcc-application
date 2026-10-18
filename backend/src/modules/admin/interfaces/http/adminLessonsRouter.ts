@@ -9,6 +9,7 @@ import {
   InvalidAdminLessonError,
 } from '../../domain/errors'
 import type {
+  LessonCardFunnelView,
   LessonCatalogItem,
   LessonContentView,
   LessonDetailView,
@@ -16,6 +17,7 @@ import type {
 } from '../../application/ports/lessonCatalogAdmin'
 import type {
   CreateLessonAdminUseCase,
+  GetLessonCardFunnelAdminUseCase,
   GetLessonForEditAdminUseCase,
   GetLessonRevisionAdminUseCase,
   ListLessonCatalogAdminUseCase,
@@ -24,6 +26,7 @@ import type {
   UpdateLessonContentAdminUseCase,
 } from '../../application/useCases/lessonCatalog'
 import {
+  cardFunnelQuerySchema,
   createLessonBodySchema,
   lessonContentBodySchema,
   setLessonPublishedBodySchema,
@@ -32,6 +35,7 @@ import {
 export interface AdminLessonsRouterDeps {
   listLessonCatalog: ListLessonCatalogAdminUseCase
   setLessonPublished: SetLessonPublishedAdminUseCase
+  getLessonCardFunnel: GetLessonCardFunnelAdminUseCase
   getLessonForEdit: GetLessonForEditAdminUseCase
   updateLessonContent: UpdateLessonContentAdminUseCase
   createLesson: CreateLessonAdminUseCase
@@ -110,6 +114,24 @@ function toContent(body: {
   }
 }
 
+function serializeCardFunnel(funnel: LessonCardFunnelView) {
+  return {
+    lesson: funnel.lesson,
+    days: funnel.days,
+    since: funnel.since,
+    bars: funnel.bars.map((bar) => ({
+      phase: bar.phase,
+      card_index: bar.cardIndex,
+      reached: bar.reached,
+      lost: bar.lost,
+      lost_rate: bar.lostRate,
+    })),
+    biggest_drop: funnel.biggestDrop
+      ? { phase: funnel.biggestDrop.phase, card_index: funnel.biggestDrop.cardIndex }
+      : null,
+  }
+}
+
 function serializeLesson(item: LessonCatalogItem) {
   return {
     id: item.id,
@@ -166,6 +188,22 @@ export function createAdminLessonsRouter(deps: AdminLessonsRouterDeps): Router {
   router.get('/admin/lessons', ...adminOnly, async (_req, res) => {
     const lessons = await deps.listLessonCatalog.execute()
     res.status(200).json({ lessons: lessons.map(serializeLesson) })
+  })
+
+  router.get('/admin/lessons/:id/card-funnel', ...adminOnly, async (req, res) => {
+    const parsed = cardFunnelQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: 'informe days entre 1 e 365', details: z.flattenError(parsed.error) })
+      return
+    }
+    try {
+      const funnel = await deps.getLessonCardFunnel.execute(String(req.params.id), parsed.data.days)
+      res.status(200).json(serializeCardFunnel(funnel))
+    } catch (err) {
+      sendLessonError(err, res)
+    }
   })
 
   router.patch('/admin/lessons/:id/published', ...adminOnly, async (req, res) => {

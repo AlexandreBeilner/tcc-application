@@ -4,6 +4,7 @@ import {
     createAdminLesson,
     getAdminLesson,
     getAdminLessons,
+    getLessonCardFunnel,
     getLessonRevision,
     restoreLessonRevision,
     setLessonPublished,
@@ -13,6 +14,7 @@ import type {
     AdminLesson,
     AdminLessonContent,
     AdminLessonForEdit,
+    LessonCardFunnel,
     LessonCreateInput,
     LessonCreateResult,
     LessonPublicationResult,
@@ -107,5 +109,16 @@ export function useRestoreLessonRevisionMutation(lessonId: string): UseMutationR
     return useMutation({
         mutationFn: (revisionId: string) => restoreLessonRevision(token as string, lessonId, revisionId),
         onSettled: invalidate,
+    })
+}
+
+// Funil por cartão (LJ.5.1). Dado de uso, não muda sozinho: sem polling.
+export function useLessonCardFunnelQuery(id: string, days: number): UseQueryResult<LessonCardFunnel> {
+    const { token } = useAuth()
+    return useQuery({
+        queryKey: ['admin', 'lessons', 'card-funnel', id, days] as const,
+        queryFn: () => getLessonCardFunnel(token as string, id, days),
+        enabled: token !== null,
+        retry: false,
     })
 }

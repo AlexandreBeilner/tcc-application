@@ -50,7 +50,15 @@ function build() {
     list: new ListMissionCatalogUseCase(repository, () => '2026-10-03'),
     update: new UpdateMissionUseCase(repository),
     daily: new ListDailyMissionsUseCase(repository),
-    complete: new CompleteMissionUseCase(repository, never, never, never, xpAwarder, streakTracker),
+    complete: new CompleteMissionUseCase(
+      repository,
+      never,
+      never,
+      never,
+      never,
+      xpAwarder,
+      streakTracker,
+    ),
   }
 }
 

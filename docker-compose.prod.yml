@@ -148,6 +148,8 @@ services:
       UV_THREADPOOL_SIZE: "16"
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (openssl rand -base64 48)}
       FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL}
+      # DI.2.1: origem da landing, aceita só nas rotas públicas do Diário. Em staging, a da landing de staging.
+      LANDING_URL: ${LANDING_URL:-https://selucra.com.br}
       PUBLIC_API_URL: ${PUBLIC_API_URL:?defina PUBLIC_API_URL}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

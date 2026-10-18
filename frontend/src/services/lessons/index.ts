@@ -6,17 +6,24 @@ import type {
     GetLessonResult,
     ListLessonsResult,
     ReviewLessonResult,
+    ReviewSession,
+    VotePollResult,
 } from './types'
 
 export type {
     Lesson,
+    PollState,
+    PracticeQuestion,
     ListLessonsResult,
     GetLessonResult,
     AdvanceLessonResult,
     AnswerCheckpointResult,
     AnswerMicroDecisionResult,
+    CheckHint,
     CheckpointState,
+    EstimateResult,
     ReviewLessonResult,
+    ReviewSession,
     MicroDecisionType,
     UnlockedAchievement,
 } from './types'
@@ -41,21 +48,53 @@ export function answerMicroDecision(token: string, id: string, selectedOption: n
     return apiRequest<AnswerMicroDecisionResult>(`/lessons/${id}/answer`, { token, method: 'POST', body: { selectedOption } })
 }
 
-// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2): `selectedOption`
-// (única escolha, verdadeiro/falso) ou `value` (numérica). A explicação só vem no acerto.
+// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, LJ.2.1): `selectedOption`
+// (única escolha ou verdadeiro/falso), `value` (estimativa), `sequence` (ordenar), `groups` (agrupar) ou `pair` (ligar, um par por vez). A explicação só
+// vem no acerto, exceto na estimativa, que avança acertando ou não; ao errar um formato de várias
+// peças vem só a contagem (`hint`). `practice` (Relembra, revisão de 1 minuto) só muda a resposta de pergunta de
+// leitura: a explicação vem também no erro.
 export function answerCheckpoint(
     token: string,
     id: string,
     checkpointId: string,
-    response: { selectedOption: number } | { value: number },
+    response: { selectedOption: number } | { value: number } | { sequence: number[] } | { groups: number[] } | { pair: [number, number] },
+    options: { practice?: boolean } = {},
 ): Promise<AnswerCheckpointResult> {
     return apiRequest<AnswerCheckpointResult>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/answer`, {
         token,
         method: 'POST',
-        body: response,
+        body: options.practice ? { ...response, practice: true } : response,
     })
 }
 
 export function reviewLesson(token: string, id: string): Promise<ReviewLessonResult> {
     return apiRequest<ReviewLessonResult>(`/lessons/${id}/review`, { token, method: 'POST' })
+}
+
+// Funil por cartão (LJ.5.1): `phase` 0 a 3 (Cenário, Micro-decisão, Revelação, tela final) e a posição
+// do cartão na fase. Fire-and-forget do player; o resultado não muda nada na tela.
+export function recordCardReach(token: string, id: string, phase: number, cardIndex: number): Promise<{ recorded: boolean }> {
+    return apiRequest<{ recorded: boolean }>(`/lessons/${id}/cards/reached`, { token, method: 'POST', body: { phase, cardIndex } })
+}
+
+// Revisão de 1 minuto (LJ.5.6): as 3 perguntas vencidas e o resultado de cada uma. `correct` é "acertou sem errar
+// antes"; a rota só age em pergunta vencida, uma vez por vencimento.
+export function votePoll(token: string, id: string, pollId: string, option: number): Promise<VotePollResult> {
+    return apiRequest<VotePollResult>(`/lessons/${id}/polls/${encodeURIComponent(pollId)}/vote`, {
+        token,
+        method: 'POST',
+        body: { option },
+    })
+}
+
+export function getReviewSession(token: string): Promise<ReviewSession> {
+    return apiRequest<ReviewSession>('/lessons/review/session', { token })
+}
+
+export function recordReviewResult(token: string, id: string, checkpointId: string, correct: boolean): Promise<{ recorded: boolean }> {
+    return apiRequest<{ recorded: boolean }>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/review`, {
+        token,
+        method: 'POST',
+        body: { correct },
+    })
 }

@@ -2,10 +2,14 @@ import type { TrackCompletionReader } from '../../application/ports/trackComplet
 
 export function createFakeTrackCompletionReader(
   completedByUserId: Record<string, number[]> = {},
+  lessonCodesByUserId: Record<string, string[]> = {},
 ): TrackCompletionReader {
   return {
     async listCompleted(userId) {
       return completedByUserId[userId] ?? []
+    },
+    async listCompletedLessonCodes(userId) {
+      return lessonCodesByUserId[userId] ?? []
     },
   }
 }

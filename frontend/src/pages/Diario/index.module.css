@@ -1,0 +1,20 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* O módulo do jogo já mostra o próprio título; o h1 fica só para leitor de tela e para a hierarquia da página. */
+.title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

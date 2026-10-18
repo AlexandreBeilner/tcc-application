@@ -158,6 +158,11 @@ Princípio: o mínimo útil e sem custo. **Logs em JSON** no stdout + **um endpo
 - **Erros do frontend e do backend em serviço dedicado (tipo Sentry):** não há por enquanto (decisão de custo, 2026-10-12). Os erros 5xx do backend estão nos logs com pilha e `requestId`; os do navegador não são coletados. Revisitar quando houver usuários reais.
 
 ## 6. Outras rotinas (a preencher conforme as tarefas)
+- **Conteúdo de lição revisado no seed** (o seed só importa o que falta e nunca sobrescreve, N.23): a revisão chega ao banco por um script aditivo e idempotente, rodado depois do deploy que o traz, primeiro no staging. Todos só mexem no que encontram exatamente como esperam (texto editado pelo painel fica como está) e podem rodar de novo sem efeito. Pendentes desde 2026-10-17, nesta ordem:
+  1. `$PROD exec backend node dist/db/convertNumericChecks.js` (perguntas numéricas viram múltipla escolha)
+  2. `$PROD exec backend node dist/db/applyLessonRevisions.js` (fórmula com números na 0.2/1.10/1.11, perguntas que dependiam do valor vigente, cartões "Valores de hoje")
+
+  Conferir na saída que cada lição diz "N mudança(s)" ou "já atualizada"; "não encontrada" indica lição ausente no banco (rodar o seed de lições antes).
 - Girar segredos: LW.3.8/LW.3.11. Criar o admin com segurança: seção 2, passo 5.
 - Se o motor ou o Temporizador parar: `$PROD ps`, `$PROD logs --tail 100 engine`; o `restart: unless-stopped` reinicia sozinho e o Temporizador recupera os ticks perdidos até `TICK_MAX_CATCHUP`.
 - Estado "dirty" de migração (golang-migrate): ver a nota em memória do projeto antes de forçar versão; restaurar do backup é o caminho seguro quando uma migração destrutiva falhou.

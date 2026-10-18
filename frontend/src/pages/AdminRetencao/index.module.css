@@ -1,0 +1,126 @@
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: 1200px;
+    min-width: 0;
+}
+
+.title {
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+}
+
+.subtitle {
+    margin: calc(var(--space-2) * -1) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.choice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.choiceLabel {
+    min-width: 64px;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pill,
+.pillActive {
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pillActive {
+    border-color: var(--color-brand-500);
+    color: var(--color-link);
+}
+
+@media (min-width: 1024px) {
+    .filters {
+        flex-direction: row;
+        gap: var(--space-6);
+    }
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.sectionTitle {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+}
+
+/* Mobile e tablet: uma coluna. Desktop não é mobile esticado: gráficos à esquerda e marcos como coluna lateral. */
+.split {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.charts,
+.side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .split {
+        grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+        align-items: start;
+    }
+
+    .side {
+        position: sticky;
+        top: var(--space-4);
+    }
+}
+
+.loading {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.error {
+    margin: 0;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-feedback-error-100);
+    color: var(--color-feedback-error-500);
+    font-size: var(--font-size-sm);
+}

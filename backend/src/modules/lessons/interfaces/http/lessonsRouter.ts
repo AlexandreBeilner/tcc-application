@@ -4,8 +4,10 @@ import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import {
   CheckpointNotFoundError,
   CheckpointUnsolvedError,
+  InvalidCardPositionError,
   InvalidCheckpointResponseError,
   InvalidMicroDecisionOptionError,
+  InvalidPollOptionError,
   LessonLockedError,
   LessonNotCompletedError,
   LessonNotFoundError,
@@ -13,17 +15,25 @@ import {
   LessonStepTooFastError,
   MicroDecisionUnsolvedError,
   NoMicroDecisionError,
+  PollNotFoundError,
 } from '../../domain/errors'
 import type { AnswerCheckpointUseCase } from '../../application/useCases/answerCheckpoint'
 import type { AnswerMicroDecisionUseCase } from '../../application/useCases/answerMicroDecision'
 import type { AdvanceLessonUseCase } from '../../application/useCases/advanceLesson'
 import type { GetLessonUseCase } from '../../application/useCases/getLesson'
 import type { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
+import type { GetReviewSessionUseCase } from '../../application/useCases/getReviewSession'
+import type { RecordCardReachUseCase } from '../../application/useCases/recordCardReach'
+import type { VotePollUseCase } from '../../application/useCases/votePoll'
+import type { RecordReviewResultUseCase } from '../../application/useCases/recordReviewResult'
 import type { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import {
   advanceLessonBodySchema,
   answerCheckpointBodySchema,
   answerMicroDecisionBodySchema,
+  recordCardReachBodySchema,
+  votePollBodySchema,
+  reviewResultBodySchema,
 } from './schemas'
 
 export interface LessonsRouterDeps {
@@ -33,6 +43,10 @@ export interface LessonsRouterDeps {
   answerMicroDecision: AnswerMicroDecisionUseCase
   answerCheckpoint: AnswerCheckpointUseCase
   reviewLesson: ReviewLessonUseCase
+  recordCardReach: RecordCardReachUseCase
+  votePoll: VotePollUseCase
+  getReviewSession: GetReviewSessionUseCase
+  recordReviewResult: RecordReviewResultUseCase
   authMiddleware: AuthMiddleware
 }
 
@@ -48,6 +62,49 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
     const lessons = await deps.getTrackMap.execute({ userId: req.auth.userId })
     res.status(200).json({ lessons })
   })
+
+  // Revisão de 1 minuto (LJ.5.6). Declarada antes de `/lessons/:id` por clareza; tem dois segmentos, então não colide.
+  router.get('/lessons/review/session', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    res.status(200).json(await deps.getReviewSession.execute({ userId: req.auth.userId }))
+  })
+
+  router.post(
+    '/lessons/:id/checkpoints/:checkpointId/review',
+    deps.authMiddleware.authenticate,
+    async (req, res) => {
+      if (!req.auth) {
+        res.status(401).json({ error: 'token ausente' })
+        return
+      }
+
+      const parsed = reviewResultBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+        return
+      }
+
+      try {
+        const result = await deps.recordReviewResult.execute({
+          userId: req.auth.userId,
+          lessonId: req.params.id as string,
+          checkpointId: req.params.checkpointId as string,
+          correct: parsed.data.correct,
+        })
+        res.status(200).json(result)
+      } catch (err) {
+        if (err instanceof LessonNotFoundError || err instanceof CheckpointNotFoundError) {
+          res.status(404).json({ error: err.message })
+          return
+        }
+        throw err
+      }
+    },
+  )
 
   router.get('/lessons/:id', deps.authMiddleware.authenticate, async (req, res) => {
     if (!req.auth) {
@@ -182,8 +239,7 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
           userId: req.auth.userId,
           lessonId: req.params.id as string,
           checkpointId: req.params.checkpointId as string,
-          selectedOption: parsed.data.selectedOption,
-          value: parsed.data.value,
+          ...parsed.data,
         })
         res.status(200).json(result)
       } catch (err) {
@@ -196,6 +252,84 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
           return
         }
         if (err instanceof InvalidCheckpointResponseError) {
+          res.status(400).json({ error: err.message })
+          return
+        }
+        throw err
+      }
+    },
+  )
+
+  router.post('/lessons/:id/cards/reached', deps.authMiddleware.authenticate, async (req, res) => {
+    if (!req.auth) {
+      res.status(401).json({ error: 'token ausente' })
+      return
+    }
+
+    const parsed = recordCardReachBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+      return
+    }
+
+    try {
+      const result = await deps.recordCardReach.execute({
+        userId: req.auth.userId,
+        lessonId: req.params.id as string,
+        phase: parsed.data.phase,
+        cardIndex: parsed.data.cardIndex,
+      })
+      res.status(200).json(result)
+    } catch (err) {
+      if (err instanceof LessonNotFoundError || err instanceof LessonLockedError) {
+        res.status(404).json({ error: err.message })
+        return
+      }
+      if (err instanceof InvalidCardPositionError) {
+        res.status(400).json({ error: err.message })
+        return
+      }
+      if (err instanceof LessonStepOutOfOrderError) {
+        res.status(422).json({ error: err.message, code: 'step_out_of_order' })
+        return
+      }
+      throw err
+    }
+  })
+
+  router.post(
+    '/lessons/:id/polls/:pollId/vote',
+    deps.authMiddleware.authenticate,
+    async (req, res) => {
+      if (!req.auth) {
+        res.status(401).json({ error: 'token ausente' })
+        return
+      }
+
+      const parsed = votePollBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+        return
+      }
+
+      try {
+        const poll = await deps.votePoll.execute({
+          userId: req.auth.userId,
+          lessonId: req.params.id as string,
+          pollId: req.params.pollId as string,
+          option: parsed.data.option,
+        })
+        res.status(200).json({ poll })
+      } catch (err) {
+        if (
+          err instanceof LessonNotFoundError ||
+          err instanceof LessonLockedError ||
+          err instanceof PollNotFoundError
+        ) {
+          res.status(404).json({ error: err.message })
+          return
+        }
+        if (err instanceof InvalidPollOptionError) {
           res.status(400).json({ error: err.message })
           return
         }

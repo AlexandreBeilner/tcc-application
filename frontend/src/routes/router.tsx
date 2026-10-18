@@ -88,8 +88,12 @@ export const router = createBrowserRouter([
                     // inválido/fora do currículo redireciona pro Hub.
                     { path: '/trilha', lazy: async () => ({ Component: (await import('../pages/TrilhasHub')).TrilhasHub }) },
                     // Consulta do glossário das lições (RC.3.5): sempre aberta, não é produto travado.
+                    // Jogo diário (DI.4.1): sempre aberto, não é produto travado pela trilha.
+                    { path: '/diario', lazy: async () => ({ Component: (await import('../pages/Diario')).Diario }) },
                     { path: '/glossario', lazy: async () => ({ Component: (await import('../pages/Glossario')).Glossario }) },
                     { path: '/trilha/mapa/:trackNumber', lazy: async () => ({ Component: (await import('../pages/TrackMap')).TrackMap }) },
+                    // Revisão de 1 minuto (LJ.5.6): segmento estático, nunca colide com `/trilha/:id`.
+                    { path: '/trilha/revisao', lazy: async () => ({ Component: (await import('../pages/RevisaoRapida')).RevisaoRapida }) },
                     { path: '/trilha/:id', lazy: async () => ({ Component: (await import('../pages/Lesson')).Lesson }) },
                     // Tela 4.1 (hub) + 4.2/4.3 (Renda Fixa) + 4.4/4.5/4.6 (Renda
                     // Variável) + 4.7 (Confirmação de Ordem, tarefa 6.5). 4.7 não é
@@ -246,12 +250,34 @@ export const router = createBrowserRouter([
                                         lazy: async () => ({ Component: (await import('../pages/AdminConteudoNova')).AdminConteudoNova }),
                                     },
                                     {
+                                        path: '/admin/conteudo/:id/funil',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminConteudoFunil')).AdminConteudoFunil }),
+                                    },
+                                    {
                                         path: '/admin/conteudo/:id',
                                         lazy: async () => ({ Component: (await import('../pages/AdminConteudoLicao')).AdminConteudoLicao }),
                                     },
                                     {
+                                        path: '/admin/diario',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminDiario')).AdminDiario }),
+                                    },
+                                    {
+                                        path: '/admin/diario/conteudo',
+                                        lazy: async () => ({
+                                            Component: (await import('../pages/AdminDiarioConteudo')).AdminDiarioConteudo,
+                                        }),
+                                    },
+                                    {
+                                        path: '/admin/diario/jogo/:number',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminDiarioJogo')).AdminDiarioJogo }),
+                                    },
+                                    {
                                         path: '/admin/gamificacao',
                                         lazy: async () => ({ Component: (await import('../pages/AdminGamificacao')).AdminGamificacao }),
+                                    },
+                                    {
+                                        path: '/admin/retencao',
+                                        lazy: async () => ({ Component: (await import('../pages/AdminRetencao')).AdminRetencao }),
                                     },
                                     {
                                         path: '/admin/assinaturas',

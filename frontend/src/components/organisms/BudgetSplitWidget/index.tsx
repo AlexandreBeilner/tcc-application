@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BUDGET_CATEGORIES, RULE_NEEDS_PCT, RULE_SAVE_PCT, RULE_WANTS_PCT, budgetSplit } from '../../../features/lessons/widgets/budgetMath'
 import type { BudgetValues } from '../../../features/lessons/widgets/budgetMath'
 import { formatCurrency } from '../../../features/portfolio/format'
@@ -13,7 +13,7 @@ const pct = (value: number) => `${value.toFixed(1).replace('.', ',').replace(',0
 // em reais e em %, avisa quando o gasto passa da renda e compara com a regra de bolso
 // 50/30/20 (popular, não oficial). A barra empilhada tem o valor escrito em cada linha,
 // então a leitura não depende da cor.
-export function BudgetSplitWidget(props: BudgetSplitWidgetProps) {
+export function BudgetSplitWidget({ onMetrics, ...props }: BudgetSplitWidgetProps) {
     const [income, setIncome] = useState(props.income)
     const [values, setValues] = useState<BudgetValues>({
         housing: props.housing,
@@ -25,6 +25,8 @@ export function BudgetSplitWidget(props: BudgetSplitWidgetProps) {
     })
 
     const result = budgetSplit(income, values)
+    const surplusPct = result.surplusPct
+    useEffect(() => onMetrics?.({ surplusPct }), [surplusPct, onMetrics])
 
     return (
         <div className={styles.root}>

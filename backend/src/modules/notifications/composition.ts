@@ -12,6 +12,7 @@ import { GetEmailPreferencesUseCase } from './application/useCases/getEmailPrefe
 import { SendStreakRemindersUseCase } from './application/useCases/sendStreakReminders'
 import { createDrizzleStreakReminderAudience } from './infrastructure/persistence/drizzleStreakReminderAudience'
 import { SendWeeklyDigestUseCase } from './application/useCases/sendWeeklyDigest'
+import { createDrizzleDailyPlayedReader } from './infrastructure/persistence/drizzleDailyPlayedReader'
 import { createDrizzleWeeklyDigestAudience } from './infrastructure/persistence/drizzleWeeklyDigestAudience'
 import { PurgeOldEmailsUseCase } from './application/useCases/purgeOldEmails'
 import { UnsubscribeByTokenUseCase } from './application/useCases/unsubscribeByToken'
@@ -159,7 +160,7 @@ export function createNotificationsComposition(db: Database, deps: Notifications
   )
   // Jobs de engajamento (EM.7.x): só enfileiram, e só para quem ligou a categoria.
   const sendWeeklyDigest = new SendWeeklyDigestUseCase(
-    createDrizzleWeeklyDigestAudience(db),
+    createDrizzleWeeklyDigestAudience(db, createDrizzleDailyPlayedReader(db)),
     enqueueEmail,
   )
 

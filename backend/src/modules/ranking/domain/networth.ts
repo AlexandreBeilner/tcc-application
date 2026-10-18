@@ -43,6 +43,29 @@ export interface Snapshot {
   // a rentabilidade sobre capital de risco (`domain/profitability.ts`) —
   // somas BRUTAS desde a criação da conta, nunca líquidas entre si (uma
   // venda com lucro nunca reduz `investedCost`, só soma em
+  // `disinvestedProceeds`). Só Mercado Ao Vivo: o motor não toca em
+  // `accounts.total_invested`/`total_disinvested` com ativo sandbox (ponto 063), então o replay
+  // também ignora os fluxos desses eventos e os dois caminhos batem.
+  investedCost: number
+  disinvestedProceeds: number
+  dividendsReceived: number
+}
+
+export interface ClassFlowsByClass {
+  fixedIncome: ClassFlows
+  variableIncome: ClassFlows
+}
+
+export interface Snapshot {
+  cash: number
+  variableIncomeValue: number
+  fixedIncomeValue: number
+  tradesExecuted: number
+  total: number
+  // investedCost/disinvestedProceeds/dividendsReceived (tarefa T.1) alimentam
+  // a rentabilidade sobre capital de risco (`domain/profitability.ts`) —
+  // somas BRUTAS desde a criação da conta, nunca líquidas entre si (uma
+  // venda com lucro nunca reduz `investedCost`, só soma em
   // `disinvestedProceeds`). Deliberadamente NÃO filtradas por
   // `sandboxAssetIds`, mesma convenção de `cash` (não de
   // `variableIncomeValue`/`fixedIncomeValue`, que filtram): o motor também
@@ -70,16 +93,12 @@ export interface Snapshot {
 // ordenado por timestamp e já filtrado por `timestamp <= asOf` —
 // responsabilidade do adapter (application/useCases/getNetWorth.ts).
 //
-// `cash` soma o efeito de TODO evento, incluindo os de ativo sandbox — o
-// motor debita/credita `accounts.current_balance` de verdade numa operação
-// sandbox (mesmo fluxo de execução da 4.11, `.docs/engine/orders.md`), e
-// isso precisa bater com o saldo real hoje (`CurrentAccountStateReader`,
-// usado quando `asOf` é omitido) — excluir sandbox do lado do caixa
-// divergiria do saldo real e quebraria a consistência passado↔presente.
-// `sandboxAssetIds` só exclui a **valorização de posição** (spec 3.1: só
-// Mercado Ao Vivo conta pro ranking) — decisão desta sessão, não confirmada
-// explicitamente, documentada aqui porque tem consequência prática: gastar
-// caixa real num ativo sandbox reduz patrimônio sem contrapartida em valor.
+// `cash` soma o efeito dos eventos do Mercado Ao Vivo. Ativo sandbox (Modo Aprendizado) não mexe
+// no caixa da conta desde o ponto 063: o motor grava o evento e a posição, mas não debita nem
+// credita `accounts.current_balance`, então o replay também ignora o efeito de caixa e de fluxo de
+// capital (`investedCost`, `disinvestedProceeds`) desses eventos, para bater com o saldo real hoje
+// (`CurrentAccountStateReader`, usado quando `asOf` é omitido). A valorização de posição sandbox
+// também fica de fora (spec 3.1: só Mercado Ao Vivo conta pro ranking).
 export function replay(
   events: MarketEventRecord[],
   quotesAsOf: Map<string, number>,
@@ -109,10 +128,14 @@ export function replay(
 
       case 'buy_order_executed': {
         const cost = quantity * unitValue
-        cash -= cost
-        investedCost += cost
-        tradesExecuted += 1
-        if (isLive(event.assetId)) classFlows.variableIncome.investedCost += cost
+        // Sandbox não mexe no caixa, nos fluxos de capital nem na contagem de operações (ponto 063:
+        // "Primeira Operação" e "operou" nos duelos são do Mercado Ao Vivo).
+        if (isLive(event.assetId)) {
+          tradesExecuted += 1
+          cash -= cost
+          investedCost += cost
+          classFlows.variableIncome.investedCost += cost
+        }
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           variableIncomeQty.set(
             event.assetId,
@@ -124,10 +147,12 @@ export function replay(
 
       case 'sell_order_executed': {
         const proceeds = quantity * unitValue
-        cash += proceeds
-        disinvestedProceeds += proceeds
-        tradesExecuted += 1
-        if (isLive(event.assetId)) classFlows.variableIncome.disinvestedProceeds += proceeds
+        if (isLive(event.assetId)) {
+          tradesExecuted += 1
+          cash += proceeds
+          disinvestedProceeds += proceeds
+          classFlows.variableIncome.disinvestedProceeds += proceeds
+        }
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           variableIncomeQty.set(
             event.assetId,
@@ -138,18 +163,22 @@ export function replay(
       }
 
       case 'fixed_income_purchase':
-        cash -= unitValue
-        investedCost += unitValue
-        if (isLive(event.assetId)) classFlows.fixedIncome.investedCost += unitValue
+        if (isLive(event.assetId)) {
+          cash -= unitValue
+          investedCost += unitValue
+          classFlows.fixedIncome.investedCost += unitValue
+        }
         if (event.assetId && !sandboxAssetIds.has(event.assetId)) {
           fixedIncomeCost.set(event.assetId, (fixedIncomeCost.get(event.assetId) ?? 0) + unitValue)
         }
         break
 
       case 'fixed_income_redemption':
-        cash += unitValue
-        disinvestedProceeds += unitValue
-        if (isLive(event.assetId)) classFlows.fixedIncome.disinvestedProceeds += unitValue
+        if (isLive(event.assetId)) {
+          cash += unitValue
+          disinvestedProceeds += unitValue
+          classFlows.fixedIncome.disinvestedProceeds += unitValue
+        }
         // Resgate é sempre integral (3.13) — zera o custo, mesmo se nunca
         // acumulado (ativo sandbox): idempotente, sem efeito nesse caso.
         if (event.assetId) {

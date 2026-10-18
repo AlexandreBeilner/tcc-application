@@ -45,6 +45,10 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   'assemblies_participated',
   // Indicações que viraram válidas (MO.7.2): a pessoa indicada concluiu a primeira lição.
   'referrals_qualified',
+  // Qualidade no Diário (DI.6.1): só conta jogo concluído dentro do próprio dia.
+  'daily_word_first_try',
+  'daily_perfect_days',
+  'daily_timeline_streak',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
 // padrão (sem widget embutido); os outros três embutem um componente já
@@ -309,6 +313,70 @@ export const userLessonProgress = pgTable(
   (table) => [unique('user_lesson_progress_unique').on(table.userId, table.lessonId)],
 )
 
+// Cartão mais avançado que o usuário já alcançou no player de uma lição (LJ.5.1): fase (0 a 3) e
+// posição na fase. Só serve pra contar cada pessoa uma vez por cartão em `lesson_card_reach`. Fica
+// fora de `user_lesson_progress` de propósito: abrir uma lição não cria progresso (o "iniciaram" do
+// funil por lição e o status do mapa dependem dessa linha).
+export const userLessonCardProgress = pgTable(
+  'user_lesson_card_progress',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    furthestPhase: smallint('furthest_phase').notNull(),
+    furthestCard: smallint('furthest_card').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.lessonId] })],
+)
+
+// Funil por cartão (LJ.5.1): quantas pessoas chegaram a cada cartão de uma lição, por dia. Só
+// contagem agregada, sem usuário. O índice do cartão é o do player no momento da leitura (a lição
+// reeditada muda o sentido dos índices, então a tela admin lê uma janela de dias, não o histórico).
+export const lessonCardReach = pgTable(
+  'lesson_card_reach',
+  {
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    phase: smallint('phase').notNull(),
+    cardIndex: smallint('card_index').notNull(),
+    day: date('day').notNull(),
+    reachedCount: integer('reached_count').notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.lessonId, table.phase, table.cardIndex, table.day] }),
+    check('lesson_card_reach_phase_chk', sql`${table.phase} BETWEEN 0 AND 3`),
+    check('lesson_card_reach_card_chk', sql`${table.cardIndex} >= 0`),
+  ],
+)
+
+// Enquete da comunidade (LJ.2.6): um voto por pessoa e enquete. Sem resposta certa e sem gabarito; a
+// leitura devolve só a distribuição agregada, e só com votos suficientes (LJ-D5). `pollId` é o id do
+// bloco `poll` dentro do conteúdo da lição.
+export const lessonPollVotes = pgTable(
+  'lesson_poll_votes',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    pollId: text('poll_id').notNull(),
+    option: smallint('option').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.lessonId, table.pollId] }),
+    index('lesson_poll_votes_poll_idx').on(table.lessonId, table.pollId),
+    check('lesson_poll_votes_option_chk', sql`${table.option} BETWEEN 0 AND 3`),
+  ],
+)
+
 export const friendships = pgTable(
   'friendships',
   {
@@ -458,6 +526,17 @@ export const userLessonCheckpoints = pgTable(
       .notNull()
       .default(sql`'{}'::smallint[]`),
     solvedAt: timestamp('solved_at', { withTimezone: true }),
+    // Resposta dos formatos que não são por índice (LJ.2.1); hoje só a estimativa:
+    // `{ kind: 'estimate', value, hit }` ou `{ kind: 'order', sequence }` ou `{ kind: 'categorize', groups }`. Nulo em `single`/`true_false`.
+    lastResponse: jsonb('last_response').$type<
+      | { kind: 'estimate'; value: number; hit: boolean }
+      | { kind: 'order'; sequence: number[] }
+      | { kind: 'categorize'; groups: number[] }
+      | { kind: 'match'; pairs: [number, number][]; misses: number }
+    >(),
+    // Revisão espaçada (LJ.5.6): quantas revisões já passou (0 a 3) e quando volta (nulo = fora da fila).
+    reviewStage: smallint('review_stage').notNull().default(0),
+    reviewDueAt: timestamp('review_due_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.lessonId, table.checkpointId] })],
@@ -1100,6 +1179,39 @@ export const dailyActivity = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.day] })],
 )
 
+// Presença diária (RT.1.1): um dia por pessoa com QUALQUER requisição autenticada, em UTC (a mesma
+// convenção do streak). Ao contrário de `daily_activity`, não exige lição nem missão: mede quem voltou,
+// não quem estudou. Alimenta só o painel de retenção do admin; nada financeiro.
+export const dailyPresence = pgTable(
+  'daily_presence',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    day: date('day').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.day] }),
+    index('daily_presence_day_idx').on(table.day),
+  ],
+)
+
+// Marcos por pessoa (RT.1.1): a primeira vez que cada fato aconteceu, gravado uma vez e nunca
+// recalculado. `milestone` é um texto de `modules/retention/domain/milestones.ts`, sem enum de banco
+// pra um marco novo não exigir migração.
+export const userMilestones = pgTable(
+  'user_milestones',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    milestone: varchar('milestone', { length: 40 }).notNull(),
+    reachedAt: timestamp('reached_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique('user_milestones_user_milestone_unique').on(table.userId, table.milestone)],
+)
+
 // Retrospectiva mensal arquivada (MO.5.4): o conteúdo do mês fica gravado e nunca é recalculado,
 // então rever meses antigos independe do plano. `month` no formato AAAA-MM.
 export const retrospectives = pgTable(
@@ -1208,5 +1320,226 @@ export const referralRewards = pgTable(
   (table) => [
     primaryKey({ columns: [table.referrerId, table.threshold] }),
     check('referral_rewards_status_chk', sql`${table.status} IN ('pending', 'granted')`),
+  ],
+)
+
+// Diário Selucra (DI.1.2). Conteúdo e resultados do jogo diário; as regras vivem em
+// `modules/daily/domain`.
+
+// Uma linha só (`id = 1`). `start_date` nulo = Diário desligado; o estado agendado/no ar sai da
+// comparação com o dia de hoje (DI12), então não há coluna de estado que possa contradizer o relógio.
+export const dailySettings = pgTable(
+  'daily_settings',
+  {
+    id: smallint('id').primaryKey().default(1),
+    startDate: date('start_date'),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('daily_settings_singleton_chk', sql`${table.id} = 1`)],
+)
+
+// Palavra do dia. `answer` na forma normalizada (maiúsculas, sem acento: a mesma da comparação do
+// Termo); `display` é como aparece na revelação (`AÇÕES`). `scope`: Brasil ou fora (com efeito no
+// Brasil), para a regra de variedade da agenda (seção 3.3). `learn_more_*`: lição, glossário ou guia.
+export const dailyWords = pgTable(
+  'daily_words',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
+    answer: varchar('answer', { length: 9 }).notNull().unique(),
+    display: varchar('display', { length: 20 }).notNull(),
+    definition: text('definition').notNull(),
+    learnMoreKind: text('learn_more_kind'),
+    learnMoreRef: text('learn_more_ref'),
+    category: varchar('category', { length: 40 }).notNull(),
+    scope: text('scope').notNull(),
+    active: boolean('active').notNull().default(true),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_words_answer_chk', sql`${table.answer} ~ '^[A-Z]{4,9}$'`),
+    check('daily_words_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
+    check(
+      'daily_words_learn_more_chk',
+      sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
+    ),
+  ],
+)
+
+// Palavras aceitas como palpite (seção 3.1). Chave primária na forma normalizada: a consulta por
+// palpite é uma busca por chave, sem carregar a lista na memória.
+export const dailyAcceptedWords = pgTable(
+  'daily_accepted_words',
+  {
+    word: varchar('word', { length: 9 }).primaryKey(),
+    source: text('source').notNull(),
+  },
+  (table) => [
+    check('daily_accepted_words_word_chk', sql`${table.word} ~ '^[A-Z]{4,9}$'`),
+    check('daily_accepted_words_source_chk', sql`${table.source} IN ('vero', 'extra')`),
+  ],
+)
+
+// Pergunta de conhecimentos gerais de economia e finanças (cartão `trivia`), sem data. `source_ref`
+// (fonte primária) é obrigatório (checklist 3.3).
+export const dailyQuestions = pgTable(
+  'daily_questions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
+    question: text('question').notNull(),
+    options: jsonb('options').$type<string[]>().notNull(),
+    correctIndex: smallint('correct_index').notNull(),
+    explanation: text('explanation').notNull(),
+    sourceRef: text('source_ref').notNull(),
+    learnMoreKind: text('learn_more_kind'),
+    learnMoreRef: text('learn_more_ref'),
+    category: varchar('category', { length: 40 }).notNull(),
+    scope: text('scope').notNull(),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    active: boolean('active').notNull().default(true),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_questions_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
+    check('daily_questions_source_chk', sql`length(btrim(${table.sourceRef})) > 0`),
+    check(
+      'daily_questions_options_chk',
+      sql`jsonb_typeof(${table.options}) = 'array' AND jsonb_array_length(${table.options}) BETWEEN 2 AND 6 AND ${table.correctIndex} >= 0 AND ${table.correctIndex} < jsonb_array_length(${table.options})`,
+    ),
+    check(
+      'daily_questions_learn_more_chk',
+      sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
+    ),
+  ],
+)
+
+// Evento datado da Linha do tempo. A Linha do tempo sorteia 4 eventos com anos distintos; só o ano
+// ordena. `label` é o nome curto mostrado ("Plano Real"). Mesma exigência de fonte primária.
+export const dailyEvents = pgTable(
+  'daily_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
+    year: smallint('year').notNull(),
+    label: varchar('label', { length: 80 }).notNull(),
+    explanation: text('explanation').notNull(),
+    sourceRef: text('source_ref').notNull(),
+    learnMoreKind: text('learn_more_kind'),
+    learnMoreRef: text('learn_more_ref'),
+    category: varchar('category', { length: 40 }).notNull(),
+    scope: text('scope').notNull(),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    active: boolean('active').notNull().default(true),
+    updatedBy: uuid('updated_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_events_year_chk', sql`${table.year} BETWEEN 1500 AND 2200`),
+    check('daily_events_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
+    check('daily_events_source_chk', sql`length(btrim(${table.sourceRef})) > 0`),
+    check(
+      'daily_events_learn_more_chk',
+      sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
+    ),
+  ],
+)
+
+// Jogo materializado de um dia (seção 3: a agenda). Referencia os itens dos bancos (corrigir um
+// texto no banco corrige o jogo), e guarda a origem de cada cartão: `generated` pela agenda,
+// `manual` quando o admin trocou. `timeline_event_ids` é a ordem de exibição (4 ids). Materializar
+// não é publicar: `reviewed_*` e `published_at` são passos do admin.
+export const dailyPuzzles = pgTable(
+  'daily_puzzles',
+  {
+    number: integer('number').primaryKey(),
+    gameDate: date('game_date').notNull().unique(),
+    wordId: uuid('word_id')
+      .notNull()
+      .references(() => dailyWords.id),
+    questionId: uuid('question_id')
+      .notNull()
+      .references(() => dailyQuestions.id),
+    timelineEventIds: jsonb('timeline_event_ids').$type<string[]>().notNull(),
+    wordOrigin: text('word_origin').notNull().default('generated'),
+    questionOrigin: text('question_origin').notNull().default('generated'),
+    timelineOrigin: text('timeline_origin').notNull().default('generated'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('daily_puzzles_number_chk', sql`${table.number} >= 1`),
+    check(
+      'daily_puzzles_origin_chk',
+      sql`${table.wordOrigin} IN ('generated', 'manual') AND ${table.questionOrigin} IN ('generated', 'manual') AND ${table.timelineOrigin} IN ('generated', 'manual')`,
+    ),
+    check(
+      'daily_puzzles_timeline_chk',
+      sql`jsonb_typeof(${table.timelineEventIds}) = 'array' AND jsonb_array_length(${table.timelineEventIds}) = 4`,
+    ),
+  ],
+)
+
+// Resultado de uma pessoa num jogo (uma linha por usuário e jogo). Guarda o que foi dado (palpites
+// do Termo, alternativa, ordem) para redesenhar o jogo em qualquer aparelho (seção 3.4); o
+// gabarito nunca fica aqui. Cada `*_correct` nulo = cartão ainda não respondido. `xp_awarded` 0 em
+// dia anterior ou concluído depois da virada.
+export const dailyResults = pgTable(
+  'daily_results',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    puzzleNumber: integer('puzzle_number')
+      .notNull()
+      .references(() => dailyPuzzles.number),
+    wordGuesses: jsonb('word_guesses')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    wordCorrect: boolean('word_correct'),
+    questionChoice: smallint('question_choice'),
+    questionCorrect: boolean('question_correct'),
+    timelineOrder: jsonb('timeline_order').$type<string[]>(),
+    timelineCorrect: boolean('timeline_correct'),
+    xpAwarded: integer('xp_awarded').notNull().default(0),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('daily_results_user_puzzle_unique').on(table.userId, table.puzzleNumber),
+    index('daily_results_puzzle_idx').on(table.puzzleNumber),
+    check('daily_results_xp_chk', sql`${table.xpAwarded} >= 0`),
+  ],
+)
+
+// Contadores agregados do Diário por dia UTC (DI.7.1). Só números: nada de identificador, IP ou
+// aparelho de quem anônimo jogou. Os jogos de quem tem conta não passam por aqui, saem de
+// `daily_results`, para os dois lados nunca divergirem.
+export const dailyMetrics = pgTable(
+  'daily_metrics',
+  {
+    metricDate: date('metric_date').notNull(),
+    metric: text('metric').notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.metricDate, table.metric] }),
+    check(
+      'daily_metrics_metric_chk',
+      sql`${table.metric} IN ('anon_started', 'anon_completed', 'origin_signup', 'origin_login')`,
+    ),
+    check('daily_metrics_count_chk', sql`${table.count} >= 0`),
   ],
 )

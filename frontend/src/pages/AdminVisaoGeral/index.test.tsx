@@ -108,6 +108,7 @@ describe('AdminVisaoGeral (tela 10.1)', () => {
         expect(screen.getByText('42')).toBeInTheDocument()
         expect(screen.getByRole('link', { name: 'Controlar o tempo' })).toHaveAttribute('href', '/admin/tempo')
         expect(screen.getByRole('link', { name: 'Eventos macro' })).toHaveAttribute('href', '/admin/eventos')
+        expect(screen.getByRole('link', { name: 'Abrir painel' })).toHaveAttribute('href', '/admin/retencao')
     })
 
     it('uma fonte fora vira aviso naquele cartão e os outros seguem', async () => {

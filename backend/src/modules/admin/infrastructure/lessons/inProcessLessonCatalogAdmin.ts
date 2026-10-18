@@ -1,3 +1,4 @@
+import type { GetLessonCardFunnelUseCase } from '../../../lessons/application/useCases/getLessonCardFunnel'
 import type {
   ListLessonCatalogUseCase,
   SetLessonPublishedUseCase,
@@ -30,6 +31,7 @@ import type {
 
 export interface InProcessLessonCatalogAdminDeps {
   listLessonCatalog: ListLessonCatalogUseCase
+  getLessonCardFunnel: GetLessonCardFunnelUseCase
   setLessonPublished: SetLessonPublishedUseCase
   getLessonForEdit: GetLessonForEditUseCase
   updateLessonContent: UpdateLessonContentUseCase
@@ -96,6 +98,14 @@ export function createInProcessLessonCatalogAdmin(
           abandonedByStep: funnel.abandonedByStep,
         },
       }))
+    },
+
+    async cardFunnel(lessonId, days) {
+      try {
+        return await deps.getLessonCardFunnel.execute(lessonId, days)
+      } catch (err) {
+        translate(err)
+      }
     },
 
     async setPublished(lessonId, published) {

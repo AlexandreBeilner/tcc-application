@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { GlossaryTermProps } from './types'
 import styles from './index.module.css'
@@ -15,7 +15,34 @@ export function GlossaryTerm({ term, definition }: GlossaryTermProps) {
     const [open, setOpen] = useState(false)
     const rootRef = useRef<HTMLSpanElement>(null)
     const triggerRef = useRef<HTMLButtonElement>(null)
+    const popoverRef = useRef<HTMLSpanElement>(null)
     const popoverId = useId()
+
+    // O popover nasce centralizado no termo; perto da borda da tela ele
+    // vazaria. Mede depois de montar e desloca na horizontal (e vira pra cima
+    // se faltar espaço embaixo) pra ficar sempre dentro da viewport.
+    useLayoutEffect(() => {
+        const popover = popoverRef.current
+        if (!open || !popover) return
+
+        const margin = 8
+        popover.style.transform = 'translateX(-50%)'
+        popover.style.top = ''
+        popover.style.bottom = ''
+
+        const rect = popover.getBoundingClientRect()
+        const viewportWidth = document.documentElement.clientWidth
+        let shift = 0
+        if (rect.left < margin) shift = margin - rect.left
+        else if (rect.right > viewportWidth - margin) shift = viewportWidth - margin - rect.right
+        if (shift !== 0) popover.style.transform = `translateX(calc(-50% + ${shift}px))`
+
+        const triggerRect = triggerRef.current?.getBoundingClientRect()
+        if (triggerRect && rect.bottom > window.innerHeight - margin && triggerRect.top - rect.height - margin > 0) {
+            popover.style.top = 'auto'
+            popover.style.bottom = 'calc(100% + var(--space-2))'
+        }
+    }, [open])
 
     useEffect(() => {
         if (!open) return
@@ -55,7 +82,7 @@ export function GlossaryTerm({ term, definition }: GlossaryTermProps) {
             </button>
 
             {open && (
-                <span role="tooltip" id={popoverId} className={styles.popover}>
+                <span role="tooltip" id={popoverId} ref={popoverRef} className={styles.popover}>
                     {definition}
                 </span>
             )}

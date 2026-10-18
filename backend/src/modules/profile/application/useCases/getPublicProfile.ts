@@ -34,6 +34,9 @@ export interface PublicProfile {
   // troféus do Perfil) — só o número da trilha, nunca patrimônio (RNF09
   // continua estrutural: este campo não expõe nenhum valor monetário).
   completedTracks: number[]
+  // Códigos das lições concluídas (LJ.5.9): o cliente cruza com o glossário pra mostrar as cartas de termo ganhas.
+  // Só progresso de estudo, nunca patrimônio (RNF09).
+  completedLessonCodes: string[]
   // Selo PRO, moldura e título (MO.5.1), só apresentação.
   cosmetics: PublicCosmetics
 }
@@ -59,11 +62,19 @@ export class GetPublicProfileUseCase {
     // semana (ex: 5.5). Sinalizar se divergir.
     const window = input.window ?? 'week'
 
-    const [summary, achievements, profitabilityPct, completedTracks, displays] = await Promise.all([
+    const [
+      summary,
+      achievements,
+      profitabilityPct,
+      completedTracks,
+      completedLessonCodes,
+      displays,
+    ] = await Promise.all([
       this.gamificationReader.getSummary(input.userId),
       this.achievementsReader.listUnlocked(input.userId),
       this.profitabilityReader.getProfitabilityPct(input.userId, window, user.createdAt),
       this.trackCompletionReader.listCompleted(input.userId),
+      this.trackCompletionReader.listCompletedLessonCodes(input.userId),
       this.cosmeticsReader?.findDisplays([input.userId]),
     ])
 
@@ -77,6 +88,7 @@ export class GetPublicProfileUseCase {
       profitabilityPct,
       window,
       completedTracks,
+      completedLessonCodes,
       cosmetics: displays?.get(input.userId) ?? NO_COSMETICS,
     }
   }

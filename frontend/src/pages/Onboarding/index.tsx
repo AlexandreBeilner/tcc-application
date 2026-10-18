@@ -5,6 +5,7 @@ import { useAuth } from '../../features/auth/AuthContext'
 import { completeOnboarding } from '../../services/auth'
 import { updateEmailPreferences } from '../../services/emailPreferences'
 import type { EmailPreferences } from '../../services/emailPreferences'
+import { FirstActionStep } from '../../components/organisms/FirstActionStep'
 import { EmailCategoryOption } from '../../components/molecules/EmailCategoryOption'
 import { EMAIL_CATEGORIES, EMAIL_CATEGORY_COPY } from '../../features/emailPreferences/emailCategoryCopy'
 import { Button } from '../../components/atoms/Button'
@@ -45,6 +46,8 @@ interface Slide {
     body: string
     Icon: typeof Wallet
     visual?: 'time' | 'salary'
+    // Slide que vira ação (OB.1.2): a compra guiada no Modo Aprendizado.
+    action?: 'firstAction'
 }
 
 const SLIDES: Slide[] = [
@@ -55,8 +58,9 @@ const SLIDES: Slide[] = [
     },
     {
         title: 'Aprenda fazendo, não lendo',
-        body: 'A trilha ensina cada produto com uma decisão prática antes de liberar ele pra investir de verdade.',
+        body: 'A trilha ensina cada produto com uma decisão prática antes de liberar ele pra investir de verdade. Vamos começar agora, com uma compra de treino no Modo Aprendizado.',
         Icon: Target,
+        action: 'firstAction',
     },
     {
         title: 'Aqui o tempo passa mais rápido',
@@ -140,6 +144,8 @@ export function Onboarding() {
     const [emailChoices, setEmailChoices] = useState<EmailPreferences>({ social: false, engagement: false })
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    // Compra guiada do slide "Aprenda fazendo" (OB.1.2): sem ela resolvida, o botão principal vira "Pular esta etapa".
+    const [firstActionSettled, setFirstActionSettled] = useState(false)
     const isPreferencesStep = step === PREFERENCES_STEP
 
     // Onboarding concluído (segunda visita à URL, ex: voltar no navegador) —
@@ -181,6 +187,7 @@ export function Onboarding() {
     }
 
     const slide = isPreferencesStep ? null : SLIDES[step]
+    const isPendingFirstAction = slide?.action === 'firstAction' && !firstActionSettled
 
     return (
         <main className={styles.page}>
@@ -197,6 +204,7 @@ export function Onboarding() {
                     <p className={styles.body}>{slide.body}</p>
                     {slide.visual === 'time' && <TimeVisual />}
                     {slide.visual === 'salary' && <SalaryVisual />}
+                    {slide.action === 'firstAction' && <FirstActionStep onSettled={() => setFirstActionSettled(true)} />}
                 </div>
             ) : (
                 <div className={styles.slide}>
@@ -234,8 +242,8 @@ export function Onboarding() {
                         <span key={index} className={index === step ? `${styles.dot} ${styles.dotActive}` : styles.dot} />
                     ))}
                 </div>
-                <Button fullWidth onClick={handleNext} disabled={isSubmitting}>
-                    {isPreferencesStep ? 'Começar' : 'Próximo'}
+                <Button fullWidth variant={isPendingFirstAction ? 'secondary' : 'primary'} onClick={handleNext} disabled={isSubmitting}>
+                    {isPreferencesStep ? 'Começar' : isPendingFirstAction ? 'Pular esta etapa' : 'Próximo'}
                 </Button>
             </div>
         </main>

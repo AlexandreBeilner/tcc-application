@@ -120,6 +120,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Acesso:** apenas na primeira sessão após cadastro (1.1).
 - **Conteúdo:** 2–3 telas curtas (carrossel), tom leve: "Você começa com R$10.000 simulados", "Aprenda fazendo, não lendo", "Compita com amigos, não só com estranhos" (gancho pro sistema social).
 - **Pergunta de e-mail (EM.6.1, D8):** o último passo do carrossel pergunta se a pessoa quer e-mails opcionais ("Amigos" e "Resumo e lembretes"), **tudo desmarcado**. "Começar" grava só o que foi marcado; "Pular" nunca liga nada. Falha ao gravar não trava o onboarding (o padrão é desligado). Avisos de segurança da conta sempre são enviados e a pergunta diz isso.
+- **Primeira ação (OB.1.2):** o slide "Aprenda fazendo, não lendo" tem uma compra guiada de 5 ações de treino (`SAND3`, Modo Aprendizado) em três toques, cada termo definido antes de aparecer (ação, ticker, preço, quantidade, total). Sem resolver a compra, o botão principal é "Pular esta etapa"; erro na compra ou ativo indisponível mostra a mensagem e o onboarding segue. Não gasta o saldo do mercado ao vivo nem conta pro ranking (ponto 063). O resultado aparece no próximo acesso, na tela 3.1.
 - **Ações:** CTA final "Começar" → **4.1 Mapa da Trilha** (não direto pro Portfólio — força o primeiro contato com a lição 0.1).
 - **Estados especiais:** pulável ("pular" leva direto ao Portfólio, mas não recomendado como padrão).
 - **Dados envolvidos:** nenhum dado persistido além de uma flag `onboarding_completed` em `users` (campo a acrescentar).
@@ -164,6 +165,7 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 
 ### 3.1 Mapa da Trilha
 - **Objetivo:** dar corpo visual à progressão pedagógica (RF11) — é a tela que substitui a ausência total de UI pra esse conceito hoje.
+- **Cartão "Sua primeira ação" (OB.1.2, OA1):** no topo da tela, só quando a compra de treino do onboarding existe e o roteiro de preço já andou (ex: "+3,0%"), com "Ver por que o preço mexe" (lição 2.5, ou o convite de desbloqueio dela) e "Entendi" (dispensa de vez, por pessoa). Fica aqui, e não no Portfólio, porque o Portfólio só abre na lição 0.1.
 - **Acesso:** nav primária ("Trilha"), ou via atalho do Portfólio (2.1).
 - **Conteúdo:**
   - As 4 trilhas (Fundamentos, Renda Fixa, Renda Variável, Estratégia) mais a Trilha F paralela (Finanças do dia a dia, sem desbloqueio, em qualquer ordem) como seções/módulos expansíveis.
@@ -580,6 +582,14 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 - **Estados especiais:** texto com `<` ou `>` recusado na tela e no servidor; fim antes do início; segunda manutenção em aberto (409); integridade sem verificação anterior, em andamento, falha, zero divergências, mais de 200 divergências (lista cortada, contagens exatas); exportação com período invertido, arquivo cortado pelo teto, senha não confirmada; carregando; erro de carga.
 - **Dados envolvidos:** `announcements`; `GET/POST/PATCH /admin/announcements`, `POST /admin/announcements/:id/end`, `POST /admin/maintenance`, `GET /announcements`, `POST/GET /admin/integrity/check` e `GET /admin/exports/:dataset` (`.docs/backend/admin.md`, `.docs/backend/announcements.md`, `.docs/engine/admin.md`).
 
+### 10.18 Retenção
+- **Objetivo:** medir se as novidades funcionam (RT.1.3, Fase A de `backlog-retencao-onboarding-ofensiva.md`). Rota `/admin/retencao`, seção "Retenção"; também aberta pelo cartão "Retenção" da 10.1. Só números agregados: nenhuma lista de pessoas, nenhum patrimônio (RP4, RNF09).
+- **Conteúdo:** filtros de janela (coortes de 8, 12, 26 ou 52 semanas; gráfico de 30, 60, 90 ou 180 dias); cartão **Ontem** (voltaram, estudaram, ativos em 30 dias, DAU/MAU); **tabela de coortes** (linha = semana de cadastro, colunas = dia 1, 7 e 30 nas duas medidas, "voltou" = qualquer acesso no dia e "estudou" = lição ou missão concluída), com cor por faixa em cada coluna (verde acima da régua, vermelho abaixo, legenda na tela), célula tracejada para "em andamento" (o dia ainda não chegou) e "sem dado" (antes do início do registro), nunca 0%, e asterisco quando só parte da coorte pôde ser medida; **gráfico de ativos por dia** (voltaram e estudaram) e **gráfico de DAU/MAU**, com os valores reais de cada dia ligados em reta, sem suavização, e dia sem registro em branco; **tempo até cada marco** (voltou depois do cadastro, primeira lição, primeira operação real, primeira renda fixa, primeiro Diário: mediana e quantos chegaram) e, recolhida, a % de cada coorte em cada marco.
+- **Ações:** trocar as janelas; passar o cursor, tocar ou usar as setas do teclado no gráfico para ver o valor de um dia. Só leitura.
+- **Estados especiais:** carregando; erro de carga; sem nenhum registro de presença ainda (tudo "sem dado", com a explicação); coorte recente (em andamento, parcial); MAU e DAU/MAU só aparecem depois de 30 dias de registro; marcos só contam quem se cadastrou depois do início do registro.
+- **Responsividade:** mobile em uma coluna, com a tabela rolando na horizontal e a semana fixa à esquerda; tablet com os cartões de marco em duas colunas; desktop com os gráficos à esquerda e os marcos como coluna lateral fixa.
+- **Dados envolvidos:** `GET /admin/retention` (`.docs/backend/admin.md`).
+
 ## 11. Resumo — todas as telas numeradas
 
 | # | Tela | Grupo |
@@ -632,8 +642,9 @@ A spec atual não cobre relações sociais além do ranking. Para "amigos compet
 | 10.15 | Gamificação | Admin |
 | 10.16 | Catálogo de ativos | Admin |
 | 10.17 | Sistema | Admin |
+| 10.18 | Retenção | Admin |
 
-**Total: 41 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
+**Total: 42 telas** (contando estados distintos de uma mesma família, como 6.1/6.2, como telas separadas por terem conteúdo e propósito diferentes).
 
 ---
 

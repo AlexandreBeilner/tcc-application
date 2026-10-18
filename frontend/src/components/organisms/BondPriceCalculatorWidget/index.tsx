@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FACE_VALUE } from '../../../features/lessons/widgets/mtmMath'
 import { bondPurchase, CUSTODY_ANNUAL_PCT } from '../../../features/lessons/widgets/treasuryMath'
 import { formatCurrency } from '../../../features/portfolio/format'
@@ -18,13 +18,15 @@ const toAmount = (raw: string) => {
 // título prefixado sem cupom, o deságio e o que sobra depois de IR e custódia. A
 // barra mostra os R$ 1.000 do vencimento divididos entre o que se paga hoje
 // (sólido) e o deságio (listrado), que é o juro embutido no preço.
-export function BondPriceCalculatorWidget({ ratePct, years, amount }: BondPriceCalculatorWidgetProps) {
+export function BondPriceCalculatorWidget({ ratePct, years, amount, onMetrics }: BondPriceCalculatorWidgetProps) {
     const [rate, setRate] = useState(ratePct)
     const [term, setTerm] = useState(years)
     const [invested, setInvested] = useState(amount)
 
     const purchase = bondPurchase(rate, term, invested)
     const paidShare = (purchase.unitPrice / FACE_VALUE) * 100
+    const unitPrice = purchase.unitPrice
+    useEffect(() => onMetrics?.({ unitPrice }), [unitPrice, onMetrics])
 
     return (
         <div className={styles.root}>

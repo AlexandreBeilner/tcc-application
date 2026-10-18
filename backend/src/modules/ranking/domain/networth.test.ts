@@ -141,7 +141,7 @@ describe('replay', () => {
     )
   })
 
-  it('exclui posição de ativo sandbox da valorização, mas mantém o efeito real no caixa', () => {
+  it('exclui posição e caixa de ativo sandbox: só o Mercado Ao Vivo move o caixa (ponto 063)', () => {
     const events = [
       event({ eventType: 'initial_deposit', unitValue: 10000 }),
       event({ eventType: 'buy_order_executed', assetId: 'sand1', quantity: 10, unitValue: 100 }),
@@ -155,15 +155,16 @@ describe('replay', () => {
 
     const snapshot = replay(events, quotesAsOf, sandboxAssetIds)
 
-    // Caixa reflete as duas compras — mesmo saldo que o motor de verdade
-    // debitou (mesma convenção que GET /accounts/:user_id mostraria agora).
-    expect(snapshot.cash).toBe(10000 - 10 * 100 - 5 * 50)
+    // Só a compra real debita: o motor não mexe no caixa com ativo sandbox,
+    // mesmo saldo que GET /accounts/:user_id mostraria agora.
+    expect(snapshot.cash).toBe(10000 - 5 * 50)
     // Só o ativo de Mercado Ao Vivo entra na valorização.
     expect(snapshot.variableIncomeValue).toBe(5 * 60)
-    expect(snapshot.tradesExecuted).toBe(2)
+    // Só a operação do Mercado Ao Vivo conta (conquista "Primeira Operação", duelos).
+    expect(snapshot.tradesExecuted).toBe(1)
   })
 
-  it('exclui compra de renda fixa sandbox da valorização, mantendo o efeito no caixa', () => {
+  it('compra de renda fixa sandbox não entra na valorização nem mexe no caixa', () => {
     const events = [
       event({ eventType: 'initial_deposit', unitValue: 10000 }),
       event({ eventType: 'fixed_income_purchase', assetId: 'sandpre', unitValue: 500 }),
@@ -172,21 +173,24 @@ describe('replay', () => {
 
     const snapshot = replay(events, new Map(), sandboxAssetIds)
 
-    expect(snapshot.cash).toBe(10000 - 500)
+    expect(snapshot.cash).toBe(10000)
     expect(snapshot.fixedIncomeValue).toBe(0)
   })
 
-  it('investedCost/disinvestedProceeds/dividendsReceived NÃO filtram sandbox (diferente de variableIncomeValue/fixedIncomeValue) — mesma convenção de `cash`, pra bater com os acumuladores crus do motor (accounts.total_invested/total_disinvested/total_dividends_received, que também não filtram)', () => {
+  it('investedCost e disinvestedProceeds ignoram sandbox, igual aos acumuladores do motor (accounts.total_invested/total_disinvested, ponto 063)', () => {
     const events = [
       event({ eventType: 'initial_deposit', unitValue: 10000 }),
       event({ eventType: 'buy_order_executed', assetId: 'sand1', quantity: 10, unitValue: 100 }),
+      event({ eventType: 'sell_order_executed', assetId: 'sand1', quantity: 10, unitValue: 103 }),
     ]
     const sandboxAssetIds = new Set(['sand1'])
 
     const snapshot = replay(events, new Map([['sand1', 100]]), sandboxAssetIds)
 
     expect(snapshot.variableIncomeValue).toBe(0)
-    expect(snapshot.investedCost).toBe(10 * 100)
+    expect(snapshot.investedCost).toBe(0)
+    expect(snapshot.disinvestedProceeds).toBe(0)
+    expect(snapshot.cash).toBe(10000)
   })
 
   it('cenário combinado: compra, venda e resgate de renda fixa entre início da janela e agora', () => {
@@ -236,7 +240,7 @@ describe('replay', () => {
       })
     })
 
-    it('ativo sandbox nunca entra nos fluxos por classe, mas segue nos totais da conta', () => {
+    it('ativo sandbox nunca entra nos fluxos por classe nem nos totais da conta', () => {
       const events = [
         event({ eventType: 'initial_deposit', unitValue: 10000 }),
         event({ eventType: 'buy_order_executed', assetId: 'sbx', quantity: 10, unitValue: 50 }),
@@ -245,7 +249,7 @@ describe('replay', () => {
 
       const snapshot = replay(events, new Map(), new Set(['sbx', 'sbx-rf']))
 
-      expect(snapshot.investedCost).toBe(800)
+      expect(snapshot.investedCost).toBe(0)
       expect(snapshot.byClass?.variableIncome.investedCost).toBe(0)
       expect(snapshot.byClass?.fixedIncome.investedCost).toBe(0)
     })

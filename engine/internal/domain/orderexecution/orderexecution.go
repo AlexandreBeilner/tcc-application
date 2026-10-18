@@ -382,6 +382,11 @@ func validateFloat(ctx Context) error {
 func validateFunds(incoming orderbook.Order, fills []Fill, ctx Context) error {
 	switch incoming.Side {
 	case orderbook.SideBuy:
+		// Ativo sandbox (Modo Aprendizado) não mexe no caixa da conta (ponto 063): comprar não
+		// exige saldo, porque a compra também não debita nenhum.
+		if ctx.Sandbox {
+			return nil
+		}
 		var totalCost float64
 		for _, f := range fills {
 			totalCost += f.Price * float64(f.Quantity)

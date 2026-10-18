@@ -3,11 +3,14 @@ import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { groupLessonsByTrack } from '../../features/lessons/trackGroups'
 import { nextUnlockFor } from '../../features/lessons/nextUnlockFor'
 import { useProgressionQuery } from '../../features/portfolio/useProgressionQuery'
+import { useReviewSession } from '../../features/lessons/useReviewSession'
 import { useStreakQuery } from '../../features/portfolio/useStreakQuery'
 import { useNextSalaryPayment } from '../../features/market/useNextSalaryPayment'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
+import { ReviewSessionCard } from '../../components/organisms/ReviewSessionCard'
 import { TrackCard } from '../../components/organisms/TrackCard'
+import { FirstActionResultCard } from '../../components/organisms/FirstActionResultCard'
 import { InstallInvite } from '../../components/molecules/InstallInvite'
 import { InstallPrompt } from '../../components/organisms/InstallPrompt'
 import { SalaryIndicator } from '../../components/molecules/SalaryIndicator'
@@ -25,6 +28,7 @@ export function TrilhasHub() {
     const progressionQuery = useProgressionQuery()
     const streakQuery = useStreakQuery()
     const daysUntilNextSalary = useNextSalaryPayment()
+    const reviewSession = useReviewSession()
 
     const lessons = lessonsQuery.data?.lessons ?? []
     const groups = groupLessonsByTrack(lessons)
@@ -56,6 +60,9 @@ export function TrilhasHub() {
                         </Link>
                     </header>
 
+                    {/* OB.1.2: resultado da primeira ação do onboarding, só depois que o roteiro andou. */}
+                    <FirstActionResultCard />
+
                     {lessonsQuery.isError && (
                         <p className={styles.error} role="alert">
                             Não foi possível carregar as trilhas agora. Tente novamente em instantes.
@@ -82,6 +89,8 @@ export function TrilhasHub() {
                         </>
                     )}
                     {lessons.length > 0 && <ResumeLessonCard lessons={lessons} />}
+                    {/* LJ.5.6: só com as 3 perguntas vencidas, sem contagem de pendências. */}
+                    {reviewSession.data?.ready && <ReviewSessionCard questionCount={reviewSession.data.questions.length} />}
                     {/* LW.2.4: convite para instalar o app, só depois da primeira lição concluída. */}
                     {completedCount > 0 && <InstallInvite placement="lesson" />}
                 </aside>

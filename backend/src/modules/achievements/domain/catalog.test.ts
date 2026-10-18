@@ -30,6 +30,9 @@ describe('ACHIEVEMENT_CRITERIA', () => {
       lessonsReviewed: 7,
       assembliesParticipated: 8,
       referralsQualified: 8,
+      dailyWordFirstTry: 9,
+      dailyPerfectDays: 10,
+      dailyTimelineStreak: 11,
     }
     const expected: AchievementCriteriaType[] = [
       'net_worth',
@@ -41,6 +44,9 @@ describe('ACHIEVEMENT_CRITERIA', () => {
       'lesson_reviewed',
       'assemblies_participated',
       'referrals_qualified',
+      'daily_word_first_try',
+      'daily_perfect_days',
+      'daily_timeline_streak',
     ]
 
     expect([...ACHIEVEMENT_CRITERIA_TYPES].sort()).toEqual([...expected].sort())

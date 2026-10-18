@@ -6,6 +6,7 @@ import {
   LessonNotFoundError,
 } from '../../domain/errors'
 import type { LessonSummary } from '../../domain/lesson'
+import { toPublicBlocks } from '../../domain/widgets/lessonBlocks'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { AnswerCheckpointUseCase } from './answerCheckpoint'
 
@@ -40,15 +41,6 @@ const base: LessonSummary = {
           answer: 1,
           explanation: 'porque b',
         },
-        {
-          type: 'check',
-          id: 'num',
-          kind: 'numeric',
-          prompt: 'p',
-          answer: 10,
-          tolerance: 0.5,
-          explanation: 'porque 10',
-        },
       ],
       microDecision: [],
       revelation: [],
@@ -65,7 +57,7 @@ function build() {
 
 const answer = (
   useCase: AnswerCheckpointUseCase,
-  body: { selectedOption?: number; value?: number },
+  body: { selectedOption: number },
   checkpointId = 'c1',
   lessonId = 'l1',
 ) => useCase.execute({ userId: 'u1', lessonId, checkpointId, ...body })
@@ -107,24 +99,6 @@ describe('AnswerCheckpointUseCase', () => {
     })
   })
 
-  it('numérica aceita a tolerância e erro não guarda alternativa', async () => {
-    const { repo, useCase } = build()
-
-    expect(await answer(useCase, { value: 11 }, 'num')).toMatchObject({
-      correct: false,
-      wrongOptions: [],
-    })
-    expect(await answer(useCase, { value: 10.4 }, 'num')).toMatchObject({
-      correct: true,
-      attempts: 2,
-      explanation: 'porque 10',
-    })
-    expect(
-      (await repo.listCheckpointsForUser('u1', 'l1')).find((c) => c.checkpointId === 'num')
-        ?.solvedAt,
-    ).not.toBeNull()
-  })
-
   it('já resolvido responde sem gravar (revisão sem estado)', async () => {
     const { repo, useCase } = build()
     await answer(useCase, { selectedOption: 1 })
@@ -158,9 +132,6 @@ describe('AnswerCheckpointUseCase', () => {
     await expect(answer(useCase, { selectedOption: 7 })).rejects.toBeInstanceOf(
       InvalidCheckpointResponseError,
     )
-    await expect(answer(useCase, { value: 1 })).rejects.toBeInstanceOf(
-      InvalidCheckpointResponseError,
-    )
   })
 
   it('lição bloqueada devolve LessonLockedError', async () => {
@@ -169,5 +140,456 @@ describe('AnswerCheckpointUseCase', () => {
     await expect(answer(useCase, { selectedOption: 0 }, 'c1', 'l2')).rejects.toBeInstanceOf(
       LessonLockedError,
     )
+  })
+
+  describe('estimativa (LJ-D1)', () => {
+    const estimateLesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: {
+          scenario: [
+            {
+              type: 'check',
+              id: 'e1',
+              kind: 'estimate',
+              prompt: 'Quanto viram?',
+              min: 1000,
+              max: 10000,
+              step: 100,
+              unit: 'brl',
+              answer: 6000,
+              tolerancePct: 10,
+              explanation: 'porque juros sobre juros',
+            },
+          ],
+          microDecision: [],
+          revelation: [],
+        },
+      },
+    }
+
+    function buildEstimate() {
+      const repo = createFakeLessonRepository([estimateLesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const guess = (useCase: AnswerCheckpointUseCase, value: number) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'e1', value })
+
+    it('chute longe avança na hora: resolve na 1ª resposta, mostra o valor real e a explicação', async () => {
+      const { repo, useCase } = buildEstimate()
+
+      const result = await guess(useCase, 3000)
+
+      expect(result).toMatchObject({
+        correct: false,
+        attempts: 1,
+        firstTry: false,
+        explanation: 'porque juros sobre juros',
+        estimate: { guess: 3000, band: 'far', value: 6000, low: 5400, high: 6600 },
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).not.toBeNull()
+      expect(record.lastResponse).toEqual({ kind: 'estimate', value: 3000, hit: false })
+    })
+
+    it('chute na faixa é "na mosca" e conta como de primeira', async () => {
+      const { useCase } = buildEstimate()
+
+      expect(await guess(useCase, 6300)).toMatchObject({
+        correct: true,
+        firstTry: true,
+        estimate: { band: 'exact' },
+      })
+    })
+
+    it('chute perto da faixa não é na mosca, mas também avança', async () => {
+      const { useCase } = buildEstimate()
+
+      expect(await guess(useCase, 7000)).toMatchObject({
+        correct: false,
+        explanation: 'porque juros sobre juros',
+        estimate: { band: 'close' },
+      })
+    })
+
+    it('segunda resposta não regrava: o primeiro chute vale', async () => {
+      const { repo, useCase } = buildEstimate()
+      await guess(useCase, 3000)
+
+      await guess(useCase, 6000)
+
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record).toMatchObject({ attempts: 1, lastResponse: { value: 3000, hit: false } })
+    })
+
+    it('rejeita valor fora da régua e resposta por índice', async () => {
+      const { useCase } = buildEstimate()
+
+      await expect(guess(useCase, 999)).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'e1', selectedOption: 0 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+
+    it('pergunta por índice recebendo `value` também é inválida', async () => {
+      const { useCase } = build()
+
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'c1', value: 1 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+  })
+  describe('ordenar (LJ-D2)', () => {
+    const orderBlock = {
+      type: 'check' as const,
+      id: 'o1',
+      kind: 'order' as const,
+      prompt: 'Do menos ao mais arriscado',
+      items: ['Tesouro Selic', 'CDB', 'FII', 'Ação pequena'],
+      answer: [0, 1, 2, 3],
+      explanation: 'porque o risco cresce',
+    }
+    const orderLesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: { scenario: [orderBlock], microDecision: [], revelation: [] },
+      },
+    }
+    // Índices (como o cliente os recebe, embaralhados) da ordem certa.
+    const shown = (
+      toPublicBlocks(orderLesson.blocks)?.phases.scenario[0] as unknown as { items: string[] }
+    ).items
+    const right = orderBlock.items.map((item) => shown.indexOf(item))
+    const swapped = [right[1], right[0], right[2], right[3]] as number[]
+
+    function buildOrder() {
+      const repo = createFakeLessonRepository([orderLesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const send = (useCase: AnswerCheckpointUseCase, sequence: number[]) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'o1', sequence })
+
+    it('errar devolve só a contagem: sem explicação e sem dizer quais itens', async () => {
+      const { repo, useCase } = buildOrder()
+
+      const result = await send(useCase, swapped)
+
+      expect(result).toEqual({
+        correct: false,
+        attempts: 1,
+        firstTry: false,
+        wrongOptions: [],
+        hint: { correctCount: 2, total: 4 },
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).toBeNull()
+    })
+
+    it('acertar de primeira resolve, devolve a explicação e guarda a ordem para restaurar', async () => {
+      const { repo, useCase } = buildOrder()
+
+      const result = await send(useCase, right)
+
+      expect(result).toMatchObject({
+        correct: true,
+        firstTry: true,
+        explanation: 'porque o risco cresce',
+      })
+      expect(result.hint).toBeUndefined()
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).not.toBeNull()
+      expect(record.lastResponse).toEqual({ kind: 'order', sequence: right })
+    })
+
+    it('errar antes de acertar tira o "de primeira" e mantém as tentativas', async () => {
+      const { useCase } = buildOrder()
+      await send(useCase, swapped)
+
+      const result = await send(useCase, right)
+
+      expect(result).toMatchObject({ correct: true, attempts: 2, firstTry: false })
+    })
+
+    it('rejeita sequência repetida, curta ou resposta por índice', async () => {
+      const { useCase } = buildOrder()
+
+      await expect(send(useCase, [0, 0, 1, 2])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+      await expect(send(useCase, [0, 1, 2])).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'o1', selectedOption: 0 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+  })
+  describe('agrupar (LJ-D2)', () => {
+    const block = {
+      type: 'check' as const,
+      id: 'g1',
+      kind: 'categorize' as const,
+      prompt: 'Renda fixa ou variável?',
+      groups: ['Renda fixa', 'Renda variável'],
+      items: ['Tesouro Selic', 'Ação', 'CDB', 'FII', 'LCI'],
+      answer: [0, 1, 0, 1, 0],
+      explanation: 'porque o retorno é conhecido ou não',
+    }
+    const lesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: { scenario: [block], microDecision: [], revelation: [] },
+      },
+    }
+
+    function buildCategorize() {
+      const repo = createFakeLessonRepository([lesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const send = (useCase: AnswerCheckpointUseCase, groups: number[]) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'g1', groups })
+
+    it('errar devolve só a contagem, sem explicação, e não resolve', async () => {
+      const { repo, useCase } = buildCategorize()
+
+      const result = await send(useCase, [0, 0, 0, 1, 0])
+
+      expect(result).toEqual({
+        correct: false,
+        attempts: 1,
+        firstTry: false,
+        wrongOptions: [],
+        hint: { correctCount: 4, total: 5 },
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).toBeNull()
+    })
+
+    it('acertar resolve, devolve a explicação e guarda os grupos para restaurar', async () => {
+      const { repo, useCase } = buildCategorize()
+
+      const result = await send(useCase, [0, 1, 0, 1, 0])
+
+      expect(result).toMatchObject({
+        correct: true,
+        firstTry: true,
+        explanation: 'porque o retorno é conhecido ou não',
+      })
+      expect(result.hint).toBeUndefined()
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.lastResponse).toEqual({ kind: 'categorize', groups: [0, 1, 0, 1, 0] })
+    })
+
+    it('errar antes de acertar tira o "de primeira"', async () => {
+      const { useCase } = buildCategorize()
+      await send(useCase, [1, 1, 1, 1, 1])
+
+      expect(await send(useCase, [0, 1, 0, 1, 0])).toMatchObject({
+        correct: true,
+        attempts: 2,
+        firstTry: false,
+      })
+    })
+
+    it('rejeita grupo inexistente, resposta curta e resposta de outro formato', async () => {
+      const { useCase } = buildCategorize()
+
+      await expect(send(useCase, [0, 1, 0, 1, 2])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+      await expect(send(useCase, [0, 1, 0])).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({
+          userId: 'u1',
+          lessonId: 'l1',
+          checkpointId: 'g1',
+          sequence: [0, 1, 2, 3, 4],
+        }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+  })
+  describe('ligar pares (LJ-D3)', () => {
+    const block = {
+      type: 'check' as const,
+      id: 'm1',
+      kind: 'match' as const,
+      prompt: 'Ligue cada sigla ao que ela mede',
+      left: ['Selic', 'CDI', 'IPCA'],
+      right: ['Juro básico da economia', 'Taxa entre bancos', 'Inflação'],
+      answer: [0, 1, 2],
+      explanation: 'porque cada índice mede uma coisa',
+    }
+    const lesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: { scenario: [block], microDecision: [], revelation: [] },
+      },
+    }
+    const shownRight = (
+      toPublicBlocks(lesson.blocks)?.phases.scenario[0] as unknown as { right: string[] }
+    ).right
+    // Posição, como o cliente a recebe, da resposta certa de cada item da esquerda.
+    const rightOf = (left: number) => shownRight.indexOf(block.right[left] as string)
+    const wrongOf = (left: number) => (rightOf(left) + 1) % 3
+
+    function buildMatch() {
+      const repo = createFakeLessonRepository([lesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const send = (useCase: AnswerCheckpointUseCase, pair: [number, number]) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'm1', pair })
+
+    it('par certo trava e não resolve a pergunta; a explicação só vem no último', async () => {
+      const { repo, useCase } = buildMatch()
+
+      const first = await send(useCase, [0, rightOf(0)])
+      expect(first).toMatchObject({
+        correct: false,
+        match: { pairCorrect: true, pairs: [[0, rightOf(0)]] },
+      })
+      expect(first.explanation).toBeUndefined()
+
+      await send(useCase, [1, rightOf(1)])
+      const last = await send(useCase, [2, rightOf(2)])
+      expect(last).toMatchObject({
+        correct: true,
+        firstTry: true,
+        explanation: 'porque cada índice mede uma coisa',
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).not.toBeNull()
+      expect(record.lastResponse).toMatchObject({ kind: 'match', misses: 0 })
+    })
+
+    it('par errado é recusado na hora, sem explicação, e tira o "de primeira"', async () => {
+      const { repo, useCase } = buildMatch()
+
+      const miss = await send(useCase, [0, wrongOf(0)])
+      expect(miss).toMatchObject({ correct: false, match: { pairCorrect: false, pairs: [] } })
+      expect(miss.explanation).toBeUndefined()
+
+      await send(useCase, [0, rightOf(0)])
+      await send(useCase, [1, rightOf(1)])
+      const last = await send(useCase, [2, rightOf(2)])
+      expect(last).toMatchObject({ correct: true, firstTry: false })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.lastResponse).toMatchObject({ misses: 1 })
+    })
+
+    it('recusa ligar de novo um item que já está travado', async () => {
+      const { useCase } = buildMatch()
+      await send(useCase, [0, rightOf(0)])
+
+      await expect(send(useCase, [0, rightOf(1)])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+      await expect(send(useCase, [1, rightOf(0)])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+    })
+
+    it('rejeita par fora do intervalo e resposta de outro formato', async () => {
+      const { useCase } = buildMatch()
+
+      await expect(send(useCase, [3, 0])).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'm1', selectedOption: 0 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+
+    it('depois de resolvida a pergunta vira leitura: o par é conferido sem gravar', async () => {
+      const { repo, useCase } = buildMatch()
+      for (const left of [0, 1, 2]) await send(useCase, [left, rightOf(left)])
+
+      const again = await send(useCase, [0, wrongOf(0)])
+
+      expect(again).toMatchObject({ correct: false, match: { pairCorrect: false } })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.lastResponse).toMatchObject({ misses: 0 })
+    })
+  })
+})
+
+describe('AnswerCheckpointUseCase: prática (LJ.5.5, LJ.5.6)', () => {
+  it('em lição concluída, a prática traz a explicação também no erro', async () => {
+    const { repo, useCase } = build()
+    await repo.upsertProgress('u1', 'l1', { currentStep: 3, completedAt: new Date() })
+
+    const wrong = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+      practice: true,
+    })
+    const plain = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+    })
+
+    expect(wrong).toMatchObject({ correct: false, explanation: 'porque b' })
+    expect(plain).not.toHaveProperty('explanation')
+  })
+
+  it('em pergunta ainda em andamento, a prática não vaza a explicação', async () => {
+    const { useCase } = build()
+
+    const result = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+      practice: true,
+    })
+
+    expect(result).not.toHaveProperty('explanation')
+    expect(result.wrongOptions).toEqual([0])
+  })
+
+  it('a prática em lição concluída não grava nada', async () => {
+    const { repo, useCase } = build()
+    await repo.upsertProgress('u1', 'l1', { currentStep: 3, completedAt: new Date() })
+
+    await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+      practice: true,
+    })
+
+    expect(await repo.listCheckpointsForUser('u1', 'l1')).toEqual([])
+  })
+})
+
+describe('AnswerCheckpointUseCase: entrada na fila de revisão (LJ.5.6)', () => {
+  const now = new Date('2026-02-01T00:00:00Z')
+  const dueNextDay = new Date('2026-02-02T00:00:00Z')
+
+  it('acertar de primeira não entra na fila', async () => {
+    const { repo, useCase } = build()
+    await answer(useCase, { selectedOption: 1 })
+    const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+    expect(record?.reviewDueAt ?? null).toBeNull()
+  })
+
+  it('acertar depois de errar entra na fila, voltando em 1 dia', async () => {
+    const { repo, useCase } = build()
+    await answer(useCase, { selectedOption: 0 })
+    await answer(useCase, { selectedOption: 1 })
+    const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+    expect(record).toMatchObject({ reviewStage: 0, reviewDueAt: dueNextDay })
+    expect(now.getTime()).toBeLessThan(dueNextDay.getTime())
+  })
+
+  it('o erro sozinho ainda não entra: só a resolução', async () => {
+    const { repo, useCase } = build()
+    await answer(useCase, { selectedOption: 0 })
+    const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+    expect(record?.reviewDueAt ?? null).toBeNull()
   })
 })

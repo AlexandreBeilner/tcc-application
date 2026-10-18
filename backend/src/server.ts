@@ -34,6 +34,8 @@ import type { RunAssemblyLifecycleUseCase } from './modules/assemblies/applicati
 import { startAssemblyScheduler } from './modules/assemblies/infrastructure/scheduler/assemblyScheduler'
 import { createPayrollComposition } from './modules/payroll/composition'
 import { startPayrollScheduler } from './modules/payroll/infrastructure/scheduler/payrollScheduler'
+import { createDailyAgendaComposition } from './modules/daily/composition'
+import { startDailyAgendaScheduler } from './modules/daily/infrastructure/scheduler/dailyAgendaScheduler'
 
 const port = Number(process.env.PORT) || 3000
 // Cadência de checagem do job de folha de pagamento (T.5) — nunca precisa
@@ -41,6 +43,8 @@ const port = Number(process.env.PORT) || 3000
 // por mês-calendário real. 1h é o padrão; configurável só pra facilitar
 // teste manual em `docker compose up`.
 const DEFAULT_PAYROLL_CHECK_INTERVAL_MS = 60 * 60 * 1000
+// Cadência da agenda do Diário (DI.1.3): trabalha com 30 dias de folga, então 1h sobra.
+const DEFAULT_DAILY_AGENDA_INTERVAL_MS = 60 * 60 * 1000
 // Cadência do job que recalcula o ranking (3h). A tela lê o snapshot, nunca recalcula.
 const DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS = 3 * 60 * 60 * 1000
 // Cadência do job que encerra duelos vencidos e expira desafios (MO.5.3). O resultado é medido nos
@@ -139,6 +143,15 @@ async function main() {
     Number(process.env.PAYROLL_CHECK_INTERVAL_MS || Number.NaN) || DEFAULT_PAYROLL_CHECK_INTERVAL_MS
   const { runPayrollCheck } = createPayrollComposition(db, engineUrl, enqueueEmail)
   timers.push(startPayrollScheduler(runPayrollCheck, payrollCheckIntervalMs))
+
+  const { materializeUpcomingPuzzles } = createDailyAgendaComposition(db)
+  timers.push(
+    startDailyAgendaScheduler(
+      materializeUpcomingPuzzles,
+      Number(process.env.DAILY_AGENDA_INTERVAL_MS || Number.NaN) ||
+        DEFAULT_DAILY_AGENDA_INTERVAL_MS,
+    ),
+  )
 
   timers.push(
     startEmailOutboxScheduler(deliverPendingEmails, emailConfig.outboxIntervalMs, purgeOldEmails),

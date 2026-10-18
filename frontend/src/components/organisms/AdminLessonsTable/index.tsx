@@ -73,6 +73,9 @@ export function AdminLessonsTable() {
             <Link to={`/admin/conteudo/${lesson.id}`} className={styles.link}>
                 Editar
             </Link>
+            <Link to={`/admin/conteudo/${lesson.id}/funil`} className={styles.link}>
+                Funil
+            </Link>
             {lesson.published ? (
                 <button type="button" className={styles.link} disabled={setPublished.isPending} onClick={() => setConfirming(lesson)}>
                     Despublicar

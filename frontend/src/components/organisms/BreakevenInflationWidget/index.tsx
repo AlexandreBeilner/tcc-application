@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { breakevenInflationPct, breakevenWinner } from '../../../features/lessons/widgets/treasuryMath'
 import type { BreakevenInflationWidgetProps } from './types'
 import styles from '../LessonWidget/widgetControls.module.css'
@@ -10,13 +10,16 @@ const pct = (value: number) => `${value.toFixed(2).replace('.', ',')}%`
 // Widget `breakeven-inflation` (RC.3.4d): a inflação de equilíbrio entre um
 // título prefixado e um IPCA+ de mesmo prazo, e quem ganha para a inflação que o
 // aluno espera. Comparação bruta: os dois pagam o mesmo IR no mesmo prazo.
-export function BreakevenInflationWidget({ prefixedPct, realPct, expectedInflationPct }: BreakevenInflationWidgetProps) {
+export function BreakevenInflationWidget({ prefixedPct, realPct, expectedInflationPct, onMetrics }: BreakevenInflationWidgetProps) {
     const [prefixed, setPrefixed] = useState(prefixedPct)
     const [real, setReal] = useState(realPct)
     const [expected, setExpected] = useState(expectedInflationPct)
 
     const breakeven = breakevenInflationPct(prefixed, real)
     const winner = breakevenWinner(expected, breakeven)
+    // Pontos de inflação esperada acima do equilíbrio: positivo quando o IPCA+ rende mais.
+    const inflationAboveBreakevenPp = expected - breakeven
+    useEffect(() => onMetrics?.({ inflationAboveBreakevenPp }), [inflationAboveBreakevenPp, onMetrics])
 
     return (
         <div className={styles.root}>

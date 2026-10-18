@@ -58,6 +58,9 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
         lessonsReviewed: 0,
         assembliesParticipated: 0,
         referralsQualified: 0,
+        dailyWordFirstTry: 0,
+        dailyPerfectDays: 0,
+        dailyTimelineStreak: 0,
       },
     })
     const useCase = new CheckAndUnlockAchievementsUseCase(
@@ -86,6 +89,9 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
         lessonsReviewed: 0,
         assembliesParticipated: 0,
         referralsQualified: 0,
+        dailyWordFirstTry: 0,
+        dailyPerfectDays: 0,
+        dailyTimelineStreak: 0,
       },
     })
     const useCase = new CheckAndUnlockAchievementsUseCase(
@@ -127,6 +133,9 @@ describe('CheckAndUnlockAchievementsUseCase', () => {
       lessonsReviewed: 0,
       assembliesParticipated: 0,
       referralsQualified: 0,
+      dailyWordFirstTry: 0,
+      dailyPerfectDays: 0,
+      dailyTimelineStreak: 0,
     }
 
     function setup(isRare: boolean) {

@@ -72,6 +72,9 @@ const COLOR = {
     loss: '#e5484d',
 }
 
+// Mesma paleta para os outros cartões de compartilhar (resultado de lição, LJ.5.10).
+export const SHARE_COLOR = COLOR
+
 export interface CanvasLike {
     width: number
     height: number

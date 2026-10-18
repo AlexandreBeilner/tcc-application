@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { compareFeeDrag } from '../../../features/lessons/widgets/feeDragMath'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { FeeDragWidgetProps } from './types'
@@ -18,7 +18,7 @@ const pct1 = (value: number) => `${value.toFixed(1).replace('.', ',')}%`
 // diferentes. A curva de cima (sólida) é a de menor taxa e a de baixo
 // (tracejada) a de maior; a diferença final sai escrita em reais e em %, então
 // a leitura não depende da cor.
-export function FeeDragWidget({ initial, monthly, grossReturnPct, feeAPct, feeBPct, years }: FeeDragWidgetProps) {
+export function FeeDragWidget({ initial, monthly, grossReturnPct, feeAPct, feeBPct, years, onMetrics }: FeeDragWidgetProps) {
     const [feeA, setFeeA] = useState(feeAPct)
     const [feeB, setFeeB] = useState(feeBPct)
     const [period, setPeriod] = useState(years)
@@ -28,6 +28,9 @@ export function FeeDragWidget({ initial, monthly, grossReturnPct, feeAPct, feeBP
         () => compareFeeDrag({ initial, monthly, grossReturnPct: gross, years: period }, feeA, feeB),
         [initial, monthly, gross, period, feeA, feeB],
     )
+
+    const differenceBRL = result.differenceBRL
+    useEffect(() => onMetrics?.({ differenceBRL }), [differenceBRL, onMetrics])
 
     const max = Math.max(...result.a.points.map((p) => p.total), ...result.b.points.map((p) => p.total), 1)
     const toPath = (points: { year: number; total: number }[]) =>

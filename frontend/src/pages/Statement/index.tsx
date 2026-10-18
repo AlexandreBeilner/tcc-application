@@ -97,7 +97,7 @@ export function Statement() {
 
             {!eventsQuery.data && !eventsQuery.isError && <p className={styles.loading}>Carregando extrato…</p>}
 
-            {eventsQuery.data && <StatementList events={filtered} assetLabels={assetLabels} />}
+            {eventsQuery.data && <StatementList events={filtered} assetLabels={assetLabels} sandboxAssetIds={sandboxAssetIds} />}
         </main>
     )
 }

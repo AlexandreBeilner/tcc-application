@@ -41,24 +41,40 @@ describe('LessonPreview', () => {
         expect(screen.getByRole('button', { name: 'Próximo cartão' })).toBeDisabled()
     })
 
+    it('mesmos rótulos do player: título da lição em toda fase e nenhum rótulo antigo (LJ.1.2)', () => {
+        renderPreview()
+
+        for (const label of ['Sua aposta', 'O que acontece']) {
+            fireEvent.click(tab(label))
+            expect(screen.getByRole('heading', { name: 'Juros compostos' })).toBeInTheDocument()
+        }
+        // A tela final tem o resultado como título e o nome da lição acima dele (LJ.1.4).
+        fireEvent.click(tab('Lição concluída'))
+        expect(screen.getByRole('heading', { name: 'Lição concluída' })).toBeInTheDocument()
+        expect(screen.getByText('Juros compostos')).toBeInTheDocument()
+        for (const old of ['Micro-decisão', 'Revelação', 'Desbloqueio', 'Pense antes de continuar', 'Por que isso importa']) {
+            expect(screen.queryByText(old)).not.toBeInTheDocument()
+        }
+    })
+
     it('micro-decisão mostra as opções da aposta, e a Revelação dá o selo de acerto ou erro conforme a escolha', () => {
         renderPreview()
 
-        fireEvent.click(tab('Micro-decisão'))
+        fireEvent.click(tab('Sua aposta'))
         fireEvent.click(screen.getByRole('button', { name: 'Simples' }))
-        fireEvent.click(tab('Revelação'))
+        fireEvent.click(tab('O que acontece'))
         expect(screen.getByText('Quase. A resposta certa era: Compostos')).toBeInTheDocument()
 
-        fireEvent.click(tab('Micro-decisão'))
+        fireEvent.click(tab('Sua aposta'))
         fireEvent.click(screen.getByRole('button', { name: 'Compostos' }))
-        fireEvent.click(tab('Revelação'))
+        fireEvent.click(tab('O que acontece'))
         expect(screen.getByText('Você acertou')).toBeInTheDocument()
     })
 
     it('revelação com [revelar] esconde o resultado até o toque', () => {
         renderPreview()
 
-        fireEvent.click(tab('Revelação'))
+        fireEvent.click(tab('O que acontece'))
         expect(screen.queryByText('Os compostos rendem mais.')).not.toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', { name: 'Ver resultado' }))
         expect(screen.getByText('Os compostos rendem mais.')).toBeInTheDocument()
@@ -67,7 +83,7 @@ describe('LessonPreview', () => {
     it('desbloqueio mostra o texto e o atalho da funcionalidade liberada', () => {
         renderPreview()
 
-        fireEvent.click(tab('Desbloqueio'))
+        fireEvent.click(tab('Lição concluída'))
 
         expect(screen.getByText('Libera a calculadora')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Ir pra Calculadora' })).toBeDisabled()
@@ -76,7 +92,7 @@ describe('LessonPreview', () => {
     it('com produto liberado mostra o Comprar agora com o ticker, e sem texto usa a frase padrão', () => {
         renderPreview({ unlocks_keys: ['asset:acao'], unlocks_asset_ticker: 'VALR3', unlocks_description: null })
 
-        fireEvent.click(tab('Desbloqueio'))
+        fireEvent.click(tab('Lição concluída'))
 
         expect(screen.getByText('Você avançou mais um passo na trilha.')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Comprar agora (VALR3)' })).toBeInTheDocument()
@@ -84,13 +100,13 @@ describe('LessonPreview', () => {
 
     it('widgets ao vivo aparecem como aviso do que entra ali', () => {
         renderPreview({ micro_decision_type: 'growth_calculator', micro_decision_options: null, micro_decision_correct_option: null })
-        fireEvent.click(tab('Micro-decisão'))
+        fireEvent.click(tab('Sua aposta'))
         expect(screen.getByText('Aqui entra a calculadora de crescimento.')).toBeInTheDocument()
     })
 
     it('indicador de ativo ao vivo avisa na Revelação qual ativo entra', () => {
         renderPreview({ micro_decision_type: 'live_indicator', micro_decision_asset_ticker: 'VALR3', revelation_text: 'Texto' })
-        fireEvent.click(tab('Revelação'))
+        fireEvent.click(tab('O que acontece'))
         expect(screen.getByText('Aqui entram os indicadores ao vivo de VALR3.')).toBeInTheDocument()
     })
 

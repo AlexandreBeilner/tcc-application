@@ -1,0 +1,35 @@
+Diário Selucra: avisos de terceiros
+
+Lista de palavras aceitas (acceptedWords.vero.txt)
+--------------------------------------------------
+O arquivo acceptedWords.vero.txt é uma obra derivada do dicionário ortográfico
+VERO (Verificador Ortográfico do LibreOffice), versão pt-BR, de autoria de
+Raimundo Santos Moura e da equipe do projeto VERO.
+
+Origem:   https://github.com/LibreOffice/dictionaries
+Commit:   67032ee957631908098a72edf48dc81cac27e369 (diretório pt_BR/)
+Arquivos: pt_BR.dic, pt_BR.aff e README_pt_BR.txt (SHA-256 conferidos pelo script)
+Licença:  dupla, LGPLv3 (GNU Lesser General Public License versão 3) e MPL
+          (Mozilla Public License), como declarado no README_pt_BR.txt do
+          dicionário. Esta lista derivada continua sob essas mesmas licenças.
+          Textos completos: https://www.gnu.org/licenses/lgpl-3.0.html e
+          https://www.mozilla.org/MPL/.
+Créditos: https://pt-br.libreoffice.org/projetos/projeto-vero-verificador-ortografico/
+
+O que foi feito com o dicionário (backend/src/scripts/generateDailyAcceptedWords.ts):
+1. As regras de afixos do hunspell foram expandidas com a ferramenta `unmunch`
+   (pacote hunspell-tools), gerando todas as formas de cada palavra.
+2. Foram mantidas só as formas com letras minúsculas (o que exclui nomes próprios,
+   siglas, hífens e dígitos), de 4 a 9 letras depois de normalizar para
+   maiúsculas sem acento, e fora da lista de palavras ofensivas
+   (offensiveWords.ts).
+3. O resultado foi ordenado e gravado, uma palavra por linha.
+
+O arquivo gerado é uma lista de palavras isoladas, sem as regras nem as marcações
+do dicionário original. Quem redistribuir esta lista deve manter este aviso.
+Nenhuma lista de palavras de outro jogo foi usada.
+
+Termos extras (extraAcceptedWords.ts)
+-------------------------------------
+Siglas e termos do mercado financeiro que o VERO não tem foram escritos para este
+projeto e não vêm de fonte externa.

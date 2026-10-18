@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { LessonBlocks, WidgetId } from '../../domain/widgets/lessonBlocks'
+import { WIDGET_MISSION_METRICS } from '../../domain/widgets/widgetGoal'
 
 // Validação do contrato `blocks` (RC.3.1; tipos em `domain/widgets`). Cada fase
 // (Cenário, Micro-decisão, Revelação) vira uma lista de blocos tipados em vez
@@ -19,6 +20,7 @@ export const MAX_CHECKPOINTS_PER_LESSON = 7
 export const WIDGET_IDS = [
   'callout',
   'platform-note',
+  'formula-walkthrough',
   'equivalent-rate',
   'ir-regressive-table',
   'product-comparator',
@@ -71,6 +73,25 @@ const calloutProps = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
   formula: z.string().min(1).optional(),
+})
+
+// Fórmula passo a passo: a fórmula com letras, a mesma conta com os números e o
+// resultado, no mesmo cartão, para a pessoa nunca ver só a fórmula solta.
+const formulaWalkthroughProps = z.object({
+  intro: z.string().min(1).optional(),
+  items: z
+    .array(
+      z.object({
+        label: z.string().min(1),
+        formula: z.string().min(1),
+        legend: z.string().min(1).optional(),
+        numbers: z.string().min(1),
+        result: z.string().min(1),
+      }),
+    )
+    .min(1)
+    .max(3),
+  note: z.string().min(1).optional(),
 })
 
 // Bloco "Na plataforma" (RC.3.3): onde a plataforma difere do Brasil real, a
@@ -150,6 +171,8 @@ const mtmSeesawProps = z.object({
   contractRatePct: z.number().min(2).max(25).default(11.75),
   yearsToMaturity: z.number().min(0.25).max(10).default(2),
   indexer: z.enum(['prefixed', 'ipca-plus', 'selic']).default('prefixed'),
+  // Taxa de mercado de partida (missão); sem ela, começa na taxa contratada.
+  marketRatePct: z.number().min(2).max(25).optional(),
 })
 
 // Barra de cobertura do FGC (RC.3.4b): valor por instituição, quantas
@@ -159,6 +182,8 @@ const fgcCoverageBarProps = z.object({
   amountPerInstitution: z.number().min(0).max(5_000_000).default(400_000),
   institutions: z.number().int().min(1).max(6).default(1),
   sameConglomerate: z.boolean().default(false),
+  // Missão: total fixo a distribuir entre as instituições (ignora `amountPerInstitution`).
+  totalAmount: z.number().positive().max(5_000_000).optional(),
 })
 
 // Régua de rating (RC.3.4b): a escala é convenção das agências; a prop só
@@ -219,6 +244,17 @@ const savingsVsSelicProps = z.object({
 // aceitar props que nenhum widget lê.
 const emptyProps = z.object({}).strict()
 
+// Calculadora de juros: valores iniciais opcionais, para a missão (LJ.3.1) partir de um capital já preenchido.
+const growthCalculatorProps = z
+  .object({
+    initialCapital: z.number().min(0).max(10_000_000),
+    monthlyContribution: z.number().min(0).max(1_000_000),
+    ratePct: z.number().min(0).max(100),
+    periodYears: z.number().int().min(1).max(40),
+  })
+  .partial()
+  .strict()
+
 const liveIndicatorProps = z.object({ ticker: z.string().min(1).max(20) })
 const liveMacroProps = z.object({ windowDays: z.number().int().min(7).max(365).optional() })
 
@@ -232,6 +268,7 @@ const companyMarginsProps = z.object({
 export const widgetPropsSchemas = {
   callout: calloutProps,
   'platform-note': platformNoteProps,
+  'formula-walkthrough': formulaWalkthroughProps,
   'equivalent-rate': equivalentRateProps,
   'ir-regressive-table': irRegressiveTableProps,
   'product-comparator': productComparatorProps,
@@ -252,7 +289,13 @@ export const widgetPropsSchemas = {
   'bookbuilding-simulator': bookbuildingSimulatorProps,
   'ticker-decoder': emptyProps,
   'headline-triage': emptyProps,
-  'order-book': emptyProps,
+  // Missão: o formulário pode partir de uma ordem limitada com um preço escolhido.
+  'order-book': z
+    .object({
+      orderType: z.enum(['market', 'limit']).optional(),
+      limitPrice: z.number().positive().max(1000).optional(),
+    })
+    .strict(),
   'interactive-balance': z.object({
     netRevenue: z.number().positive().max(100_000).default(1000),
     costsPct: z.number().min(0).max(90).default(55),
@@ -349,6 +392,11 @@ export const widgetPropsSchemas = {
   'allocation-donut': z.object({
     profile: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
     amount: z.number().min(100).max(1_000_000).default(10000),
+    // Missão: pesos de partida, em %, por cima do exemplo do perfil.
+    postFixedPct: z.number().min(0).max(100).optional(),
+    longerFixedPct: z.number().min(0).max(100).optional(),
+    fiiPct: z.number().min(0).max(100).optional(),
+    stocksPct: z.number().min(0).max(100).optional(),
   }),
   'risk-profile-quiz': emptyProps,
   'behavior-bias-quiz': emptyProps,
@@ -381,7 +429,7 @@ export const widgetPropsSchemas = {
   }),
   'tax-decision-tree': emptyProps,
   'copom-timeline': emptyProps,
-  'growth-calculator': emptyProps,
+  'growth-calculator': growthCalculatorProps,
   'fixed-income-comparison': emptyProps,
   'live-indicator': liveIndicatorProps,
   'live-macro': liveMacroProps,
@@ -408,16 +456,104 @@ const checkBlock = z.discriminatedUnion('kind', [
       message: 'answer fora das options',
     }),
   z.object({ ...checkBase, kind: z.literal('true_false'), answer: z.boolean() }),
-  z.object({
-    ...checkBase,
-    kind: z.literal('numeric'),
-    answer: z.number().finite(),
-    tolerance: z.number().finite().min(0),
-    unit: z.string().min(1).max(20).optional(),
-  }),
+  // Estimativa (LJ.2.2): a régua (`min`, `max`, `step`) vai ao cliente; `answer` e
+  // `tolerancePct` ficam no servidor.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('estimate'),
+      min: z.number().finite(),
+      max: z.number().finite(),
+      step: z.number().positive().finite(),
+      unit: z.enum(['brl', 'pct', 'years', 'none']),
+      answer: z.number().finite(),
+      tolerancePct: z.number().positive().max(100),
+    })
+    .refine((b) => b.min < b.max, { path: ['max'], message: 'max precisa ser maior que min' })
+    .refine((b) => b.answer >= b.min && b.answer <= b.max, {
+      path: ['answer'],
+      message: 'answer fora da régua',
+    }),
+  // Ordenar (LJ.2.3): 3 a 6 itens; `answer` é uma permutação de `0..n-1`. Os rótulos de ponta
+  // ("Menos risco", "Mais risco") ficam fixos no topo e no pé da lista.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('order'),
+      items: z.array(z.string().min(1)).min(3).max(6),
+      answer: z.array(z.number().int().min(0)),
+      lowLabel: z.string().min(1).max(40).optional(),
+      highLabel: z.string().min(1).max(40).optional(),
+    })
+    .refine(
+      (b) =>
+        b.answer.length === b.items.length &&
+        new Set(b.answer).size === b.answer.length &&
+        b.answer.every((i) => i < b.items.length),
+      { path: ['answer'], message: 'answer precisa ser uma permutação dos itens' },
+    ),
+  // Agrupar (LJ.2.4): 2 ou 3 grupos, 3 a 6 itens; `answer[i]` é o grupo do item `i`.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('categorize'),
+      groups: z.array(z.string().min(1)).min(2).max(3),
+      items: z.array(z.string().min(1)).min(3).max(6),
+      answer: z.array(z.number().int().min(0)),
+    })
+    .refine(
+      (b) => b.answer.length === b.items.length && b.answer.every((g) => g < b.groups.length),
+      { path: ['answer'], message: 'answer precisa dar um grupo válido a cada item' },
+    )
+    .refine((b) => new Set(b.answer).size === b.groups.length, {
+      path: ['answer'],
+      message: 'todo grupo precisa receber ao menos um item',
+    }),
+  // Ligar pares (LJ.2.5): 3 a 5 pares; `answer[i]` é o índice da direita que casa com `left[i]`.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('match'),
+      left: z.array(z.string().min(1)).min(3).max(5),
+      right: z.array(z.string().min(1)).min(3).max(5),
+      answer: z.array(z.number().int().min(0)),
+    })
+    .refine(
+      (b) =>
+        b.left.length === b.right.length &&
+        b.answer.length === b.left.length &&
+        new Set(b.answer).size === b.answer.length &&
+        b.answer.every((i) => i < b.right.length),
+      { path: ['answer'], message: 'answer precisa casar cada item da esquerda com um da direita' },
+    ),
 ])
 
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })
+
+const widgetGoalSchema = z
+  .object({
+    text: z.string().min(1).max(120),
+    metric: z.string().min(1),
+    op: z.enum(['lt', 'lte', 'gt', 'gte', 'between']),
+    value: z.number().finite().optional(),
+    min: z.number().finite().optional(),
+    max: z.number().finite().optional(),
+    reveal: z.string().min(1).max(280),
+    showMe: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])).optional(),
+  })
+  .superRefine((goal, ctx) => {
+    if (goal.op === 'between') {
+      if (goal.min === undefined || goal.max === undefined || goal.min > goal.max) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['min'],
+          message: 'between exige min e max, com min <= max',
+        })
+      }
+    } else if (goal.value === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['value'], message: `${goal.op} exige value` })
+    }
+  })
 
 const widgetBlock = z
   .object({
@@ -426,9 +562,11 @@ const widgetBlock = z
     widget: z.enum(WIDGET_IDS),
     props: z.unknown().default({}),
     caption: z.string().min(1).optional(),
+    goal: widgetGoalSchema.optional(),
   })
   .superRefine((block, ctx) => {
-    const result = widgetPropsSchemas[block.widget].safeParse(block.props)
+    const schema = widgetPropsSchemas[block.widget]
+    const result = schema.safeParse(block.props)
     if (!result.success) {
       ctx.addIssue({
         code: 'custom',
@@ -436,9 +574,64 @@ const widgetBlock = z
         message: `props inválidas para o widget ${block.widget}`,
       })
     }
+    if (!block.goal) return
+    if (!WIDGET_MISSION_METRICS[block.widget]?.includes(block.goal.metric)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['goal', 'metric'],
+        message: `o widget ${block.widget} não declara a métrica ${block.goal.metric}`,
+      })
+    }
+    if (
+      block.goal.showMe &&
+      !schema.safeParse({ ...(block.props as object), ...block.goal.showMe }).success
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['goal', 'showMe'],
+        message: `showMe inválido para o widget ${block.widget}`,
+      })
+    }
   })
 
-export const blockSchema = z.union([textBlock, widgetBlock, checkBlock])
+// "O que ficou" (LJ.1.5): de 2 a 3 frases curtas, cada uma que a pessoa diria a um amigo.
+export const SUMMARY_MAX_CHARS = 120
+
+// "Saiba mais" (LJ.5.7): texto e widget de apoio, sem missão (a missão trava o Continuar e é do caminho
+// principal) e sem pergunta (pergunta é cartão). Não aninha outro "Saiba mais".
+export const MORE_TITLE_MAX_CHARS = 60
+
+const moreBlock = z.object({
+  type: z.literal('more'),
+  id: z.string().min(1).max(64),
+  title: z.string().min(1).max(MORE_TITLE_MAX_CHARS),
+  blocks: z
+    .array(
+      z.union([
+        textBlock,
+        widgetBlock.refine((block) => !block.goal, {
+          path: ['goal'],
+          message: 'widget dentro de "Saiba mais" não tem missão',
+        }),
+      ]),
+    )
+    .min(1)
+    .max(4),
+})
+
+// Enquete (LJ.2.6): de 2 a 4 alternativas, e o banco guarda o índice em 0 a 3 (`lesson_poll_votes_option_chk`).
+export const POLL_OPTION_MAX_CHARS = 80
+export const POLL_CLOSING_MAX_CHARS = 200
+
+const pollBlock = z.object({
+  type: z.literal('poll'),
+  id: z.string().min(1).max(64),
+  prompt: z.string().min(1),
+  options: z.array(z.string().min(1).max(POLL_OPTION_MAX_CHARS)).min(2).max(4),
+  closing: z.string().min(1).max(POLL_CLOSING_MAX_CHARS).optional(),
+})
+
+export const blockSchema = z.union([textBlock, widgetBlock, checkBlock, moreBlock, pollBlock])
 
 export const lessonBlocksSchema = z
   .object({
@@ -448,16 +641,36 @@ export const lessonBlocksSchema = z
       microDecision: z.array(blockSchema),
       revelation: z.array(blockSchema),
     }),
+    summary: z.array(z.string().min(1).max(SUMMARY_MAX_CHARS)).min(2).max(3).optional(),
   })
   .superRefine((blocks, ctx) => {
     const all = Object.values(blocks.phases).flat()
-    const ids = all.flatMap((block) => (block.type === 'text' ? [] : [block.id]))
+    const ids = all.flatMap((block) =>
+      block.type === 'text'
+        ? []
+        : block.type === 'more'
+          ? [
+              block.id,
+              ...block.blocks.flatMap((inner) => (inner.type === 'text' ? [] : [inner.id])),
+            ]
+          : [block.id],
+    )
     if (new Set(ids).size !== ids.length) {
       ctx.addIssue({
         code: 'custom',
         path: ['phases'],
         message: 'id de widget ou checkpoint repetido na lição',
       })
+    }
+    // O "Saiba mais" se cola ao cartão anterior da fase: como primeiro bloco não teria a que se colar.
+    for (const [phase, list] of Object.entries(blocks.phases)) {
+      if (list[0]?.type === 'more') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['phases', phase, 0],
+          message: '"Saiba mais" não pode ser o primeiro bloco da fase',
+        })
+      }
     }
     if (all.filter((block) => block.type === 'check').length > MAX_CHECKPOINTS_PER_LESSON) {
       ctx.addIssue({

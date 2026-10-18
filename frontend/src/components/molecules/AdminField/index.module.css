@@ -1,0 +1,43 @@
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.label {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+}
+
+.input {
+    width: 100%;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-base);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+}
+
+textarea.input {
+    resize: vertical;
+}
+
+.input:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 1px;
+}
+
+.input:disabled {
+    border-style: dashed;
+    color: var(--color-text-muted);
+}
+
+.hint {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}

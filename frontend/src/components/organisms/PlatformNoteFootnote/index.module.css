@@ -1,0 +1,46 @@
+.footnote {
+    padding: 0 var(--space-4);
+    border: 1px dashed var(--color-brand-500);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+}
+
+.footnote[open] {
+    padding-bottom: var(--space-4);
+}
+
+.summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: 0;
+    color: var(--color-link);
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.summary::-webkit-details-marker {
+    display: none;
+}
+
+.chevron {
+    transition: transform 150ms ease-out;
+}
+
+.footnote[open] .chevron {
+    transform: rotate(90deg);
+}
+
+.footnote[open] .summary {
+    margin-bottom: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chevron {
+        transition: none;
+    }
+}

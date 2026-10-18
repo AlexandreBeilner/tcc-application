@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { reportDiarioOrigin } from '../../features/diario/origin'
 import { useAuth } from '../../features/auth/AuthContext'
 import { SUPPORT_EMAIL } from '../../utils/supportContact'
 
@@ -41,6 +42,7 @@ export function AuthCallback() {
         }
 
         login(token)
+        reportDiarioOrigin('login')
         // Decisão 1.2 (onboarding) vs. 2.1 (Portfólio) fica com <AppShell>,
         // a partir de `user.onboardingCompleted` — mesma decisão central do
         // login/cadastro por e-mail, nunca duplicada aqui.

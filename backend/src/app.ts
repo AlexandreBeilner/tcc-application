@@ -1,6 +1,21 @@
-import cors from 'cors'
 import express, { Express, type Router } from 'express'
 import { createDb } from './db/client'
+import {
+  createDailyAdminUseCases,
+  createDailyCompletionReader,
+  createDailyComposition,
+  createDailyQualityReader,
+} from './modules/daily/composition'
+import { createAdminDailyRouter } from './modules/admin/interfaces/http/adminDailyRouter'
+import {
+  DailyAdminReadsUseCase,
+  DailyContentAdminUseCase,
+  DailyLaunchAdminUseCase,
+  DailyPuzzleAdminUseCase,
+} from './modules/admin/application/useCases/dailyAdmin'
+import { createInProcessDailyAdmin } from './modules/admin/infrastructure/daily/inProcessDailyAdmin'
+import { createApiCors } from './modules/daily/interfaces/http/dailyCors'
+import { createDailyRateLimiter } from './modules/daily/interfaces/http/dailyRateLimit'
 import { createRedisClient } from './infra/redisClient'
 import { readTrustedProxyHops } from './shared/http/trustProxy'
 import { apiSecurityHeaders, JSON_BODY_LIMIT } from './shared/http/securityHeaders'
@@ -38,6 +53,11 @@ import {
 import { createDrizzleEmailOutboxHealthReader } from './modules/admin/infrastructure/health/emailOutboxHealthReader'
 import { GetSystemHealthUseCase } from './modules/admin/application/useCases/getSystemHealth'
 import { GetAdminOverviewUseCase } from './modules/admin/application/useCases/getAdminOverview'
+import { createDrizzleRetentionReader } from './modules/admin/infrastructure/persistence/drizzleRetentionReader'
+import { GetActiveUsersUseCase } from './modules/admin/application/useCases/getActiveUsers'
+import { GetMilestoneTimesUseCase } from './modules/admin/application/useCases/getMilestoneTimes'
+import { GetRetentionCohortsUseCase } from './modules/admin/application/useCases/getRetentionCohorts'
+import { createAdminRetentionRouter } from './modules/admin/interfaces/http/adminRetentionRouter'
 import { createAdminSystemRouter } from './modules/admin/interfaces/http/adminSystemRouter'
 import { createEngineMarketMonitorReader } from './modules/admin/infrastructure/engine/engineMarketMonitorReader'
 import { ListMarketMonitorUseCase } from './modules/admin/application/useCases/listMarketMonitor'
@@ -126,6 +146,7 @@ import {
   CreateLessonAdminUseCase,
   GetLessonForEditAdminUseCase,
   GetLessonRevisionAdminUseCase,
+  GetLessonCardFunnelAdminUseCase,
   ListLessonCatalogAdminUseCase,
   RestoreLessonRevisionAdminUseCase,
   SetLessonPublishedAdminUseCase,
@@ -240,6 +261,7 @@ import { GetCurrentMicroDecisionStreakUseCase } from './modules/lessons/applicat
 import { GetTracksCompletedWithoutErrorsCountUseCase } from './modules/lessons/application/useCases/getTracksCompletedWithoutErrorsCount'
 import { CountReviewedLessonsUseCase } from './modules/lessons/application/useCases/countReviewedLessons'
 import { ExportLessonProgressUseCase } from './modules/lessons/application/useCases/exportLessonProgress'
+import { GetCompletedLessonCodesUseCase } from './modules/lessons/application/useCases/getCompletedLessonCodes'
 import { GetCompletedTracksUseCase } from './modules/lessons/application/useCases/getCompletedTracks'
 import { FindLessonUnlockingKeyUseCase } from './modules/lessons/application/useCases/findLessonUnlockingKey'
 import { GetLessonUseCase } from './modules/lessons/application/useCases/getLesson'
@@ -247,10 +269,17 @@ import { GetUnlockedProductKeysUseCase } from './modules/lessons/application/use
 import { HasCompletedLessonTodayUseCase } from './modules/lessons/application/useCases/hasCompletedLessonToday'
 import { HasReviewedOldLessonTodayUseCase } from './modules/lessons/application/useCases/hasReviewedOldLessonToday'
 import { HasMicroDecisionStreakTodayUseCase } from './modules/lessons/application/useCases/hasMicroDecisionStreakToday'
+import { GetLessonCardFunnelUseCase } from './modules/lessons/application/useCases/getLessonCardFunnel'
+import { GetReviewSessionUseCase } from './modules/lessons/application/useCases/getReviewSession'
+import { RecordCardReachUseCase } from './modules/lessons/application/useCases/recordCardReach'
+import { VotePollUseCase } from './modules/lessons/application/useCases/votePoll'
+import { RecordReviewResultUseCase } from './modules/lessons/application/useCases/recordReviewResult'
 import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
+import { createDrizzleLessonCardReachRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonCardReachRepository'
+import { createDrizzleLessonPollRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonPollRepository'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createInProcessSocialFeedRecorder } from './modules/lessons/infrastructure/socialfeed/inProcessSocialFeedRecorder'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
@@ -281,6 +310,7 @@ import { createInProcessStreakTracker as createInProcessStreakTrackerForMissions
 import { createInProcessXpAwarder as createInProcessXpAwarderForMissions } from './modules/missions/infrastructure/gamification/inProcessXpAwarder'
 import { createInProcessLessonCompletionChecker } from './modules/missions/infrastructure/lessons/inProcessLessonCompletionChecker'
 import { createInProcessLessonReviewChecker } from './modules/missions/infrastructure/lessons/inProcessLessonReviewChecker'
+import { createInProcessDailyCompletionChecker } from './modules/missions/infrastructure/daily/inProcessDailyCompletionChecker'
 import { createInProcessMicroDecisionStreakChecker } from './modules/missions/infrastructure/lessons/inProcessMicroDecisionStreakChecker'
 import { createDrizzleMissionRepository } from './modules/missions/infrastructure/persistence/drizzleMissionRepository'
 import { createMissionsRouter } from './modules/missions/interfaces/http/missionsRouter'
@@ -333,6 +363,7 @@ import { createBcryptPasswordHasher } from './modules/auth/infrastructure/securi
 import { createJwtTokenIssuer } from './modules/auth/infrastructure/security/jwtTokenIssuer'
 import { createDiskAvatarStorage } from './modules/auth/infrastructure/storage/diskAvatarStorage'
 import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
+import { createRetentionRecorders } from './modules/retention/composition'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
 import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
 import { GetAssetBookUseCase } from './modules/market/application/useCases/getAssetBook'
@@ -502,13 +533,21 @@ export function createApp(deps: AppDeps = {}): Express {
   const getCompany = new GetCompanyUseCase(catalogReader)
   const getMyAccount = new GetMyAccountUseCase(accountReader, catalogReader)
   const listMyEvents = new ListMyEventsUseCase(accountReader)
-  const placeOrder = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
+  // Presença e marcos do painel de retenção (RT.1.1), compartilhados por auth, lições, mercado e Diário.
+  const retention = createRetentionRecorders(db)
+  const placeOrder = new PlaceOrderUseCase(
+    orderExecutor,
+    catalogReader,
+    productUnlockReader,
+    retention.liveTrade,
+  )
   const cancelOrder = new CancelOrderUseCase(orderExecutor)
   const listMyOrders = new ListMyOrdersUseCase(orderExecutor, catalogReader)
   const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(
     fixedIncomeExecutor,
     catalogReader,
     productUnlockReader,
+    retention.liveTrade,
   )
   const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
   const simulateFixedIncome = new SimulateFixedIncomeUseCase(fixedIncomeExecutor)
@@ -542,7 +581,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
-  const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
+  const authMiddleware = createAuthMiddleware(
+    tokenIssuer,
+    new UserSessionGuard(userRepository),
+    retention.recordPresence,
+  )
   const auditLogRepository = createDrizzleAuditLogRepository(db)
   const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
   const loginUser = new LoginUserUseCase(
@@ -798,6 +841,7 @@ export function createApp(deps: AppDeps = {}): Express {
       count: (userId) => createDrizzleAssemblyRepository(db).countVotedAssemblies(userId),
     },
     countReferralsQualified: { count: referralsCore.countQualified },
+    getDailyQuality: createDailyQualityReader(db),
     getNetWorth,
     sandboxAssetReader,
   })
@@ -847,7 +891,8 @@ export function createApp(deps: AppDeps = {}): Express {
       ? configuredStepInterval
       : LESSON_MIN_STEP_INTERVAL_MS
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
-  const getLesson = new GetLessonUseCase(lessonRepository)
+  const lessonPollRepository = createDrizzleLessonPollRepository(db)
+  const getLesson = new GetLessonUseCase(lessonRepository, lessonPollRepository)
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   // Indicação (MO.7.2): recompensa do indicador quando a pessoa indicada conclui a primeira lição.
@@ -865,7 +910,10 @@ export function createApp(deps: AppDeps = {}): Express {
     {
       minStepIntervalMs: lessonMinStepIntervalMs,
       completionListener: {
-        onLessonCompleted: (userId) => referrals.qualify.execute(userId),
+        onLessonCompleted: async (userId) => {
+          await retention.lessonCompleted.onLessonCompleted(userId)
+          await referrals.qualify.execute(userId)
+        },
       },
     },
   )
@@ -884,6 +932,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessLessonCompletionChecker(hasCompletedLessonToday),
     createInProcessLessonReviewChecker(hasReviewedOldLessonToday),
     createInProcessMicroDecisionStreakChecker(hasMicroDecisionStreakToday),
+    createInProcessDailyCompletionChecker(createDailyCompletionReader(db)),
     createInProcessXpAwarderForMissions(awardXp),
     createInProcessStreakTrackerForMissions(touchStreak),
   )
@@ -1021,7 +1070,10 @@ export function createApp(deps: AppDeps = {}): Express {
     createInProcessGamificationReader(getProgression),
     createInProcessAchievementsReader(listAchievements),
     createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
-    createInProcessTrackCompletionReader(new GetCompletedTracksUseCase(lessonRepository)),
+    createInProcessTrackCompletionReader(
+      new GetCompletedTracksUseCase(lessonRepository),
+      new GetCompletedLessonCodesUseCase(lessonRepository),
+    ),
     cosmeticsReader,
   )
 
@@ -1073,7 +1125,13 @@ export function createApp(deps: AppDeps = {}): Express {
   // Um log por requisição, só com logs estruturados ligados (LW.3.5); em desenvolvimento ficaria ruído.
   if (process.env.LOG_FORMAT === 'json') app.use(requestLogger())
   app.use(apiSecurityHeaders())
-  app.use(cors({ origin: frontendUrl }))
+  // Só a origem do app, salvo nas rotas públicas do Diário, que aceitam também a da landing.
+  app.use(
+    createApiCors({
+      appOrigin: frontendUrl,
+      landingOrigin: process.env.LANDING_URL ?? 'https://selucra.com.br',
+    }),
+  )
   if (deps.emailWebhookRouter) app.use('/webhooks', deps.emailWebhookRouter)
   app.use(express.json({ limit: JSON_BODY_LIMIT }))
   app.use(healthRouter)
@@ -1177,6 +1235,15 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
+  const retentionReader = createDrizzleRetentionReader(db)
+  app.use(
+    createAdminRetentionRouter({
+      getRetentionCohorts: new GetRetentionCohortsUseCase(retentionReader),
+      getActiveUsers: new GetActiveUsersUseCase(retentionReader),
+      getMilestoneTimes: new GetMilestoneTimesUseCase(retentionReader),
+      authMiddleware,
+    }),
+  )
   app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
   app.use(
     createAdminHaltsRouter({ listTradingHalts, pauseTrading, liftTradingHalt, authMiddleware }),
@@ -1323,8 +1390,13 @@ export function createApp(deps: AppDeps = {}): Express {
   // (dispensa ao publicar de volta) vivem no módulo `lessons`.
   const lessonCatalogRepository = createDrizzleLessonCatalogRepository(db)
   const lessonContentValidator = new LessonContentValidator(createEngineAssetTypeLookup(engineUrl))
+  const lessonCardReachRepository = createDrizzleLessonCardReachRepository(db)
   const lessonCatalogAdmin = createInProcessLessonCatalogAdmin({
     listLessonCatalog: new ListLessonCatalogUseCase(lessonCatalogRepository),
+    getLessonCardFunnel: new GetLessonCardFunnelUseCase(
+      lessonCatalogRepository,
+      lessonCardReachRepository,
+    ),
     setLessonPublished: new SetLessonPublishedUseCase(lessonCatalogRepository),
     getLessonForEdit: new GetLessonForEditUseCase(lessonCatalogRepository),
     updateLessonContent: new UpdateLessonContentUseCase(
@@ -1342,6 +1414,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createAdminLessonsRouter({
       listLessonCatalog: new ListLessonCatalogAdminUseCase(lessonCatalogAdmin),
       setLessonPublished: new SetLessonPublishedAdminUseCase(lessonCatalogAdmin, recordAdminAction),
+      getLessonCardFunnel: new GetLessonCardFunnelAdminUseCase(lessonCatalogAdmin),
       getLessonForEdit: new GetLessonForEditAdminUseCase(lessonCatalogAdmin),
       updateLessonContent: new UpdateLessonContentAdminUseCase(
         lessonCatalogAdmin,
@@ -1353,6 +1426,17 @@ export function createApp(deps: AppDeps = {}): Express {
         lessonCatalogAdmin,
         recordAdminAction,
       ),
+      authMiddleware,
+    }),
+  )
+  // Painel do Diário (DI.5.1): o módulo `daily` decide, o painel audita e expõe.
+  const dailyAdmin = createInProcessDailyAdmin(createDailyAdminUseCases(db))
+  app.use(
+    createAdminDailyRouter({
+      reads: new DailyAdminReadsUseCase(dailyAdmin),
+      launch: new DailyLaunchAdminUseCase(dailyAdmin, recordAdminAction),
+      puzzles: new DailyPuzzleAdminUseCase(dailyAdmin, recordAdminAction),
+      content: new DailyContentAdminUseCase(dailyAdmin, recordAdminAction),
       authMiddleware,
     }),
   )
@@ -1390,6 +1474,10 @@ export function createApp(deps: AppDeps = {}): Express {
       answerMicroDecision,
       answerCheckpoint,
       reviewLesson,
+      recordCardReach: new RecordCardReachUseCase(lessonRepository, lessonCardReachRepository),
+      votePoll: new VotePollUseCase(lessonRepository, lessonPollRepository),
+      getReviewSession: new GetReviewSessionUseCase(lessonRepository),
+      recordReviewResult: new RecordReviewResultUseCase(lessonRepository),
       authMiddleware,
     }),
   )
@@ -1410,6 +1498,16 @@ export function createApp(deps: AppDeps = {}): Express {
   app.locals.generateMonthlyRetrospectives = retrospectives.generateMonthly
   // O job que encerra os duelos vencidos é ligado em `server.ts` (nunca em testes de rota).
   app.locals.settleDueDuels = duels.settleDueDuels
+  // Diário (DI.2.1): rotas do jogo sem login, com teto por IP.
+  app.use('/daily', createDailyRateLimiter())
+  app.use(
+    createDailyComposition(db, {
+      authMiddleware,
+      awardXp,
+      touchStreak,
+      completionListener: retention.dailyCompleted,
+    }).router,
+  )
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))

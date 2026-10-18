@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
+import { captureDiarioOrigin } from '../../features/diario/origin'
 import { AuthCallback } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({
@@ -98,5 +99,27 @@ describe('AuthCallback', () => {
 
         expect(await screen.findByText(/O Google não confirmou o seu e-mail/)).toBeInTheDocument()
         expect(authLogin).not.toHaveBeenCalled()
+    })
+    it('login com Google de quem veio do Diário avisa o contador (DI.7.1)', async () => {
+        const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+        vi.stubGlobal('fetch', fetchMock)
+        captureDiarioOrigin('?origem=diario')
+        window.location.hash = '#token=jwt-google-123'
+        vi.mocked(useAuth).mockReturnValue({
+            token: null,
+            user: null,
+            isLoading: false,
+            login: vi.fn(),
+            logout: vi.fn(),
+            setUser: vi.fn(),
+        })
+
+        renderCallback()
+
+        await waitFor(() => expect(screen.getByText('tela protegida')).toBeInTheDocument())
+        const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+        expect(JSON.parse(init.body as string)).toEqual({ event: 'login' })
+        vi.unstubAllGlobals()
+        sessionStorage.clear()
     })
 })

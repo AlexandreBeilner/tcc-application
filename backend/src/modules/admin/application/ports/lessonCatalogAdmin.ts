@@ -19,6 +19,24 @@ export interface LessonFunnelView {
   abandonedByStep: number[]
 }
 
+// Funil por cartão (LJ.5.1): quantas pessoas chegaram a cada cartão do player nos últimos `days` dias.
+export interface LessonCardFunnelBar {
+  // 0 Cenário, 1 Micro-decisão, 2 Revelação, 3 tela final.
+  phase: number
+  cardIndex: number
+  reached: number
+  lost: number
+  lostRate: number | null
+}
+
+export interface LessonCardFunnelView {
+  lesson: { id: string; code: string; title: string }
+  days: number
+  since: string
+  bars: LessonCardFunnelBar[]
+  biggestDrop: { phase: number; cardIndex: number } | null
+}
+
 export interface LessonCatalogItem {
   id: string
   code: string
@@ -106,6 +124,7 @@ export interface LessonCreateOutcome {
 // `adminId` entra nas escritas só pra assinar a revisão.
 export interface LessonCatalogAdmin {
   list(): Promise<LessonCatalogItem[]>
+  cardFunnel(lessonId: string, days?: number): Promise<LessonCardFunnelView>
   setPublished(lessonId: string, published: boolean): Promise<LessonPublicationResult>
   get(lessonId: string): Promise<LessonForEditView>
   update(adminId: string, lessonId: string, content: LessonContentView): Promise<LessonSaveOutcome>

@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json && cp -r src/db/migrations dist/db/migrations",
+    "build": "tsc -p tsconfig.json && cp -r src/db/migrations dist/db/migrations && cp src/modules/daily/content/acceptedWords.vero.txt dist/modules/daily/content/",
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
@@ -19,7 +19,9 @@
     "db:seed:admin": "tsx src/db/seed.ts",
     "db:seed:lessons": "tsx src/db/seedLessons.ts",
     "db:seed:achievements": "tsx src/db/seedAchievements.ts",
-    "db:seed:missions": "tsx src/db/seedMissions.ts"
+    "db:seed:missions": "tsx src/db/seedMissions.ts",
+    "db:seed:daily": "tsx src/db/seedDaily.ts",
+    "daily:generate-words": "tsx src/scripts/generateDailyAcceptedWords.ts"
   },
   "keywords": [],
   "author": "",

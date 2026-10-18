@@ -22,13 +22,19 @@ export const BLOCKS_1_1: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'tipo-hibrido',
-        kind: 'single',
-        prompt: 'Um título paga 6% ao ano mais o IPCA. Que tipo de regra é essa?',
-        options: ['Prefixada', 'Pós-fixada, só a Selic', 'Híbrida'],
-        answer: 2,
+        id: 'tipos-de-regra',
+        kind: 'categorize',
+        prompt: 'Que tipo de regra de remuneração é cada título?',
+        groups: ['Prefixada', 'Pós-fixada', 'Híbrida'],
+        items: [
+          'Paga 6% ao ano mais o IPCA',
+          'Paga 100% da Selic',
+          'Paga 11% ao ano, travado na compra',
+          'Paga 110% do CDI',
+        ],
+        answer: [2, 1, 0, 1],
         explanation:
-          'Tem uma parte fixa (6%) e uma parte que acompanha a inflação (IPCA). Por isso é híbrida.',
+          'Prefixada trava a taxa na compra. Pós-fixada acompanha um indexador, como a Selic ou o CDI. Híbrida soma uma parte fixa à inflação.',
       },
     ],
     microDecision: [
@@ -110,18 +116,27 @@ export const BLOCKS_1_2: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Tem custos. O imposto de renda segue a tabela regressiva (de 22,5% a 15% sobre o ganho) e há IOF se resgatar antes de 30 dias. A B3 cobra 0,20% ao ano de custódia, mas no Tesouro Selic não cobra nada sobre os primeiros R$ 10 mil.',
+          'Tem custos. O imposto de renda segue a tabela regressiva (de 22,5% a 15% sobre o ganho) e há IOF se resgatar antes de 30 dias. A B3 cobra uma taxa anual de custódia, mas no Tesouro Selic ela não incide sobre os primeiros reais investidos.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-custodia-b3',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Valores de hoje',
+          body: 'A B3 cobra 0,20% ao ano de custódia sobre o Tesouro Direto. No Tesouro Selic, não cobra nada sobre os primeiros R$ 10 mil. Esses valores podem mudar.',
+        },
       },
       {
         type: 'check',
         id: 'custodia-selic',
-        kind: 'numeric',
-        prompt: 'Você tem R$ 8.000 no Tesouro Selic. Quanto paga de custódia da B3 por ano?',
+        kind: 'single',
+        prompt:
+          'No Tesouro Selic, a B3 não cobra custódia sobre os primeiros R$ 10 mil. Você tem R$ 8.000 nele. Quanto paga de custódia por ano?',
+        options: ['R$ 0', 'R$ 16', 'R$ 80', 'R$ 160'],
         answer: 0,
-        tolerance: 0,
-        unit: 'reais',
-        explanation:
-          'No Tesouro Selic a custódia só incide sobre o que passa de R$ 10 mil por CPF. Com R$ 8.000, é zero.',
+        explanation: 'Todo o seu valor está dentro da parte isenta, então a custódia é zero.',
       },
       {
         type: 'text',
@@ -138,7 +153,6 @@ export const BLOCKS_1_2: LessonBlocks = {
           why: 'Assim você vê o efeito de uma decisão de juros sem esperar o calendário real.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra do Tesouro Selic no Mercado.' },
     ],
   },
 }
@@ -156,7 +170,7 @@ export const BLOCKS_1_3: LessonBlocks = {
         markup:
           'Você já viu que o Tesouro Selic rende a Selic e que o Copom define a meta dela. Mas o que o Copom olha para decidir?' +
           '\n\n' +
-          'A pergunta central é: a inflação está dentro da meta? Hoje a meta é de 3% ao ano, com tolerância de 1,5 ponto para cima e para baixo, medida pelo {{IPCA}} em 12 meses.',
+          'A pergunta central é: a inflação está dentro da meta? A meta é um número com tolerância para cima e para baixo, definido pelo governo e medido pelo {{IPCA}} em 12 meses. Ela pode mudar com o tempo.',
       },
       {
         type: 'check',
@@ -194,7 +208,8 @@ export const BLOCKS_1_3: LessonBlocks = {
         type: 'check',
         id: 'inflacao-dentro-da-meta',
         kind: 'single',
-        prompt: 'A inflação em 12 meses está em 3,5%. O que o Copom tende a fazer com a Selic?',
+        prompt:
+          'Com meta de 3% e tolerância de 1,5 ponto, a inflação em 12 meses está em 3,5%. O que o Copom tende a fazer com a Selic?',
         options: ['Elevar com urgência', 'Manter, sem urgência', 'Reduzir com urgência'],
         answer: 1,
         explanation:
@@ -251,7 +266,14 @@ export const BLOCKS_RESERVA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Antes de investir para ganhar, vem o seguro contra o imprevisto: a reserva de emergência. É o dinheiro para um conserto, um problema de saúde ou uma perda de renda, sem precisar se endividar.',
+          'Se o seu salário atrasasse dois meses, o que você faria? Antes de investir para ganhar, vem o seguro contra o imprevisto: a reserva de emergência. É o dinheiro para um conserto, um problema de saúde ou uma perda de renda, sem precisar se endividar.',
+      },
+      {
+        type: 'poll',
+        id: 'enquete-meses-guardados',
+        prompt: 'Hoje, quantos meses de gastos você teria guardados?',
+        options: ['Nenhum', 'De 1 a 2 meses', 'De 3 a 5 meses', '6 meses ou mais'],
+        closing: 'Sem julgamento: cada um parte de um ponto. A seguir: quanto vale a pena guardar.',
       },
       {
         type: 'check',
@@ -276,8 +298,17 @@ export const BLOCKS_RESERVA: LessonBlocks = {
         type: 'widget',
         id: 'calculadora-reserva',
         widget: 'emergency-fund-calculator',
-        props: { monthlyCost: 3000, incomeType: 'stable', monthlyContribution: 500 },
+        props: { monthlyCost: 3000, incomeType: 'variable', monthlyContribution: 500 },
         caption: 'Troque os valores pelos seus.',
+        goal: {
+          text: 'Chegue ao menor valor da meta em até 12 meses',
+          metric: 'monthsToReach',
+          op: 'lte',
+          value: 12,
+          reveal:
+            'O prazo é a meta dividida pelo que você guarda por mês. Para juntar uma reserva grande em um ano, o aporte mensal precisa ser alto; com um aporte menor, o caminho é mais longo.',
+          showMe: { monthlyContribution: 1500 },
+        },
       },
     ],
     microDecision: [
@@ -358,7 +389,7 @@ export const BLOCKS_1_7: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O governo também vende títulos com a taxa travada na compra: o Tesouro Prefixado, nome técnico LTN. Ele promete pagar R$ 1.000 por título no vencimento, sem pagar nada no meio do caminho.',
+          'E se você pudesse travar hoje quanto vai receber daqui a alguns anos, sem surpresa? O governo vende títulos assim: o Tesouro Prefixado, nome técnico LTN. Ele promete pagar R$ 1.000 por título no vencimento, sem pagar nada no meio do caminho.',
       },
       {
         type: 'text',
@@ -398,18 +429,26 @@ export const BLOCKS_1_7: LessonBlocks = {
         type: 'widget',
         id: 'preco-prefixado',
         widget: 'bond-price-calculator',
-        props: { ratePct: 11.75, years: 2, amount: 10000 },
+        props: { ratePct: 11.75, years: 1, amount: 10000 },
         caption: 'Mexa na taxa e no prazo e veja o preço de cada título.',
+        goal: {
+          text: 'Faça cada título custar menos de R$ 800 hoje',
+          metric: 'unitPrice',
+          op: 'lt',
+          value: 800,
+          reveal:
+            'Quanto mais longe o vencimento, ou maior a taxa, maior o deságio: você paga menos hoje pelos mesmos R$ 1.000 no fim.',
+          showMe: { years: 2.5 },
+        },
       },
       {
         type: 'check',
         id: 'preco-um-ano',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Com taxa de 10% ao ano e prazo de 1 ano, quanto custa um título que paga R$ 1.000?',
-        answer: 909.09,
-        tolerance: 0.05,
-        unit: 'reais',
+        options: ['R$ 900,00', 'R$ 909,09', 'R$ 1.000,00', 'R$ 1.100,00'],
+        answer: 1,
         explanation:
           'R$ 1.000 divididos por 1,10 dão R$ 909,09. O deságio de R$ 90,91 é o juro de um ano.',
       },
@@ -426,7 +465,7 @@ export const BLOCKS_1_7: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O ganho que a conta mostra primeiro é bruto. Sobre ele pagam-se o imposto de renda, pela tabela regressiva, e a custódia da B3, de 0,20% ao ano. O widget já mostra o líquido.',
+          'O ganho que a conta mostra primeiro é bruto. Sobre ele pagam-se o imposto de renda, pela tabela regressiva, e a custódia da B3. O widget já mostra o líquido.',
       },
       {
         type: 'text',
@@ -452,10 +491,6 @@ export const BLOCKS_1_7: LessonBlocks = {
           here: 'O Tesouro Prefixado do Mercado tem taxa e vencimento definidos pelo catálogo da plataforma.',
           why: 'Assim os números do exemplo ficam estáveis para você praticar.',
         },
-      },
-      {
-        type: 'text',
-        markup: 'Completar esta lição libera a compra do Tesouro Prefixado no Mercado.',
       },
     ],
   },
@@ -512,16 +547,24 @@ export const BLOCKS_1_8: LessonBlocks = {
         widget: 'mtm-seesaw',
         props: { contractRatePct: 11.75, yearsToMaturity: 2, indexer: 'prefixed' },
         caption: 'Mova a taxa de mercado e o prazo. O que acontece com o preço?',
+        goal: {
+          text: 'Faça o seu título perder mais de 5% do valor antes do vencimento',
+          metric: 'priceChangePct',
+          op: 'lt',
+          value: -5,
+          reveal:
+            'Taxa de mercado maior derruba o preço do título, e a queda é maior quando o vencimento está mais longe. A perda só se realiza se você vender antes: segurando até o fim, você recebe os R$ 1.000 combinados.',
+          showMe: { marketRatePct: 17 },
+        },
       },
       {
         type: 'check',
         id: 'preco-a-14',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Faltam 2 anos. Com a taxa de mercado em 14% ao ano, quanto vale hoje um título que paga R$ 1.000?',
-        answer: 769.47,
-        tolerance: 0.05,
-        unit: 'reais',
+        options: ['R$ 740,00', 'R$ 769,47', 'R$ 781,25', 'R$ 877,19'],
+        answer: 1,
         explanation:
           'R$ 1.000 divididos por 1,14 ao quadrado dão R$ 769,47, cerca de 3,9% abaixo dos R$ 800,76 da compra.',
       },
@@ -605,7 +648,7 @@ export const BLOCKS_1_9: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{IPCA}} é o termômetro oficial da inflação no Brasil. Todo mês, o IBGE mede quanto custa uma cesta de bens e serviços, de comida a transporte, consumida por famílias urbanas com renda de 1 a 40 salários mínimos.',
+          'Quanto o seu carrinho de compras ficou mais caro neste ano? Quem responde é o {{IPCA}}, o termômetro oficial da inflação no Brasil. Todo mês, o IBGE mede quanto custa uma cesta de bens e serviços, de comida a transporte, consumida por famílias urbanas com renda de 1 a 40 salários mínimos.',
       },
       {
         type: 'check',
@@ -627,31 +670,44 @@ export const BLOCKS_1_9: LessonBlocks = {
     ],
     revelation: [
       {
-        type: 'text',
-        markup:
-          'Um pouco mais: 2,01%. Cada mês incide sobre preços já reajustados, como nos {{juros compostos}}. O acumulado de 12 meses é o produto dos fatores mensais: (1 + m1) × (1 + m2) × ... × (1 + m12) − 1.',
+        type: 'widget',
+        id: 'conta-acumulado',
+        widget: 'formula-walkthrough',
+        props: {
+          intro:
+            'Um pouco mais: 2,01%. Cada mês incide sobre preços já reajustados, como nos juros compostos.',
+          items: [
+            {
+              label: 'Inflação acumulada',
+              formula: '(1 + m1) × (1 + m2) × ... × (1 + m12) − 1',
+              legend: 'm é a inflação de cada mês.',
+              numbers: '(1 + 0,01) × (1 + 0,01) − 1 = 1,0201 − 1',
+              result: '2,01%',
+            },
+          ],
+        },
       },
       {
         type: 'check',
         id: 'acumulado-doze-meses',
-        kind: 'numeric',
+        kind: 'single',
         prompt: 'A inflação foi de 0,5% ao mês durante 12 meses. Quanto deu o acumulado, em %?',
-        answer: 6.17,
-        tolerance: 0.02,
-        unit: '%',
+        options: ['0,5%', '6%', '6,17%', '6,5%'],
+        answer: 2,
         explanation:
           '1,005 elevado a 12 dá 1,0617. A soma simples daria 6%, e a diferença vem da composição.',
       },
       {
         type: 'text',
         markup:
-          'A meta de inflação no Brasil é de 3% ao ano, com tolerância de 1,5 ponto para cima e para baixo. Compara-se a meta com o IPCA acumulado em 12 meses.',
+          'Compara-se a meta de inflação, com a tolerância para cima e para baixo, com o IPCA acumulado em 12 meses.',
       },
       {
         type: 'check',
         id: 'ipca-fora-da-meta',
         kind: 'single',
-        prompt: 'O IPCA em 12 meses está em 4,8%. Ele está dentro do intervalo da meta?',
+        prompt:
+          'Com meta de 3% e tolerância de 1,5 ponto, o IPCA em 12 meses está em 4,8%. Ele está dentro do intervalo da meta?',
         options: ['Sim, está perto de 3%', 'Não, passou do teto de 4,5%'],
         answer: 1,
         explanation:
@@ -703,7 +759,7 @@ export const BLOCKS_1_10: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O Tesouro IPCA+ paga a inflação mais uma taxa fixa, por exemplo IPCA + 6% ao ano. A parte da inflação corrige o valor do título, e a parte fixa é o seu ganho acima da inflação.',
+          'E se o seu investimento acompanhasse a inflação sozinho, para você nunca perder poder de compra? É o Tesouro IPCA+: paga a inflação mais uma taxa fixa, por exemplo IPCA + 6% ao ano. A parte da inflação corrige o valor do título, e a parte fixa é o seu ganho acima da inflação.',
       },
       {
         type: 'text',
@@ -735,9 +791,21 @@ export const BLOCKS_1_10: LessonBlocks = {
           'Aumenta. Mais inflação corrige o VNA para cima, e a taxa fixa incide sobre o valor já corrigido. É a proteção contra perder poder de compra.',
       },
       {
-        type: 'text',
-        markup:
-          'Os dois efeitos se multiplicam: (1 + IPCA) × (1 + taxa) − 1. Com IPCA de 5% e taxa de 6%, o retorno do ano é de 11,3%, e não 11%.',
+        type: 'widget',
+        id: 'conta-ipca-mais',
+        widget: 'formula-walkthrough',
+        props: {
+          intro:
+            'Os dois efeitos se multiplicam. Com IPCA de 5% e taxa de 6% ao ano, o retorno do ano é de 11,3%, e não 11%.',
+          items: [
+            {
+              label: 'Retorno do Tesouro IPCA+',
+              formula: '(1 + IPCA) × (1 + taxa) − 1',
+              numbers: '(1 + 0,05) × (1 + 0,06) − 1 = 1,113 − 1',
+              result: '11,3%',
+            },
+          ],
+        },
       },
       {
         type: 'widget',
@@ -749,12 +817,11 @@ export const BLOCKS_1_10: LessonBlocks = {
       {
         type: 'check',
         id: 'valor-final-ipca-mais',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Você aplica R$ 10.000 por 2 anos, com IPCA de 4% ao ano e taxa de 6%. Quanto vale no fim, antes do imposto?',
-        answer: 12152.86,
-        tolerance: 0.5,
-        unit: 'reais',
+        options: ['R$ 11.236,00', 'R$ 12.000,00', 'R$ 12.100,00', 'R$ 12.152,86'],
+        answer: 3,
         explanation:
           'São R$ 10.000 vezes 1,04 ao quadrado vezes 1,06 ao quadrado, ou seja, R$ 12.152,86.',
       },
@@ -796,8 +863,17 @@ export const BLOCKS_1_10: LessonBlocks = {
         type: 'widget',
         id: 'inflacao-de-equilibrio',
         widget: 'breakeven-inflation',
-        props: { prefixedPct: 12.5, realPct: 7.5, expectedInflationPct: 5 },
+        props: { prefixedPct: 12.5, realPct: 7.5, expectedInflationPct: 3 },
         caption: 'Taxas de exemplo. Com elas, qual rende mais para a inflação que você espera?',
+        goal: {
+          text: 'Ache a inflação esperada em que o IPCA+ passa a render mais que o prefixado',
+          metric: 'inflationAboveBreakevenPp',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'Acima da inflação de equilíbrio o IPCA+ rende mais, e abaixo dela o prefixado vence. É o ponto em que os dois empatam.',
+          showMe: { expectedInflationPct: 6 },
+        },
       },
       {
         type: 'check',
@@ -821,7 +897,6 @@ export const BLOCKS_1_10: LessonBlocks = {
           why: 'Assim o efeito da inflação aparece sem esperar meses de divulgação.',
         },
       },
-      { type: 'text', markup: 'Completar esta lição libera a compra do Tesouro IPCA+ no Mercado.' },
     ],
   },
 }
@@ -915,12 +990,11 @@ export const BLOCKS_1_11: LessonBlocks = {
       {
         type: 'check',
         id: 'taxa-bruta-cri',
-        kind: 'numeric',
+        kind: 'single',
         prompt:
           'Um CRI isento paga 11% ao ano (taxa de exemplo). Com imposto de 15%, qual taxa bruta um CDB precisa pagar para empatar?',
-        answer: 12.94,
-        tolerance: 0.02,
-        unit: '%',
+        options: ['9,35%', '12,65%', '12,94%', '26%'],
+        answer: 2,
         explanation: '11 dividido por 0,85 dá 12,94%. É a taxa bruta equivalente.',
       },
       {
@@ -948,10 +1022,6 @@ export const BLOCKS_1_11: LessonBlocks = {
           here: 'O CRI2028 e o CRA2028 do Mercado são títulos de exemplo de uma securitizadora fictícia, com taxa e nota do catálogo.',
           why: 'Assim você pratica a escolha entre retorno e risco sem depender de uma emissão real.',
         },
-      },
-      {
-        type: 'text',
-        markup: 'Completar esta lição libera a compra de CRI e CRA no Mercado e abre a Trilha 2.',
       },
     ],
   },

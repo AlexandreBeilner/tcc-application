@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { emergencyFundTarget, monthsToReach } from '../../../features/lessons/widgets/emergencyMath'
 import type { IncomeType } from '../../../features/lessons/widgets/emergencyMath'
 import { formatCurrency } from '../../../features/portfolio/format'
@@ -17,13 +17,20 @@ const toNumber = (raw: string) => {
 // Widget `emergency-fund-calculator` (RC.4.6): custo de vida essencial por mês e
 // tipo de renda viram uma meta em reais e um prazo de aporte. As faixas de meses
 // são regra de bolso, e o widget diz isso na tela.
-export function EmergencyFundCalculatorWidget({ monthlyCost, incomeType, monthlyContribution }: EmergencyFundCalculatorWidgetProps) {
+export function EmergencyFundCalculatorWidget({
+    monthlyCost,
+    incomeType,
+    monthlyContribution,
+    onMetrics,
+}: EmergencyFundCalculatorWidgetProps) {
     const [cost, setCost] = useState(monthlyCost)
     const [type, setType] = useState<IncomeType>(incomeType)
     const [contribution, setContribution] = useState(monthlyContribution)
 
     const target = emergencyFundTarget(cost, type)
     const months = monthsToReach(target.minAmount, contribution)
+    // Sem aporte não há prazo: o infinito nunca cumpre uma missão de prazo.
+    useEffect(() => onMetrics?.({ monthsToReach: months ?? Infinity }), [months, onMetrics])
 
     return (
         <div className={styles.root}>

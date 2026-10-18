@@ -159,3 +159,52 @@ describe('authMiddleware.authenticate com guarda de sessão (N.16)', () => {
     await vi.waitFor(() => expect(next).toHaveBeenCalledWith(boom))
   })
 })
+
+describe('authMiddleware.authenticate com presença (RT.1.1)', () => {
+  function build(verdict: 'ok' | 'suspended' | 'revoked' | null, touch = vi.fn()) {
+    const tokenIssuer = createFakeTokenIssuer()
+    const guard = verdict ? { check: vi.fn().mockResolvedValue(verdict) } : undefined
+    const { authenticate } = createAuthMiddleware(tokenIssuer, guard, { touch })
+    const token = tokenIssuer.issue({ sub: 'user-1', role: 'user' })
+    const req = { headers: { authorization: `Bearer ${token}` } } as Request
+    return { authenticate, req, touch }
+  }
+
+  it('registra a presença da conta que passou na guarda', async () => {
+    const { authenticate, req, touch } = build('ok')
+    const next = vi.fn()
+    authenticate(req, mockRes(), next)
+    await vi.waitFor(() => expect(next).toHaveBeenCalledOnce())
+    expect(touch).toHaveBeenCalledWith('user-1')
+  })
+
+  it('não registra presença de conta suspensa nem de sessão revogada', async () => {
+    for (const verdict of ['suspended', 'revoked'] as const) {
+      const { authenticate, req, touch } = build(verdict)
+      const res = mockRes()
+      authenticate(req, res, vi.fn())
+      await vi.waitFor(() => expect(res.status).toHaveBeenCalled())
+      expect(touch).not.toHaveBeenCalled()
+    }
+  })
+
+  it('registra presença também sem guarda de sessão', () => {
+    const { authenticate, req, touch } = build(null)
+    authenticate(req, mockRes(), vi.fn())
+    expect(touch).toHaveBeenCalledWith('user-1')
+  })
+
+  it('erro do registro de presença nunca derruba a requisição', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { authenticate, req } = build(
+      null,
+      vi.fn(() => {
+        throw new Error('boom')
+      }),
+    )
+    const next = vi.fn()
+    authenticate(req, mockRes(), next)
+    expect(next).toHaveBeenCalledOnce()
+    error.mockRestore()
+  })
+})

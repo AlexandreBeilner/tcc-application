@@ -78,6 +78,26 @@ describe('OrderConfirmationDialog (tela 4.7)', () => {
         await waitFor(() => expect(screen.getByText('tela de portfólio')).toBeInTheDocument())
     })
 
+    it('ordem de ativo do Modo Aprendizado não mostra o saldo em caixa após a ordem (ponto 063)', async () => {
+        vi.mocked(getAsset).mockResolvedValue({
+            asset: { id: 'a1', ticker: 'SAND3', name: 'Ação de Treino', type: 'acao', is_sandbox: true, current_price: 100 },
+        })
+
+        renderDialog({
+            kind: 'order',
+            assetId: 'a1',
+            ticker: 'SAND3',
+            name: 'Ação de Treino',
+            isSandbox: true,
+            side: 'buy',
+            quantity: 5,
+            unitPrice: 100,
+        })
+
+        await waitFor(() => expect(screen.getByText('R$ 500,00')).toBeInTheDocument())
+        expect(screen.queryByText('Saldo em caixa após a ordem')).not.toBeInTheDocument()
+    })
+
     // Tarefa A.2 (backlog-motor-mercado-realista): ordem a mercado do
     // Mercado Ao Vivo sem liquidez real suficiente executa só uma parte —
     // sem preenchimento sintético, `remaining_quantity` reporta a sobra.

@@ -58,6 +58,9 @@ export class SendWeeklyDigestUseCase {
               ...(candidate.pendingMissionTitle
                 ? { missionTitle: candidate.pendingMissionTitle }
                 : {}),
+              ...(candidate.dailyPlayedDays !== null
+                ? { dailyPlayedDays: candidate.dailyPlayedDays }
+                : {}),
             },
             idempotencyKey: `weekly-digest:${candidate.userId}:${week}`,
           })

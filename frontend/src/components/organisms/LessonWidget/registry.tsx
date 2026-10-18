@@ -49,6 +49,7 @@ import { LessonCallout } from '../LessonCallout'
 import { LiveIndicatorWidget } from '../LiveIndicatorWidget'
 import { LiveMacroWidget } from '../LiveMacroWidget'
 import { PlatformNote, platformNoteSummary } from '../PlatformNote'
+import { FormulaWalkthrough, formulaWalkthroughSummary } from '../FormulaWalkthrough'
 
 export interface WidgetDefinition<Id extends WidgetId> {
     component: ComponentType<WidgetProps<Id>>
@@ -67,6 +68,11 @@ export const widgetRegistry: Registry = {
         component: LessonCallout,
         propsSchema: widgetPropsSchemas.callout,
         summary: (props) => `${props.title}. ${props.body}`,
+    },
+    'formula-walkthrough': {
+        component: FormulaWalkthrough,
+        propsSchema: widgetPropsSchemas['formula-walkthrough'],
+        summary: formulaWalkthroughSummary,
     },
     'platform-note': {
         component: PlatformNote,

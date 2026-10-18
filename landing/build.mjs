@@ -7,6 +7,8 @@ import { heroSparkSvg, trailSvg } from './svg.mjs'
 
 const SITE_URL = (process.env.SITE_URL || 'https://selucra.com.br').replace(/\/$/, '')
 const APP_URL = (process.env.APP_URL || 'https://app.selucra.com.br').replace(/\/$/, '')
+// API do Diário (jogo público na página /diario/). A CSP libera esta origem na DI.3.3.
+const API_URL = (process.env.API_URL || 'https://api.selucra.com.br').replace(/\/$/, '')
 
 const decode = (s) =>
     s
@@ -70,6 +72,7 @@ export function analyticsSnippet(token) {
 export async function buildLanding({
     siteUrl = SITE_URL,
     appUrl = APP_URL,
+    apiUrl = API_URL,
     outDir = 'dist',
     now = new Date(),
     analyticsToken = process.env.CF_ANALYTICS_TOKEN,
@@ -78,7 +81,7 @@ export async function buildLanding({
     await mkdir(`${outDir}/assets`, { recursive: true })
 
     const result = await build({
-        entryPoints: ['src/main.js', 'src/styles.css'],
+        entryPoints: ['src/main.js', 'src/diario-page.ts', 'src/styles.css'],
         outdir: `${outDir}/assets`,
         entryNames: '[name]-[hash]',
         chunkNames: '[name]-[hash]',
@@ -95,6 +98,7 @@ export async function buildLanding({
     const outputs = Object.keys(result.metafile.outputs)
     const rel = (p) => '/assets/' + p.split('/assets/')[1]
     const js = outputs.find((o) => /\/main-[^/]+\.js$/.test(o))
+    const diarioJs = outputs.find((o) => /\/diario-page-[^/]+\.js$/.test(o))
     const css = outputs.find((o) => /\/styles-[^/]+\.css$/.test(o))
     const fonts = outputs.filter((o) => o.endsWith('.woff2'))
 
@@ -139,14 +143,16 @@ export async function buildLanding({
         await mkdir(`${outDir}/${path}`, { recursive: true })
         await writeFile(`${outDir}/${path}/index.html`, page)
     }
-    const article = (meta, body, ld, ogType) =>
+    const article = (meta, body, ld, ogType, pageJs = '', ogImage = 'og-image.png') =>
         fill(articleTpl)
+            .replace('{{PAGE_JS}}', pageJs)
             .replace('{{HEADER}}', fill(header))
             .replace('{{FOOTER}}', fill(footer))
             .replaceAll('{{PAGE_TITLE}}', esc(meta.title))
             .replaceAll('{{PAGE_DESC}}', esc(meta.description))
             .replaceAll('{{PAGE_URL}}', meta.url)
             .replace('{{OG_TYPE}}', ogType)
+            .replaceAll('{{OG_IMAGE}}', ogImage)
             .replace('{{JSONLD}}', ld)
             .replace('{{BODY}}', body)
     for (const p of pages) {
@@ -171,6 +177,44 @@ export async function buildLanding({
     await writePage('aprender', article(hubMeta, hubHtml(summaries), hubLd, 'website'))
     urls.splice(1, 0, { loc: hubUrl, priority: '0.9' })
 
+    // Diário Selucra: conteúdo para busca no HTML; o jogo é montado pelo bundle próprio (sem a cena 3D).
+    const diarioUrl = `${siteUrl}/diario/`
+    const diarioMeta = {
+        title: 'Diário Selucra: jogo diário de finanças',
+        description:
+            'Jogo diário de finanças com três desafios: a palavra do mercado, uma pergunta de economia e uma linha do tempo. Jogue sem login.',
+        url: diarioUrl,
+    }
+    const diarioBody = (await readFile('src/diario.html', 'utf8'))
+        .replaceAll('{{API_URL}}', apiUrl)
+        .replaceAll('{{APP_URL}}', appUrl)
+        .replaceAll('{{SITE_URL}}', siteUrl)
+        .replace('{{GUIDE_SLUGS}}', pages.map((p) => p.slug).join(','))
+    const diarioLd = JSON.stringify({
+        '@context': 'https://schema.org',
+        '@graph': [
+            {
+                '@type': 'WebApplication',
+                '@id': `${diarioUrl}#app`,
+                name: 'Diário Selucra',
+                url: diarioUrl,
+                description: diarioMeta.description,
+                applicationCategory: 'GameApplication',
+                genre: 'Educação financeira',
+                operatingSystem: 'Web',
+                browserRequirements: 'Requer JavaScript',
+                inLanguage: 'pt-BR',
+                publisher: { '@type': 'Organization', name: 'Selucra', url: `${siteUrl}/` },
+            },
+            { '@type': 'FAQPage', mainEntity: faqFromHtml(diarioBody) },
+        ],
+    })
+    await writePage(
+        'diario',
+        article(diarioMeta, diarioBody, diarioLd, 'website', `<script type="module" src="${rel(diarioJs)}"></script>`, 'og-diario.png'),
+    )
+    urls.splice(2, 0, { loc: diarioUrl, priority: '0.9' })
+
     await cp('src/static', outDir, { recursive: true })
     const sitemap =
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
@@ -182,6 +226,9 @@ export async function buildLanding({
             .join('\n') +
         '\n</urlset>\n'
     await writeFile(`${outDir}/sitemap.xml`, sitemap)
+    // A CSP libera só a origem da API do Diário (a mesma que a página chama).
+    const headers = (await readFile(`${outDir}/_headers`, 'utf8')).replaceAll('{{API_URL}}', apiUrl)
+    await writeFile(`${outDir}/_headers`, headers)
     const robots = (await readFile(`${outDir}/robots.txt`, 'utf8')).replaceAll('{{SITE_URL}}', siteUrl)
     await writeFile(`${outDir}/robots.txt`, robots)
     return { outDir, pages }

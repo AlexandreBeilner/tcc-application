@@ -17,6 +17,9 @@ export const STORAGE_KEYS = {
     installInviteDismissed: { current: 'app.installInvite.dismissed', legacy: 'tcc.installInvite.dismissed' },
     // Popup de instalação mostrado uma única vez, logo depois do onboarding: só a marca de que já apareceu.
     installPromptSeen: { current: 'app.installPrompt.seen', legacy: 'tcc.installPrompt.seen' },
+    // Som e vibração das lições (LJ.5.4): '1' ligado, '0' desligado, ausente = padrão (som desligado, vibração ligada).
+    lessonSound: { current: 'app.lesson.sound', legacy: 'tcc.lesson.sound' },
+    lessonVibration: { current: 'app.lesson.vibration', legacy: 'tcc.lesson.vibration' },
     proInviteDismissed: { current: 'app.proInvite.dismissed', legacy: 'tcc.proInvite.dismissed' },
 } as const
 

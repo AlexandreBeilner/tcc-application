@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FGC_GLOBAL_LIMIT, FGC_LIMIT_PER_INSTITUTION, fgcCoverage } from '../../../features/lessons/widgets/fgcMath'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { FgcCoverageBarWidgetProps } from './types'
@@ -15,31 +15,47 @@ const toAmount = (raw: string) => {
 // que quebra ganha uma barra com o trecho coberto (até R$ 250 mil) e o trecho
 // descoberto (listrado); o total coberto nunca passa de R$ 1 milhão na janela de
 // 4 anos, e instituições do mesmo conglomerado contam como uma só.
-export function FgcCoverageBarWidget({ amountPerInstitution, institutions, sameConglomerate }: FgcCoverageBarWidgetProps) {
+export function FgcCoverageBarWidget({
+    amountPerInstitution,
+    institutions,
+    sameConglomerate,
+    totalAmount,
+    onMetrics,
+}: FgcCoverageBarWidgetProps) {
     const [amount, setAmount] = useState(amountPerInstitution)
     const [count, setCount] = useState(institutions)
     const [same, setSame] = useState(sameConglomerate)
 
+    // Com `totalAmount` (missão da lição), o total é fixo e o que se escolhe é como dividi-lo entre as instituições.
+    const each = totalAmount === undefined ? amount : totalAmount / count
     const coverage = fgcCoverage(
-        Array.from({ length: count }, () => amount),
+        Array.from({ length: count }, () => each),
         same,
     )
+    const uncovered = coverage.uncovered
+    useEffect(() => onMetrics?.({ uncoveredAmount: uncovered }), [uncovered, onMetrics])
     const scale = Math.max(...coverage.groups.map((group) => group.amount), FGC_LIMIT_PER_INSTITUTION)
 
     return (
         <div className={styles.root}>
             <div className={styles.fields}>
-                <label className={styles.field}>
-                    Valor em cada instituição (R$)
-                    <input
-                        type="number"
-                        min={0}
-                        step={10000}
-                        inputMode="decimal"
-                        value={amount}
-                        onChange={(e) => setAmount(toAmount(e.target.value))}
-                    />
-                </label>
+                {totalAmount === undefined ? (
+                    <label className={styles.field}>
+                        Valor em cada instituição (R$)
+                        <input
+                            type="number"
+                            min={0}
+                            step={10000}
+                            inputMode="decimal"
+                            value={amount}
+                            onChange={(e) => setAmount(toAmount(e.target.value))}
+                        />
+                    </label>
+                ) : (
+                    <p style={{ gridColumn: '1 / -1' }}>
+                        Total a distribuir: {formatCurrency(totalAmount)}, divididos por igual: {formatCurrency(each)} em cada instituição.
+                    </p>
+                )}
                 <label className={styles.field}>
                     Instituições que quebram em 4 anos: {count}
                     <input type="range" min={1} max={6} step={1} value={count} onChange={(e) => setCount(Number(e.target.value))} />

@@ -1,3 +1,4 @@
+@import './diario/diario.css';
 @font-face {
     font-family: 'Inter';
     font-style: normal;
@@ -1139,4 +1140,39 @@ footer p {
 }
 .art details:last-child {
     border-bottom: 0;
+}
+
+/* Diário Selucra (/diario/) */
+.diario-page {
+    max-width: 960px;
+}
+.diario-game {
+    margin-top: 32px;
+}
+.diario-loading,
+.diario-nojs {
+    text-align: center;
+    color: var(--text2);
+    padding: 24px 16px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-md);
+}
+.diario-nojs {
+    color: var(--text);
+}
+.diario-invite {
+    max-width: 560px;
+    margin: 24px auto 0;
+}
+.diario-invite[hidden] {
+    display: none;
+}
+.diario-invite-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 0 !important;
+}
+.diario-page .art-sec ul strong {
+    color: var(--text);
 }

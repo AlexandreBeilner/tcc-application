@@ -129,6 +129,19 @@ export type AuditAction =
     | 'admin.reauth'
     | 'admin.reauth_failed'
     | 'admin.password_reset_denied'
+    | 'daily.start_date'
+    | 'daily.draft'
+    | 'daily.puzzle_review'
+    | 'daily.puzzle_publish'
+    | 'daily.puzzle_card'
+    | 'daily.word_create'
+    | 'daily.word_update'
+    | 'daily.question_create'
+    | 'daily.question_update'
+    | 'daily.event_create'
+    | 'daily.event_update'
+    | 'daily.accepted_word_add'
+    | 'daily.accepted_word_remove'
     | 'assembly.pause'
     | 'assembly.resume'
     | 'assembly.setting_update'
@@ -795,6 +808,9 @@ export type AchievementCriteriaType =
     | 'lesson_reviewed'
     | 'assemblies_participated'
     | 'referrals_qualified'
+    | 'daily_word_first_try'
+    | 'daily_perfect_days'
+    | 'daily_timeline_streak'
 
 export interface AchievementCriterionOption {
     type: AchievementCriteriaType
@@ -898,6 +914,23 @@ export interface LessonFunnel {
     bet_accuracy: number | null
     // Quem iniciou e não concluiu, por passo gravado: cenário, micro-decisão, revelação, desbloqueio.
     abandoned_by_step: number[]
+}
+
+// Funil por cartão de uma lição (LJ.5.1). `phase`: 0 Cenário, 1 Micro-decisão, 2 Revelação, 3 tela final.
+export interface LessonCardFunnelBar {
+    phase: number
+    card_index: number
+    reached: number
+    lost: number
+    lost_rate: number | null
+}
+
+export interface LessonCardFunnel {
+    lesson: { id: string; code: string; title: string }
+    days: number
+    since: string
+    bars: LessonCardFunnelBar[]
+    biggest_drop: { phase: number; card_index: number } | null
 }
 
 export interface AdminLesson {
@@ -1327,4 +1360,239 @@ export interface AgendaTemplate extends AgendaTemplateContent {
     active: boolean
     created_at: string
     usage: { assemblies: number; active_proposals: number }
+}
+
+// Painel do Diário (DI.5.1), como a API devolve e recebe (`.docs/backend/daily.md`).
+export type DailyScope = 'brasil' | 'fora'
+export type DailyStatus = 'off' | 'scheduled' | 'live'
+export type DailyCardOrigin = 'generated' | 'manual'
+export type DailyAlertCode = 'low_reviewed_cover' | 'scheduled_below_minimum' | 'today_not_published'
+export type DailyLearnMoreKind = 'lesson' | 'glossary' | 'guide'
+
+export interface DailyLearnMore {
+    kind: DailyLearnMoreKind
+    ref: string
+}
+
+export interface DailyAgendaDay {
+    number: number
+    date: string
+    reviewed: boolean
+    published: boolean
+    origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
+    word: { display: string; category: string; scope: DailyScope } | null
+    question: { text: string; category: string; scope: DailyScope } | null
+    events: { label: string; year: number; category: string; scope: DailyScope }[]
+}
+
+export interface DailyTally {
+    total: number
+    brasil: number
+    fora: number
+    by_category: Record<string, number>
+}
+
+export interface DailyOverview {
+    status: DailyStatus
+    start_date: string | null
+    today: string
+    can_change_start: boolean
+    agenda_from: string
+    reviewed_days_ahead: number
+    published_days_ahead: number
+    min_days_to_schedule: number
+    low_cover_threshold: number
+    alerts: DailyAlertCode[]
+    days: DailyAgendaDay[]
+    coverage: { window_days: number; word: DailyTally; trivia: DailyTally; timeline: DailyTally }
+    bank: { words: number; questions: number; events: number; accepted_extra: number }
+}
+
+export interface DailyWord {
+    id: string
+    stable_key: string
+    answer: string
+    display: string
+    definition: string
+    learn_more: DailyLearnMore | null
+    category: string
+    scope: DailyScope
+    active: boolean
+}
+
+export interface DailyQuestion {
+    id: string
+    stable_key: string
+    question: string
+    options: string[]
+    correct_index: number
+    explanation: string
+    source_ref: string
+    learn_more: DailyLearnMore | null
+    category: string
+    scope: DailyScope
+    reviewed_at: string | null
+    active: boolean
+}
+
+export interface DailyEvent {
+    id: string
+    stable_key: string
+    year: number
+    label: string
+    explanation: string
+    source_ref: string
+    learn_more: DailyLearnMore | null
+    category: string
+    scope: DailyScope
+    reviewed_at: string | null
+    active: boolean
+}
+
+export interface DailyPuzzleDetail {
+    number: number
+    date: string
+    is_today_or_past: boolean
+    reviewed_at: string | null
+    published_at: string | null
+    origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
+    word: DailyWord
+    question: DailyQuestion
+    // Na ordem de exibição do jogador.
+    events: DailyEvent[]
+    correct_order: string[]
+    warnings: string[]
+}
+
+export interface DailyDraftResult {
+    start_date: string
+    created: number
+    warnings: { date: string; code: string }[]
+}
+
+export interface DailyStartDateResult {
+    start_date: string | null
+    status: DailyStatus
+    published: number[]
+}
+
+export type DailyReplaceCardInput =
+    | { card: 'word'; word_id: string; confirm_published?: boolean }
+    | { card: 'question'; question_id: string; confirm_published?: boolean }
+    | { card: 'timeline'; event_ids: string[]; confirm_published?: boolean }
+
+export interface DailyWordInput {
+    display: string
+    definition: string
+    category: string
+    scope: DailyScope
+    learn_more: DailyLearnMore | null
+}
+
+export interface DailyQuestionInput {
+    question: string
+    options: string[]
+    correct_index: number
+    explanation: string
+    source_ref: string
+    category: string
+    scope: DailyScope
+    learn_more: DailyLearnMore | null
+}
+
+export interface DailyEventInput {
+    year: number
+    label: string
+    explanation: string
+    source_ref: string
+    category: string
+    scope: DailyScope
+    learn_more: DailyLearnMore | null
+}
+
+export type DailyPatch<T> = Partial<T> & { active?: boolean; confirm_published?: boolean }
+
+export interface DailyChangeImpact {
+    affected_puzzles: number[]
+    cleared_reviews: number[]
+}
+
+// Contadores do Diário por dia UTC (DI.7.1). Quem tem conta vem de `daily_results`; o resto, dos
+// contadores agregados (sem identificador de ninguém).
+export interface DailyMetricsDay {
+    date: string
+    anon_started: number
+    anon_completed: number
+    logged_started: number
+    logged_completed: number
+    signups: number
+    logins: number
+}
+
+// Painel de retenção (RT.1.2, `.docs/backend/admin.md#painel-de-retenção-tarefa-rt12`). Só números
+// agregados, nenhuma pessoa identificada.
+export type RetentionCellStatus = 'complete' | 'partial' | 'in_progress' | 'no_data'
+
+export interface RetentionCell {
+    status: RetentionCellStatus
+    // 0 a 1; nulo quando ninguém da coorte foi medido (em andamento ou sem dado).
+    rate: number | null
+    measured: number
+    size: number
+}
+
+export type RetentionDays = Record<'d1' | 'd7' | 'd30', RetentionCell>
+
+export interface RetentionCohort {
+    // Segunda-feira da semana de cadastro (AAAA-MM-DD, UTC).
+    cohort_week: string
+    size: number
+    returned: RetentionDays
+    studied: RetentionDays
+}
+
+export interface RetentionTrackingStart {
+    presence: string | null
+    activity: string | null
+}
+
+export interface RetentionActiveDay {
+    day: string
+    returned: number | null
+    studied: number | null
+    mau: number | null
+    dau_mau: number | null
+}
+
+export type RetentionMilestone = 'first_return' | 'first_lesson' | 'first_trade' | 'first_fixed_income' | 'first_daily'
+
+export interface RetentionMilestoneSummary {
+    milestone: RetentionMilestone
+    granularity: 'day' | 'second'
+    reached: number
+    reached_rate: number | null
+    median_seconds: number | null
+}
+
+export interface RetentionMilestoneCohort {
+    cohort_week: string
+    size: number
+    status: 'complete' | 'in_progress'
+    rates: Record<RetentionMilestone, number | null>
+}
+
+export interface AdminRetention {
+    cohorts: { tracking_since: RetentionTrackingStart; cohorts: RetentionCohort[] }
+    active: { tracking_since: RetentionTrackingStart; days: RetentionActiveDay[] }
+    milestones: {
+        tracking_since: string | null
+        eligible: number
+        milestones: RetentionMilestoneSummary[]
+        cohorts: RetentionMilestoneCohort[]
+    }
+}
+
+export interface AdminRetentionParams {
+    weeks: number
+    days: number
 }

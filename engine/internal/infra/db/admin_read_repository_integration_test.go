@@ -45,6 +45,11 @@ func TestAdminReadRepository_VisaoGeral(t *testing.T) {
 	      ($1, $2, 'limit', 'sell', 100, 22.20), ($1, $2, 'limit', 'buy', 80, 21.80), ($1, $3, 'limit', 'buy', 20, 21.80)`, covered, bot, user)
 	exec(`INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value, simulated_day) VALUES ($1, $2, 'buy_order_executed', 10, 22.00, 7)`, user, covered)
 
+	// Compra de ativo sandbox (Modo Aprendizado) nunca entra nos negócios do mercado do dia.
+	exec(`INSERT INTO assets (ticker, name, type, is_sandbox) VALUES ('SAND3', 'Treino', 'acao', true)`)
+	exec(`INSERT INTO market_events (user_id, asset_id, event_type, quantity, unit_value, simulated_day)
+	      SELECT $1, id, 'buy_order_executed', 5, 100.00, 7 FROM assets WHERE ticker = 'SAND3'`, user)
+
 	repo := NewAdminReadRepository(conn)
 
 	overview, err := repo.Overview(ctx)
