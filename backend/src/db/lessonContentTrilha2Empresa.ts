@@ -44,9 +44,18 @@ export const BLOCKS_2_7_1: LessonBlocks = {
         type: 'widget',
         id: 'balanco-interativo',
         widget: 'interactive-balance',
-        props: {},
+        props: { costsPct: 85 },
         caption:
           'Mude custos, despesas, juros e imposto e veja a receita virar lucro. Embaixo, o que a empresa tem é igual ao que deve mais o patrimônio líquido.',
+        goal: {
+          text: 'Deixe o lucro líquido positivo mexendo só nos custos',
+          metric: 'netIncome',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'Cada real de custo a menos sobe o lucro em todos os degraus da conta, até o lucro líquido. Com custos altos, a receita é toda consumida antes de chegar ao fim.',
+          showMe: { costsPct: 60 },
+        },
       },
       {
         type: 'check',

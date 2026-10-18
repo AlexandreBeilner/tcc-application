@@ -83,6 +83,14 @@ const EXPECTED: Expected[] = [
     op: 'gt',
     value: 0,
   },
+  {
+    lesson: '2.7.1',
+    id: 'balanco-interativo',
+    widget: 'interactive-balance',
+    metric: 'netIncome',
+    op: 'gt',
+    value: 0,
+  },
 ]
 
 function goalsOf(code: string) {

@@ -1,4 +1,6 @@
-export interface InteractiveBalanceWidgetProps {
+import type { MissionWidgetProps } from '../../../features/lessons/widgets/goal'
+
+export interface InteractiveBalanceWidgetProps extends MissionWidgetProps {
     netRevenue: number
     costsPct: number
     expensesPct: number

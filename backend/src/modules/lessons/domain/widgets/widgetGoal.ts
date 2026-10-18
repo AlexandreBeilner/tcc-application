@@ -34,6 +34,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<WidgetId, readonly string[]>
   'mtm-seesaw': ['priceChangePct'],
   'breakeven-inflation': ['inflationAboveBreakevenPp'],
   'order-book': ['limitFilledQty'],
+  'interactive-balance': ['netIncome'],
   'real-return': ['realReturnPct'],
   'savings-vs-selic': ['savingsGapPct'],
 }

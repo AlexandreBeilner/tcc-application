@@ -67,13 +67,22 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'inflationAboveBreakevenPp', op: 'gt', value: 0 },
         showMe: { expectedInflationPct: 6 },
     },
+    {
+        lesson: '2.7.1',
+        widget: 'interactive-balance',
+        initial: { costsPct: 85 },
+        goal: { metric: 'netIncome', op: 'gt', value: 0 },
+        showMe: { costsPct: 60 },
+    },
 ]
 
-// Últimas métricas que o widget informa ao ser montado com essas props.
+// Últimas métricas que o widget informa ao ser montado com essas props, validadas pelo schema como o player faz
+// (é ele que preenche os valores que a lição não informa).
 function metricsOf(widget: WidgetId, props: Record<string, unknown>): WidgetMetrics {
     const onMetrics = vi.fn()
     const Component = widgetRegistry[widget].component as ComponentType<Record<string, unknown>>
-    const { unmount } = render(<Component {...props} onMetrics={onMetrics} />)
+    const parsed = widgetRegistry[widget].propsSchema.parse(props) as Record<string, unknown>
+    const { unmount } = render(<Component {...parsed} onMetrics={onMetrics} />)
     unmount()
     expect(onMetrics).toHaveBeenCalled()
     return onMetrics.mock.calls[onMetrics.mock.calls.length - 1][0]
@@ -164,6 +173,16 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(gap(4.5)).toBeLessThan(0)
         expect(gap(4.75)).toBeGreaterThan(0)
         expect(gap(4.75)).toBeCloseTo(0.0988, 3)
+    })
+
+    it('2.7.1: com receita de 1.000, despesas de 15%, juros de 100 e imposto de 30%, os custos precisam ficar abaixo de 75%', () => {
+        const netIncome = (costsPct: number) => metricsOf('interactive-balance', { costsPct }).netIncome
+        // Custos de 85%: EBIT zero e prejuízo de 100 pelos juros, sem imposto sobre prejuízo.
+        expect(netIncome(85)).toBeCloseTo(-100, 6)
+        // 75%: EBIT de 100 só paga os juros, lucro zero. 74%: lucro antes do imposto de 10, líquido de 7.
+        expect(netIncome(75)).toBeCloseTo(0, 6)
+        expect(netIncome(74)).toBeCloseTo(7, 6)
+        expect(netIncome(60)).toBeCloseTo(105, 6)
     })
 
     describe('2.4: ordem limitada de compra executada (o widget só informa depois de "Enviar ordem")', () => {
