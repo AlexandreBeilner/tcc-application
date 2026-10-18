@@ -144,7 +144,8 @@ export function createFakeLessonRepository(
           answer.correct || answer.choice === null || wrongOptions.includes(answer.choice)
             ? wrongOptions
             : [...wrongOptions, answer.choice],
-        solvedAt: answer.correct ? answer.answeredAt : null,
+        solvedAt: (answer.solved ?? answer.correct) ? answer.answeredAt : null,
+        ...(answer.lastResponse ? { lastResponse: answer.lastResponse } : {}),
       }
       checkpoints.set(key, record)
       return record

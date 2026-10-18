@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   checkpointIdsForStep,
+  classifyEstimate,
   findCheckBlock,
   isCheckCorrect,
   isValidCheckResponse,
+  resolvesOnFirstAnswer,
   toPublicBlocks,
 } from './lessonBlocks'
 import type { CheckBlock, LessonBlocks } from './lessonBlocks'
@@ -79,5 +81,74 @@ describe('checks (RC.3.2)', () => {
     [trueFalse, { selectedOption: 1 }, true],
   ])('isValidCheckResponse %#', (block, response, expected) => {
     expect(isValidCheckResponse(block, response)).toBe(expected)
+  })
+
+  describe('estimativa (LJ.2.1)', () => {
+    // R$ 1.000 a 10% ao ano em 20 anos: 1000 x 1,1^20 = 6.727,50. Tolerância de 10%.
+    const answer = 1000 * 1.1 ** 20
+    const estimate: CheckBlock = {
+      type: 'check',
+      id: 'e1',
+      kind: 'estimate',
+      prompt: 'Quanto viram?',
+      min: 1000,
+      max: 10000,
+      step: 100,
+      unit: 'brl',
+      answer,
+      tolerancePct: 10,
+      explanation: 'por quê e1',
+    }
+
+    it('versão pública leva só a régua: sem valor real, tolerância nem explicação', () => {
+      const json = JSON.stringify(
+        toPublicBlocks({ ...blocks, phases: { ...blocks.phases, scenario: [estimate] } }),
+      )
+
+      expect(json).toContain('"range":{"min":1000,"max":10000,"step":100,"unit":"brl"}')
+      expect(json).not.toContain('6727')
+      expect(json).not.toContain('tolerancePct')
+      expect(json).not.toContain('por quê')
+    })
+
+    it.each([
+      ['no valor real', answer, 'exact'],
+      ['na borda da tolerância', answer * 1.1, 'exact'],
+      ['logo fora da tolerância', answer * 1.11, 'close'],
+      ['na borda do dobro da tolerância', answer * 0.8, 'close'],
+      ['longe (chute típico)', 3000, 'far'],
+    ])('classifyEstimate: %s', (_label, guess, band) => {
+      expect(classifyEstimate(estimate as never, guess).band).toBe(band)
+    })
+
+    it('classifyEstimate devolve o valor real e a faixa em volta dele', () => {
+      const outcome = classifyEstimate(estimate as never, 3000)
+
+      expect(outcome.value).toBeCloseTo(6727.5, 1)
+      expect(outcome.low).toBeCloseTo(answer * 0.9, 6)
+      expect(outcome.high).toBeCloseTo(answer * 1.1, 6)
+    })
+
+    it.each([
+      [{ value: 3000 }, true],
+      [{ value: 1000 }, true],
+      [{ value: 10000 }, true],
+      [{ value: 999 }, false],
+      [{ value: 10001 }, false],
+      [{ value: Number.NaN }, false],
+      [{ value: Infinity }, false],
+      [{ selectedOption: 0 }, false],
+      [{}, false],
+    ])('isValidCheckResponse da estimativa %#', (response, expected) => {
+      expect(isValidCheckResponse(estimate, response)).toBe(expected)
+    })
+
+    it('só "na mosca" conta como correta, e só a estimativa resolve na 1ª resposta', () => {
+      expect(isCheckCorrect(estimate, { value: 6700 })).toBe(true)
+      expect(isCheckCorrect(estimate, { value: 3000 })).toBe(false)
+      expect(resolvesOnFirstAnswer(estimate)).toBe(true)
+      expect(resolvesOnFirstAnswer(single)).toBe(false)
+      expect(resolvesOnFirstAnswer(trueFalse)).toBe(false)
+    })
   })
 })

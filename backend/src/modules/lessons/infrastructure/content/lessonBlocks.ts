@@ -429,6 +429,24 @@ const checkBlock = z.discriminatedUnion('kind', [
       message: 'answer fora das options',
     }),
   z.object({ ...checkBase, kind: z.literal('true_false'), answer: z.boolean() }),
+  // Estimativa (LJ.2.2): a régua (`min`, `max`, `step`) vai ao cliente; `answer` e
+  // `tolerancePct` ficam no servidor.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('estimate'),
+      min: z.number().finite(),
+      max: z.number().finite(),
+      step: z.number().positive().finite(),
+      unit: z.enum(['brl', 'pct', 'years', 'none']),
+      answer: z.number().finite(),
+      tolerancePct: z.number().positive().max(100),
+    })
+    .refine((b) => b.min < b.max, { path: ['max'], message: 'max precisa ser maior que min' })
+    .refine((b) => b.answer >= b.min && b.answer <= b.max, {
+      path: ['answer'],
+      message: 'answer fora da régua',
+    }),
 ])
 
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })

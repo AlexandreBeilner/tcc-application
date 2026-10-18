@@ -6,11 +6,13 @@ import {
 } from '../../domain/errors'
 import { buildProgression } from '../../domain/lesson'
 import {
+  classifyEstimate,
   findCheckBlock,
   isCheckCorrect,
   isValidCheckResponse,
+  resolvesOnFirstAnswer,
 } from '../../domain/widgets/lessonBlocks'
-import type { CheckResponse } from '../../domain/widgets/lessonBlocks'
+import type { CheckBlock, CheckResponse, EstimateResult } from '../../domain/widgets/lessonBlocks'
 import type { LessonRepository } from '../ports/lessonRepository'
 
 export interface AnswerCheckpointInput extends CheckResponse {
@@ -28,6 +30,8 @@ export interface AnswerCheckpointResult {
   wrongOptions: number[]
   // Só em acerto: errar nunca entrega o gabarito nem a explicação (D3).
   explanation?: string
+  // Só estimativa (LJ-D1): sempre devolvido na resposta, porque ela avança acertando ou não.
+  estimate?: EstimateResult
 }
 
 // Pergunta intermediária da lição (`check`, RC.3.2): mesmas regras da pergunta
@@ -70,7 +74,9 @@ export class AnswerCheckpointUseCase {
       await this.lessonRepository.listCheckpointsForUser(input.userId, input.lessonId)
     ).find((c) => c.checkpointId === input.checkpointId)
     const readOnly = completed || existing?.solvedAt != null
-    const explanation = correct ? { explanation: block.explanation } : {}
+    const solves = correct || resolvesOnFirstAnswer(block)
+    const explanation = solves ? { explanation: block.explanation } : {}
+    const estimate = estimateFor(block, input)
 
     if (readOnly) {
       return {
@@ -79,6 +85,7 @@ export class AnswerCheckpointUseCase {
         firstTry: correct && (existing?.attempts ?? 0) <= 1,
         wrongOptions: [],
         ...explanation,
+        ...estimate,
       }
     }
 
@@ -90,6 +97,16 @@ export class AnswerCheckpointUseCase {
         choice: input.selectedOption ?? null,
         correct,
         answeredAt: this.clock(),
+        ...(estimate.estimate
+          ? {
+              solved: true,
+              lastResponse: {
+                kind: 'estimate' as const,
+                value: estimate.estimate.guess,
+                hit: correct,
+              },
+            }
+          : {}),
       },
     )
 
@@ -99,6 +116,15 @@ export class AnswerCheckpointUseCase {
       firstTry: correct && saved.attempts === 1,
       wrongOptions: saved.wrongOptions,
       ...explanation,
+      ...estimate,
     }
   }
+}
+
+function estimateFor(block: CheckBlock, response: CheckResponse): { estimate?: EstimateResult } {
+  if (block.kind !== 'estimate') {
+    return {}
+  }
+  const guess = response.value as number
+  return { estimate: { guess, ...classifyEstimate(block, guess) } }
 }

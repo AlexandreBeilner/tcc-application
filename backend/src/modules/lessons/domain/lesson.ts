@@ -1,5 +1,5 @@
-import { toPublicBlocks } from './widgets/lessonBlocks'
-import type { LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
+import { classifyEstimate, findCheckBlock, toPublicBlocks } from './widgets/lessonBlocks'
+import type { EstimateResult, LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
 // lição hoje") pra manter o import existente em `application/`; implementação
@@ -203,6 +203,15 @@ export interface CheckpointRecord {
   attempts: number
   wrongOptions: number[]
   solvedAt: Date | null
+  // Resposta dos formatos que não são por índice (LJ.2.1). Estimativa: o chute e se caiu na
+  // tolerância ("na mosca"). `null` em `single`/`true_false`.
+  lastResponse?: CheckpointLastResponse | null
+}
+
+export interface CheckpointLastResponse {
+  kind: 'estimate'
+  value: number
+  hit: boolean
 }
 
 // Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
@@ -213,6 +222,8 @@ export interface CheckpointState {
   attempts: number
   wrongOptions: number[]
   firstTry: boolean
+  // Só estimativa já respondida: o chute, o valor real e a faixa (restaura a régua da tela).
+  estimate?: EstimateResult
 }
 
 export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
@@ -232,6 +243,22 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   waived: boolean
 }
 
+function estimateStateFor(
+  lesson: LessonSummary,
+  record: CheckpointRecord,
+): { estimate: EstimateResult } | Record<string, never> {
+  const block = findCheckBlock(lesson.blocks, record.checkpointId)
+  if (!record.lastResponse || record.solvedAt === null || block?.kind !== 'estimate') {
+    return {}
+  }
+  return {
+    estimate: {
+      guess: record.lastResponse.value,
+      ...classifyEstimate(block, record.lastResponse.value),
+    },
+  }
+}
+
 export function buildLessonView(
   lesson: LessonSummary,
   progress: LessonProgressSnapshot | undefined,
@@ -249,7 +276,10 @@ export function buildLessonView(
     solved: record.solvedAt !== null,
     attempts: record.attempts,
     wrongOptions: record.wrongOptions,
-    firstTry: record.solvedAt !== null && record.attempts === 1,
+    // Estimativa resolve na 1ª resposta mesmo longe do valor: "de primeira" é a que caiu na mosca.
+    firstTry:
+      record.solvedAt !== null && record.attempts === 1 && (record.lastResponse?.hit ?? true),
+    ...estimateStateFor(lesson, record),
   }))
 
   return {

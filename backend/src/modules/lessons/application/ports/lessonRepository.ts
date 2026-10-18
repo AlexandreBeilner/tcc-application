@@ -1,4 +1,9 @@
-import type { CheckpointRecord, LessonProgressSnapshot, LessonSummary } from '../../domain/lesson'
+import type {
+  CheckpointLastResponse,
+  CheckpointRecord,
+  LessonProgressSnapshot,
+  LessonSummary,
+} from '../../domain/lesson'
 
 export interface LessonProgressRecord extends LessonProgressSnapshot {
   lessonId: string
@@ -82,6 +87,14 @@ export interface LessonRepository {
     userId: string,
     lessonId: string,
     checkpointId: string,
-    answer: { choice: number | null; correct: boolean; answeredAt: Date },
+    answer: {
+      choice: number | null
+      correct: boolean
+      answeredAt: Date
+      // Formatos que resolvem na 1ª resposta mesmo sem acertar (estimativa, LJ-D1): grava
+      // `solvedAt` com `correct` falso. Omitido, vale `correct`.
+      solved?: boolean
+      lastResponse?: CheckpointLastResponse
+    },
   ): Promise<CheckpointRecord>
 }

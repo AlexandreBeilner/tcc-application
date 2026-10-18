@@ -352,6 +352,8 @@ export type LessonBlocks = z.infer<typeof lessonBlocksSchema>
 export type LessonBlock = LessonBlocks['phases']['scenario'][number]
 export type WidgetBlock = Extract<LessonBlock, { type: 'widget' }>
 export type CheckBlock = Extract<LessonBlock, { type: 'check' }>
+// Perguntas de alternativas (única escolha e verdadeiro/falso), as que têm `selectedOption`.
+export type ChoiceBlock = CheckBlock & { kind: 'single' | 'true_false' }
 
 // Ausente ou fora do contrato vira `null` (o player usa o texto legado).
 export function parseLessonBlocks(raw: unknown): LessonBlocks | null {

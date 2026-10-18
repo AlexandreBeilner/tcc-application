@@ -73,6 +73,23 @@ export type CheckBlock =
       answer: boolean
       explanation: string
     }
+  // Estimativa (LJ.2.2): previsão, não prova. `answer` é o valor real; `tolerancePct` é a
+  // faixa (relativa ao valor real) que conta como "na mosca". Nunca trava o Continuar (LJ-D1).
+  | {
+      type: 'check'
+      id: string
+      kind: 'estimate'
+      prompt: string
+      min: number
+      max: number
+      step: number
+      unit: EstimateUnit
+      answer: number
+      tolerancePct: number
+      explanation: string
+    }
+
+export type EstimateUnit = 'brl' | 'pct' | 'years' | 'none'
 
 export type LessonBlock =
   | { type: 'text'; markup: string }
@@ -99,6 +116,8 @@ export interface PublicCheckBlock {
   prompt: string
   // `true_false` sempre expõe as duas alternativas na ordem [Verdadeiro, Falso].
   options?: string[]
+  // Só `estimate`: a régua do controle. O valor real e a tolerância ficam no servidor.
+  range?: { min: number; max: number; step: number; unit: EstimateUnit }
 }
 
 export type PublicLessonBlock = Exclude<LessonBlock, CheckBlock> | PublicCheckBlock
@@ -129,6 +148,15 @@ function toPublicBlock(block: LessonBlock): PublicLessonBlock {
       kind: 'single',
       prompt: block.prompt,
       options: block.options,
+    }
+  }
+  if (block.kind === 'estimate') {
+    return {
+      type: 'check',
+      id: block.id,
+      kind: 'estimate',
+      prompt: block.prompt,
+      range: { min: block.min, max: block.max, step: block.step, unit: block.unit },
     }
   }
   return {
@@ -180,12 +208,62 @@ export function checkpointIdsForStep(
   return blocks.phases[phase].flatMap((b) => (b.type === 'check' ? [b.id] : []))
 }
 
+// Resposta por formato: `selectedOption` (única escolha e verdadeiro/falso) ou `value`
+// (estimativa). Os formatos de várias peças (ordenar, agrupar, ligar) entram com os seus
+// campos nas tarefas LJ.2.3 a LJ.2.5.
 export interface CheckResponse {
   selectedOption?: number
+  value?: number
 }
 
-// Resposta válida pro formato do bloco? (índice dentro das alternativas.)
+// Quanto o chute passou perto: dentro da tolerância, até 2x a tolerância, ou longe.
+export type EstimateBand = 'exact' | 'close' | 'far'
+
+export interface EstimateOutcome {
+  band: EstimateBand
+  // Valor real e a faixa de tolerância em volta dele (mostrados só depois de responder).
+  value: number
+  low: number
+  high: number
+}
+
+// O que a estimativa devolve depois de respondida (LJ-D1): o chute e o resultado.
+export interface EstimateResult extends EstimateOutcome {
+  guess: number
+}
+
+type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>
+
+export function classifyEstimate(block: EstimateBlock, guess: number): EstimateOutcome {
+  const tolerance = (Math.abs(block.answer) * block.tolerancePct) / 100
+  const distance = Math.abs(guess - block.answer)
+  // Pequena folga pra o ponto flutuante não tirar da faixa um chute exatamente na borda.
+  const epsilon = 1e-9 * Math.max(1, Math.abs(block.answer))
+  const band: EstimateBand =
+    distance <= tolerance + epsilon
+      ? 'exact'
+      : distance <= 2 * tolerance + epsilon
+        ? 'close'
+        : 'far'
+  return {
+    band,
+    value: block.answer,
+    low: block.answer - tolerance,
+    high: block.answer + tolerance,
+  }
+}
+
+// Resposta válida pro formato do bloco? (índice dentro das alternativas; valor
+// finito dentro da régua da estimativa.)
 export function isValidCheckResponse(block: CheckBlock, response: CheckResponse): boolean {
+  if (block.kind === 'estimate') {
+    return (
+      typeof response.value === 'number' &&
+      Number.isFinite(response.value) &&
+      response.value >= block.min &&
+      response.value <= block.max
+    )
+  }
   const optionCount = block.kind === 'single' ? block.options.length : TRUE_FALSE_OPTIONS.length
   return (
     typeof response.selectedOption === 'number' &&
@@ -195,10 +273,19 @@ export function isValidCheckResponse(block: CheckBlock, response: CheckResponse)
   )
 }
 
+// Estimativa "acerta" quando cai na tolerância ("na mosca"); mesmo errando ela avança (LJ-D1).
 export function isCheckCorrect(block: CheckBlock, response: CheckResponse): boolean {
+  if (block.kind === 'estimate') {
+    return classifyEstimate(block, response.value as number).band === 'exact'
+  }
   if (block.kind === 'single') {
     return response.selectedOption === block.answer
   }
   // índice 0 = Verdadeiro, 1 = Falso
   return response.selectedOption === (block.answer ? 0 : 1)
+}
+
+// Formatos que resolvem na primeira resposta, certa ou não (LJ-D1).
+export function resolvesOnFirstAnswer(block: CheckBlock): boolean {
+  return block.kind === 'estimate'
 }

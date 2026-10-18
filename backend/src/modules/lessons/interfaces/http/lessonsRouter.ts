@@ -186,7 +186,7 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
           userId: req.auth.userId,
           lessonId: req.params.id as string,
           checkpointId: req.params.checkpointId as string,
-          selectedOption: parsed.data.selectedOption,
+          ...parsed.data,
         })
         res.status(200).json(result)
       } catch (err) {

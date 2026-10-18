@@ -499,6 +499,9 @@ export const userLessonCheckpoints = pgTable(
       .notNull()
       .default(sql`'{}'::smallint[]`),
     solvedAt: timestamp('solved_at', { withTimezone: true }),
+    // Resposta dos formatos que não são por índice (LJ.2.1); hoje só a estimativa:
+    // `{ kind: 'estimate', value, hit }`. Nulo em `single`/`true_false`.
+    lastResponse: jsonb('last_response').$type<{ kind: 'estimate'; value: number; hit: boolean }>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.lessonId, table.checkpointId] })],

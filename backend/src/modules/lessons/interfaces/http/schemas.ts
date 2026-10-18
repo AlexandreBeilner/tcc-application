@@ -6,11 +6,13 @@ export const answerMicroDecisionBodySchema = z.object({
   selectedOption: z.number().int().min(0),
 })
 
-// Índice da alternativa escolhida (única escolha ou verdadeiro/falso); o intervalo válido
-// depende do bloco e é validado no caso de uso.
-export const answerCheckpointBodySchema = z.object({
-  selectedOption: z.number().int().min(0),
-})
+// Resposta por formato (LJ.2.1): `selectedOption` (única escolha ou verdadeiro/falso) ou
+// `value` (estimativa), um dos dois. O intervalo válido depende do bloco e é validado no
+// caso de uso.
+export const answerCheckpointBodySchema = z.union([
+  z.object({ selectedOption: z.number().int().min(0) }),
+  z.object({ value: z.number().finite() }),
+])
 
 export const advanceLessonBodySchema = z.object({
   step: z.number().int().min(0).max(LESSON_UNLOCK_STEP),

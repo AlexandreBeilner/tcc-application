@@ -7,7 +7,7 @@ import type {
   LessonRepository,
   UpsertProgressInput,
 } from '../../application/ports/lessonRepository'
-import type { CheckpointRecord, LessonSummary } from '../../domain/lesson'
+import type { CheckpointLastResponse, CheckpointRecord, LessonSummary } from '../../domain/lesson'
 import { parseLessonBlocks } from '../content/lessonBlocks'
 
 function toLessonSummary(row: typeof lessons.$inferSelect): LessonSummary {
@@ -55,6 +55,7 @@ function toCheckpointRecord(row: typeof userLessonCheckpoints.$inferSelect): Che
     attempts: row.attempts,
     wrongOptions: row.wrongOptions,
     solvedAt: row.solvedAt,
+    lastResponse: (row.lastResponse as CheckpointLastResponse | null) ?? null,
   }
 }
 
@@ -196,6 +197,8 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
 
     async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {
       const t = userLessonCheckpoints
+      const solvedAt = (answer.solved ?? answer.correct) ? answer.answeredAt : null
+      const lastResponse = answer.lastResponse ?? null
       const initialWrong =
         answer.correct || answer.choice === null
           ? sql`'{}'::smallint[]`
@@ -208,7 +211,8 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
           checkpointId,
           attempts: 1,
           wrongOptions: initialWrong,
-          solvedAt: answer.correct ? answer.answeredAt : null,
+          solvedAt,
+          lastResponse,
         })
         .onConflictDoUpdate({
           target: [t.userId, t.lessonId, t.checkpointId],
@@ -218,7 +222,8 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
               answer.correct || answer.choice === null
                 ? sql`${t.wrongOptions}`
                 : sql`CASE WHEN ${answer.choice} = ANY(${t.wrongOptions}) THEN ${t.wrongOptions} ELSE array_append(${t.wrongOptions}, ${answer.choice}::smallint) END`,
-            solvedAt: answer.correct ? answer.answeredAt : null,
+            solvedAt,
+            lastResponse,
           },
           // Já resolvido: não escreve (a resposta vira leitura).
           setWhere: isNull(t.solvedAt),

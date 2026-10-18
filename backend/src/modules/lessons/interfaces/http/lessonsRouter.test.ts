@@ -517,6 +517,101 @@ describe('lessons routes', () => {
     })
   })
 
+  describe('estimativa (LJ.2.1)', () => {
+    const lessonsWithEstimate = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'e1',
+                    kind: 'estimate' as const,
+                    prompt: 'Quanto viram?',
+                    min: 1000,
+                    max: 10000,
+                    step: 100,
+                    unit: 'brl' as const,
+                    answer: 6000,
+                    tolerancePct: 10,
+                    explanation: 'Porque juros sobre juros.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/e1/answer'
+
+    it('GET devolve só a régua; o valor real só sai depois do chute', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithEstimate)
+      const auth = authHeader(tokenIssuer)
+
+      const before = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(before.body.lesson.blocks.phases.scenario[0]).toEqual({
+        type: 'check',
+        id: 'e1',
+        kind: 'estimate',
+        prompt: 'Quanto viram?',
+        range: { min: 1000, max: 10000, step: 100, unit: 'brl' },
+      })
+      expect(JSON.stringify(before.body)).not.toContain('6000')
+
+      await request(app).post(url).set('Authorization', auth).send({ value: 3000 })
+      const after = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(after.body.lesson.checkpoints).toEqual([
+        {
+          checkpointId: 'e1',
+          solved: true,
+          attempts: 1,
+          wrongOptions: [],
+          firstTry: false,
+          estimate: { guess: 3000, band: 'far', value: 6000, low: 5400, high: 6600 },
+        },
+      ])
+      expect(after.body.lesson.checkpointsFirstTry).toBe(0)
+    })
+
+    it('POST devolve o resultado com a explicação mesmo longe do valor', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithEstimate)
+
+      const res = await request(app)
+        .post(url)
+        .set('Authorization', authHeader(tokenIssuer))
+        .send({ value: 3000 })
+
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({
+        correct: false,
+        explanation: 'Porque juros sobre juros.',
+        estimate: { band: 'far', value: 6000 },
+      })
+    })
+
+    it('400 pra valor fora da régua, corpo vazio e os dois campos de formatos diferentes ausentes', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithEstimate)
+      const auth = authHeader(tokenIssuer)
+
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ value: 5 })).status,
+      ).toBe(400)
+      expect((await request(app).post(url).set('Authorization', auth).send({})).status).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ value: 'x' })).status,
+      ).toBe(400)
+      expect(
+        (await request(app).post(url).set('Authorization', auth).send({ selectedOption: 0 }))
+          .status,
+      ).toBe(400)
+    })
+  })
+
   describe('POST /lessons/:id/cards/reached (LJ.5.1)', () => {
     const url = '/lessons/l1/cards/reached'
 

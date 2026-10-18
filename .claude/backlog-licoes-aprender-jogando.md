@@ -171,7 +171,7 @@ tela anuncia em `aria-live="polite"`; teste da função pura do contador.
 Fundação primeiro (LJ.2.1); depois cada formato é independente. A ordem sugerida põe primeiro o
 de maior efeito (estimativa) e por último o que exige tabela nova (enquete).
 
-### LJ.2.1 · Fundação: checkpoint com vários formatos
+### LJ.2.1 · Fundação: checkpoint com vários formatos ✅ concluída
 
 **Decisões aplicáveis:** LJ-D1, LJ-D2, LJ-D3 (fechadas).
 
@@ -198,6 +198,8 @@ componente próprio em `components/organisms/` (pasta por módulo, atomic design
 
 **Critérios de aceite:** checklist do backend completo; `single`/`true_false` sem mudança de
 comportamento (testes atuais passam intactos); `docker compose up` de ponta a ponta.
+
+- **Entregável:** (2026-10-18) **Escopo cortado de propósito:** a fundação entrou com o formato `estimate` (o único que a sessão usa); `order`, `categorize` e `match` ficam para a LJ.2.3 a LJ.2.5, que acrescentam o `kind`, o campo de resposta (`sequence`, `groups`, `pairs`), o embaralhamento determinístico e o `hint` da LJ-D2 junto do componente de cada um (código morto sem tela só adiantaria contrato que o formato pode mudar). Backend: `CheckBlock` ganha `estimate` (Zod com `min < max`, `answer` dentro da régua, `tolerancePct` em (0, 100]); `CheckResponse` vira `{ selectedOption? , value? }`; `isValidCheckResponse`/`isCheckCorrect` por formato, mais `classifyEstimate` (`exact`/`close`/`far`) e `resolvesOnFirstAnswer`, funções puras com teste table-driven; `toPublicBlock` leva só `range` da estimativa. `AnswerCheckpointResult` ganha `estimate: { guess, band, value, low, high }` (e a explicação sempre, porque avança). Persistência: coluna `user_lesson_checkpoints.last_response jsonb` (migration `0054`, escrita à mão com snapshot e `when` acima do último); o port aceita `solved`/`lastResponse`; `CheckpointRecord.lastResponse` alimenta o `firstTry` (estimativa "de primeira" = na mosca) e o `estimate` do `GET /lessons/:id` para restaurar a régua. Rota: corpo `{ selectedOption }` ou `{ value }` (Zod `union`). `.docs/backend/lessons.md` atualizado. Adapter testado em banco descartável (`drizzleLessonRepository.test.ts`, novo). `single`/`true_false` com testes antigos intactos. Frontend: `LessonCheckpoint` virou despachante por `kind`; o corpo antigo mudou para o organismo `ChoiceCheckpoint` (sem alteração de comportamento) e `useCheckpoints`/`answerCheckpoint` aceitam `CheckpointResponse`. Validado com `docker compose up --build backend`: migration aplicada no banco de desenvolvimento.
 
 ### LJ.2.2 · Formato estimativa (`estimate`)
 

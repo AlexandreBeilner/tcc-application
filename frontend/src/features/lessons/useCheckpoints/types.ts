@@ -1,5 +1,11 @@
 import type { StreakMilestone } from '../answerStreak'
 
+// Resposta enviada ao servidor, por formato (LJ.2.1). Hoje só por índice; os formatos de jogo
+// acrescentam os seus campos.
+export interface CheckpointResponse {
+    selectedOption: number
+}
+
 // O que a tela de uma pergunta intermediária precisa saber (RC.3.2).
 export interface CheckpointView {
     solved: boolean

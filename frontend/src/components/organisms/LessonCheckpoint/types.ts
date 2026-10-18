@@ -1,4 +1,4 @@
-import type { CheckpointView } from '../../../features/lessons/useCheckpoints'
+import type { CheckpointResponse, CheckpointView } from '../../../features/lessons/useCheckpoints'
 import type { CheckBlock } from '../../../features/lessons/widgets/schema'
 
 export interface LessonCheckpointProps {
@@ -8,5 +8,5 @@ export interface LessonCheckpointProps {
     error: boolean
     // Em revisão (sem estado) a resposta certa não trava nada; só muda o texto do selo.
     isReview: boolean
-    onSubmit: (response: { selectedOption: number }) => void
+    onSubmit: (response: CheckpointResponse) => void
 }

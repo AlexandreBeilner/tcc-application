@@ -6,9 +6,9 @@ import type { CheckpointState } from '../../../services/lessons'
 import type { CheckBlock } from '../widgets/schema'
 import { nextStreak, streakMilestone } from '../answerStreak'
 import { playLessonCue } from '../lessonFeedback'
-import type { CheckpointView } from './types'
+import type { CheckpointResponse, CheckpointView } from './types'
 
-export type { CheckpointView } from './types'
+export type { CheckpointResponse, CheckpointView } from './types'
 
 const UNTOUCHED: CheckpointView = { solved: false, attempts: 0, wrongOptions: [], firstTry: false, lastAttemptWrong: false }
 
@@ -22,7 +22,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
     // Acertos de primeira seguidos nesta sessão da lição (LJ.1.6): só memória, nunca grava nada. Em revisão não conta.
     const streak = useRef(0)
     const mutation = useMutation({
-        mutationFn: ({ block, response }: { block: CheckBlock; response: { selectedOption: number } }) =>
+        mutationFn: ({ block, response }: { block: CheckBlock; response: CheckpointResponse }) =>
             answerCheckpoint(token as string, lessonId, block.id, response),
     })
 
@@ -43,7 +43,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
         }
     }
 
-    async function submit(block: CheckBlock, response: { selectedOption: number }) {
+    async function submit(block: CheckBlock, response: CheckpointResponse) {
         const before = viewFor(block.id)
         let result
         try {
@@ -57,7 +57,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             : streakMilestone((streak.current = nextStreak(streak.current, { correct: result.correct, firstTry: result.firstTry })))
         // Som e vibração só no acerto, e nunca em revisão (LJ.5.4). Erro é silencioso.
         if (result.correct && !isReview) playLessonCue('correct')
-        const tried = 'selectedOption' in response ? response.selectedOption : undefined
+        const tried = response.selectedOption
         setLocal((current) => ({
             ...current,
             [block.id]: result.correct

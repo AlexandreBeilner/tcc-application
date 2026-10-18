@@ -376,6 +376,41 @@ describe('lessonBlocksSchema', () => {
     expect(lessonBlocksSchema.safeParse(blocks).success).toBe(false)
   })
 
+  describe('estimativa (LJ.2.1)', () => {
+    const estimate = {
+      type: 'check',
+      id: 'e1',
+      kind: 'estimate',
+      prompt: 'Quanto viram?',
+      min: 1000,
+      max: 10000,
+      step: 100,
+      unit: 'brl',
+      answer: 6727.5,
+      tolerancePct: 10,
+      explanation: 'Juros sobre juros.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita a estimativa completa', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(estimate)).success).toBe(true)
+    })
+
+    it.each([
+      ['min >= max', { min: 5000, max: 5000 }],
+      ['valor real fora da régua', { answer: 20000 }],
+      ['passo zero', { step: 0 }],
+      ['tolerância zero', { tolerancePct: 0 }],
+      ['tolerância acima de 100', { tolerancePct: 101 }],
+      ['unidade desconhecida', { unit: 'usd' }],
+    ])('rejeita estimativa inválida: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...estimate, ...patch })).success).toBe(false)
+    })
+  })
+
   it('rejeita mais de 7 checkpoints por lição', () => {
     const checks = Array.from({ length: 8 }, (_, i) => ({
       type: 'check',

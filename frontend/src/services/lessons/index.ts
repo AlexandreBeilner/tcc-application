@@ -41,13 +41,14 @@ export function answerMicroDecision(token: string, id: string, selectedOption: n
     return apiRequest<AnswerMicroDecisionResult>(`/lessons/${id}/answer`, { token, method: 'POST', body: { selectedOption } })
 }
 
-// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2): `selectedOption`
-// (única escolha ou verdadeiro/falso). A explicação só vem no acerto.
+// `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, LJ.2.1): `selectedOption`
+// (única escolha ou verdadeiro/falso) ou `value` (estimativa). A explicação só vem no acerto,
+// exceto na estimativa, que avança acertando ou não.
 export function answerCheckpoint(
     token: string,
     id: string,
     checkpointId: string,
-    response: { selectedOption: number },
+    response: { selectedOption: number } | { value: number },
 ): Promise<AnswerCheckpointResult> {
     return apiRequest<AnswerCheckpointResult>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/answer`, {
         token,

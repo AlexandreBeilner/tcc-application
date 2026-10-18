@@ -140,4 +140,103 @@ describe('AnswerCheckpointUseCase', () => {
       LessonLockedError,
     )
   })
+
+  describe('estimativa (LJ-D1)', () => {
+    const estimateLesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: {
+          scenario: [
+            {
+              type: 'check',
+              id: 'e1',
+              kind: 'estimate',
+              prompt: 'Quanto viram?',
+              min: 1000,
+              max: 10000,
+              step: 100,
+              unit: 'brl',
+              answer: 6000,
+              tolerancePct: 10,
+              explanation: 'porque juros sobre juros',
+            },
+          ],
+          microDecision: [],
+          revelation: [],
+        },
+      },
+    }
+
+    function buildEstimate() {
+      const repo = createFakeLessonRepository([estimateLesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const guess = (useCase: AnswerCheckpointUseCase, value: number) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'e1', value })
+
+    it('chute longe avança na hora: resolve na 1ª resposta, mostra o valor real e a explicação', async () => {
+      const { repo, useCase } = buildEstimate()
+
+      const result = await guess(useCase, 3000)
+
+      expect(result).toMatchObject({
+        correct: false,
+        attempts: 1,
+        firstTry: false,
+        explanation: 'porque juros sobre juros',
+        estimate: { guess: 3000, band: 'far', value: 6000, low: 5400, high: 6600 },
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).not.toBeNull()
+      expect(record.lastResponse).toEqual({ kind: 'estimate', value: 3000, hit: false })
+    })
+
+    it('chute na faixa é "na mosca" e conta como de primeira', async () => {
+      const { useCase } = buildEstimate()
+
+      expect(await guess(useCase, 6300)).toMatchObject({
+        correct: true,
+        firstTry: true,
+        estimate: { band: 'exact' },
+      })
+    })
+
+    it('chute perto da faixa não é na mosca, mas também avança', async () => {
+      const { useCase } = buildEstimate()
+
+      expect(await guess(useCase, 7000)).toMatchObject({
+        correct: false,
+        explanation: 'porque juros sobre juros',
+        estimate: { band: 'close' },
+      })
+    })
+
+    it('segunda resposta não regrava: o primeiro chute vale', async () => {
+      const { repo, useCase } = buildEstimate()
+      await guess(useCase, 3000)
+
+      await guess(useCase, 6000)
+
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record).toMatchObject({ attempts: 1, lastResponse: { value: 3000, hit: false } })
+    })
+
+    it('rejeita valor fora da régua e resposta por índice', async () => {
+      const { useCase } = buildEstimate()
+
+      await expect(guess(useCase, 999)).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'e1', selectedOption: 0 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+
+    it('pergunta por índice recebendo `value` também é inválida', async () => {
+      const { useCase } = build()
+
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'c1', value: 1 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+  })
 })

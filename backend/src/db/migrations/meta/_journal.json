@@ -379,6 +379,13 @@
       "when": 1794500000000,
       "tag": "0053_add_lesson_card_reach",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794600000000,
+      "tag": "0054_add_checkpoint_last_response",
+      "breakpoints": true
     }
   ]
 }
