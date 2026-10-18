@@ -123,22 +123,18 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Vender com lucro paga imposto de renda, mas quem vende até R$ 20 mil em ações no mês tem o ganho isento. A regra vale para ações, não para ETF nem FII.',
+          'Vender com lucro paga imposto de renda, mas quem vende até o limite de isenção do mês em ações tem o ganho isento. A regra vale para ações, não para ETF nem FII.',
       },
       {
         type: 'check',
         id: 'isencao-vinte-mil',
         kind: 'single',
         prompt:
-          'Em um mês, você vendeu R$ 15.000 em ações com lucro. O ganho paga imposto de renda?',
-        options: [
-          'Sim, todo lucro paga',
-          'Não, está dentro da isenção de R$ 20 mil no mês',
-          'Só se vender em lote padrão',
-        ],
+          'Em um mês, você vendeu R$ 15.000 em ações com lucro, e o limite de isenção do mês é de R$ 20 mil. O ganho paga imposto de renda?',
+        options: ['Sim, todo lucro paga', 'Não, está dentro do limite de isenção do mês', 'Só se vender em lote padrão'],
         answer: 1,
         explanation:
-          'O total vendido no mês, R$ 15.000, está abaixo de R$ 20 mil, então o ganho é isento.',
+          'O total vendido no mês, R$ 15.000, está abaixo do limite de isenção, então o ganho é isento.',
       },
       {
         type: 'widget',

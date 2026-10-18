@@ -76,7 +76,7 @@ export const BLOCKS_2_7_6: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O imposto muda. Em 2026, o dividendo só tem 10% retidos se o total pago por uma mesma empresa a você passar de R$ 50 mil no mês. O JCP tem 17,5% retidos na fonte.',
+          'O imposto muda. O dividendo só tem retenção se o total pago por uma mesma empresa a você passar de um limite no mês. O JCP tem 17,5% retidos na fonte.',
       },
       {
         type: 'widget',
@@ -100,11 +100,11 @@ export const BLOCKS_2_7_6: LessonBlocks = {
         id: 'dividendo-abaixo-do-limite',
         kind: 'single',
         prompt:
-          'Em 2026, você recebe R$ 1.000 de dividendos de uma empresa no mês. Quanto é retido?',
-        options: ['Nada, o total do mês está abaixo de R$ 50 mil', '10%', '17,5%'],
+          'Suponha que a retenção de 10% só valha quando uma mesma empresa paga mais de R$ 50 mil no mês a você. Você recebe R$ 1.000 de dividendos de uma empresa no mês. Quanto é retido?',
+        options: ['Nada, o total do mês está abaixo do limite', '10%', '17,5%'],
         answer: 0,
         explanation:
-          'A retenção de 10% só vale quando o total do mês, da mesma empresa para você, passa de R$ 50 mil.',
+          'A retenção só vale quando o total do mês, da mesma empresa para você, passa do limite.',
       },
       {
         type: 'text',
@@ -227,7 +227,7 @@ export const BLOCKS_2_10: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Já o ganho ao vender a cota é tributado. E a isenção de R$ 20 mil em vendas no mês vale só para ações, não para FII.',
+          'Já o ganho ao vender a cota é tributado. E a isenção de vendas no mês vale só para ações, não para FII.',
       },
       {
         type: 'check',
@@ -237,7 +237,7 @@ export const BLOCKS_2_10: LessonBlocks = {
           'Você vendeu R$ 15.000 em cotas de FII, com lucro, no mês. O ganho é isento, como nas ações.',
         answer: false,
         explanation:
-          'A isenção de até R$ 20 mil em vendas no mês vale para ações. O ganho na venda de cotas de FII é tributado.',
+          'A isenção de vendas no mês vale para ações. O ganho na venda de cotas de FII é tributado.',
       },
       {
         type: 'check',

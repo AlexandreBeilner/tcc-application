@@ -97,7 +97,7 @@ export const BLOCKS_3_1: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Na renda fixa, diversificar é dividir entre emissores. O {{FGC}} cobre até R$ 250 mil por CPF, por instituição ou conglomerado, e o que passa disso fica sem a garantia.',
+          'Na renda fixa, diversificar é dividir entre emissores. O {{FGC}} cobre até um limite por CPF, por instituição ou conglomerado, e o que passa disso fica sem a garantia.',
       },
       {
         type: 'widget',
@@ -111,11 +111,11 @@ export const BLOCKS_3_1: LessonBlocks = {
         id: 'fgc-excedente',
         kind: 'single',
         prompt:
-          'Você põe R$ 400 mil em CDBs de um único banco. Quantos reais ficam sem a cobertura do FGC?',
+          'Suponha que o limite do FGC seja de R$ 250 mil por instituição. Você põe R$ 400 mil em CDBs de um único banco. Quantos reais ficam sem a cobertura?',
         options: ['R$ 0', 'R$ 150 mil', 'R$ 250 mil', 'R$ 400 mil'],
         answer: 1,
         explanation:
-          'A cobertura é de R$ 250 mil por instituição. 400 mil menos 250 mil dá 150 mil.',
+          'A cobertura vai até o limite por instituição. 400 mil menos 250 mil dá 150 mil sem cobertura.',
       },
       {
         type: 'widget',
@@ -341,7 +341,7 @@ export const BLOCKS_3_3: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Taxa não é tudo. Confira também o prazo mínimo e a liquidez (a LCI exige 6 meses), o emissor e a cobertura do FGC, que vale até R$ 250 mil por CPF e instituição.',
+          'Taxa não é tudo. Confira também o prazo mínimo e a liquidez (a LCI exige 6 meses), o emissor e a cobertura do FGC, que tem limite por CPF e instituição.',
       },
       {
         type: 'check',

@@ -506,17 +506,17 @@ export const BLOCKS_2_7_7: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O Dividend Yield é bruto, sem imposto. Desde 2026, dividendos acima de R$ 50 mil no mês pagos por uma mesma empresa a uma pessoa física têm 10% retidos na fonte. O {{JCP}} tem 17,5% retidos.',
+          'O Dividend Yield é bruto, sem imposto. Dividendos acima de um limite no mês, pagos por uma mesma empresa a uma pessoa física, têm parte retida na fonte. O {{JCP}} tem 17,5% retidos.',
       },
       {
         type: 'check',
         id: 'retencao-dividendos',
         kind: 'true_false',
         prompt:
-          'Quem recebe R$ 1.000 de dividendos num mês, de uma mesma empresa, sofre retenção de 10%.',
+          'Se a retenção de 10% só vale acima de R$ 50 mil no mês, de uma mesma empresa, quem recebe R$ 1.000 de dividendos num mês sofre retenção.',
         answer: false,
         explanation:
-          'A retenção de 10% vale acima de R$ 50 mil no mês, da mesma empresa para a mesma pessoa. Abaixo disso, não há retenção sobre o dividendo.',
+          'A retenção só vale acima do limite do mês, da mesma empresa para a mesma pessoa. Abaixo disso, não há retenção sobre o dividendo.',
       },
       {
         type: 'widget',
@@ -688,21 +688,18 @@ export const BLOCKS_2_9: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Vender com lucro paga imposto de renda, e o ETF não tem a isenção de R$ 20 mil em vendas no mês, que vale só para ações.',
+          'Vender com lucro paga imposto de renda, e o ETF não tem a isenção de vendas no mês, que vale só para ações.',
       },
       {
         type: 'check',
         id: 'etf-sem-isencao',
         kind: 'single',
-        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
-        options: [
-          'Sim, como nas ações',
-          'Não, a isenção de R$ 20 mil vale só para ações',
-          'Só se o ETF distribuir dividendos',
-        ],
+        prompt:
+          'Você vendeu R$ 15.000 em cotas de ETF, com lucro, num mês. O ganho é isento?',
+        options: ['Sim, como nas ações', 'Não, a isenção do mês vale só para ações', 'Só se o ETF distribuir dividendos'],
         answer: 1,
         explanation:
-          'A isenção de até R$ 20 mil em vendas no mês vale para ações, não para ETF nem FII.',
+          'A isenção de vendas no mês vale para ações, não para ETF nem FII.',
       },
       {
         type: 'widget',
@@ -802,18 +799,18 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{spread}} também é custo: você compra pelo preço de venda e vende pelo de compra, e a diferença fica com o mercado. No Tesouro Direto, a B3 cobra custódia de 0,20% ao ano sobre o valor dos títulos.',
+          'O {{spread}} também é custo: você compra pelo preço de venda e vende pelo de compra, e a diferença fica com o mercado. No Tesouro Direto, a B3 cobra uma custódia anual sobre o valor dos títulos.',
       },
       {
         type: 'check',
         id: 'custodia-do-tesouro',
         kind: 'single',
         prompt:
-          'Você tem R$ 20.000 em um Tesouro Prefixado. Quanto paga de custódia por ano, em reais?',
+          'Você tem R$ 20.000 em um Tesouro Prefixado, e a custódia da B3 é de 0,20% ao ano. Quanto paga de custódia por ano, em reais?',
         options: ['R$ 0', 'R$ 20', 'R$ 40', 'R$ 400'],
         answer: 2,
         explanation:
-          '0,20% de R$ 20.000 dá R$ 40 por ano. O Tesouro Selic tem isenção sobre até R$ 10 mil, mas não é o caso aqui.',
+          '0,20% de R$ 20.000 dá R$ 40 por ano. O Tesouro Selic tem isenção sobre uma parte pequena do valor, mas não é o caso aqui.',
       },
       {
         type: 'check',
@@ -886,7 +883,7 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Nada. Quem vende até R$ 20 mil em ações no mês tem o ganho isento, e o que conta é o valor vendido, não o lucro. Day trade não entra nessa isenção.',
+          'Nada. Quem vende até o limite de isenção do mês em ações tem o ganho isento, e o que conta é o valor vendido, não o lucro. Day trade não entra nessa isenção.',
       },
       {
         type: 'widget',
@@ -899,26 +896,28 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
         type: 'check',
         id: 'isencao-so-acoes',
         kind: 'single',
-        prompt: 'Você vendeu R$ 15.000 em cotas de ETF, com lucro, no mês. O ganho é isento?',
-        options: ['Sim, abaixo de R$ 20 mil', 'Não, a isenção vale só para ações', 'Só se for FII'],
+        prompt:
+          'Você vendeu R$ 15.000 em cotas de ETF, com lucro, no mês. O ganho é isento?',
+        options: ['Sim, está abaixo do limite', 'Não, a isenção vale só para ações', 'Só se for FII'],
         answer: 1,
         explanation:
-          'A isenção de R$ 20 mil em vendas no mês vale para ações. ETF e FII pagam imposto sobre o lucro.',
+          'A isenção de vendas no mês vale para ações. ETF e FII pagam imposto sobre o lucro.',
       },
       {
         type: 'text',
         markup:
-          'Passou de R$ 20 mil? Todo o lucro do mês é tributado, não só o que passou do limite. Você mesmo apura e paga o imposto em {{DARF}}, até o último dia útil do mês seguinte à venda.',
+          'Passou do limite? Todo o lucro do mês é tributado, não só o que passou do limite. Você mesmo apura e paga o imposto em {{DARF}}, até o último dia útil do mês seguinte à venda.',
       },
       {
         type: 'check',
         id: 'imposto-acima-do-limite',
         kind: 'single',
         prompt:
-          'Você vendeu R$ 30.000 em ações no mês, com lucro de R$ 4.000, em operações de swing trade. Quanto paga de imposto, em reais?',
+          'Você vendeu R$ 30.000 em ações no mês, acima do limite de isenção, com lucro de R$ 4.000, em operações de swing trade com alíquota de 15%. Quanto paga de imposto, em reais?',
         options: ['R$ 0', 'R$ 600', 'R$ 800', 'R$ 4.500'],
         answer: 1,
-        explanation: 'Passou de R$ 20 mil, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
+        explanation:
+          'Passou do limite, então não há isenção: 15% de R$ 4.000 dá R$ 600.',
       },
       {
         type: 'text',
@@ -960,16 +959,28 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Os dividendos das ações também têm regra própria: desde 2026, a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Abaixo disso, não há retenção.',
+          'Os dividendos das ações também têm regra própria: a empresa retém parte do imposto quando paga muito a uma mesma pessoa no mês. Abaixo desse limite, não há retenção.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-isencao-dividendos',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Valores de hoje',
+          body:
+            'A isenção vale para vendas de até R$ 20 mil em ações no mês. Nos dividendos, desde 2026 a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Esses valores são definidos em lei e podem mudar.',
+        },
       },
       {
         type: 'check',
         id: 'dividendo-limite',
         kind: 'true_false',
-        prompt: 'Em 2026, todo dividendo de ação tem 10% de imposto retido.',
+        prompt:
+          'Se a regra retém 10% só quando uma mesma empresa paga mais de R$ 50 mil no mês a você, todo dividendo de ação tem imposto retido.',
         answer: false,
         explanation:
-          'A retenção de 10% só vale quando a mesma empresa paga mais de R$ 50 mil no mês a uma mesma pessoa.',
+          'A retenção só vale acima do limite do mês. Abaixo dele, o dividendo chega inteiro.',
       },
       {
         type: 'text',

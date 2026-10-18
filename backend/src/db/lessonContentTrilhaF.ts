@@ -196,7 +196,7 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'No cartão de crédito, a fatura que você não paga por inteiro entra no {{rotativo}}. Em 2026, a média do Banco Central ficou perto de 15% ao mês, mais de 400% ao ano. Por lei, desde 2024 os juros e encargos do rotativo somados não passam do valor original da dívida: ela pode, no máximo, dobrar.',
+          'No cartão de crédito, a fatura que você não paga por inteiro entra no {{rotativo}}, uma das taxas mais altas do mercado. Por lei, os juros e encargos do rotativo somados não passam do valor original da dívida: ela pode, no máximo, dobrar.',
       },
       {
         type: 'check',
@@ -212,7 +212,18 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{cheque especial}} e o crédito pessoal sem desconto em folha também são caros: o cheque especial ficou perto de 7% ao mês em 2026. O {{consignado}} costuma ser mais barato porque a parcela é descontada direto da folha de pagamento ou do benefício, e o banco corre menos risco de não receber.',
+          'O {{cheque especial}} e o crédito pessoal sem desconto em folha também são caros. O {{consignado}} costuma ser mais barato porque a parcela é descontada direto da folha de pagamento ou do benefício, e o banco corre menos risco de não receber.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-taxas-credito',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Taxas de hoje',
+          body:
+            'Em 2026, a média do Banco Central para o rotativo do cartão ficou perto de 15% ao mês, mais de 400% ao ano, e a do cheque especial, perto de 7% ao mês. Essas taxas mudam com o tempo.',
+        },
       },
       {
         type: 'check',

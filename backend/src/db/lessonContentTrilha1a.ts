@@ -46,18 +46,29 @@ export const BLOCKS_1_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O {{FGC}} protege até R$ 250 mil por CPF, por {{conglomerado financeiro}}. Além disso, o teto é de R$ 1 milhão por CPF a cada 4 anos.',
+          'O {{FGC}} protege até um limite por CPF, por {{conglomerado financeiro}}, e há ainda um teto total por CPF a cada 4 anos.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-fgc',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Valores de hoje',
+          body:
+            'O FGC protege até R$ 250 mil por CPF e por conglomerado financeiro, e o teto total é de R$ 1 milhão por CPF a cada 4 anos. Esses valores são definidos por regra e podem mudar.',
+        },
       },
       {
         type: 'check',
         id: 'fgc-limite',
         kind: 'single',
         prompt:
-          'Você tem R$ 400 mil em CDBs de bancos do mesmo conglomerado financeiro. Até quanto o FGC cobre?',
-        options: ['R$ 100 mil', 'R$ 150 mil', 'R$ 250 mil', 'R$ 400 mil'],
-        answer: 2,
+          'Você tem CDBs em dois bancos do mesmo conglomerado financeiro. O limite do FGC vale:',
+        options: ['Separado para cada banco', 'Uma vez só para o conglomerado inteiro', 'Não existe limite'],
+        answer: 1,
         explanation:
-          'O limite é de R$ 250 mil por CPF e por conglomerado financeiro, não por banco. Os outros R$ 150 mil ficam sem a cobertura.',
+          'O limite vale por CPF e por conglomerado financeiro, não por banco. Dois bancos do mesmo conglomerado dividem a mesma cobertura.',
       },
       {
         type: 'widget',

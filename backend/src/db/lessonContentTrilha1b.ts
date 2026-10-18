@@ -110,17 +110,29 @@ export const BLOCKS_1_2: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Tem custos. O imposto de renda segue a tabela regressiva (de 22,5% a 15% sobre o ganho) e há IOF se resgatar antes de 30 dias. A B3 cobra 0,20% ao ano de custódia, mas no Tesouro Selic não cobra nada sobre os primeiros R$ 10 mil.',
+          'Tem custos. O imposto de renda segue a tabela regressiva (de 22,5% a 15% sobre o ganho) e há IOF se resgatar antes de 30 dias. A B3 cobra uma taxa anual de custódia, mas no Tesouro Selic ela não incide sobre os primeiros reais investidos.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-custodia-b3',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Valores de hoje',
+          body:
+            'A B3 cobra 0,20% ao ano de custódia sobre o Tesouro Direto. No Tesouro Selic, não cobra nada sobre os primeiros R$ 10 mil. Esses valores podem mudar.',
+        },
       },
       {
         type: 'check',
         id: 'custodia-selic',
         kind: 'single',
-        prompt: 'Você tem R$ 8.000 no Tesouro Selic. Quanto paga de custódia da B3 por ano?',
+        prompt:
+          'No Tesouro Selic, a B3 não cobra custódia sobre os primeiros R$ 10 mil. Você tem R$ 8.000 nele. Quanto paga de custódia por ano?',
         options: ['R$ 0', 'R$ 16', 'R$ 80', 'R$ 160'],
         answer: 0,
         explanation:
-          'No Tesouro Selic a custódia só incide sobre o que passa de R$ 10 mil por CPF. Com R$ 8.000, é zero.',
+          'Todo o seu valor está dentro da parte isenta, então a custódia é zero.',
       },
       {
         type: 'text',
@@ -155,7 +167,7 @@ export const BLOCKS_1_3: LessonBlocks = {
         markup:
           'Você já viu que o Tesouro Selic rende a Selic e que o Copom define a meta dela. Mas o que o Copom olha para decidir?' +
           '\n\n' +
-          'A pergunta central é: a inflação está dentro da meta? Hoje a meta é de 3% ao ano, com tolerância de 1,5 ponto para cima e para baixo, medida pelo {{IPCA}} em 12 meses.',
+          'A pergunta central é: a inflação está dentro da meta? A meta é um número com tolerância para cima e para baixo, definido pelo governo e medido pelo {{IPCA}} em 12 meses. Ela pode mudar com o tempo.',
       },
       {
         type: 'check',
@@ -193,7 +205,8 @@ export const BLOCKS_1_3: LessonBlocks = {
         type: 'check',
         id: 'inflacao-dentro-da-meta',
         kind: 'single',
-        prompt: 'A inflação em 12 meses está em 3,5%. O que o Copom tende a fazer com a Selic?',
+        prompt:
+          'Com meta de 3% e tolerância de 1,5 ponto, a inflação em 12 meses está em 3,5%. O que o Copom tende a fazer com a Selic?',
         options: ['Elevar com urgência', 'Manter, sem urgência', 'Reduzir com urgência'],
         answer: 1,
         explanation:
@@ -424,7 +437,7 @@ export const BLOCKS_1_7: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'O ganho que a conta mostra primeiro é bruto. Sobre ele pagam-se o imposto de renda, pela tabela regressiva, e a custódia da B3, de 0,20% ao ano. O widget já mostra o líquido.',
+          'O ganho que a conta mostra primeiro é bruto. Sobre ele pagam-se o imposto de renda, pela tabela regressiva, e a custódia da B3. O widget já mostra o líquido.',
       },
       {
         type: 'text',
@@ -624,9 +637,21 @@ export const BLOCKS_1_9: LessonBlocks = {
     ],
     revelation: [
       {
-        type: 'text',
-        markup:
-          'Um pouco mais: 2,01%. Cada mês incide sobre preços já reajustados, como nos {{juros compostos}}. O acumulado de 12 meses é o produto dos fatores mensais: (1 + m1) × (1 + m2) × ... × (1 + m12) − 1.',
+        type: 'widget',
+        id: 'conta-acumulado',
+        widget: 'formula-walkthrough',
+        props: {
+          intro: 'Um pouco mais: 2,01%. Cada mês incide sobre preços já reajustados, como nos juros compostos.',
+          items: [
+            {
+              label: 'Inflação acumulada',
+              formula: '(1 + m1) × (1 + m2) × ... × (1 + m12) − 1',
+              legend: 'm é a inflação de cada mês.',
+              numbers: '(1 + 0,01) × (1 + 0,01) − 1 = 1,0201 − 1',
+              result: '2,01%',
+            },
+          ],
+        },
       },
       {
         type: 'check',
@@ -641,13 +666,14 @@ export const BLOCKS_1_9: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'A meta de inflação no Brasil é de 3% ao ano, com tolerância de 1,5 ponto para cima e para baixo. Compara-se a meta com o IPCA acumulado em 12 meses.',
+          'Compara-se a meta de inflação, com a tolerância para cima e para baixo, com o IPCA acumulado em 12 meses.',
       },
       {
         type: 'check',
         id: 'ipca-fora-da-meta',
         kind: 'single',
-        prompt: 'O IPCA em 12 meses está em 4,8%. Ele está dentro do intervalo da meta?',
+        prompt:
+          'Com meta de 3% e tolerância de 1,5 ponto, o IPCA em 12 meses está em 4,8%. Ele está dentro do intervalo da meta?',
         options: ['Sim, está perto de 3%', 'Não, passou do teto de 4,5%'],
         answer: 1,
         explanation:
@@ -731,9 +757,20 @@ export const BLOCKS_1_10: LessonBlocks = {
           'Aumenta. Mais inflação corrige o VNA para cima, e a taxa fixa incide sobre o valor já corrigido. É a proteção contra perder poder de compra.',
       },
       {
-        type: 'text',
-        markup:
-          'Os dois efeitos se multiplicam: (1 + IPCA) × (1 + taxa) − 1. Com IPCA de 5% e taxa de 6%, o retorno do ano é de 11,3%, e não 11%.',
+        type: 'widget',
+        id: 'conta-ipca-mais',
+        widget: 'formula-walkthrough',
+        props: {
+          intro: 'Os dois efeitos se multiplicam. Com IPCA de 5% e taxa de 6% ao ano, o retorno do ano é de 11,3%, e não 11%.',
+          items: [
+            {
+              label: 'Retorno do Tesouro IPCA+',
+              formula: '(1 + IPCA) × (1 + taxa) − 1',
+              numbers: '(1 + 0,05) × (1 + 0,06) − 1 = 1,113 − 1',
+              result: '11,3%',
+            },
+          ],
+        },
       },
       {
         type: 'widget',

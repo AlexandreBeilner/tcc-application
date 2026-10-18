@@ -111,20 +111,28 @@ export const BLOCKS_0_2: LessonBlocks = {
     ],
     revelation: [
       {
-        type: 'text',
-        markup:
-          'No regime simples, o montante cresce em linha reta: M = C × (1 + i × n). No composto, cada período rende sobre o saldo já com juros: M = C × (1 + i)ⁿ.' +
-          '\n\n' +
-          'Com R$ 1.000 a 10% em 20 anos, são R$ 3.000 no simples e cerca de R$ 6.727 no composto. A taxa é a mesma, e a curva é outra.',
-      },
-      {
         type: 'widget',
-        id: 'dica-tempo',
-        widget: 'callout',
+        id: 'conta-simples-composto',
+        widget: 'formula-walkthrough',
         props: {
-          tone: 'tip',
-          title: 'O tempo é o ingrediente',
-          body: 'Quanto mais cedo você começa, mais períodos de juros sobre juros trabalham a seu favor.',
+          intro: 'R$ 1.000 a 10% ao ano, por 3 anos. A taxa é a mesma, e o resultado muda.',
+          items: [
+            {
+              label: 'Juros simples',
+              formula: 'M = C × (1 + i × n)',
+              legend: 'C é o capital, i é a taxa por período e n é o número de períodos.',
+              numbers: 'M = 1.000 × (1 + 0,10 × 3)',
+              result: 'R$ 1.300',
+            },
+            {
+              label: 'Juros compostos',
+              formula: 'M = C × (1 + i)ⁿ',
+              numbers: 'M = 1.000 × (1 + 0,10)³',
+              result: 'R$ 1.331',
+            },
+          ],
+          note:
+            'Em 20 anos, os mesmos R$ 1.000 viram R$ 3.000 no simples e cerca de R$ 6.727 no composto. Quanto mais cedo você começa, mais períodos de juros sobre juros trabalham a seu favor.',
         },
       },
       {
@@ -160,7 +168,18 @@ export const BLOCKS_0_3: LessonBlocks = {
         markup:
           'Hoje, R$ 100 compram um certo cesto de compras. Daqui a um ano, os preços sobem e o mesmo cesto custa mais. Essa alta geral dos preços é a {{inflação}}.' +
           '\n\n' +
-          'No Brasil, quem mede a inflação é o IBGE, pelo {{IPCA}}. O Banco Central persegue uma meta: 3% ao ano, com tolerância de 1,5 ponto para mais ou para menos.',
+          'No Brasil, quem mede a inflação é o IBGE, pelo {{IPCA}}. O Banco Central persegue uma meta de inflação e compara o IPCA com ela.',
+      },
+      {
+        type: 'widget',
+        id: 'hoje-meta-inflacao',
+        widget: 'callout',
+        props: {
+          tone: 'info',
+          title: 'Hoje no Brasil',
+          body:
+            'Em 2026, a meta é de 3% ao ano, com tolerância de 1,5 ponto para mais ou para menos, ou seja, de 1,5% a 4,5%. A meta é definida pelo governo e pode mudar.',
+        },
       },
     ],
     microDecision: [
@@ -192,10 +211,11 @@ export const BLOCKS_0_3: LessonBlocks = {
         type: 'check',
         id: 'meta-inflacao',
         kind: 'true_false',
-        prompt: 'A meta de inflação do Brasil é de 3% ao ano, medida pelo IPCA.',
+        prompt:
+          'A meta de inflação é um objetivo que o Banco Central persegue, e não a inflação que já aconteceu.',
         answer: true,
         explanation:
-          'A meta é de 3%, com intervalo de tolerância de 1,5 ponto para mais ou para menos, ou seja, de 1,5% a 4,5%.',
+          'A meta é o alvo. O IPCA mostra a inflação que aconteceu, e o Banco Central compara os dois para decidir o que fazer.',
       },
       { type: 'text', markup: 'Na próxima lição, esse conceito ganha nome: rendimento real.' },
     ],
