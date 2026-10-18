@@ -19,6 +19,7 @@ import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, getIndicatorHistory, listAssets } from '../../services/market'
 import type { AssetDetail, AssetSummary, IndicatorHistoryEntry } from '../../services/market'
 import { listMissions } from '../../services/missions'
+import { getMyReferral } from '../../services/referral'
 import { Lesson } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
@@ -38,6 +39,7 @@ vi.mock('../../services/market', () => ({
     getFixedIncomeTaxRate: vi.fn(),
     getIndicatorHistory: vi.fn(),
 }))
+vi.mock('../../services/referral', () => ({ getMyReferral: vi.fn() }))
 vi.mock('../../services/missions', () => ({ listMissions: vi.fn(), completeMission: vi.fn() }))
 
 function renderLesson(id = 'lesson-1') {
@@ -1066,6 +1068,33 @@ describe('Lesson (tela 3.2)', () => {
                 expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
             })
 
+            it('depois do chute dá para compartilhar o chute e o valor real (LJ.5.10)', async () => {
+                const writeText = vi.fn().mockResolvedValue(undefined)
+                Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+                Object.defineProperty(navigator, 'share', { value: undefined, configurable: true })
+                vi.mocked(getMyReferral).mockResolvedValue({ code: 'ABCD2345' } as never)
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([estimate]) })
+                vi.mocked(answerCheckpoint).mockResolvedValue({
+                    correct: false,
+                    attempts: 1,
+                    firstTry: false,
+                    wrongOptions: [],
+                    explanation: 'Juros sobre juros.',
+                    estimate: far,
+                })
+
+                renderLesson()
+                fireEvent.change(await screen.findByRole('slider', { name: 'Seu chute' }), { target: { value: '3000' } })
+                expect(screen.queryByRole('button', { name: 'Compartilhar' })).not.toBeInTheDocument()
+                fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+                fireEvent.click(await screen.findByRole('button', { name: 'Compartilhar' }))
+
+                await waitFor(() => expect(writeText).toHaveBeenCalled())
+                const sent = String(writeText.mock.calls[0]?.[0])
+                expect(sent).toMatch(/^Chutei R\$\s3\.000\. Era R\$\s6\.727,50\./)
+                expect(sent).toContain('?ref=ABCD2345')
+            })
+
             it('aceita o valor digitado e recusa o que está fora da régua', async () => {
                 vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([estimate]) })
                 vi.mocked(answerCheckpoint).mockResolvedValue({
@@ -1727,6 +1756,23 @@ describe('Lesson (tela 3.2)', () => {
             expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
             expect(screen.getByText(summary)).toBeInTheDocument()
             expect(screen.getByText('Diversificação')).toBeInTheDocument()
+        })
+
+        it('oferece compartilhar o resultado, com o placar da lição na mensagem (LJ.5.10)', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined)
+            Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+            Object.defineProperty(navigator, 'share', { value: undefined, configurable: true })
+            vi.mocked(getMyReferral).mockResolvedValue({ code: 'ABCD2345' } as never)
+            vi.mocked(getLesson).mockResolvedValue({ lesson: finished(['q0', 'q1'], [true, true]) })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Compartilhar' }))
+
+            await waitFor(() =>
+                expect(writeText).toHaveBeenCalledWith(
+                    `Fiz a lição "Diversificação" no Selucra: 2 de 2 de primeira. ${window.location.origin}/login?ref=ABCD2345`,
+                ),
+            )
         })
 
         it('mostra "O que ficou" com os resumos e some quando a lição não tem resumo', async () => {

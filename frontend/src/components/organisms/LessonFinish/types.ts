@@ -15,6 +15,8 @@ export interface LessonFinishProps {
     // Texto do que a lição libera.
     nextStepText: string
     teaser?: NextLessonTeaser | null
+    // Botão de compartilhar o resultado (LJ.5.10), logo abaixo do placar.
+    share?: ReactNode
     // Botões do próximo passo.
     actions: ReactNode
 }

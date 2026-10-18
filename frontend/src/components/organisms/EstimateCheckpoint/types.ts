@@ -7,5 +7,7 @@ export interface EstimateCheckpointProps {
     pending: boolean
     error: boolean
     isReview: boolean
+    // Nome da lição, para o cartão de compartilhar o chute (LJ.5.10).
+    lessonTitle?: string
     onSubmit: (response: { value: number }) => void
 }

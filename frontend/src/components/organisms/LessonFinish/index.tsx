@@ -10,7 +10,17 @@ export type { LessonFinishProps } from './types'
 // esta contagem; o aviso global de "+N XP" não dispara na conclusão (ver `useAdvanceLesson`), senão o valor
 // apareceria duas vezes.
 // No desktop o resultado (placar e XP) e "O que ficou" ficam lado a lado, e o próximo passo ocupa a largura toda.
-export function LessonFinish({ lessonTitle, resultTitle, score, xpAwarded, summary, nextStepText, teaser, actions }: LessonFinishProps) {
+export function LessonFinish({
+    lessonTitle,
+    resultTitle,
+    score,
+    xpAwarded,
+    summary,
+    nextStepText,
+    teaser,
+    share,
+    actions,
+}: LessonFinishProps) {
     const xpShown = useCountUp(xpAwarded ?? 0)
     const hasSummary = summary !== undefined && summary.length > 0
 
@@ -32,6 +42,7 @@ export function LessonFinish({ lessonTitle, resultTitle, score, xpAwarded, summa
                         <span aria-hidden="true">{`+${xpShown} XP`}</span>
                     </p>
                 )}
+                {share}
             </div>
 
             {hasSummary && (

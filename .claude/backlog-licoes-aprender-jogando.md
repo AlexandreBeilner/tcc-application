@@ -577,7 +577,7 @@ derivação, incluindo a rota do perfil público.
 
 - **Entregável:** (2026-10-18) Sem tabela nova nem XP. **Backend:** `GET /users/:id/profile` e `GET /me/profile` ganham `completedLessonCodes: string[]` (código de cada lição concluída, na ordem do currículo; lição só dispensada não conta), por `GetCompletedLessonCodesUseCase` (módulo `lessons`) lido em processo pelo `profile` através do port `TrackCompletionReader`, que ganhou `listCompletedLessonCodes`. Só progresso de estudo, nenhum valor monetário (teste de rota confere). `.docs/backend/profile.md` atualizado. **Frontend:** o catálogo de termos é o glossário estático, então a derivação é do cliente: `features/lessons/termCollection` (`allTermCards`: só termo com lição de origem e trilha conhecida; `deriveTermCollection`: ganhas e por ganhar, ordem do currículo com `2.7.1` antes de `2.12`; hoje são 82 cartas). Organismo `TermCollection` dentro do `PublicProfileCard` (serve `/perfil` e `/perfil/:id`): **no próprio perfil** "Seus termos: N de M" com medidor, cartas ganhas viradas para cima (botão que abre a definição, o exemplo e o atalho "Rever a lição", que acha o id pela lista de lições) e, recolhidas atrás de "Ver as N cartas que faltam", as viradas para baixo (borda tracejada, só a trilha onde se ganha, nunca o termo); **no perfil de outra pessoa** (LJ-D6) só "Termos aprendidos: N" e as cartas ganhas, sem as que faltam nem o atalho, e a seção some se não houver nenhuma. "É o próprio" vem de `currentUserId === targetUserId`, e a lista de lições só é buscada no próprio (`useLessonsQuery({ enabled })`). Três breakpoints: grade de 2, 3 e 4 colunas; a carta aberta ocupa a linha. Testes: derivação (13), organismo (4: próprio, abrir carta, outra pessoa, vazio), caso de uso e rota do perfil, fixtures das páginas. **Conferido no navegador** (desktop com o próprio perfil e mobile 390 px por iframe no perfil de outra pessoa, usuários descartáveis removidos): "13 de 82", definição com "Rever a lição", cartas que faltam por trilha, e o perfil público sem as que faltam. **Observação:** termo sem `originLesson` no glossário não vira carta (hoje só 2 de 84 entradas).
 
-### LJ.5.10 · Compartilhar o resultado
+### LJ.5.10 · Compartilhar o resultado ✅ concluída
 
 **O que fazer:** botão "Compartilhar" na tela final (LJ.1.4) e no resultado da estimativa
 (LJ.2.2), reaproveitando o gerador de imagem da retrospectiva
@@ -587,6 +587,8 @@ Era R$ 6.727."), e o link de convite da pessoa (`/convidar`).
 
 **Critérios de aceite:** nunca patrimônio, posição nem rentabilidade (RNF09); funciona sem
 `navigator.share` (copia o texto); identidade visual dos tokens; testes do texto gerado.
+
+- **Entregável:** (2026-10-18) Só frontend. `features/lessons/shareResult`: textos (`buildScoreMessage`: "Fiz a lição "X" no Selucra: 4 de 5 de primeira." ou só "Concluí a lição..." sem placar; `buildEstimateMessage`: "Chutei R$ 3.000. Era R$ 6.727,50. Será que você acerta?", formatado pela unidade da régua), cartões de 1080 px no tema escuro dos tokens (`drawResultCard`, que reaproveita a paleta do cartão da retrospectiva, agora exportada como `SHARE_COLOR`) e `shareResult`: menu do sistema (com a imagem quando o aparelho aceita arquivo, senão só o texto) e, sem `navigator.share` ou se ele falhar, **copia o texto** (avisa "Texto copiado."). Fechar o menu é cancelar. Organismo `ShareResultButton`: o código de convite é buscado **só ao tocar** (`/login?ref=CODIGO`, pelo mesmo `buildInviteLink` do `/convidar`; se falhar, o texto sai com o endereço do app) e a imagem só é montada onde `navigator.canShare` existe. Entrou na tela final (`LessonFinish.share`, com o placar visível na tela; sem placar vai só a conclusão) e no resultado da estimativa (`EstimateCheckpoint`, que ganhou `lessonTitle` opcional). Nunca patrimônio, posição nem rentabilidade (RNF09): só título da lição, placar ou chute e o link. **Desvio do texto:** o "gerador de imagem da retrospectiva" não foi chamado, só a paleta: o cartão do resultado tem outro desenho (1080x1080, título, destaque e legenda), e o da retrospectiva depende dos dados do mês. A região `aria-live` do aviso não usa `role="status"` para não colidir com o aviso global de XP da tela final. Testes: textos, cartão no canvas falso, os caminhos de `shareResult`, botão (cópia com o link, convite que falha, sem requisição antes do toque) e página (tela final e estimativa); frontend 2.7 mil testes. **Conferido no navegador** (desktop e mobile 390 px por iframe, usuário descartável removido): botão na estimativa e na tela final, e o texto copiado com o link de convite. Não testei o menu nativo de compartilhar nem a imagem em aparelho real.
 
 ---
 
@@ -601,7 +603,7 @@ Era R$ 6.727."), e o link de convite da pessoa (`/convidar`).
 7. **LJ.5.7, LJ.5.8** (conteúdo: lições longas e ganchos)
 8. LJ.2.3, LJ.2.4, LJ.2.5, o resto da LJ.2.7
 9. ✅ **LJ.5.5, LJ.5.6** (memória: "Relembra?" e revisão espaçada)
-10. LJ.2.6 (tabela nova), **LJ.5.9, LJ.5.10**
+10. ✅ LJ.2.6 (tabela nova), **LJ.5.9, LJ.5.10**
 11. LJ.3.4
 
 ## Resumo de contagem

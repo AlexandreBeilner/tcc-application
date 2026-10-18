@@ -38,6 +38,8 @@ import { lessonScore, scoreSummary, scoreTitle } from '../../features/lessons/le
 import { lessonMinutes } from '../../features/lessons/lessonDuration'
 import { nextLessonTeaser } from '../../features/lessons/nextLessonTeaser'
 import { LessonFinish } from '../../components/organisms/LessonFinish'
+import { ShareResultButton } from '../../components/organisms/ShareResultButton'
+import { buildScoreCard, buildScoreMessage } from '../../features/lessons/shareResult'
 import type { AnswerMicroDecisionResult, Lesson as LessonType } from '../../services/lessons'
 import styles from './index.module.css'
 
@@ -311,6 +313,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 : null
 
     const showScore = score.total > 0 && (!isReview || showScoreInReview)
+    // O que o cartão de compartilhar leva (LJ.5.10): o placar visível na tela final, ou só a conclusão.
+    const shareInput = (lessonTitle: string) => ({
+        lessonTitle,
+        firstTry: showScore ? score.firstTry : 0,
+        total: showScore ? score.total : 0,
+    })
 
     function handleBack() {
         navigation.back(cardCounts)
@@ -348,6 +356,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                 pending={checkpoints.isPending}
                 error={checkpoints.isError}
                 isReview={isReview === true}
+                lessonTitle={lesson?.title}
                 onSubmit={(response) => checkpoints.submit(block, response)}
             />
         )
@@ -660,6 +669,12 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         summary={blocks?.summary}
                         nextStepText={lesson.unlocksDescription || 'Você avançou mais um passo na trilha.'}
                         teaser={nextLessonTeaser(lessons, lesson)}
+                        share={
+                            <ShareResultButton
+                                message={buildScoreMessage(shareInput(lesson.title))}
+                                card={buildScoreCard(shareInput(lesson.title))}
+                            />
+                        }
                         actions={
                             <>
                                 <Button variant="secondary" onClick={handleBack} data-lesson-back="" aria-label="Voltar ao passo anterior">

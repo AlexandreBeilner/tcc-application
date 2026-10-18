@@ -1,6 +1,8 @@
 import { useId, useState } from 'react'
 import { Button } from '../../atoms/Button'
 import { StreakSeal } from '../../molecules/StreakSeal'
+import { ShareResultButton } from '../ShareResultButton'
+import { buildEstimateCard, buildEstimateMessage } from '../../../features/lessons/shareResult'
 import {
     estimateMessage,
     formatEstimateValue,
@@ -21,7 +23,7 @@ const labelLeft = (position: number) => Math.min(88, Math.max(12, position))
 // A pessoa chuta num controle deslizante (ou digitando), sempre avança e vê duas marcas na régua,
 // "Seu chute" e "O valor real", com a faixa de tolerância sombreada. Longe do valor nunca é erro:
 // o tom é de descoberta. O controle começa na ponta mínima: o meio da régua costuma ficar perto da resposta e induziria o chute. O valor real só chega do servidor depois do chute.
-export function EstimateCheckpoint({ block, view, pending, error, isReview, onSubmit }: EstimateCheckpointProps) {
+export function EstimateCheckpoint({ block, view, pending, error, isReview, lessonTitle, onSubmit }: EstimateCheckpointProps) {
     const { min, max, step, unit } = block.range
     const range = { min, max, step }
     const inputId = useId()
@@ -145,6 +147,10 @@ export function EstimateCheckpoint({ block, view, pending, error, isReview, onSu
                     </dl>
                     {view.explanation && <p className={styles.explanation}>{view.explanation}</p>}
                     {view.streakMilestone && !isReview && <StreakSeal milestone={view.streakMilestone} />}
+                    <ShareResultButton
+                        message={buildEstimateMessage({ guess: result.guess, value: result.value, unit })}
+                        card={buildEstimateCard(lessonTitle ?? 'Estimativa', { guess: result.guess, value: result.value, unit })}
+                    />
                 </div>
             )}
 
