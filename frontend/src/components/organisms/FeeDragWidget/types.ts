@@ -1,4 +1,6 @@
-export interface FeeDragWidgetProps {
+import type { MissionWidgetProps } from '../../../features/lessons/widgets/goal'
+
+export interface FeeDragWidgetProps extends MissionWidgetProps {
     initial: number
     monthly: number
     grossReturnPct: number

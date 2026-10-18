@@ -81,6 +81,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'roeMinusSelicPp', op: 'gt', value: 0 },
         showMe: { equity: 400 },
     },
+    {
+        lesson: '2.11',
+        widget: 'fee-drag',
+        initial: { years: 30, feeBPct: 0.1 },
+        goal: { metric: 'differenceBRL', op: 'gte', value: 10000 },
+        showMe: { feeBPct: 0.3 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props, validadas pelo schema como o player faz
@@ -199,6 +206,15 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(metricsOf('roe-lab', { netIncome: 50, equity: 450 }).roeMinusSelicPp).toBeCloseTo(0.611, 3)
         // O "Me mostra" (patrimônio de 400): 12,5% de ROE, 2 pontos acima.
         expect(metricsOf('roe-lab', { netIncome: 50, equity: 400 }).roeMinusSelicPp).toBeCloseTo(2, 6)
+    })
+
+    it('2.11: R$ 10.000 a 10% por 30 anos, sem aporte: 0,1% de taxa leva cerca de R$ 4.700, 0,2% ainda não chega a R$ 10 mil e 0,3% leva cerca de R$ 13.700', () => {
+        const lost = (feeBPct: number, years = 30) => metricsOf('fee-drag', { years, feeBPct }).differenceBRL
+        expect(lost(0.1)).toBeCloseTo(4696.7, 0)
+        expect(lost(0.2)).toBeCloseTo(9271.1, 0)
+        expect(lost(0.3)).toBeCloseTo(13726.3, 0)
+        // A taxa da estimativa (2% em 30 anos) fica longe do ponto de partida do widget: não entrega a resposta dela.
+        expect(lost(2)).toBeCloseTo(73867.5, 0)
     })
 
     describe('2.4: ordem limitada de compra executada (o widget só informa depois de "Enviar ordem")', () => {

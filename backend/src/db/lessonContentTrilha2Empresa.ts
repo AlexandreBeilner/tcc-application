@@ -822,9 +822,18 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
         type: 'widget',
         id: 'efeito-da-taxa',
         widget: 'fee-drag',
-        props: {},
+        props: { years: 30, feeBPct: 0.1 },
         caption:
           'Mude as taxas, o retorno e o prazo e veja a diferença entre os dois produtos crescer.',
+        goal: {
+          text: 'Com 30 anos de prazo, ache a taxa do produto B que já leva R$ 10 mil do saldo',
+          metric: 'differenceBRL',
+          op: 'gte',
+          value: 10000,
+          reveal:
+            'Uma taxa que parece pequena já leva mais de R$ 10 mil em 30 anos: ela corrói o retorno todo ano, e os juros seguintes incidem sobre o que sobrou.',
+          showMe: { feeBPct: 0.3 },
+        },
       },
       {
         type: 'text',

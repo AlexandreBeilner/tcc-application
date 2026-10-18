@@ -99,6 +99,14 @@ const EXPECTED: Expected[] = [
     op: 'gt',
     value: 0,
   },
+  {
+    lesson: '2.11',
+    id: 'efeito-da-taxa',
+    widget: 'fee-drag',
+    metric: 'differenceBRL',
+    op: 'gte',
+    value: 10000,
+  },
 ]
 
 function goalsOf(code: string) {

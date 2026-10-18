@@ -36,6 +36,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<WidgetId, readonly string[]>
   'order-book': ['limitFilledQty'],
   'interactive-balance': ['netIncome'],
   'roe-lab': ['roeMinusSelicPp'],
+  'fee-drag': ['differenceBRL'],
   'real-return': ['realReturnPct'],
   'savings-vs-selic': ['savingsGapPct'],
 }
