@@ -70,6 +70,6 @@ describe('decisões do autor no seed', () => {
       .flat()
       .find((b) => (b as { id?: string }).id === 'rendimento-real') as { goal: { text: string } }
 
-    expect(widget.goal.text).toBe('Faça a inflação passar o rendimento')
+    expect(widget.goal.text).toBe('Aumente a Inflação até ela passar o Rendimento nominal')
   })
 })

@@ -101,7 +101,8 @@ export const BLOCKS_0_2: LessonBlocks = {
         type: 'check',
         id: 'chute-20-anos',
         kind: 'estimate',
-        prompt: 'Chute: quanto viram os R$ 1.000 depois de 20 anos a 10% ao ano?',
+        prompt:
+          'Chute: com juros compostos, em que os juros também rendem, quanto viram os R$ 1.000 depois de 20 anos a 10% ao ano?',
         min: 1000,
         max: 10000,
         step: 100,
@@ -124,7 +125,7 @@ export const BLOCKS_0_2: LessonBlocks = {
         widget: 'growth-calculator',
         props: { initialCapital: 1000, ratePct: 10, periodYears: 1 },
         goal: {
-          text: 'Ache o prazo em que os juros compostos passam do dobro dos juros simples',
+          text: 'Mexa no Período e ache o prazo em que os juros compostos passam do dobro dos juros simples',
           metric: 'interestRatio',
           op: 'gte',
           value: 2,
@@ -225,7 +226,7 @@ export const BLOCKS_0_3: LessonBlocks = {
         id: 'chute-preco-10-anos',
         kind: 'estimate',
         prompt:
-          'Chute: com inflação de 5% ao ano, quanto custará em 10 anos o que hoje custa R$ 100?',
+          'Chute: com inflação de 5% ao ano, sempre sobre o preço já reajustado, quanto custará em 10 anos o que hoje custa R$ 100?',
         min: 100,
         max: 250,
         step: 5,
@@ -266,7 +267,7 @@ export const BLOCKS_0_4: LessonBlocks = {
         props: { nominalPct: 8, inflationPct: 3, amount: 10000 },
         caption: 'Mexa nos dois controles',
         goal: {
-          text: 'Faça a inflação passar o rendimento',
+          text: 'Aumente a Inflação até ela passar o Rendimento nominal',
           metric: 'realReturnPct',
           op: 'lt',
           value: 0,

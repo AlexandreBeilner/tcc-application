@@ -51,7 +51,7 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
         caption:
           'Compre 500 a mercado e veja o preço médio. Depois tente uma ordem limitada abaixo do mercado.',
         goal: {
-          text: 'Envie uma ordem limitada de compra e faça com que ela seja executada',
+          text: 'Escolha Comprar e Limitada, use Enviar ordem e faça com que ela seja executada. Se ficar na fila, mexa no mercado',
           metric: 'limitFilledQty',
           op: 'gt',
           value: 0,
@@ -466,11 +466,11 @@ export const BLOCKS_2_3: LessonBlocks = {
         right: [
           'Ação ordinária, com direito a voto',
           'Ação preferencial, que pode ter preferência no dividendo',
-          'Fundo ou ETF, não uma ação simples',
+          'Fundo, ETF ou unit (um pacote de ações), não uma ação simples',
         ],
         answer: [0, 1, 2],
         explanation:
-          'O 3 marca a ação ordinária e o 4, a preferencial. O 11 abrange fundos e ETFs: as ações simples terminam em 3 ou em 4.',
+          'O 3 marca a ação ordinária e o 4, a preferencial. O 11 costuma marcar fundos, ETFs e units, que são pacotes de ações. As ações simples mais comuns terminam em 3 ou em 4.',
       },
       {
         type: 'check',
