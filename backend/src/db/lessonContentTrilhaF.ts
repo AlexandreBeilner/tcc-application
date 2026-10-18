@@ -184,14 +184,18 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'dois-meses',
-        kind: 'single',
+        id: 'chute-divida-12-meses',
+        kind: 'estimate',
         prompt:
-          'Você deve R$ 1.000 a juros de 10% ao mês e não paga nada. Quanto deve depois de 2 meses, em reais?',
-        options: ['R$ 1.100', 'R$ 1.200', 'R$ 1.210', 'R$ 2.000'],
-        answer: 2,
+          'Chute: você deve R$ 1.000 a 15% ao mês e não paga nada. Quanto deve depois de 12 meses?',
+        min: 1000,
+        max: 6000,
+        step: 100,
+        unit: 'brl',
+        answer: 5350.25,
+        tolerancePct: 10,
         explanation:
-          'No primeiro mês a dívida vai a R$ 1.100. No segundo, 10% de R$ 1.100 são R$ 110, e ela chega a R$ 1.210.',
+          'A conta dá cerca de R$ 5.350: 15% ao mês, mês após mês, multiplica a dívida por mais de 5. No rotativo do cartão existe um freio por lei, que você vê a seguir.',
       },
       {
         type: 'text',

@@ -201,7 +201,7 @@ comportamento (testes atuais passam intactos); `docker compose up` de ponta a po
 
 - **Entregável:** (2026-10-18) **Escopo cortado de propósito:** a fundação entrou com o formato `estimate` (o único que a sessão usa); `order`, `categorize` e `match` ficam para a LJ.2.3 a LJ.2.5, que acrescentam o `kind`, o campo de resposta (`sequence`, `groups`, `pairs`), o embaralhamento determinístico e o `hint` da LJ-D2 junto do componente de cada um (código morto sem tela só adiantaria contrato que o formato pode mudar). Backend: `CheckBlock` ganha `estimate` (Zod com `min < max`, `answer` dentro da régua, `tolerancePct` em (0, 100]); `CheckResponse` vira `{ selectedOption? , value? }`; `isValidCheckResponse`/`isCheckCorrect` por formato, mais `classifyEstimate` (`exact`/`close`/`far`) e `resolvesOnFirstAnswer`, funções puras com teste table-driven; `toPublicBlock` leva só `range` da estimativa. `AnswerCheckpointResult` ganha `estimate: { guess, band, value, low, high }` (e a explicação sempre, porque avança). Persistência: coluna `user_lesson_checkpoints.last_response jsonb` (migration `0054`, escrita à mão com snapshot e `when` acima do último); o port aceita `solved`/`lastResponse`; `CheckpointRecord.lastResponse` alimenta o `firstTry` (estimativa "de primeira" = na mosca) e o `estimate` do `GET /lessons/:id` para restaurar a régua. Rota: corpo `{ selectedOption }` ou `{ value }` (Zod `union`). `.docs/backend/lessons.md` atualizado. Adapter testado em banco descartável (`drizzleLessonRepository.test.ts`, novo). `single`/`true_false` com testes antigos intactos. Frontend: `LessonCheckpoint` virou despachante por `kind`; o corpo antigo mudou para o organismo `ChoiceCheckpoint` (sem alteração de comportamento) e `useCheckpoints`/`answerCheckpoint` aceitam `CheckpointResponse`. Validado com `docker compose up --build backend`: migration aplicada no banco de desenvolvimento.
 
-### LJ.2.2 · Formato estimativa (`estimate`)
+### LJ.2.2 · Formato estimativa (`estimate`) ✅ concluída
 
 **Contrato:** `{ kind: 'estimate', prompt, min, max, step, unit: 'brl' | 'pct' | 'years' | 'none',
 answer, tolerancePct, explanation }`.
@@ -219,6 +219,8 @@ o tom da resposta longe nunca é de erro, é de descoberta.
 
 **Critérios de aceite:** teclado (setas mudam por `step`, PageUp/PageDown por 10 passos); mobile
 com alvo de toque de 44 px; testes da classificação na mosca/perto/longe e do formato de valor.
+
+- **Entregável:** (2026-10-18) Organismo `EstimateCheckpoint` (despachado por `LessonCheckpoint`): controle deslizante de 44 px de altura, campo para digitar (aceita vírgula e ponto de milhar, recusa fora da régua com aviso) e Responder só depois de mexer. Resultado: frase por faixa ("Na mosca!", "Quase lá", "Bem diferente do que parece, né?"), régua com "Seu chute" em cima, "O valor real" embaixo e a faixa de tolerância sombreada, legenda com os três valores e a explicação; a chama de sequência aparece quando cai na mosca. Sempre avança (LJ-D1); o servidor devolve o valor real só depois, e o `GET` restaura a régua ao voltar. Funções puras com teste em `features/lessons/estimateScale` (formato por unidade, posição na régua, passo, PageUp/PageDown, leitura do texto digitado). A classificação na mosca/perto/longe é do servidor (`classifyEstimate`, LJ.2.1). `data-lesson-widget` no controle faz os atalhos do player cederem as setas; `data-lesson-submit` no Responder. O controle **começa no mínimo**, não no meio: o meio da régua ficava perto da resposta e induzia o chute (visto na tela). Schema do frontend ganhou `range`. **Conferência visual (2026-10-18):** desktop 1567 px, mobile 390 e tablet 820 (iframes de largura fixa na mesma aba) com usuário descartável (removido): controle, resultado e restauração ao reabrir. Não testei toque real em aparelho nem leitor de tela.
 
 ### LJ.2.3 · Formato ordenar (`order`)
 
@@ -275,7 +277,7 @@ próxima tela você vê quanto isso custa").
 **Critérios de aceite:** checklist do backend; nenhum dado individual sai na resposta; RNF09
 intacta; `.docs/backend/lessons.md` documenta a rota.
 
-### LJ.2.7 · Conteúdo: aplicar os formatos novos
+### LJ.2.7 · Conteúdo: aplicar os formatos novos (parcial: só as linhas Estimativa ✅)
 
 **Depende de:** as tarefas dos formatos usados.
 
@@ -308,6 +310,8 @@ Valores das estimativas conferidos por função pura no teste (não confiar na c
 
 **Critérios de aceite:** cada lição alterada continua dentro da diretriz (3 a 7 checkpoints,
 cartão no teto, nenhum termo antes da definição); testes de conteúdo sem crescer baseline.
+
+- **Entregável parcial (linhas Estimativa, 2026-10-18):** as 4 estimativas entraram trocando, no mesmo lugar, uma pergunta de alternativas de cada lição (contagem de checkpoints igual): 0.2 `simples-3-anos` virou `chute-20-anos` (R$ 6.727,50, régua R$ 1.000 a R$ 10.000, tolerância 10%); 0.3 `inflacao-8` virou `chute-preco-10-anos` (R$ 162,89, tolerância 5%, porque 10 anos de 5% simples dariam R$ 150 e isso deve ser "Quase lá", não "Na mosca"); F.2 `dois-meses` virou `chute-divida-12-meses` (R$ 5.350,25 a 15% ao mês; a explicação aponta o teto do rotativo que o texto seguinte explica, sem repetir número legal); 2.11 `retorno-liquido` virou `chute-taxa-30-anos` (quanto a taxa de 2% leva de R$ 10.000 a 10% em 30 anos: R$ 73.867,45). Os valores reais são conferidos por conta no teste (`applyEstimateChecks.test.ts`), não de cabeça. Script aditivo `src/db/applyEstimateChecks.ts` (`swapForEstimate` pura e idempotente, troca só o bloco pelo `id` antigo, preserva edição do painel) já aplicado no banco de desenvolvimento. **Pendente:** as linhas Ordenar, Agrupar, Ligar e Enquete (dependem de LJ.2.3 a LJ.2.6). Orçamento de cartão e termos conferidos pelos testes de conteúdo (baseline não cresceu). **Ponto a revisar pelo autor:** o chute da 2.11 sai depois do widget `fee-drag`, que já deixa explorar a conta; se preferir antes do widget, é só mover o bloco no seed.
 
 ---
 

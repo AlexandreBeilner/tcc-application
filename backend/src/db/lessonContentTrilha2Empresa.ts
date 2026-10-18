@@ -773,13 +773,18 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'retorno-liquido',
-        kind: 'single',
+        id: 'chute-taxa-30-anos',
+        kind: 'estimate',
         prompt:
-          'Um fundo rende 10% ao ano e cobra 2% de taxa. Quanto sobra de retorno, em % ao ano?',
-        options: ['8%', '9,8%', '12%', '20%'],
-        answer: 0,
-        explanation: 'O retorno que chega a você é o bruto menos a taxa: 10% menos 2% dá 8%.',
+          'R$ 10.000 a 10% ao ano por 30 anos viram cerca de R$ 174 mil. Chute: quanto uma taxa de 2% ao ano leva desse saldo?',
+        min: 0,
+        max: 150000,
+        step: 1000,
+        unit: 'brl',
+        answer: 73867.45,
+        tolerancePct: 10,
+        explanation:
+          'A taxa leva cerca de R$ 74 mil: o saldo cai de R$ 174,5 mil para R$ 100,6 mil. Parece só 2% ao ano, mas ela corrói o retorno todo ano, por 30 anos.',
       },
       {
         type: 'text',

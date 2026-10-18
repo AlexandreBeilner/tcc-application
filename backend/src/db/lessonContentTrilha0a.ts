@@ -92,13 +92,18 @@ export const BLOCKS_0_2: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'simples-3-anos',
-        kind: 'single',
-        prompt: 'Com juros simples de 10% ao ano sobre R$ 1.000, quanto você tem depois de 3 anos?',
-        options: ['R$ 1.100', 'R$ 1.300', 'R$ 1.331', 'R$ 3.000'],
-        answer: 1,
+        id: 'chute-20-anos',
+        kind: 'estimate',
+        prompt:
+          'Chute: quanto viram os R$ 1.000 depois de 20 anos a 10% ao ano?',
+        min: 1000,
+        max: 10000,
+        step: 100,
+        unit: 'brl',
+        answer: 6727.5,
+        tolerancePct: 10,
         explanation:
-          'No regime simples o rendimento é sempre de R$ 100 por ano, sobre os R$ 1.000 iniciais: 1.000 + 3 × 100 = R$ 1.300.',
+          'Viram cerca de R$ 6.727. Com juros simples seriam R$ 3.000. Nos juros compostos os juros também rendem, e é isso que faz a conta disparar.',
       },
     ],
     microDecision: [
@@ -199,13 +204,18 @@ export const BLOCKS_0_3: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'inflacao-8',
-        kind: 'single',
+        id: 'chute-preco-10-anos',
+        kind: 'estimate',
         prompt:
-          'Com inflação de 8% em um ano, quanto custa daqui a um ano o que hoje custa R$ 250?',
-        options: ['R$ 258', 'R$ 270', 'R$ 280', 'R$ 2.000'],
-        answer: 1,
-        explanation: '8% de R$ 250 são R$ 20, então o preço vai a R$ 270.',
+          'Chute: com inflação de 5% ao ano, quanto custará em 10 anos o que hoje custa R$ 100?',
+        min: 100,
+        max: 250,
+        step: 5,
+        unit: 'brl',
+        answer: 162.89,
+        tolerancePct: 5,
+        explanation:
+          'Custará cerca de R$ 162,89. Cada ano o aumento incide sobre o preço já reajustado, então 10 anos de 5% somam 62,9%, e não 50%.',
       },
       {
         type: 'check',
