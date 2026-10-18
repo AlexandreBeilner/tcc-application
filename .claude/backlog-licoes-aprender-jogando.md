@@ -149,7 +149,7 @@ regras de conteúdo passam sem crescer o baseline; `.docs/backend/lessons.md` do
 
 - **Entregável:** (2026-10-18) `summary?: string[]` (2 a 3 itens, 1 a 120 caracteres) na raiz de `LessonBlocks`: tipo no domínio, Zod no backend (`lessonBlocksSchema`) e no espelho do frontend, `toPublicBlocks` repassa o campo, `CONTRACT_EXAMPLE` dos dois lados ganhou `summary`. Os 43 textos vivem em `backend/src/db/lessonSummaries.ts` (por `stableKey`) e entram no `LESSON_SEEDS` (que agora é o `BASE_LESSON_SEEDS` mapeado com o resumo); só repetem o que a lição já ensina, sem número regulatório novo. Script aditivo `src/db/addLessonSummaries.ts` (`fillSummary` pura, testada: preenche só onde falta, idempotente, preserva edição) aplicado no banco de desenvolvimento (43/43; segunda execução não faz nada). **Desvio do texto da tarefa:** o `summary` fica fora das fases, então em vez de ampliar `blockTextFields` criei `summaryTextFields` ao lado dela em `contentRules.ts`, usada por `visibleContent.test.ts` (mesmas regras de conteúdo proibido, baseline não cresceu). Teste do seed exige `summary` em toda lição e nenhuma chave órfã. `.docs/backend/lessons.md` documenta o campo e o script. Validado ponta a ponta: `docker compose up --build backend`, script no banco e `GET /lessons/:id` devolvendo o `summary`.
 
-### LJ.1.6 · Sequência de acertos dentro da lição
+### LJ.1.6 · Sequência de acertos dentro da lição ✅ concluída
 
 **O que fazer:** contador de acertos de primeira seguidos na sessão da lição. Ao chegar a 3 e a 5,
 um selo curto e animado aparece junto do feedback do checkpoint ("3 de primeira seguidas!"), em
@@ -161,6 +161,8 @@ mesmo ícone de chama do streak diário, para a pessoa ligar uma coisa à outra.
 
 **Critérios de aceite:** não aparece em revisão; respeita `prefers-reduced-motion`; leitor de
 tela anuncia em `aria-live="polite"`; teste da função pura do contador.
+
+- **Entregável:** (2026-10-18) Função pura `features/lessons/answerStreak` (`nextStreak`, `streakMilestone`, com teste table-driven) e molécula `StreakSeal` (chama do streak diário, `aria-live="polite"`, aos 5 a chama ganha brilho; animação desligada com `prefers-reduced-motion`). `useCheckpoints` guarda o contador num `ref` (só memória da sessão da lição, nada vai ao servidor, XP intacto): acerto de primeira soma, qualquer outra resposta zera sem mensagem, e o selo só vem ao chegar exatamente a 3 e a 5 (`CheckpointView.streakMilestone`). Em revisão nem conta. Só as perguntas do bloco `check` entram; a aposta legada da Micro-decisão não. O `LessonPreview` do admin não tem sessão de resposta, então não muda. **Não conferi na tela:** o navegador de automação não conectou, então o selo só foi verificado pelos testes (página: selo em 3 e 5, erro zera em silêncio, revisão sem selo).
 
 ---
 
@@ -457,6 +459,7 @@ silencioso.
 asset com hash (nunca rota de API, regra do PWA); respeita `prefers-reduced-motion` para a
 vibração; preferência gravada só no navegador (hoje só existe `email_preferences`, e uma
 preferência de som não justifica tabela nova), com leitura em try/catch.
+
 
 ### LJ.5.5 · "Relembra?": uma pergunta de lição anterior no início
 

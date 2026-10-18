@@ -1,9 +1,10 @@
 import { useMutation } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import { answerCheckpoint } from '../../../services/lessons'
 import type { CheckpointState } from '../../../services/lessons'
 import type { CheckBlock } from '../widgets/schema'
+import { nextStreak, streakMilestone } from '../answerStreak'
 import type { CheckpointView } from './types'
 
 export type { CheckpointView } from './types'
@@ -17,6 +18,8 @@ const UNTOUCHED: CheckpointView = { solved: false, attempts: 0, wrongOptions: []
 export function useCheckpoints(lessonId: string, serverState: CheckpointState[] | undefined, isReview: boolean) {
     const { token } = useAuth()
     const [local, setLocal] = useState<Record<string, CheckpointView>>({})
+    // Acertos de primeira seguidos nesta sessão da lição (LJ.1.6): só memória, nunca grava nada. Em revisão não conta.
+    const streak = useRef(0)
     const mutation = useMutation({
         mutationFn: ({ block, response }: { block: CheckBlock; response: { selectedOption: number } }) =>
             answerCheckpoint(token as string, lessonId, block.id, response),
@@ -48,6 +51,9 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             // Falha de rede: `isError` mostra o aviso e a pergunta segue como estava.
             return
         }
+        const milestone = isReview
+            ? undefined
+            : streakMilestone((streak.current = nextStreak(streak.current, { correct: result.correct, firstTry: result.firstTry })))
         const tried = 'selectedOption' in response ? response.selectedOption : undefined
         setLocal((current) => ({
             ...current,
@@ -58,6 +64,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
                       wrongOptions: before.wrongOptions,
                       firstTry: result.firstTry,
                       explanation: result.explanation,
+                      streakMilestone: milestone,
                       lastAttemptWrong: false,
                   }
                 : {

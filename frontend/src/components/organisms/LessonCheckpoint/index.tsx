@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../atoms/Button'
+import { StreakSeal } from '../../molecules/StreakSeal'
 import type { LessonCheckpointProps } from './types'
 import styles from './index.module.css'
 
@@ -74,6 +75,7 @@ export function LessonCheckpoint({ block, view, pending, error, isReview, onSubm
                     ) : (
                         <p className={styles.explanation}>Você já resolveu esta pergunta.</p>
                     )}
+                    {view.streakMilestone && !isReview && <StreakSeal milestone={view.streakMilestone} />}
                 </div>
             )}
 
