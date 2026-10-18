@@ -161,6 +161,7 @@ Princípio: o mínimo útil e sem custo. **Logs em JSON** no stdout + **um endpo
 - **Conteúdo de lição revisado no seed** (o seed só importa o que falta e nunca sobrescreve, N.23): a revisão chega ao banco por um script aditivo e idempotente, rodado depois do deploy que o traz, primeiro no staging. Todos só mexem no que encontram exatamente como esperam (texto editado pelo painel fica como está) e podem rodar de novo sem efeito. Pendentes desde 2026-10-17, nesta ordem:
   1. `$PROD exec backend node dist/db/convertNumericChecks.js` (perguntas numéricas viram múltipla escolha)
   2. `$PROD exec backend node dist/db/applyLessonRevisions.js` (fórmula com números na 0.2/1.10/1.11, perguntas que dependiam do valor vigente, cartões "Valores de hoje")
+  3. Os demais `apply*` e `addLessonSummaries` da leva "Aprender jogando" (2026-10-18), nesta ordem: `addLessonSummaries`, `applyEstimateChecks`, `applyGameChecks`, `applyProblemFirst`, `applyWidgetGoals`, `applyMoreBlocks`, `applyTrimCards`, `applyLessonHooks`, `applyAuthorDecisions`, `applyPollBlocks`, e por último `applyClarityFixes` (enunciados mais claros das estimativas e missões que nomeiam o controle; só age em lição que ainda tem o texto antigo).
 
   Conferir na saída que cada lição diz "N mudança(s)" ou "já atualizada"; "não encontrada" indica lição ausente no banco (rodar o seed de lições antes).
 - Girar segredos: LW.3.8/LW.3.11. Criar o admin com segurança: seção 2, passo 5.

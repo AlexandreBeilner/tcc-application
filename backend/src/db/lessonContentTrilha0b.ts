@@ -74,7 +74,7 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
         props: { nominalPct: 12, inflationPct: 5, amount: 10000 },
         caption: 'Exemplo hipotético: juro de 12% e inflação de 5%',
         goal: {
-          text: 'Ache a inflação em que o juro real zera',
+          text: 'Mexa na Inflação e ache o valor em que o juro real zera',
           metric: 'realReturnPct',
           op: 'between',
           min: -0.1,
@@ -157,7 +157,7 @@ export const BLOCKS_POUPANCA: LessonBlocks = {
         props: { selicPct: 6, trMonthlyPct: 0.15, amount: 10000, months: 12 },
         caption: 'Mexa na Selic, na TR e no prazo e compare',
         goal: {
-          text: 'Ache a Selic em que a poupança e o Tesouro Selic rendem quase igual',
+          text: 'Mexa na Meta da Selic e ache o valor em que a poupança e o Tesouro Selic rendem quase igual',
           metric: 'savingsGapPct',
           op: 'between',
           min: -0.25,

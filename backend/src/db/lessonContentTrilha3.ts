@@ -56,7 +56,7 @@ export const BLOCKS_3_1: LessonBlocks = {
         props: { profile: 'conservative', amount: 10000 },
         caption: 'Mude os pesos e veja quanto cada classe pesa num ano ruim. Valores ilustrativos.',
         goal: {
-          text: 'Monte uma carteira em que nenhuma fatia chegue a 40% e a soma feche em 100%',
+          text: 'Mexa nos controles de cada classe e monte uma carteira em que nenhuma fatia chegue a 40% e a soma feche em 100%',
           metric: 'maxSharePct',
           op: 'lt',
           value: 40,

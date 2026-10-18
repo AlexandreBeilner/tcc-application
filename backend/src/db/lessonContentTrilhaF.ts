@@ -53,7 +53,7 @@ export const BLOCKS_ORCAMENTO: LessonBlocks = {
         caption:
           'Mexa nas categorias e veja a sobra mudar. Se passar da renda, o orçamento fecha no vermelho.',
         goal: {
-          text: 'Feche o mês com 10% da renda de sobra',
+          text: 'Mexa nos gastos (Moradia, Alimentação, Transporte, Lazer, Dívidas e Outros) e feche o mês com 10% da renda de sobra',
           metric: 'surplusPct',
           op: 'gte',
           value: 10,
@@ -199,7 +199,7 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
         caption:
           'Mude a dívida, os juros e o pagamento mensal. Pagar pouco faz a dívida durar anos, ou nunca acabar.',
         goal: {
-          text: 'Quite a dívida em menos de 12 meses',
+          text: 'Mexa em Pagamento por mês e quite a dívida em menos de 12 meses',
           metric: 'monthsToPayOff',
           op: 'lt',
           value: 12,
@@ -213,7 +213,7 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
         id: 'chute-divida-12-meses',
         kind: 'estimate',
         prompt:
-          'Chute: você deve R$ 1.000 a 15% ao mês e não paga nada. Quanto deve depois de 12 meses?',
+          'Chute: você deve R$ 1.000 a 15% ao mês, os juros são somados à dívida todo mês e você não paga nada. Quanto deve depois de 12 meses?',
         min: 1000,
         max: 6000,
         step: 100,

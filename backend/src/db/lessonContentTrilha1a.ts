@@ -85,7 +85,7 @@ export const BLOCKS_1_4: LessonBlocks = {
         },
         caption: 'Mude o número de instituições e veja o que o FGC cobre e o que fica de fora.',
         goal: {
-          text: 'Distribua os R$ 600 mil sem deixar nada fora da cobertura',
+          text: 'Mexa em Instituições que quebram em 4 anos e divida os R$ 600 mil sem deixar nada fora da cobertura',
           metric: 'uncoveredAmount',
           op: 'lte',
           value: 0,
@@ -148,7 +148,7 @@ export const BLOCKS_1_5: LessonBlocks = {
         props: { grossYield: 1000, initialDays: 90 },
         caption: 'Mova o prazo e veja a alíquota mudar.',
         goal: {
-          text: 'Ache o prazo em que a alíquota chega à menor da tabela',
+          text: 'Mexa no Prazo da aplicação e ache o prazo em que a alíquota chega à menor da tabela',
           metric: 'irRatePct',
           op: 'lte',
           value: 15,
@@ -260,7 +260,7 @@ export const BLOCKS_1_6: LessonBlocks = {
         props: { exemptRatePct: 9, cdbRatePct: 11, daysPresets: [180, 800] },
         caption: DIDACTIC_RATES,
         goal: {
-          text: 'Ache a taxa do CDB que rende o mesmo que a LCI depois do imposto',
+          text: 'Mexa na Taxa do CDB e ache a taxa que rende o mesmo que a LCI depois do imposto',
           metric: 'cdbGapPct',
           op: 'between',
           min: -0.05,

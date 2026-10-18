@@ -301,7 +301,7 @@ export const BLOCKS_RESERVA: LessonBlocks = {
         props: { monthlyCost: 3000, incomeType: 'variable', monthlyContribution: 500 },
         caption: 'Troque os valores pelos seus.',
         goal: {
-          text: 'Chegue ao menor valor da meta em até 12 meses',
+          text: 'Mexa em Quanto você consegue guardar por mês e ache o aporte que junta o menor valor da faixa de reserva em até 12 meses',
           metric: 'monthsToReach',
           op: 'lte',
           value: 12,
@@ -432,7 +432,7 @@ export const BLOCKS_1_7: LessonBlocks = {
         props: { ratePct: 11.75, years: 1, amount: 10000 },
         caption: 'Mexa na taxa e no prazo e veja o preço de cada título.',
         goal: {
-          text: 'Faça cada título custar menos de R$ 800 hoje',
+          text: 'Mexa na Taxa contratada e no Prazo até cada título custar menos de R$ 800 hoje',
           metric: 'unitPrice',
           op: 'lt',
           value: 800,
@@ -548,7 +548,7 @@ export const BLOCKS_1_8: LessonBlocks = {
         props: { contractRatePct: 11.75, yearsToMaturity: 2, indexer: 'prefixed' },
         caption: 'Mova a taxa de mercado e o prazo. O que acontece com o preço?',
         goal: {
-          text: 'Faça o seu título perder mais de 5% do valor antes do vencimento',
+          text: 'Suba a Taxa de mercado até o seu título perder mais de 5% do valor antes do vencimento',
           metric: 'priceChangePct',
           op: 'lt',
           value: -5,
@@ -866,7 +866,7 @@ export const BLOCKS_1_10: LessonBlocks = {
         props: { prefixedPct: 12.5, realPct: 7.5, expectedInflationPct: 3 },
         caption: 'Taxas de exemplo. Com elas, qual rende mais para a inflação que você espera?',
         goal: {
-          text: 'Ache a inflação esperada em que o IPCA+ passa a render mais que o prefixado',
+          text: 'Mexa na Inflação que você espera e ache o valor em que o IPCA+ passa a render mais que o prefixado',
           metric: 'inflationAboveBreakevenPp',
           op: 'gt',
           value: 0,

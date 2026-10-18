@@ -69,7 +69,7 @@ async function main() {
           b,
           'rendimento-real',
           'Deixe o rendimento real negativo',
-          'Faça a inflação passar o rendimento',
+          'Aumente a Inflação até ela passar o Rendimento nominal',
         ),
     ],
   ]

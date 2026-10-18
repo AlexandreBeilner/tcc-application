@@ -48,7 +48,7 @@ export const BLOCKS_2_7_1: LessonBlocks = {
         caption:
           'Mude custos, despesas, juros e imposto e veja a receita virar lucro. Embaixo, o que a empresa tem é igual ao que deve mais o patrimônio líquido.',
         goal: {
-          text: 'Deixe o lucro líquido positivo mexendo só nos custos',
+          text: 'Mexa só em Custos e deixe o lucro líquido positivo',
           metric: 'netIncome',
           op: 'gt',
           value: 0,
@@ -322,7 +322,7 @@ export const BLOCKS_2_7_4: LessonBlocks = {
         caption:
           'O ROE é margem vezes giro vezes alavancagem. Mude a dívida e veja o ROE subir junto com o risco.',
         goal: {
-          text: 'Leve o ROE acima da Selic de referência sem mexer na Selic',
+          text: 'Mexa em Parte do ativo financiada por dívida e leve o ROE acima da Selic de referência, sem mexer na Selic',
           metric: 'roeMinusSelicPp',
           op: 'gt',
           value: 0,
@@ -811,7 +811,7 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
         id: 'chute-taxa-30-anos',
         kind: 'estimate',
         prompt:
-          'R$ 10.000 a 10% ao ano por 30 anos viram cerca de R$ 174 mil. Chute: quanto uma taxa de 2% ao ano leva desse saldo?',
+          'R$ 10.000 a 10% ao ano por 30 anos viram cerca de R$ 174 mil. Chute: se o produto cobrar uma taxa de 2% ao ano, quanto o saldo final fica menor?',
         min: 0,
         max: 150000,
         step: 1000,
@@ -829,7 +829,7 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
         caption:
           'Mude as taxas, o retorno e o prazo e veja a diferença entre os dois produtos crescer.',
         goal: {
-          text: 'Com 30 anos de prazo, ache a taxa do produto B que já leva R$ 10 mil do saldo',
+          text: 'Mexa na Taxa do produto B e ache a taxa que, com 30 anos de prazo, já leva R$ 10 mil do saldo',
           metric: 'differenceBRL',
           op: 'gte',
           value: 10000,
