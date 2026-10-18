@@ -29,6 +29,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<string, readonly string[]>> 
     'fgc-coverage-bar': ['uncoveredAmount'],
     'growth-calculator': ['interestRatio'],
     'ir-regressive-table': ['irRatePct'],
+    'equivalent-rate': ['cdbGapPct'],
     'real-return': ['realReturnPct'],
     'savings-vs-selic': ['savingsGapPct'],
 }

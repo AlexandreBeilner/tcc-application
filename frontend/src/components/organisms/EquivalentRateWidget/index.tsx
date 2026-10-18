@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { equivalentGrossRatePct, irRatePctForDays, netRatePct } from '../../../features/lessons/widgets/fixedIncomeMath'
 import type { EquivalentRateWidgetProps } from './types'
 import styles from '../LessonWidget/widgetControls.module.css'
@@ -10,7 +10,7 @@ const pct = (value: number) => `${value.toFixed(2).replace('.', ',')}%`
 // Widget `equivalent-rate` (RC.3.4a): a conta da taxa bruta equivalente feita
 // pelo próprio widget. O aluno troca o prazo (presets ou campo livre) e vê o
 // vencedor virar; nenhuma conta fora da tela.
-export function EquivalentRateWidget({ exemptRatePct, cdbRatePct, daysPresets }: EquivalentRateWidgetProps) {
+export function EquivalentRateWidget({ exemptRatePct, cdbRatePct, daysPresets, onMetrics }: EquivalentRateWidgetProps) {
     const [exempt, setExempt] = useState(exemptRatePct)
     const [cdb, setCdb] = useState(cdbRatePct)
     const [days, setDays] = useState(daysPresets[0] ?? 180)
@@ -20,6 +20,9 @@ export function EquivalentRateWidget({ exemptRatePct, cdbRatePct, daysPresets }:
     const equivalent = valid ? equivalentGrossRatePct(exempt, irRate) : 0
     const cdbNet = valid ? netRatePct(cdb, irRate) : 0
     const cdbWins = cdbNet > exempt
+    // Quanto o CDB líquido rende a mais (ou a menos) que o produto isento, em pontos percentuais.
+    const cdbGapPct = valid ? cdbNet - exempt : Infinity
+    useEffect(() => onMetrics?.({ cdbGapPct }), [cdbGapPct, onMetrics])
 
     return (
         <div className={styles.root}>

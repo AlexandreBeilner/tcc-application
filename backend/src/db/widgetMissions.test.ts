@@ -42,6 +42,15 @@ const EXPECTED: Expected[] = [
     op: 'lte',
     value: 15,
   },
+  {
+    lesson: '1.7',
+    id: 'taxa-equivalente',
+    widget: 'equivalent-rate',
+    metric: 'cdbGapPct',
+    op: 'between',
+    min: -0.05,
+    max: 0.05,
+  },
 ]
 
 function goalsOf(code: string) {

@@ -39,6 +39,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'irRatePct', op: 'lte', value: 15 },
         showMe: { initialDays: 721 },
     },
+    {
+        lesson: '1.7',
+        widget: 'equivalent-rate',
+        initial: { exemptRatePct: 9, cdbRatePct: 11, daysPresets: [180, 800] },
+        goal: { metric: 'cdbGapPct', op: 'between', min: -0.05, max: 0.05 },
+        showMe: { cdbRatePct: 11.61 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props.
@@ -95,5 +102,16 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(rate(720)).toBe(17.5)
         expect(rate(721)).toBe(15)
         expect(rate(1000)).toBe(15)
+    })
+
+    it('1.7: no prazo de 180 dias (IR de 22,5%) o empate com a LCI de 9% fica em cerca de 11,61%', () => {
+        const gap = (cdbRatePct: number) =>
+            metricsOf('equivalent-rate', { exemptRatePct: 9, cdbRatePct, daysPresets: [180, 800] }).cdbGapPct
+        // 9 / (1 - 0,225) = 11,6129: abaixo disso a LCI vence, acima o CDB vence.
+        expect(gap(11)).toBeCloseTo(-0.475, 3)
+        expect(gap(11.6)).toBeCloseTo(-0.01, 3)
+        expect(gap(11.61)).toBeCloseTo(-0.00225, 4)
+        expect(gap(11.62)).toBeCloseTo(0.0055, 4)
+        expect(gap(12)).toBeGreaterThan(0.05)
     })
 })

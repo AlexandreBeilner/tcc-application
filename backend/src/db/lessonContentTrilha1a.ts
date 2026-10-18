@@ -251,6 +251,16 @@ export const BLOCKS_1_6: LessonBlocks = {
         widget: 'equivalent-rate',
         props: { exemptRatePct: 9, cdbRatePct: 11, daysPresets: [180, 800] },
         caption: DIDACTIC_RATES,
+        goal: {
+          text: 'Ache a taxa do CDB que rende o mesmo que a LCI depois do imposto',
+          metric: 'cdbGapPct',
+          op: 'between',
+          min: -0.05,
+          max: 0.05,
+          reveal:
+            'Esse é o ponto de empate: com uma taxa abaixo dele o CDB rende menos que a LCI isenta, e acima rende mais. O imposto do prazo escolhido decide onde ele fica.',
+          showMe: { cdbRatePct: 11.61 },
+        },
       },
     ],
     revelation: [
