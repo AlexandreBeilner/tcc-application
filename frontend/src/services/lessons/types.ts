@@ -56,6 +56,16 @@ export interface Lesson {
     // `status: 'available'`, e conta como satisfeita no desbloqueio. O backend
     // sempre envia; opcional aqui só pra `undefined` valer como `false`.
     waived?: boolean
+    // Só em `GET /lessons/:id` de lição ainda não começada (LJ.5.5): uma pergunta de lição anterior concluída.
+    recall?: PracticeQuestion
+}
+
+// Pergunta de prática (LJ.5.5 "Relembra?", LJ.5.6 revisão): `block` é a pergunta pública da lição de origem,
+// validada no cliente por `parseCheckBlock`.
+export interface PracticeQuestion {
+    lessonId: string
+    lessonTitle: string
+    block: unknown
 }
 
 export interface ListLessonsResult {
@@ -111,7 +121,8 @@ export interface AnswerCheckpointResult {
     attempts: number
     firstTry: boolean
     wrongOptions: number[]
-    // Só em acerto; na estimativa vem sempre (ela avança acertando ou não).
+    // Só em acerto; na estimativa vem sempre (ela avança acertando ou não). Em prática (`practice`) de pergunta
+    // só de leitura vem também ao errar.
     explanation?: string
     estimate?: EstimateResult
     hint?: CheckHint

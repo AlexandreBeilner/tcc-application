@@ -1,5 +1,6 @@
 import { classifyEstimate, findCheckBlock, toPublicBlocks } from './widgets/lessonBlocks'
 import type { EstimateResult, LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
+import type { RecallView } from './recall'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
 // lição hoje") pra manter o import existente em `application/`; implementação
@@ -241,6 +242,8 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   checkpoints: CheckpointState[]
   // Quantas perguntas intermediárias o aluno acertou de primeira nesta lição.
   checkpointsFirstTry: number
+  // "Relembra?" (LJ.5.5): pergunta de uma lição anterior para abrir esta. Só `GetLessonUseCase` preenche.
+  recall?: RecallView
   status: LessonStatus
   currentStep: number
   // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair
@@ -265,6 +268,17 @@ function wasFirstTry(record: CheckpointRecord): boolean {
     record.attempts === 1 &&
     (record.lastResponse?.kind === 'estimate' ? record.lastResponse.hit : true)
   )
+}
+
+// Resolvida, mas só depois de errar (ou, na estimativa, fora da tolerância). É o que entra no "Relembra?"
+// (LJ.5.5) e na fila de revisão espaçada (LJ.5.6). Pergunta ainda não resolvida não é "errada", é pendente.
+export function missedCheckpoint(record: CheckpointRecord): boolean {
+  return record.solvedAt !== null && !wasFirstTry(record)
+}
+
+// Checkpoint de qualquer lição, para quem precisa olhar o histórico inteiro da pessoa (LJ.5.5, LJ.5.6).
+export interface UserCheckpointRecord extends CheckpointRecord {
+  lessonId: string
 }
 
 function responseStateFor(

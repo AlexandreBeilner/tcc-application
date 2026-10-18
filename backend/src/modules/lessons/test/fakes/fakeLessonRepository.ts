@@ -4,7 +4,7 @@ import type {
   LessonRepository,
   UpsertProgressInput,
 } from '../../application/ports/lessonRepository'
-import type { CheckpointRecord, LessonSummary } from '../../domain/lesson'
+import type { CheckpointRecord, LessonSummary, UserCheckpointRecord } from '../../domain/lesson'
 
 export function createFakeLessonRepository(
   seedLessons: LessonSummary[] = [],
@@ -128,6 +128,15 @@ export function createFakeLessonRepository(
       return [...checkpoints.entries()]
         .filter(([key]) => key.startsWith(`${userId}|${lessonId}|`))
         .map(([, record]) => record)
+    },
+
+    async listAllCheckpointsForUser(userId) {
+      return [...checkpoints.entries()]
+        .filter(([key]) => key.startsWith(`${userId}|`))
+        .map(([key, record]): UserCheckpointRecord => ({
+          ...record,
+          lessonId: key.split('|')[1] as string,
+        }))
     },
 
     async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {

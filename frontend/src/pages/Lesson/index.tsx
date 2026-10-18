@@ -16,6 +16,7 @@ import { useShortcutHint } from '../../features/lessons/useShortcutHint'
 import { Button } from '../../components/atoms/Button'
 import { LockedGate } from '../../components/organisms/LockedGate'
 import { LessonCheckpoint } from '../../components/organisms/LessonCheckpoint'
+import { PracticeCheckpoint } from '../../components/organisms/PracticeCheckpoint'
 import { LessonWidget } from '../../components/organisms/LessonWidget'
 import type { WidgetMissionController } from '../../components/organisms/LessonWidget/types'
 import { MoreDetails } from '../../components/organisms/MoreDetails'
@@ -25,7 +26,7 @@ import { useAssetByTicker } from '../../features/market/useAssetByTicker'
 import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
 import { buildPhaseCards, termsSeenBeforeEachCard } from '../../features/lessons/playerCards'
 import type { PlayerCard } from '../../features/lessons/playerCards'
-import { parseLessonBlocks } from '../../features/lessons/widgets/schema'
+import { parseCheckBlock, parseLessonBlocks } from '../../features/lessons/widgets/schema'
 import type { CheckBlock, WidgetBlock } from '../../features/lessons/widgets/schema'
 import { LessonCardBody } from '../../components/molecules/LessonCardText'
 import { LessonProgressBar } from '../../components/molecules/LessonProgressBar'
@@ -99,6 +100,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const [openFootnotes, setOpenFootnotes] = useState<string[]>([])
     // Missões de widget (LJ.3.1) cumpridas nesta lição, por id do bloco. Só memória: sobrevive a Voltar, não a recarregar.
     const [missions, setMissions] = useState<Record<string, MissionOutcome>>({})
+    // "Relembra?" (LJ.5.5): aberta uma vez, já respondida ou pulada. Só memória: recarregar no começo da lição a traz de volta.
+    const [recallDone, setRecallDone] = useState(false)
 
     const lesson = lessonQuery.data?.lesson
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
@@ -134,8 +137,13 @@ function LessonView({ lessonId }: { lessonId: string }) {
         initialReached: isReview ? TOTAL_STEPS - 1 : serverStep,
     })
     const { step, card: subStep, reached } = navigation
-    // Funil por cartão (LJ.5.1): só fora de revisão, e só depois de saber se é revisão.
-    useCardReach(lessonId, { phase: step, card: subStep }, lesson !== undefined && isReview === false)
+    // "Relembra?" (LJ.5.5): pergunta de lição anterior antes do primeiro cartão, fora da contagem (barra, placar,
+    // funil e tempo seguem os cartões da lição). Só no começo de uma lição ainda não concluída.
+    const recallBlock = lesson?.recall ? parseCheckBlock(lesson.recall.block) : null
+    const showRecall = lesson !== undefined && isReview === false && recallBlock !== null && !recallDone && step === 0 && subStep === 0
+    // Funil por cartão (LJ.5.1): só fora de revisão, e só depois de saber se é revisão. Durante o Relembra a
+    // pessoa ainda não viu o primeiro cartão, então ele só conta quando a pergunta termina.
+    useCardReach(lessonId, { phase: step, card: subStep }, lesson !== undefined && isReview === false && !showRecall)
 
     // Backlog engajamento H.2 + decisão D2 (RC.2.1): a revisão conta quando o
     // usuário chega na Revelação da lição já concluída, não ao só abrir.
@@ -405,7 +413,20 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
             {!lesson && !lessonQuery.isError && <p className={styles.loading}>Carregando lição…</p>}
 
-            {lesson && step === 0 && (
+            {lesson && showRecall && lesson.recall && recallBlock && (
+                <section className={styles.card}>
+                    <h1 className={styles.heading}>{lesson.title}</h1>
+                    <PracticeCheckpoint
+                        lessonId={lesson.recall.lessonId}
+                        lessonTitle={lesson.recall.lessonTitle}
+                        block={recallBlock}
+                        badge="Relembra?"
+                        onContinue={() => setRecallDone(true)}
+                    />
+                </section>
+            )}
+
+            {lesson && step === 0 && !showRecall && (
                 <section className={cardClassName(scenarioCards[subStep])}>
                     <h1 className={styles.heading}>{lesson.title}</h1>
                     {durationHint && <span className={styles.duration}>{durationHint}</span>}

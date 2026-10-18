@@ -201,7 +201,7 @@ export const TRUE_FALSE_OPTIONS = ['Verdadeiro', 'Falso']
 // Fase do player por índice de passo (0 Cenário, 1 Micro-decisão, 2 Revelação).
 export const PHASE_BY_STEP = ['scenario', 'microDecision', 'revelation'] as const
 
-function toPublicBlock(block: LessonBlock): PublicLessonBlock {
+export function toPublicBlock(block: LessonBlock): PublicLessonBlock {
   if (block.type !== 'check') {
     return block
   }

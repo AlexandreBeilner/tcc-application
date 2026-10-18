@@ -15,15 +15,23 @@ const UNTOUCHED: CheckpointView = { solved: false, attempts: 0, wrongOptions: []
 // Estado das perguntas intermediárias de uma lição (RC.3.2): o que o servidor
 // restaurou (`GET /lessons/:id`) mais o que aconteceu nesta sessão. Em revisão
 // de lição concluída (`isReview`) o estado do servidor é ignorado e nada fica
-// travado: a pergunta é sem estado, pode ser respondida de novo.
-export function useCheckpoints(lessonId: string, serverState: CheckpointState[] | undefined, isReview: boolean) {
+// travado: a pergunta é sem estado, pode ser respondida de novo. `practice` (Relembra e revisão de 1 minuto,
+// sempre com `isReview`) pede ao servidor a explicação também no erro.
+export function useCheckpoints(
+    lessonId: string,
+    serverState: CheckpointState[] | undefined,
+    isReview: boolean,
+    options: { practice?: boolean } = {},
+) {
     const { token } = useAuth()
     const [local, setLocal] = useState<Record<string, CheckpointView>>({})
     // Acertos de primeira seguidos nesta sessão da lição (LJ.1.6): só memória, nunca grava nada. Em revisão não conta.
     const streak = useRef(0)
     const mutation = useMutation({
         mutationFn: ({ block, response }: { block: CheckBlock; response: CheckpointResponse }) =>
-            answerCheckpoint(token as string, lessonId, block.id, response),
+            options.practice
+                ? answerCheckpoint(token as string, lessonId, block.id, response, { practice: true })
+                : answerCheckpoint(token as string, lessonId, block.id, response),
     })
 
     function viewFor(checkpointId: string): CheckpointView {
@@ -94,6 +102,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
                           firstTry: false,
                           lastAttemptWrong: true,
                           ...(result.hint ? { hint: result.hint } : {}),
+                          ...(result.explanation ? { practiceExplanation: result.explanation } : {}),
                       },
         }))
     }

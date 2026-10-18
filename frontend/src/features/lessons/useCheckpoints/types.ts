@@ -14,6 +14,9 @@ export interface CheckpointView {
     firstTry: boolean
     // Só em acerto desta sessão (o servidor não devolve a explicação no restore).
     explanation?: string
+    // Só em prática (LJ.5.5/5.6): a explicação que o servidor devolveu junto de um erro, para a tela mostrar
+    // sem resolver a pergunta.
+    practiceExplanation?: string
     lastAttemptWrong: boolean
     // Estimativa respondida: o chute e o valor real (do servidor, sem a explicação no restore).
     estimate?: EstimateResult

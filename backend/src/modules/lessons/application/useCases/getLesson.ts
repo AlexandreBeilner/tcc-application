@@ -1,6 +1,13 @@
 import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
-import { buildLessonView, buildProgression, type LessonView } from '../../domain/lesson'
-import type { LessonRepository } from '../ports/lessonRepository'
+import {
+  buildLessonView,
+  buildProgression,
+  utcDateString,
+  type LessonView,
+} from '../../domain/lesson'
+import { buildRecallView, selectRecall } from '../../domain/recall'
+import type { LessonSummary } from '../../domain/lesson'
+import type { LessonProgressRecord, LessonRepository } from '../ports/lessonRepository'
 
 export interface GetLessonInput {
   userId: string
@@ -8,7 +15,10 @@ export interface GetLessonInput {
 }
 
 export class GetLessonUseCase {
-  constructor(private readonly lessonRepository: LessonRepository) {}
+  constructor(
+    private readonly lessonRepository: LessonRepository,
+    private readonly clock: () => Date = () => new Date(),
+  ) {}
 
   async execute(input: GetLessonInput): Promise<LessonView> {
     const lesson = await this.lessonRepository.findById(input.lessonId)
@@ -34,6 +44,37 @@ export class GetLessonUseCase {
       throw new LessonLockedError('lição bloqueada')
     }
 
+    // "Relembra?" (LJ.5.5): só em lição ainda não concluída e ainda no começo. Revisão de lição concluída e
+    // lição retomada no meio não ganham a pergunta de abertura.
+    if (view.status === 'available' && view.currentStep === 0) {
+      const recall = await this.recallFor(input.userId, lesson, lessons, progress)
+      if (recall) {
+        return { ...view, recall }
+      }
+    }
+
     return view
+  }
+
+  private async recallFor(
+    userId: string,
+    current: LessonSummary,
+    lessons: LessonSummary[],
+    progress: LessonProgressRecord[],
+  ) {
+    const completedLessonIds = new Set(
+      progress.filter((p) => p.completedAt !== null).map((p) => p.lessonId),
+    )
+    if (completedLessonIds.size === 0) {
+      return undefined
+    }
+    const choice = selectRecall({
+      seed: `${userId}|${utcDateString(this.clock())}`,
+      current,
+      lessons,
+      completedLessonIds,
+      checkpoints: await this.lessonRepository.listAllCheckpointsForUser(userId),
+    })
+    return choice ? buildRecallView(choice, lessons) : undefined
   }
 }

@@ -195,6 +195,14 @@ export function createDrizzleLessonRepository(db: Database): LessonRepository {
       return rows.map(toCheckpointRecord)
     },
 
+    async listAllCheckpointsForUser(userId) {
+      const rows = await db
+        .select()
+        .from(userLessonCheckpoints)
+        .where(eq(userLessonCheckpoints.userId, userId))
+      return rows.map((row) => ({ ...toCheckpointRecord(row), lessonId: row.lessonId }))
+    },
+
     async recordCheckpointAnswer(userId, lessonId, checkpointId, answer) {
       const t = userLessonCheckpoints
       const solvedAt = (answer.solved ?? answer.correct) ? answer.answeredAt : null

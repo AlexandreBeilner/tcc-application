@@ -10,6 +10,7 @@ import type {
 
 export type {
     Lesson,
+    PracticeQuestion,
     ListLessonsResult,
     GetLessonResult,
     AdvanceLessonResult,
@@ -46,17 +47,19 @@ export function answerMicroDecision(token: string, id: string, selectedOption: n
 // `POST /lessons/:id/checkpoints/:checkpointId/answer` (RC.3.2, LJ.2.1): `selectedOption`
 // (única escolha ou verdadeiro/falso), `value` (estimativa), `sequence` (ordenar), `groups` (agrupar) ou `pair` (ligar, um par por vez). A explicação só
 // vem no acerto, exceto na estimativa, que avança acertando ou não; ao errar um formato de várias
-// peças vem só a contagem (`hint`).
+// peças vem só a contagem (`hint`). `practice` (Relembra, revisão de 1 minuto) só muda a resposta de pergunta de
+// leitura: a explicação vem também no erro.
 export function answerCheckpoint(
     token: string,
     id: string,
     checkpointId: string,
     response: { selectedOption: number } | { value: number } | { sequence: number[] } | { groups: number[] } | { pair: [number, number] },
+    options: { practice?: boolean } = {},
 ): Promise<AnswerCheckpointResult> {
     return apiRequest<AnswerCheckpointResult>(`/lessons/${id}/checkpoints/${encodeURIComponent(checkpointId)}/answer`, {
         token,
         method: 'POST',
-        body: response,
+        body: options.practice ? { ...response, practice: true } : response,
     })
 }
 

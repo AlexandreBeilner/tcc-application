@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { GetLessonUseCase } from './getLesson'
+import type { LessonSummary } from '../../domain/lesson'
 
 const lessons = [1, 2].map((n) => ({
   id: `l${n}`,
@@ -51,5 +52,112 @@ describe('GetLessonUseCase', () => {
 
     expect(result.status).toBe('available')
     expect(result.currentStep).toBe(2)
+  })
+})
+
+describe('GetLessonUseCase: Relembra? (LJ.5.5)', () => {
+  const withCheck = (n: number, track = 0): LessonSummary => ({
+    ...lessons[0],
+    id: `r${n}`,
+    code: `${track}.${n}`,
+    title: `Lição r${n}`,
+    sortOrder: n,
+    trackNumber: track,
+    blocks: {
+      schemaVersion: 1,
+      phases: {
+        scenario: [
+          {
+            type: 'check',
+            id: `q${n}`,
+            kind: 'single',
+            prompt: `pergunta ${n}`,
+            options: ['a', 'b'],
+            answer: 1,
+            explanation: 'segredo',
+          },
+        ],
+        microDecision: [],
+        revelation: [],
+      },
+    },
+  })
+  const track = [1, 2, 3, 4].map((n) => withCheck(n))
+  const day = new Date('2026-10-18T10:00:00Z')
+
+  async function build() {
+    const repository = createFakeLessonRepository(track)
+    const useCase = new GetLessonUseCase(repository, () => day)
+    return { repository, useCase }
+  }
+
+  it('a primeira lição da trilha não traz pergunta', async () => {
+    const { useCase } = await build()
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'r1' })
+    expect(result.recall).toBeUndefined()
+  })
+
+  it('a segunda traz uma pergunta da lição concluída, sem gabarito', async () => {
+    const { repository, useCase } = await build()
+    await repository.upsertProgress('u1', 'r1', { currentStep: 3, completedAt: day })
+
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'r2' })
+
+    expect(result.recall).toMatchObject({ lessonId: 'r1', lessonTitle: 'Lição r1' })
+    expect(result.recall?.block).toMatchObject({ id: 'q1', kind: 'single' })
+    expect(JSON.stringify(result.recall)).not.toContain('segredo')
+  })
+
+  it('prefere a pergunta que a pessoa errou', async () => {
+    const { repository, useCase } = await build()
+    for (const id of ['r1', 'r2']) {
+      await repository.upsertProgress('u1', id, { currentStep: 3, completedAt: day })
+    }
+    await repository.recordCheckpointAnswer('u1', 'r1', 'q1', {
+      choice: 0,
+      correct: false,
+      answeredAt: day,
+    })
+    await repository.recordCheckpointAnswer('u1', 'r1', 'q1', {
+      choice: 1,
+      correct: true,
+      answeredAt: day,
+    })
+    await repository.recordCheckpointAnswer('u1', 'r2', 'q2', {
+      choice: 1,
+      correct: true,
+      answeredAt: day,
+    })
+
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'r3' })
+
+    expect(result.recall?.block.id).toBe('q1')
+  })
+
+  it('recarregar no mesmo dia não troca a pergunta', async () => {
+    const { repository, useCase } = await build()
+    for (const id of ['r1', 'r2', 'r3']) {
+      await repository.upsertProgress('u1', id, { currentStep: 3, completedAt: day })
+    }
+    const first = await useCase.execute({ userId: 'u1', lessonId: 'r4' })
+    const second = await useCase.execute({ userId: 'u1', lessonId: 'r4' })
+    expect(second.recall).toEqual(first.recall)
+  })
+
+  it('lição concluída (revisão) e lição retomada no meio não trazem pergunta', async () => {
+    const { repository, useCase } = await build()
+    await repository.upsertProgress('u1', 'r1', { currentStep: 3, completedAt: day })
+    await repository.upsertProgress('u1', 'r2', { currentStep: 3, completedAt: day })
+    expect((await useCase.execute({ userId: 'u1', lessonId: 'r2' })).recall).toBeUndefined()
+
+    await repository.upsertProgress('u1', 'r3', { currentStep: 1, completedAt: null })
+    expect((await useCase.execute({ userId: 'u1', lessonId: 'r3' })).recall).toBeUndefined()
+  })
+
+  it('outro usuário não vê a pergunta de quem concluiu', async () => {
+    const { repository, useCase } = await build()
+    await repository.upsertProgress('u1', 'r1', { currentStep: 3, completedAt: day })
+    const result = await useCase.execute({ userId: 'u2', lessonId: 'r1' })
+    expect(result.recall).toBeUndefined()
   })
 })

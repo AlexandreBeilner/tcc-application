@@ -26,6 +26,10 @@ export interface AnswerCheckpointInput extends CheckResponse {
   userId: string
   lessonId: string
   checkpointId: string
+  // Prática (Relembra e revisão de 1 minuto, LJ.5.5/5.6): errar não trava, então, quando a pergunta só pode ser
+  // lida (lição concluída ou pergunta já resolvida), a explicação vem também no erro. Nunca vale numa
+  // pergunta ainda em andamento: aí o gabarito continua só no acerto (D3).
+  practice?: boolean
 }
 
 export interface AnswerCheckpointResult {
@@ -87,7 +91,8 @@ export class AnswerCheckpointUseCase {
     ).find((c) => c.checkpointId === input.checkpointId)
     const readOnly = completed || existing?.solvedAt != null
     const solves = correct || resolvesOnFirstAnswer(block)
-    const explanation = solves ? { explanation: block.explanation } : {}
+    const explanation =
+      solves || (readOnly && input.practice) ? { explanation: block.explanation } : {}
     const estimate = estimateFor(block, input)
     const hint = correct ? undefined : hintFor(block, input)
     const extras = { ...estimate, ...(hint ? { hint } : {}) }

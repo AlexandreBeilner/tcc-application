@@ -511,3 +511,57 @@ describe('AnswerCheckpointUseCase', () => {
     })
   })
 })
+
+describe('AnswerCheckpointUseCase: prática (LJ.5.5, LJ.5.6)', () => {
+  it('em lição concluída, a prática traz a explicação também no erro', async () => {
+    const { repo, useCase } = build()
+    await repo.upsertProgress('u1', 'l1', { currentStep: 3, completedAt: new Date() })
+
+    const wrong = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+      practice: true,
+    })
+    const plain = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+    })
+
+    expect(wrong).toMatchObject({ correct: false, explanation: 'porque b' })
+    expect(plain).not.toHaveProperty('explanation')
+  })
+
+  it('em pergunta ainda em andamento, a prática não vaza a explicação', async () => {
+    const { useCase } = build()
+
+    const result = await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+      practice: true,
+    })
+
+    expect(result).not.toHaveProperty('explanation')
+    expect(result.wrongOptions).toEqual([0])
+  })
+
+  it('a prática em lição concluída não grava nada', async () => {
+    const { repo, useCase } = build()
+    await repo.upsertProgress('u1', 'l1', { currentStep: 3, completedAt: new Date() })
+
+    await useCase.execute({
+      userId: 'u1',
+      lessonId: 'l1',
+      checkpointId: 'c1',
+      selectedOption: 0,
+      practice: true,
+    })
+
+    expect(await repo.listCheckpointsForUser('u1', 'l1')).toEqual([])
+  })
+})

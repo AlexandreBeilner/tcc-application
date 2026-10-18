@@ -3,6 +3,7 @@ import type {
   CheckpointRecord,
   LessonProgressSnapshot,
   LessonSummary,
+  UserCheckpointRecord,
 } from '../../domain/lesson'
 
 export interface LessonProgressRecord extends LessonProgressSnapshot {
@@ -78,6 +79,8 @@ export interface LessonRepository {
     answer: { selectedOption: number; correct: boolean; answeredAt: Date },
   ): Promise<LessonProgressRecord | undefined>
   listCheckpointsForUser(userId: string, lessonId: string): Promise<CheckpointRecord[]>
+  // Todas as perguntas já respondidas pela pessoa, de qualquer lição ("Relembra?", LJ.5.5).
+  listAllCheckpointsForUser(userId: string): Promise<UserCheckpointRecord[]>
   // Registra uma tentativa de pergunta intermediária (RC.3.2), atomicamente:
   // cria a linha na primeira tentativa, incrementa `attempts`, acrescenta
   // `choice` (alternativa errada; `null` em erro numérico) a `wrongOptions` e

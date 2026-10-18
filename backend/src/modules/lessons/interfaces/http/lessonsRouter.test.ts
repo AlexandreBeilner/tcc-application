@@ -441,6 +441,49 @@ describe('lessons routes', () => {
       expect(res.body.lesson.checkpointsFirstTry).toBe(0)
     })
 
+    it('GET /lessons/:id da segunda lição traz o Relembra? da concluída, sem gabarito', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+      await lessonRepository.upsertProgress('u1', 'l1', {
+        currentStep: LESSON_UNLOCK_STEP,
+        completedAt: new Date('2026-08-01T12:00:00Z'),
+      })
+
+      const res = await request(app).get('/lessons/l2').set('Authorization', auth)
+
+      expect(res.status).toBe(200)
+      expect(res.body.lesson.recall).toEqual({
+        lessonId: 'l1',
+        lessonTitle: 'Lição 0.1',
+        block: {
+          type: 'check',
+          id: 'c1',
+          kind: 'single',
+          prompt: 'Qual?',
+          options: ['a', 'b', 'c'],
+        },
+      })
+      expect(JSON.stringify(res.body.lesson.recall)).not.toContain('Porque c.')
+    })
+
+    it('resposta de prática em lição concluída traz a explicação no erro e não grava', async () => {
+      const { app, tokenIssuer, lessonRepository } = buildApp(0, lessonsWithCheck)
+      const auth = authHeader(tokenIssuer)
+      await lessonRepository.upsertProgress('u1', 'l1', {
+        currentStep: LESSON_UNLOCK_STEP,
+        completedAt: new Date('2026-08-01T12:00:00Z'),
+      })
+
+      const res = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ selectedOption: 0, practice: true })
+
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({ correct: false, explanation: 'Porque c.' })
+      expect(await lessonRepository.listCheckpointsForUser('u1', 'l1')).toEqual([])
+    })
+
     it('errar não entrega a explicação; acertar entrega e conta de primeira', async () => {
       const { app, tokenIssuer } = buildApp(0, lessonsWithCheck)
       const auth = authHeader(tokenIssuer)

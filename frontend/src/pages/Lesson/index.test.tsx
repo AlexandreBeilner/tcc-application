@@ -1502,6 +1502,122 @@ describe('Lesson (tela 3.2)', () => {
         })
     })
 
+    describe('"Relembra?" (LJ.5.5)', () => {
+        const recallBlock = { type: 'check', id: 'r1', kind: 'single', prompt: 'Qual é a regra do IR?', options: ['Fixa', 'Regressiva'] }
+        const recall = { lessonId: 'lesson-0', lessonTitle: 'Imposto na renda fixa', block: recallBlock }
+        const withRecall = (overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                recall,
+                blocks: {
+                    schemaVersion: 1,
+                    phases: { scenario: [{ type: 'text', markup: 'Primeiro cartão da lição' }], microDecision: [], revelation: [] },
+                },
+                ...overrides,
+            })
+
+        it('abre a lição com a pergunta da lição de origem, antes do primeiro cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+
+            renderLesson()
+
+            expect(await screen.findByText('Relembra?')).toBeInTheDocument()
+            expect(screen.getByText('Da lição: Imposto na renda fixa')).toBeInTheDocument()
+            expect(screen.getByText('Qual é a regra do IR?')).toBeInTheDocument()
+            expect(screen.queryByText('Primeiro cartão da lição')).not.toBeInTheDocument()
+            // O funil só conta o primeiro cartão depois do Relembra.
+            expect(recordCardReach).not.toHaveBeenCalled()
+        })
+
+        it('responde pela rota da lição de origem, em modo prática, e não trava o Continuar', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({
+                correct: false,
+                attempts: 3,
+                firstTry: false,
+                wrongOptions: [],
+                explanation: 'A alíquota cai com o prazo.',
+            })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Fixa' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            await waitFor(() =>
+                expect(answerCheckpoint).toHaveBeenCalledWith('token-valido', 'lesson-0', 'r1', { selectedOption: 0 }, { practice: true }),
+            )
+            // Errou: a explicação aparece e dá para seguir sem resolver.
+            expect(await screen.findByText('A alíquota cai com o prazo.')).toBeInTheDocument()
+            expect(advanceLesson).not.toHaveBeenCalled()
+            fireEvent.click(screen.getByRole('button', { name: 'Pular' }))
+            expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+        })
+
+        it('acertar mostra "Isso ficou!" e o Continuar leva ao primeiro cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({
+                correct: true,
+                attempts: 2,
+                firstTry: false,
+                wrongOptions: [],
+                explanation: 'Regressiva.',
+            })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Regressiva' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            expect(await screen.findByText('Isso ficou!')).toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+            expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+            expect(screen.queryByText('Relembra?')).not.toBeInTheDocument()
+            await waitFor(() => expect(recordCardReach).toHaveBeenCalledWith('token-valido', 'lesson-1', 0, 0))
+        })
+
+        it('não conta no placar da lição, na barra nem na sequência de acertos', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                explanation: 'x',
+            })
+
+            renderLesson()
+            const bar = await screen.findByRole('progressbar')
+            expect(bar).toHaveAttribute('aria-valuetext', expect.stringMatching(/^Cartão 1 de/))
+            fireEvent.click(screen.getByRole('button', { name: 'Regressiva' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            await screen.findByText('Isso ficou!')
+
+            expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            await screen.findByText('Primeiro cartão da lição')
+            expect(bar).toHaveAttribute('aria-valuetext', expect.stringMatching(/^Cartão 1 de/))
+        })
+
+        it('não aparece em revisão de lição concluída nem em lição retomada no meio', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall({ status: 'completed' }) })
+            const first = renderLesson()
+            await screen.findByText('Primeiro cartão da lição')
+            expect(screen.queryByText('Relembra?')).not.toBeInTheDocument()
+            first.unmount()
+
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall({ currentStep: 1 }) })
+            renderLesson()
+            await waitFor(() => expect(screen.queryByText('Relembra?')).not.toBeInTheDocument())
+        })
+
+        it('lição sem recall abre direto no primeiro cartão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall({ recall: undefined }) })
+            renderLesson()
+            expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+            expect(screen.queryByText('Relembra?')).not.toBeInTheDocument()
+        })
+    })
+
     describe('tela final (LJ.1.4)', () => {
         const trueFalse = (id: string) => ({ type: 'check', id, kind: 'true_false', prompt: `Pergunta ${id}` })
         const state = (checkpointId: string, firstTry: boolean) => ({

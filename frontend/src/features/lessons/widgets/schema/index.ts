@@ -436,3 +436,9 @@ export function parseLessonBlocks(raw: unknown): LessonBlocks | null {
     const result = lessonBlocksSchema.safeParse(raw)
     return result.success ? result.data : null
 }
+
+// Pergunta solta, como o "Relembra?" e a revisão a entregam (LJ.5.5, LJ.5.6): fora do contrato vira `null`.
+export function parseCheckBlock(raw: unknown): CheckBlock | null {
+    const result = checkBlock.safeParse(raw)
+    return result.success ? result.data : null
+}

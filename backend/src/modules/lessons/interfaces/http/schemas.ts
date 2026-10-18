@@ -9,13 +9,16 @@ export const answerMicroDecisionBodySchema = z.object({
 // Resposta por formato (LJ.2.1): `selectedOption` (única escolha ou verdadeiro/falso) ou
 // `value` (estimativa) ou `sequence` (ordenar) ou `groups` (agrupar) ou `pair` (ligar, um par por vez), um dos cinco. O intervalo válido depende do bloco e é validado no
 // caso de uso.
+// `practice` (LJ.5.5/5.6): o cliente avisa que é prática (Relembra, revisão de 1 minuto); só muda a resposta
+// quando a pergunta é de leitura (ver `AnswerCheckpointInput`).
+const practiceFlag = { practice: z.boolean().optional() }
 export const answerCheckpointBodySchema = z.union([
-  z.object({ selectedOption: z.number().int().min(0) }),
-  z.object({ value: z.number().finite() }),
-  z.object({ sequence: z.array(z.number().int().min(0)).min(2).max(12) }),
-  z.object({ groups: z.array(z.number().int().min(0)).min(2).max(12) }),
+  z.object({ selectedOption: z.number().int().min(0), ...practiceFlag }),
+  z.object({ value: z.number().finite(), ...practiceFlag }),
+  z.object({ sequence: z.array(z.number().int().min(0)).min(2).max(12), ...practiceFlag }),
+  z.object({ groups: z.array(z.number().int().min(0)).min(2).max(12), ...practiceFlag }),
   // Ligar pares (LJ.2.5, LJ-D3): um par por chamada, `[esquerda, direita]`.
-  z.object({ pair: z.tuple([z.number().int().min(0), z.number().int().min(0)]) }),
+  z.object({ pair: z.tuple([z.number().int().min(0), z.number().int().min(0)]), ...practiceFlag }),
 ])
 
 export const advanceLessonBodySchema = z.object({

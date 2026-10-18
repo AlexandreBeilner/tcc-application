@@ -106,4 +106,19 @@ describe.skipIf(!databaseUrl)('drizzleLessonRepository.recordCheckpointAnswer (b
     expect(right).toMatchObject({ attempts: 2, wrongOptions: [0], lastResponse: null })
     expect(right.solvedAt).toEqual(answeredAt)
   })
+  it('listAllCheckpointsForUser devolve as perguntas da pessoa de qualquer lição, com o id da lição', async () => {
+    await repo().recordCheckpointAnswer(userId, lessonId, 'todas1', {
+      choice: 1,
+      correct: true,
+      answeredAt,
+    })
+
+    const all = await repo().listAllCheckpointsForUser(userId)
+
+    expect(all.map((c) => c.lessonId)).toEqual(expect.arrayContaining([lessonId]))
+    expect(all.find((c) => c.checkpointId === 'todas1')).toMatchObject({ lessonId, attempts: 1 })
+    expect(await repo().listAllCheckpointsForUser('00000000-0000-0000-0000-000000000000')).toEqual(
+      [],
+    )
+  })
 })
