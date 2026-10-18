@@ -40,8 +40,24 @@ Documentos de apoio (leia só o que precisar): `.claude/backlog-diario.md` (seç
 | `extraAcceptedWords.ts` | Siglas e termos que o dicionário VERO não tem | Só quando a palavra-resposta não estiver no VERO |
 | `categories.ts` | Lista fechada de categorias | Não mexa |
 
-Categorias válidas: `planos-e-moeda`, `juros-e-inflacao`, `instituicoes`, `crises-e-choques`, `produtos-e-regras`,
-`bolsa-e-acoes`, `risco-e-analise`, `economia-geral`.
+Categorias válidas (12, lista fechada em `categories.ts`):
+
+| Categoria | O que entra |
+|---|---|
+| `planos-e-moeda` | Planos econômicos, URV e Plano Real, trocas de moeda, regimes cambiais antigos |
+| `juros-e-inflacao` | Inflação e índices, Copom, metas, ciclos da Selic, juros e seus efeitos |
+| `instituicoes` | Banco Central, CMN, CVM, B3 e Bovespa, FGC, Tesouro, Anbima, Susep, BNDES |
+| `crises-e-choques` | Crises **domésticas** (recessões, circuit breakers, moratória, greves com efeito econômico) |
+| `produtos-e-regras` | Poupança, CDB, LCI/LCA, Tesouro Direto, FII, ETF, previdência, tributação, Novo Mercado |
+| `bolsa-e-acoes` | Bolsa, ações, IPOs, Ibovespa, dividendos e JCP, BDRs, privatizações |
+| `risco-e-analise` | Risco, retorno, marcação a mercado, duration, rating, diversificação, liquidez |
+| `economia-geral` | Conceitos gerais de economia e finanças |
+| `politica-fiscal` | Responsabilidade fiscal, teto e arcabouço fiscal, resultado primário, dívida pública, reformas tributária e da Previdência, leilões do Tesouro |
+| `cambio-e-setor-externo` | Reservas, balança comercial, transações correntes, regimes cambiais, swaps, fluxo de capital estrangeiro, risco-país |
+| `eventos-globais` | Choques **de fora** que bateram no Brasil: petróleo, dívida dos anos 80, México, Ásia, Rússia, 2008, taper tantrum, guerra comercial, pandemia, Ucrânia, política do Fed. Sempre com o efeito no Brasil na explicação (`scope: fora`) |
+| `commodities-e-setores` | Ciclo do minério, petróleo e Petrobras, agronegócio, bancos, energia e privatizações, efeito das commodities no real e na bolsa |
+
+Regra de desempate: crise **dentro** do Brasil é `crises-e-choques`; choque **vindo de fora** é `eventos-globais`.
 
 ### Formato de cada tipo
 

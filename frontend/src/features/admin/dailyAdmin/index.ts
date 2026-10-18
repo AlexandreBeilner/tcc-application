@@ -19,6 +19,10 @@ export const DAILY_CATEGORY_LABELS: Record<string, string> = {
     'bolsa-e-acoes': 'Bolsa e ações',
     'risco-e-analise': 'Risco e análise',
     'economia-geral': 'Economia geral',
+    'politica-fiscal': 'Política fiscal',
+    'cambio-e-setor-externo': 'Câmbio e setor externo',
+    'eventos-globais': 'Eventos globais',
+    'commodities-e-setores': 'Commodities e setores',
 }
 
 export const DAILY_CATEGORY_OPTIONS = Object.entries(DAILY_CATEGORY_LABELS).map(([value, label]) => ({ value, label }))

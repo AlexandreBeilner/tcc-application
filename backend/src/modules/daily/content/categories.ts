@@ -12,6 +12,11 @@ export const DAILY_CATEGORIES = [
   'bolsa-e-acoes',
   'risco-e-analise',
   'economia-geral',
+  // Acrescentadas em 2026-10-18 (foco em investimentos, política econômica e choques externos).
+  'politica-fiscal',
+  'cambio-e-setor-externo',
+  'eventos-globais',
+  'commodities-e-setores',
 ] as const
 
 export type DailyCategory = (typeof DAILY_CATEGORIES)[number]
