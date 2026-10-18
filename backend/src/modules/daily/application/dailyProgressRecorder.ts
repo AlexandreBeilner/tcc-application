@@ -1,6 +1,7 @@
 import type { DailyResult } from '../domain/content'
 import { correctCardCount, finalizeResult } from '../domain/resultState'
 import type { LoadedGame } from './dailyGameLoader'
+import type { DailyCompletionListener } from './ports/dailyCompletionListener'
 import type { DailyResultRepository } from './ports/dailyResultRepository'
 import type { StreakTracker } from './ports/streakTracker'
 import type { UnlockedAchievement, XpAwarder } from './ports/xpAwarder'
@@ -28,6 +29,7 @@ export class DailyProgressRecorder {
     private readonly results: DailyResultRepository,
     private readonly xpAwarder: XpAwarder,
     private readonly streakTracker: StreakTracker,
+    private readonly completionListener?: DailyCompletionListener,
   ) {}
 
   async record<T>(
@@ -58,6 +60,15 @@ export class DailyProgressRecorder {
       completion.streakMilestone = streak.milestoneReached
       completion.unlockedAchievements = [...xp.unlockedAchievements, ...streak.unlockedAchievements]
     }
+    await this.notifyCompletion(userId)
     return { value: value.value, result, completion }
+  }
+
+  private async notifyCompletion(userId: string): Promise<void> {
+    try {
+      await this.completionListener?.onDailyCompleted(userId)
+    } catch (err) {
+      console.error('[daily] falha ao avisar a conclusão do jogo', err)
+    }
   }
 }

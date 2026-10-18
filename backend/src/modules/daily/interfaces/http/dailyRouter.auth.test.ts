@@ -180,6 +180,20 @@ describe('XP e streak do jogo do dia', () => {
     },
   )
 
+  it('avisa a conclusão uma vez, também no dia anterior sem XP (marco do painel de retenção)', async () => {
+    const ctx = setup()
+    await playAll(ctx, 2)
+    await timeline(ctx, 2, CORRECT_ORDER)
+    await playAll(ctx, 1)
+    expect(ctx.world.completedUserIds).toEqual(['u1', 'u1'])
+  })
+
+  it('jogo ainda em andamento não avisa conclusão', async () => {
+    const ctx = setup()
+    await guess(ctx, 2, 'acoes')
+    expect(ctx.world.completedUserIds).toEqual([])
+  })
+
   it('os cartões que não fecham o jogo não trazem completion', async () => {
     const ctx = setup()
     const a = await guess(ctx, 2, 'acoes')

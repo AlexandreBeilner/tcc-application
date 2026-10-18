@@ -107,4 +107,39 @@ describe('PurchaseFixedIncomeUseCase', () => {
     expect(productUnlockReader.getUnlockedKeysCalls).toEqual([])
     expect(fixedIncomeExecutor.purchaseCalls).toHaveLength(1)
   })
+
+  describe('aviso de compra ao vivo (RT.1.1)', () => {
+    const result = {
+      unit_price: 950.2,
+      quantity_purchased: 1.052,
+      position: { quantity: 1.052, average_price: 950.2, average_rate: 0.11 },
+    }
+
+    function build(asset: AssetDetail) {
+      const calls: Array<[string, string]> = []
+      const useCase = new PurchaseFixedIncomeUseCase(
+        createFakeFixedIncomeExecutor({ purchase: result }),
+        createFakeCatalogReader({ asset }),
+        createFakeProductUnlockReader({ unlockedKeys: new Set(['asset:tesouro_selic']) }),
+        {
+          onLiveTrade: async (userId, kind) => {
+            calls.push([userId, kind])
+          },
+        },
+      )
+      return { useCase, calls }
+    }
+
+    it('avisa a compra de renda fixa ao vivo', async () => {
+      const { useCase, calls } = build(tesouroSelicAsset)
+      await useCase.execute(input)
+      expect(calls).toEqual([['user-1', 'fixed_income']])
+    })
+
+    it('compra de Sandbox não gera aviso', async () => {
+      const { useCase, calls } = build(sandboxAsset)
+      await useCase.execute({ ...input, asset_id: 'sand-1' })
+      expect(calls).toEqual([])
+    })
+  })
 })

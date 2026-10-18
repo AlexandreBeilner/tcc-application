@@ -358,6 +358,7 @@ import { createBcryptPasswordHasher } from './modules/auth/infrastructure/securi
 import { createJwtTokenIssuer } from './modules/auth/infrastructure/security/jwtTokenIssuer'
 import { createDiskAvatarStorage } from './modules/auth/infrastructure/storage/diskAvatarStorage'
 import { createAccountRouter } from './modules/auth/interfaces/http/accountRouter'
+import { createRetentionRecorders } from './modules/retention/composition'
 import { createAuthRouter } from './modules/auth/interfaces/http/authRouter'
 import { GetAssetQuotesUseCase } from './modules/market/application/useCases/getAssetQuotes'
 import { GetAssetBookUseCase } from './modules/market/application/useCases/getAssetBook'
@@ -527,13 +528,21 @@ export function createApp(deps: AppDeps = {}): Express {
   const getCompany = new GetCompanyUseCase(catalogReader)
   const getMyAccount = new GetMyAccountUseCase(accountReader, catalogReader)
   const listMyEvents = new ListMyEventsUseCase(accountReader)
-  const placeOrder = new PlaceOrderUseCase(orderExecutor, catalogReader, productUnlockReader)
+  // Presença e marcos do painel de retenção (RT.1.1), compartilhados por auth, lições, mercado e Diário.
+  const retention = createRetentionRecorders(db)
+  const placeOrder = new PlaceOrderUseCase(
+    orderExecutor,
+    catalogReader,
+    productUnlockReader,
+    retention.liveTrade,
+  )
   const cancelOrder = new CancelOrderUseCase(orderExecutor)
   const listMyOrders = new ListMyOrdersUseCase(orderExecutor, catalogReader)
   const purchaseFixedIncome = new PurchaseFixedIncomeUseCase(
     fixedIncomeExecutor,
     catalogReader,
     productUnlockReader,
+    retention.liveTrade,
   )
   const redeemFixedIncome = new RedeemFixedIncomeUseCase(fixedIncomeExecutor)
   const simulateFixedIncome = new SimulateFixedIncomeUseCase(fixedIncomeExecutor)
@@ -567,7 +576,11 @@ export function createApp(deps: AppDeps = {}): Express {
   const getTradingHalts = new GetTradingHaltsUseCase(marketCalendarReader)
 
   const getCurrentUser = new GetCurrentUserUseCase(userRepository)
-  const authMiddleware = createAuthMiddleware(tokenIssuer, new UserSessionGuard(userRepository))
+  const authMiddleware = createAuthMiddleware(
+    tokenIssuer,
+    new UserSessionGuard(userRepository),
+    retention.recordPresence,
+  )
   const auditLogRepository = createDrizzleAuditLogRepository(db)
   const adminSessionAuditor = createAuditLogAdminSessionAuditor(auditLogRepository)
   const loginUser = new LoginUserUseCase(
@@ -892,7 +905,10 @@ export function createApp(deps: AppDeps = {}): Express {
     {
       minStepIntervalMs: lessonMinStepIntervalMs,
       completionListener: {
-        onLessonCompleted: (userId) => referrals.qualify.execute(userId),
+        onLessonCompleted: async (userId) => {
+          await retention.lessonCompleted.onLessonCompleted(userId)
+          await referrals.qualify.execute(userId)
+        },
       },
     },
   )
@@ -1470,7 +1486,14 @@ export function createApp(deps: AppDeps = {}): Express {
   app.locals.settleDueDuels = duels.settleDueDuels
   // Diário (DI.2.1): rotas do jogo sem login, com teto por IP.
   app.use('/daily', createDailyRateLimiter())
-  app.use(createDailyComposition(db, { authMiddleware, awardXp, touchStreak }).router)
+  app.use(
+    createDailyComposition(db, {
+      authMiddleware,
+      awardXp,
+      touchStreak,
+      completionListener: retention.dailyCompleted,
+    }).router,
+  )
   app.use(createMissionsRouter({ listDailyMissions, completeMission, authMiddleware }))
   app.use(createAchievementsRouter({ listAchievements, authMiddleware }))
   app.use(createProfileRouter({ getPublicProfile, authMiddleware }))

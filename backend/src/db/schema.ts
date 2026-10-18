@@ -1179,6 +1179,39 @@ export const dailyActivity = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.day] })],
 )
 
+// Presença diária (RT.1.1): um dia por pessoa com QUALQUER requisição autenticada, em UTC (a mesma
+// convenção do streak). Ao contrário de `daily_activity`, não exige lição nem missão: mede quem voltou,
+// não quem estudou. Alimenta só o painel de retenção do admin; nada financeiro.
+export const dailyPresence = pgTable(
+  'daily_presence',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    day: date('day').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.day] }),
+    index('daily_presence_day_idx').on(table.day),
+  ],
+)
+
+// Marcos por pessoa (RT.1.1): a primeira vez que cada fato aconteceu, gravado uma vez e nunca
+// recalculado. `milestone` é um texto de `modules/retention/domain/milestones.ts`, sem enum de banco
+// pra um marco novo não exigir migração.
+export const userMilestones = pgTable(
+  'user_milestones',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    milestone: varchar('milestone', { length: 40 }).notNull(),
+    reachedAt: timestamp('reached_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique('user_milestones_user_milestone_unique').on(table.userId, table.milestone)],
+)
+
 // Retrospectiva mensal arquivada (MO.5.4): o conteúdo do mês fica gravado e nunca é recalculado,
 // então rever meses antigos independe do plano. `month` no formato AAAA-MM.
 export const retrospectives = pgTable(

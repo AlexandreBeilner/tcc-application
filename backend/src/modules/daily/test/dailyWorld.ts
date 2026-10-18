@@ -119,7 +119,12 @@ export function buildDailyWorld(options: WorldOptions) {
     unlockedAchievements: [{ id: 'a1', name: 'Primeiro Diário', description: null }],
   })
   const streakTracker = createFakeStreakTracker()
-  const recorder = new DailyProgressRecorder(results, xpAwarder, streakTracker)
+  const completedUserIds: string[] = []
+  const recorder = new DailyProgressRecorder(results, xpAwarder, streakTracker, {
+    onDailyCompleted: async (userId) => {
+      completedUserIds.push(userId)
+    },
+  })
   const metrics = createFakeDailyMetricsRepository()
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
@@ -132,6 +137,7 @@ export function buildDailyWorld(options: WorldOptions) {
     results,
     xpAwarder,
     streakTracker,
+    completedUserIds,
     authMiddleware,
     tokenFor: (userId: string) => tokenIssuer.issue({ sub: userId, role: 'user' }),
     getToday: new GetTodayUseCase(settings, loader),
