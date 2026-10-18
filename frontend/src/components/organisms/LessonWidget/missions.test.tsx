@@ -46,6 +46,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'cdbGapPct', op: 'between', min: -0.05, max: 0.05 },
         showMe: { cdbRatePct: 11.61 },
     },
+    {
+        lesson: '1.8',
+        widget: 'bond-price-calculator',
+        initial: { ratePct: 11.75, years: 1, amount: 10000 },
+        goal: { metric: 'unitPrice', op: 'lt', value: 800 },
+        showMe: { years: 2.5 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props.
@@ -113,5 +120,16 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(gap(11.61)).toBeCloseTo(-0.00225, 4)
         expect(gap(11.62)).toBeCloseTo(0.0055, 4)
         expect(gap(12)).toBeGreaterThan(0.05)
+    })
+
+    it('1.8: a 11,75% ao ano o título passa a custar menos de R$ 800 só depois de 2 anos (2 anos dão R$ 800,76)', () => {
+        const price = (years: number, ratePct = 11.75) => metricsOf('bond-price-calculator', { ratePct, years, amount: 10000 }).unitPrice
+        // 1000 / 1,1175^t
+        expect(price(1)).toBeCloseTo(894.9, 1)
+        expect(price(2)).toBeCloseTo(800.76, 2)
+        expect(price(2.25)).toBeLessThan(800)
+        expect(price(2.5)).toBeCloseTo(757.4, 0)
+        // Taxa maior no prazo de 2 anos também derruba o preço: 12% dão R$ 797,19.
+        expect(price(2, 12)).toBeLessThan(800)
     })
 })

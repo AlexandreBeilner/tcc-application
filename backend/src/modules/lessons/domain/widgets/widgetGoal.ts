@@ -30,6 +30,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<WidgetId, readonly string[]>
   'growth-calculator': ['interestRatio'],
   'ir-regressive-table': ['irRatePct'],
   'equivalent-rate': ['cdbGapPct'],
+  'bond-price-calculator': ['unitPrice'],
   'real-return': ['realReturnPct'],
   'savings-vs-selic': ['savingsGapPct'],
 }

@@ -431,8 +431,17 @@ export const BLOCKS_1_7: LessonBlocks = {
         type: 'widget',
         id: 'preco-prefixado',
         widget: 'bond-price-calculator',
-        props: { ratePct: 11.75, years: 2, amount: 10000 },
+        props: { ratePct: 11.75, years: 1, amount: 10000 },
         caption: 'Mexa na taxa e no prazo e veja o preço de cada título.',
+        goal: {
+          text: 'Faça cada título custar menos de R$ 800 hoje',
+          metric: 'unitPrice',
+          op: 'lt',
+          value: 800,
+          reveal:
+            'Quanto mais longe o vencimento, ou maior a taxa, maior o deságio: você paga menos hoje pelos mesmos R$ 1.000 no fim.',
+          showMe: { years: 2.5 },
+        },
       },
       {
         type: 'check',

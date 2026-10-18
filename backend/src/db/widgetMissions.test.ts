@@ -51,6 +51,14 @@ const EXPECTED: Expected[] = [
     min: -0.05,
     max: 0.05,
   },
+  {
+    lesson: '1.8',
+    id: 'preco-prefixado',
+    widget: 'bond-price-calculator',
+    metric: 'unitPrice',
+    op: 'lt',
+    value: 800,
+  },
 ]
 
 function goalsOf(code: string) {
