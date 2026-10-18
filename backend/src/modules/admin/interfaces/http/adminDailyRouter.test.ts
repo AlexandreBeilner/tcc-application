@@ -67,6 +67,7 @@ const ID = '11111111-1111-4111-8111-111111111111'
 describe('permissões', () => {
   it.each([
     ['get', '/admin/daily'],
+    ['get', '/admin/daily/metrics'],
     ['post', '/admin/daily/draft'],
     ['put', '/admin/daily/start-date'],
     ['post', '/admin/daily/puzzles/publish'],
@@ -353,5 +354,40 @@ describe('conteúdo', () => {
     expect(
       (await request(app).delete('/admin/daily/accepted-words/copom').set(auth(adminToken))).status,
     ).toBe(404)
+  })
+})
+
+describe('GET /admin/daily/metrics (DI.7.1)', () => {
+  it('devolve um dia por linha, do mais recente ao mais antigo, com zeros', async () => {
+    const { app, world, adminToken, auth } = await buildApp()
+    await world.metricsRepo.increment('2026-10-20', 'anon_started')
+    await world.metricsRepo.increment('2026-10-20', 'origin_signup')
+
+    const res = await request(app).get('/admin/daily/metrics?days=3').set(auth(adminToken))
+
+    expect(res.status).toBe(200)
+    expect(res.body.days.map((d: { date: string }) => d.date)).toEqual([
+      '2026-10-20',
+      '2026-10-19',
+      '2026-10-18',
+    ])
+    expect(res.body.days[0]).toEqual({
+      date: '2026-10-20',
+      anon_started: 1,
+      anon_completed: 0,
+      logged_started: 0,
+      logged_completed: 0,
+      signups: 1,
+      logins: 0,
+    })
+    expect(res.body.days[1].anon_started).toBe(0)
+  })
+
+  it('days fora de 1 a 90 é 400', async () => {
+    const { app, adminToken, auth } = await buildApp()
+    for (const days of ['0', '91', 'x']) {
+      const res = await request(app).get(`/admin/daily/metrics?days=${days}`).set(auth(adminToken))
+      expect(res.status).toBe(400)
+    }
   })
 })

@@ -362,3 +362,50 @@ describe('cartão desconhecido', () => {
     expect((await request(app).post('/daily/1/cards/xpto/answer').send({})).status).toBe(404)
   })
 })
+
+describe('POST /daily/metrics (DI.7.1)', () => {
+  it('soma 1 ao contador do dia UTC, sem login e sem guardar quem avisou', async () => {
+    const world = buildDailyWorld({ startDate: START })
+    const app = express()
+    app.use(express.json())
+    app.use(createDailyRouter({ ...world, now: () => AT.launchDay }))
+
+    expect((await request(app).post('/daily/metrics').send({ event: 'started' })).status).toBe(204)
+    expect((await request(app).post('/daily/metrics').send({ event: 'started' })).status).toBe(204)
+    expect((await request(app).post('/daily/metrics').send({ event: 'completed' })).status).toBe(
+      204,
+    )
+    expect((await request(app).post('/daily/metrics').send({ event: 'signup' })).status).toBe(204)
+    expect((await request(app).post('/daily/metrics').send({ event: 'login' })).status).toBe(204)
+
+    expect(Object.fromEntries(world.metrics.counts)).toEqual({
+      '2026-11-01|anon_started': 2,
+      '2026-11-01|anon_completed': 1,
+      '2026-11-01|origin_signup': 1,
+      '2026-11-01|origin_login': 1,
+    })
+  })
+
+  it('recusa evento desconhecido e campo extra (nada de identificador no corpo)', async () => {
+    const world = buildDailyWorld({ startDate: START })
+    const app = express()
+    app.use(express.json())
+    app.use(createDailyRouter({ ...world, now: () => AT.launchDay }))
+
+    for (const body of [{}, { event: 'x' }, { event: 'started', userId: 'u1' }]) {
+      expect((await request(app).post('/daily/metrics').send(body)).status).toBe(400)
+    }
+    expect(world.metrics.counts.size).toBe(0)
+  })
+
+  it('o contador usa o dia UTC: 21h de Brasília já conta no dia seguinte', async () => {
+    const world = buildDailyWorld({ startDate: START })
+    const app = express()
+    app.use(express.json())
+    app.use(createDailyRouter({ ...world, now: () => AT.brasilia2100 }))
+
+    await request(app).post('/daily/metrics').send({ event: 'started' })
+
+    expect([...world.metrics.counts.keys()]).toEqual(['2026-11-03|anon_started'])
+  })
+})

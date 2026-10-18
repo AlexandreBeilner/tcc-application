@@ -594,6 +594,10 @@ const dailyDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 export const dailyDraftBodySchema = z.strictObject({ start_date: dailyDateSchema })
 
+export const dailyMetricsQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(90).optional(),
+})
+
 export const dailyStartDateBodySchema = z.strictObject({ start_date: dailyDateSchema.nullable() })
 
 export const dailyPublishBodySchema = z.strictObject({

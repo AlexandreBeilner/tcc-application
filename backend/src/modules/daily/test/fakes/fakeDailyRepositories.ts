@@ -1,3 +1,8 @@
+import type {
+  DailyMetricsRepository,
+  LoggedGamesRow,
+} from '../../application/ports/dailyMetricsRepository'
+import type { StoredMetric } from '../../domain/metrics'
 import type { DailyResult } from '../../domain/content'
 import { newResult } from '../../domain/resultState'
 import type { DailyResultRepository } from '../../application/ports/dailyResultRepository'
@@ -26,6 +31,30 @@ export function createFakeDailySettingsRepository(
     },
     async setStartDate(next) {
       state.startDate = next
+    },
+  }
+}
+
+export function createFakeDailyMetricsRepository(
+  logged: LoggedGamesRow[] = [],
+): DailyMetricsRepository & { counts: Map<string, number> } {
+  const counts = new Map<string, number>()
+  return {
+    counts,
+    async increment(day, metric) {
+      const key = `${day}|${metric}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    },
+    async listStored(from, to) {
+      return [...counts.entries()]
+        .map(([key, count]) => {
+          const [date, metric] = key.split('|')
+          return { date, metric: metric as StoredMetric, count }
+        })
+        .filter((r) => r.date >= from && r.date <= to)
+    },
+    async listLoggedGames(from, to) {
+      return logged.filter((r) => r.date >= from && r.date <= to)
     },
   }
 }

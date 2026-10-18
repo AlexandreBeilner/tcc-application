@@ -2,6 +2,7 @@ import type {
   AdminOverview,
   AdminPuzzleView,
   DailyAdmin,
+  DailyMetricsDay,
   DailyEvent,
   DailyQuestion,
   DailyWord,
@@ -23,6 +24,9 @@ export class DailyAdminReadsUseCase {
 
   overview(): Promise<AdminOverview> {
     return this.daily.overview()
+  }
+  metrics(days?: number): Promise<DailyMetricsDay[]> {
+    return this.daily.metrics(days)
   }
   puzzle(number: number): Promise<AdminPuzzleView> {
     return this.daily.getPuzzle(number)

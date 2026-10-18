@@ -1,4 +1,7 @@
 import type { Database } from '../../db/client'
+import { GetDailyMetricsUseCase } from './application/useCases/admin/metrics'
+import { RecordDailyMetricUseCase } from './application/useCases/recordDailyMetric'
+import { createDrizzleDailyMetricsRepository } from './infrastructure/persistence/drizzleDailyMetricsRepository'
 import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import type { AwardXpUseCase } from '../gamification/application/useCases/awardXp'
 import type { TouchStreakUseCase } from '../gamification/application/useCases/touchStreak'
@@ -104,6 +107,7 @@ export function createDailyAdminUseCases(db: Database) {
     listEvents: new ListAdminEventsUseCase(events),
     createEvent: new CreateAdminEventUseCase(events),
     updateEvent: new UpdateAdminEventUseCase(events, puzzles),
+    metrics: new GetDailyMetricsUseCase(createDrizzleDailyMetricsRepository(db)),
   }
 }
 
@@ -148,6 +152,7 @@ export function createDailyComposition(db: Database, deps: DailyRouterCompositio
     answerTimeline: new AnswerTimelineUseCase(loader, recorder),
     getMyGameState: new GetMyGameStateUseCase(loader, results),
     getMyStats: new GetMyStatsUseCase(settings, results),
+    recordMetric: new RecordDailyMetricUseCase(createDrizzleDailyMetricsRepository(db)),
     authMiddleware: deps.authMiddleware,
   })
   return { router }

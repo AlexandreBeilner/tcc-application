@@ -1415,3 +1415,23 @@ export const dailyResults = pgTable(
     check('daily_results_xp_chk', sql`${table.xpAwarded} >= 0`),
   ],
 )
+
+// Contadores agregados do Diário por dia UTC (DI.7.1). Só números: nada de identificador, IP ou
+// aparelho de quem anônimo jogou. Os jogos de quem tem conta não passam por aqui, saem de
+// `daily_results`, para os dois lados nunca divergirem.
+export const dailyMetrics = pgTable(
+  'daily_metrics',
+  {
+    metricDate: date('metric_date').notNull(),
+    metric: text('metric').notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.metricDate, table.metric] }),
+    check(
+      'daily_metrics_metric_chk',
+      sql`${table.metric} IN ('anon_started', 'anon_completed', 'origin_signup', 'origin_login')`,
+    ),
+    check('daily_metrics_count_chk', sql`${table.count} >= 0`),
+  ],
+)

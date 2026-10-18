@@ -20,6 +20,7 @@ import {
   createFakeStreakTracker,
   createFakeXpAwarder,
 } from '../../test/fakes/fakeDailyRepositories'
+import { createDrizzleDailyMetricsRepository } from './drizzleDailyMetricsRepository'
 import { createDrizzleDailyResultRepository } from './drizzleDailyResultRepository'
 import { createDrizzleDailySettingsRepository } from './drizzleDailySettingsRepository'
 import { createDrizzleDailyWordRepository } from './drizzleDailyWordRepository'
@@ -87,6 +88,7 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
 
   async function clean() {
     await db.delete(schema.dailyResults)
+    await db.delete(schema.dailyMetrics)
     await db.delete(schema.dailyPuzzles)
     await db.delete(schema.dailyQuestions)
     await db.delete(schema.dailyEvents)
@@ -581,6 +583,62 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       expect(await puzzles().unpublishFrom('2026-11-04')).toBe(1)
       expect((await puzzles().findByNumber(1))?.publishedAt).toEqual(NOW)
       expect((await puzzles().findByNumber(3))?.publishedAt).toBeNull()
+    })
+  })
+  describe('contadores (DI.7.1)', () => {
+    it('increment soma por dia e métrica, também sob concorrência', async () => {
+      const repo = createDrizzleDailyMetricsRepository(db)
+
+      await Promise.all(
+        Array.from({ length: 10 }, () => repo.increment('2026-11-03', 'anon_started')),
+      )
+      await repo.increment('2026-11-03', 'anon_completed')
+      await repo.increment('2026-11-04', 'anon_started')
+
+      const rows = await repo.listStored('2026-11-03', '2026-11-03')
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          { date: '2026-11-03', metric: 'anon_started', count: 10 },
+          { date: '2026-11-03', metric: 'anon_completed', count: 1 },
+        ]),
+      )
+      expect(rows).toHaveLength(2)
+      expect(await repo.listStored('2026-11-01', '2026-11-30')).toHaveLength(3)
+    })
+
+    it('o banco recusa métrica fora da lista', async () => {
+      await expect(
+        db
+          .insert(schema.dailyMetrics)
+          .values({ metricDate: '2026-11-03', metric: 'user_id', count: 1 }),
+      ).rejects.toThrow()
+    })
+
+    it('listLoggedGames bate com daily_results: início pelo dia UTC de started_at, fim pelo de completed_at', async () => {
+      await seedPuzzle(1, '2026-11-03')
+      await seedPuzzle(2, '2026-11-04')
+      await db.insert(schema.dailyResults).values([
+        {
+          userId,
+          puzzleNumber: 1,
+          startedAt: new Date('2026-11-03T23:50:00Z'),
+          completedAt: new Date('2026-11-04T00:10:00Z'),
+          xpAwarded: 0,
+        },
+        { userId, puzzleNumber: 2, startedAt: new Date('2026-11-04T10:00:00Z'), completedAt: null },
+      ])
+
+      const rows = await createDrizzleDailyMetricsRepository(db).listLoggedGames(
+        '2026-11-03',
+        '2026-11-04',
+      )
+
+      const byDate = Object.fromEntries(rows.map((r) => [r.date, r]))
+      expect(byDate['2026-11-03']).toMatchObject({ started: 1, completed: 0 })
+      expect(byDate['2026-11-04']).toMatchObject({ started: 1, completed: 1 })
+      expect(
+        await createDrizzleDailyMetricsRepository(db).listLoggedGames('2026-11-05', '2026-11-06'),
+      ).toEqual([])
     })
   })
 })

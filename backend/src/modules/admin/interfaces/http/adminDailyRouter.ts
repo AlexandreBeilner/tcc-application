@@ -24,6 +24,7 @@ import {
 import {
   dailyAcceptedWordBodySchema,
   dailyDraftBodySchema,
+  dailyMetricsQuerySchema,
   dailyEventCreateBodySchema,
   dailyEventUpdateBodySchema,
   dailyPublishBodySchema,
@@ -196,6 +197,27 @@ export function createAdminDailyRouter(deps: AdminDailyRouterDeps): Router {
 
   router.get('/admin/daily', ...adminOnly, async (_req, res) => {
     res.status(200).json(serializeOverview(await deps.reads.overview()))
+  })
+
+  // Contadores do Diário (DI.7.1): um dia por linha, do mais recente ao mais antigo.
+  router.get('/admin/daily/metrics', ...adminOnly, async (req, res) => {
+    const parsed = dailyMetricsQuerySchema.safeParse(req.query)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+      return
+    }
+    const days = await deps.reads.metrics(parsed.data.days)
+    res.status(200).json({
+      days: days.map((d) => ({
+        date: d.date,
+        anon_started: d.anonStarted,
+        anon_completed: d.anonCompleted,
+        logged_started: d.loggedStarted,
+        logged_completed: d.loggedCompleted,
+        signups: d.signups,
+        logins: d.logins,
+      })),
+    })
   })
 
   router.post('/admin/daily/draft', ...adminOnly, async (req, res) => {

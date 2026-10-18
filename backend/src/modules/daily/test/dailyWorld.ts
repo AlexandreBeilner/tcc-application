@@ -11,9 +11,11 @@ import { DailyGameLoader } from '../application/dailyGameLoader'
 import { EvaluateWordGuessUseCase } from '../application/useCases/evaluateWordGuess'
 import { GetGameUseCase } from '../application/useCases/getGame'
 import { GetTodayUseCase } from '../application/useCases/getToday'
+import { RecordDailyMetricUseCase } from '../application/useCases/recordDailyMetric'
 import {
   createFakeAcceptedWordRepository,
   createFakeDailyEventRepository,
+  createFakeDailyMetricsRepository,
   createFakeDailyResultRepository,
   createFakeStreakTracker,
   createFakeXpAwarder,
@@ -118,10 +120,12 @@ export function buildDailyWorld(options: WorldOptions) {
   })
   const streakTracker = createFakeStreakTracker()
   const recorder = new DailyProgressRecorder(results, xpAwarder, streakTracker)
+  const metrics = createFakeDailyMetricsRepository()
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
   return {
     settings,
+    metrics,
     puzzleRepo,
     acceptedWords,
     loader,
@@ -137,5 +141,6 @@ export function buildDailyWorld(options: WorldOptions) {
     answerTimeline: new AnswerTimelineUseCase(loader, recorder),
     getMyGameState: new GetMyGameStateUseCase(loader, results),
     getMyStats: new GetMyStatsUseCase(settings, results),
+    recordMetric: new RecordDailyMetricUseCase(metrics),
   }
 }

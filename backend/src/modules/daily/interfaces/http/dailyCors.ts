@@ -2,9 +2,10 @@ import cors from 'cors'
 import type { RequestHandler } from 'express'
 
 // Rotas públicas do jogo: as que a página da landing (`selucra.com.br/diario`) chama sem login.
-// `/daily/today`, `/daily/:number` e as duas de resposta. `/daily/:number/me` e `/daily/me/stats`
+// `/daily/today`, `/daily/:number`, as duas de resposta e o aviso de contador (`/daily/metrics`). `/daily/:number/me` e `/daily/me/stats`
 // são do usuário logado e continuam só com a origem do app.
-const PUBLIC_DAILY_PATH = /^\/daily\/(?:today|\d+|\d+\/word\/guess|\d+\/cards\/[a-z]+\/answer)\/?$/
+const PUBLIC_DAILY_PATH =
+  /^\/daily\/(?:today|metrics|\d+|\d+\/word\/guess|\d+\/cards\/[a-z]+\/answer)\/?$/
 
 export function isPublicDailyPath(path: string): boolean {
   return PUBLIC_DAILY_PATH.test(path)

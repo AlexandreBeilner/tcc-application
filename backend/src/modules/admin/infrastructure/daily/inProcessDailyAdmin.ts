@@ -16,6 +16,7 @@ import type {
   PrepareLaunchDraftUseCase,
   SetStartDateUseCase,
 } from '../../../daily/application/useCases/admin/launch'
+import type { GetDailyMetricsUseCase } from '../../../daily/application/useCases/admin/metrics'
 import type { GetDailyAdminOverviewUseCase } from '../../../daily/application/useCases/admin/overview'
 import type {
   GetAdminPuzzleUseCase,
@@ -37,6 +38,7 @@ import type { DailyAdmin } from '../../application/ports/dailyAdmin'
 
 export interface InProcessDailyAdminDeps {
   overview: GetDailyAdminOverviewUseCase
+  metrics: GetDailyMetricsUseCase
   getPuzzle: GetAdminPuzzleUseCase
   reviewPuzzle: ReviewPuzzleUseCase
   publishPuzzles: PublishPuzzlesUseCase
@@ -78,6 +80,7 @@ async function guarded<T>(call: () => Promise<T>): Promise<T> {
 export function createInProcessDailyAdmin(deps: InProcessDailyAdminDeps): DailyAdmin {
   return {
     overview: () => guarded(() => deps.overview.execute()),
+    metrics: (days) => guarded(() => deps.metrics.execute({ days })),
     getPuzzle: (number) => guarded(() => deps.getPuzzle.execute(number)),
     reviewPuzzle: (actorId, number) => guarded(() => deps.reviewPuzzle.execute(actorId, number)),
     publishPuzzles: (numbers) => guarded(() => deps.publishPuzzles.execute(numbers)),

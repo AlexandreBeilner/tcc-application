@@ -13,6 +13,7 @@ import type {
   WordInput,
   WordPatch,
 } from '../../../daily/application/useCases/admin/content'
+import type { DailyMetricsDay } from '../../../daily/domain/metrics'
 import type { ReplaceCardInput } from '../../../daily/application/useCases/admin/puzzles'
 import type { DailyEvent, DailyQuestion, DailyWord } from '../../../daily/domain/content'
 
@@ -30,7 +31,7 @@ export type {
   WordInput,
   WordPatch,
 }
-export type { DailyEvent, DailyQuestion, DailyWord }
+export type { DailyEvent, DailyQuestion, DailyWord, DailyMetricsDay }
 
 type Changed<T> = ContentChangeResult<T> & { changedFields: string[] }
 
@@ -39,6 +40,8 @@ type Changed<T> = ContentChangeResult<T> & { changedFields: string[] }
 // revisão ou a edição.
 export interface DailyAdmin {
   overview(): Promise<AdminOverview>
+  // Contadores por dia UTC, do mais recente ao mais antigo (DI.7.1).
+  metrics(days?: number): Promise<DailyMetricsDay[]>
   getPuzzle(number: number): Promise<AdminPuzzleView>
   reviewPuzzle(actorId: string, number: number): Promise<{ number: number }>
   publishPuzzles(numbers?: number[]): Promise<{ published: number[] }>

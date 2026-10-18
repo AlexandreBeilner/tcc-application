@@ -18,6 +18,7 @@ import {
   SetStartDateUseCase,
 } from '../application/useCases/admin/launch'
 import { GetDailyAdminOverviewUseCase } from '../application/useCases/admin/overview'
+import { GetDailyMetricsUseCase } from '../application/useCases/admin/metrics'
 import {
   GetAdminPuzzleUseCase,
   PublishPuzzlesUseCase,
@@ -28,6 +29,7 @@ import type { DailyEvent, DailyQuestion, DailyWord } from '../domain/content'
 import {
   createFakeAcceptedWordRepository,
   createFakeDailyEventRepository,
+  createFakeDailyMetricsRepository,
   createFakeDailyPuzzleRepository,
   createFakeDailyQuestionRepository,
   createFakeDailySettingsRepository,
@@ -105,6 +107,7 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
     words.items.map((w) => w.answer),
     ['SELIC'],
   )
+  const metricsRepo = createFakeDailyMetricsRepository()
   const materialize = new MaterializeUpcomingPuzzlesUseCase(
     settings,
     words,
@@ -115,6 +118,7 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
   )
   return {
     clock,
+    metricsRepo,
     settings,
     words,
     questions,
@@ -149,6 +153,7 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
     listEvents: new ListAdminEventsUseCase(events),
     createEvent: new CreateAdminEventUseCase(events),
     updateEvent: new UpdateAdminEventUseCase(events, puzzles),
+    metrics: new GetDailyMetricsUseCase(metricsRepo, now),
   }
 }
 

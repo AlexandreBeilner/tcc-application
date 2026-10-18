@@ -16,6 +16,7 @@ function app() {
 describe('isPublicDailyPath', () => {
   it.each([
     '/daily/today',
+    '/daily/metrics',
     '/daily/12',
     '/daily/12/word/guess',
     '/daily/12/cards/trivia/answer',

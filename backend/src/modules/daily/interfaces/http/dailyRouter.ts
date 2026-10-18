@@ -9,6 +9,7 @@ import type { GetMyGameStateUseCase } from '../../application/useCases/getMyGame
 import type { GetMyStatsUseCase } from '../../application/useCases/getMyStats'
 import type { GetGameUseCase } from '../../application/useCases/getGame'
 import type { GetTodayUseCase } from '../../application/useCases/getToday'
+import type { RecordDailyMetricUseCase } from '../../application/useCases/recordDailyMetric'
 import {
   AttemptRequiredError,
   CardAlreadyAnsweredError,
@@ -20,7 +21,12 @@ import {
   InvalidOrderError,
   WordNotAcceptedError,
 } from '../../domain/errors'
-import { timelineAnswerBodySchema, triviaAnswerBodySchema, wordGuessBodySchema } from './schemas'
+import {
+  metricBodySchema,
+  timelineAnswerBodySchema,
+  triviaAnswerBodySchema,
+  wordGuessBodySchema,
+} from './schemas'
 
 export interface DailyRouterDeps {
   getToday: GetTodayUseCase
@@ -30,6 +36,7 @@ export interface DailyRouterDeps {
   answerTimeline: AnswerTimelineUseCase
   getMyGameState: GetMyGameStateUseCase
   getMyStats: GetMyStatsUseCase
+  recordMetric: RecordDailyMetricUseCase
   authMiddleware: AuthMiddleware
   // Relógio injetável: os testes da virada do dia (20h59 e 21h00 de Brasília) precisam dele.
   now?: () => Date
@@ -91,6 +98,19 @@ export function createDailyRouter(deps: DailyRouterDeps): Router {
     } catch (err) {
       if (!handleError(err, res)) throw err
     }
+  })
+
+  // Contador agregado (DI.7.1): a landing avisa que um jogo anônimo começou ou terminou, e o app
+  // que um cadastro ou login veio do Diário. Sem login, sem corpo além do nome do evento e sem
+  // guardar quem avisou.
+  router.post('/daily/metrics', async (req, res) => {
+    const parsed = metricBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+      return
+    }
+    await deps.recordMetric.execute({ event: parsed.data.event, now: clock() })
+    res.status(204).end()
   })
 
   router.get('/daily/me/stats', requireAuth, async (req, res) => {
