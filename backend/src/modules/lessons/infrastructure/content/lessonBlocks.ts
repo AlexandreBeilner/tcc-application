@@ -530,7 +530,29 @@ const widgetBlock = z
 // "O que ficou" (LJ.1.5): de 2 a 3 frases curtas, cada uma que a pessoa diria a um amigo.
 export const SUMMARY_MAX_CHARS = 120
 
-export const blockSchema = z.union([textBlock, widgetBlock, checkBlock])
+// "Saiba mais" (LJ.5.7): texto e widget de apoio, sem missão (a missão trava o Continuar e é do caminho
+// principal) e sem pergunta (pergunta é cartão). Não aninha outro "Saiba mais".
+export const MORE_TITLE_MAX_CHARS = 60
+
+const moreBlock = z.object({
+  type: z.literal('more'),
+  id: z.string().min(1).max(64),
+  title: z.string().min(1).max(MORE_TITLE_MAX_CHARS),
+  blocks: z
+    .array(
+      z.union([
+        textBlock,
+        widgetBlock.refine((block) => !block.goal, {
+          path: ['goal'],
+          message: 'widget dentro de "Saiba mais" não tem missão',
+        }),
+      ]),
+    )
+    .min(1)
+    .max(4),
+})
+
+export const blockSchema = z.union([textBlock, widgetBlock, checkBlock, moreBlock])
 
 export const lessonBlocksSchema = z
   .object({
@@ -544,13 +566,32 @@ export const lessonBlocksSchema = z
   })
   .superRefine((blocks, ctx) => {
     const all = Object.values(blocks.phases).flat()
-    const ids = all.flatMap((block) => (block.type === 'text' ? [] : [block.id]))
+    const ids = all.flatMap((block) =>
+      block.type === 'text'
+        ? []
+        : block.type === 'more'
+          ? [
+              block.id,
+              ...block.blocks.flatMap((inner) => (inner.type === 'text' ? [] : [inner.id])),
+            ]
+          : [block.id],
+    )
     if (new Set(ids).size !== ids.length) {
       ctx.addIssue({
         code: 'custom',
         path: ['phases'],
         message: 'id de widget ou checkpoint repetido na lição',
       })
+    }
+    // O "Saiba mais" se cola ao cartão anterior da fase: como primeiro bloco não teria a que se colar.
+    for (const [phase, list] of Object.entries(blocks.phases)) {
+      if (list[0]?.type === 'more') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['phases', phase, 0],
+          message: '"Saiba mais" não pode ser o primeiro bloco da fase',
+        })
+      }
     }
     if (all.filter((block) => block.type === 'check').length > MAX_CHECKPOINTS_PER_LESSON) {
       ctx.addIssue({

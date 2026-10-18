@@ -94,6 +94,79 @@ describe('lessonBlocksSchema', () => {
     expect(lessonBlocksSchema.safeParse(withSummary(['a', ''])).success).toBe(false)
   })
 
+  describe('"Saiba mais" (LJ.5.7)', () => {
+    const more = (blocks: unknown[], id = 'm1') => ({ type: 'more', id, title: 'Detalhe', blocks })
+    const withScenario = (...scenario: unknown[]) => ({
+      ...CONTRACT_EXAMPLE,
+      phases: { ...CONTRACT_EXAMPLE.phases, scenario },
+    })
+    const text = { type: 'text', markup: 'Antes.' }
+    const inner = { type: 'text', markup: 'Detalhe.' }
+
+    it('aceita texto e widget sem missão, depois de outro bloco da fase', () => {
+      const widget = {
+        type: 'widget',
+        id: 'w1',
+        widget: 'callout',
+        props: { title: 't', body: 'b' },
+      }
+      expect(lessonBlocksSchema.safeParse(withScenario(text, more([inner, widget]))).success).toBe(
+        true,
+      )
+    })
+
+    it.each([
+      ['como primeiro bloco da fase', withScenario(more([inner]), text)],
+      ['vazio', withScenario(text, more([]))],
+      [
+        'com pergunta dentro',
+        withScenario(
+          text,
+          more([
+            {
+              type: 'check',
+              id: 'q',
+              kind: 'true_false',
+              prompt: 'p',
+              answer: true,
+              explanation: 'e',
+            },
+          ]),
+        ),
+      ],
+      ['com outro "Saiba mais" dentro', withScenario(text, more([more([inner], 'm2')]))],
+      [
+        'com missão num widget',
+        withScenario(
+          text,
+          more([
+            {
+              type: 'widget',
+              id: 'w2',
+              widget: 'real-return',
+              props: {},
+              goal: { text: 't', metric: 'realReturnPct', op: 'lt', value: 0, reveal: 'r' },
+            },
+          ]),
+        ),
+      ],
+      ['com título longo demais', withScenario(text, { ...more([inner]), title: 'x'.repeat(61) })],
+      ['com id repetido', withScenario(text, more([inner]), more([inner]))],
+    ])('recusa "Saiba mais" %s', (_name, blocks) => {
+      expect(lessonBlocksSchema.safeParse(blocks).success).toBe(false)
+    })
+
+    it('recusa id de widget de dentro repetido com outro bloco da lição', () => {
+      const dup = {
+        type: 'widget',
+        id: 'calc',
+        widget: 'callout',
+        props: { title: 't', body: 'b' },
+      }
+      expect(lessonBlocksSchema.safeParse(withScenario(text, more([dup]))).success).toBe(false)
+    })
+  })
+
   it('aceita os widgets de renda fixa com defaults', () => {
     const phases = {
       ...CONTRACT_EXAMPLE.phases,

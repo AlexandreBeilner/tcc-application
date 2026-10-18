@@ -508,7 +508,7 @@ dado que já existe (quem errou antes de acertar).
 **Critérios de aceite:** nunca vira cobrança (sem contador vermelho, sem "atrasada"); checklist do
 backend; rota documentada; testes do agendamento.
 
-### LJ.5.7 · Lições longas: caminho principal até 12 cartões, resto em "Saiba mais"
+### LJ.5.7 · Lições longas: caminho principal até 12 cartões, resto em "Saiba mais" (parcial: mecanismo ✅, teto de 12 não alcançado)
 
 **O que fazer:** novo tipo de bloco `more` (`{ type: 'more', id, title, blocks: LessonBlock[] }`,
 sem checkpoint dentro) renderizado como `<details>` recolhido no cartão anterior, igual ao
@@ -519,6 +519,8 @@ rodapé do LJ.1.3. Aplicar nas 7 lições que passam de 15 cartões (2.4, 2.12, 
 **Critérios de aceite:** nenhuma informação removida, só movida; `contentRules` varre o conteúdo
 de `more`; teste do seed acusa lição com mais de 12 cartões no caminho principal (baseline com as
 que ainda não foram tratadas, no molde dos testes de conteúdo).
+
+- **Entregável parcial (2026-10-18):** **Mecanismo:** bloco `more` (`{ type, id, title (até 60), blocks }`, 1 a 4 blocos de texto ou widget sem missão; sem pergunta, sem outro `more`, nunca primeiro bloco da fase), tipo no domínio, Zod no backend (ids de dentro entram na checagem de id único) e no espelho do frontend. `buildPhaseCards` cola o `more` no cartão anterior (`PlayerCard.more`), como o rodapé "Na plataforma", então não conta na barra, no placar nem no tempo estimado; sem cartão a que se colar vira cartões (nada some). Organismo `MoreDetails` (`<details>` recolhido, "Saiba mais" + título, conteúdo montado só aberto para widget não buscar dado à toa; aberto/fechado guardado junto com os rodapés). `contentRules.blockTextFields` varre título e conteúdo sem o teto de cartão; `legacyText` inclui o texto no lugar do bloco; `countMainPathCards` (espelho do player) e teste do seed com baseline por lição (catraca, 15 lições acima de 12). Script aditivo `src/db/applyMoreBlocks.ts` (`applyMoreBlocks` pura e idempotente, só move o que encontra), aplicado no banco de desenvolvimento. **Conteúdo movido (6 cartões):** 2.4 pregão e custos, 2.7.6 frequência do provento, 2.12 dedo-duro e limites de hoje, F.2 taxas de hoje. Contagens: 2.4 17 para 15, 2.12 18 para 16, F.2 17 para 16, 2.7.6 15 para 14; **1.11, 1.12 e 2.10 não foram tocadas** (o que sobraria como detalhe está amarrado a uma pergunta). **O teto de 12 não foi alcançado nas 7 lições** e isso é decisão do autor: ponto 057 de `pontos-em-aberto-decisao-produto.md` (opções: dividir lições, subir o teto, pergunta opcional dentro do "Saiba mais", tirar o cartão "Completar esta lição libera..."). `.docs/backend/lessons.md` documenta o bloco e o script. Conferido no navegador (desktop e mobile 390 px por iframe) na 2.4 com usuário descartável (removido): recolhido sob o cartão dos lotes, abre com os dois parágrafos.
 
 ### LJ.5.8 · Gancho no primeiro cartão das 43 lições
 

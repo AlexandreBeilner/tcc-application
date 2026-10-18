@@ -132,6 +132,14 @@ export function blockTextFields(
     }
     if (block.type === 'text') {
       push('markup', block.markup, true)
+    } else if (block.type === 'more') {
+      // "Saiba mais" (LJ.5.7) é o único lugar onde o texto pode passar do teto de cartão (diretriz §2):
+      // varre título e conteúdo com as mesmas regras de texto proibido, mas sem `long`.
+      push('title', block.title)
+      const inner = Array.isArray(block.blocks) ? (block.blocks as BlockLike[]) : []
+      for (const { field } of blockTextFields(source, `${phase}[${i}].more`, inner)) {
+        out.push({ field, long: false })
+      }
     } else if (block.type === 'check') {
       push('prompt', block.prompt)
       push('explanation', block.explanation)
@@ -191,4 +199,25 @@ export function diffAgainstBaseline(
     if (now < before) stale.push(`${key} (${before} -> ${now})`)
   }
   return { added, stale }
+}
+
+// Cartões do caminho principal de uma fase, como o player os monta: cada parágrafo de texto (separado por
+// linha em branco) é um cartão, widget e pergunta também, e "Na plataforma" e "Saiba mais" colam no cartão
+// anterior e não contam (LJ.1.3, LJ.5.7). Espelha `buildPhaseCards` do frontend.
+export function countMainPathCards(blocks: readonly BlockLike[]): number {
+  let count = 0
+  for (const block of blocks) {
+    const attaches =
+      block.type === 'more' || (block.type === 'widget' && block.widget === 'platform-note')
+    if (attaches && count > 0) continue
+    if (block.type === 'text') {
+      const paragraphs = String(block.markup ?? '')
+        .split('\n\n')
+        .filter((paragraph) => paragraph.trim().length > 0)
+      count += Math.max(1, paragraphs.length)
+    } else {
+      count += 1
+    }
+  }
+  return count
 }

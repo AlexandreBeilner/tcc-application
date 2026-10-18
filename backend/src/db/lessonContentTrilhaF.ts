@@ -219,15 +219,22 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
           'O {{cheque especial}} e o crédito pessoal sem desconto em folha também são caros. O {{consignado}} costuma ser mais barato porque a parcela é descontada direto da folha de pagamento ou do benefício, e o banco corre menos risco de não receber.',
       },
       {
-        type: 'widget',
-        id: 'hoje-taxas-credito',
-        widget: 'callout',
-        props: {
-          tone: 'info',
-          title: 'Taxas de hoje',
-          body:
-            'Em 2026, a média do Banco Central para o rotativo do cartão ficou perto de 15% ao mês, mais de 400% ao ano, e a do cheque especial, perto de 7% ao mês. Essas taxas mudam com o tempo.',
-        },
+        type: 'more',
+        id: 'mais-taxas-de-hoje',
+        title: 'Quanto cobram hoje',
+        blocks: [
+          {
+            type: 'widget',
+            id: 'hoje-taxas-credito',
+            widget: 'callout',
+            props: {
+              tone: 'info',
+              title: 'Taxas de hoje',
+              body:
+                'Em 2026, a média do Banco Central para o rotativo do cartão ficou perto de 15% ao mês, mais de 400% ao ano, e a do cheque especial, perto de 7% ao mês. Essas taxas mudam com o tempo.',
+            },
+          },
+        ],
       },
       {
         type: 'check',

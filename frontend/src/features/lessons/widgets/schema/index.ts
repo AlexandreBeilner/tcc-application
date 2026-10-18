@@ -370,12 +370,22 @@ const estimateCheckBlock = z.object({
 
 const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock])
 
+// "Saiba mais" (LJ.5.7): detalhe recolhido, colado ao cartão anterior. Só texto e widget (sem pergunta).
+const moreBlock = z.object({
+    type: z.literal('more'),
+    id: z.string().min(1),
+    title: z.string().min(1),
+    blocks: z.array(z.union([textBlock, widgetBlock])).min(1),
+})
+
+const anyBlock = z.union([textBlock, widgetBlock, checkBlock, moreBlock])
+
 const lessonBlocksSchema = z.object({
     schemaVersion: z.literal(1),
     phases: z.object({
-        scenario: z.array(z.union([textBlock, widgetBlock, checkBlock])),
-        microDecision: z.array(z.union([textBlock, widgetBlock, checkBlock])),
-        revelation: z.array(z.union([textBlock, widgetBlock, checkBlock])),
+        scenario: z.array(anyBlock),
+        microDecision: z.array(anyBlock),
+        revelation: z.array(anyBlock),
     }),
     // "O que ficou" (LJ.1.5): mostrado na tela final; lição sem resumo só omite o bloco.
     summary: z.array(z.string().min(1).max(120)).min(2).max(3).optional(),
@@ -385,6 +395,7 @@ export type LessonBlocks = z.infer<typeof lessonBlocksSchema>
 export type LessonBlock = LessonBlocks['phases']['scenario'][number]
 export type WidgetBlock = Extract<LessonBlock, { type: 'widget' }>
 export type CheckBlock = Extract<LessonBlock, { type: 'check' }>
+export type MoreBlock = Extract<LessonBlock, { type: 'more' }>
 // Perguntas de alternativas (única escolha e verdadeiro/falso), as que têm `selectedOption`.
 export type ChoiceBlock = Exclude<CheckBlock, { kind: 'estimate' }>
 export type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>

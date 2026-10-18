@@ -18,6 +18,7 @@ import { LockedGate } from '../../components/organisms/LockedGate'
 import { LessonCheckpoint } from '../../components/organisms/LessonCheckpoint'
 import { LessonWidget } from '../../components/organisms/LessonWidget'
 import type { WidgetMissionController } from '../../components/organisms/LessonWidget/types'
+import { MoreDetails } from '../../components/organisms/MoreDetails'
 import { PlatformNoteFootnote } from '../../components/organisms/PlatformNoteFootnote'
 import { assetDetailPath } from '../../features/market/assetDetailPath'
 import { useAssetByTicker } from '../../features/market/useAssetByTicker'
@@ -344,22 +345,37 @@ function LessonView({ lessonId }: { lessonId: string }) {
         navigation.reveal()
     }
 
-    // Notas "Na plataforma" coladas ao cartão (LJ.1.3). Um cartão `[revelar]` ainda fechado não as mostra,
-    // senão a nota entregaria o que o botão "Ver resultado" esconde.
+    function toggleDetail(id: string, open: boolean) {
+        setOpenFootnotes((current) =>
+            open ? [...current.filter((openId) => openId !== id), id] : current.filter((openId) => openId !== id),
+        )
+    }
+
+    // Notas "Na plataforma" (LJ.1.3) e "Saiba mais" (LJ.5.7) coladas ao cartão. Um cartão `[revelar]` ainda
+    // fechado não as mostra, senão elas entregariam o que o botão "Ver resultado" esconde.
     function renderFootnotes(card: PlayerCard | undefined) {
-        if (!card?.footnotes || (card.kind === 'text' && card.hidden && !navigation.isRevealed)) return null
-        return card.footnotes.map((note) => (
-            <PlatformNoteFootnote
-                key={note.id}
-                block={note}
-                open={openFootnotes.includes(note.id)}
-                onToggle={(open) =>
-                    setOpenFootnotes((current) =>
-                        open ? [...current.filter((id) => id !== note.id), note.id] : current.filter((id) => id !== note.id),
-                    )
-                }
-            />
-        ))
+        if (!card || (card.kind === 'text' && card.hidden && !navigation.isRevealed)) return null
+        return (
+            <>
+                {card.footnotes?.map((note) => (
+                    <PlatformNoteFootnote
+                        key={note.id}
+                        block={note}
+                        open={openFootnotes.includes(note.id)}
+                        onToggle={(open) => toggleDetail(note.id, open)}
+                    />
+                ))}
+                {card.more?.map((detail) => (
+                    <MoreDetails
+                        key={detail.id}
+                        block={detail}
+                        open={openFootnotes.includes(detail.id)}
+                        onToggle={(open) => toggleDetail(detail.id, open)}
+                        lessons={lessons}
+                    />
+                ))}
+            </>
+        )
     }
 
     function handleFinish() {

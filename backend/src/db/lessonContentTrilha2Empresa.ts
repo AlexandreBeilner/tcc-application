@@ -941,16 +941,23 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
           'O prejuízo abate o lucro: R$ 4.000 menos R$ 1.000 dá R$ 3.000, e o imposto é de 15% disso.',
       },
       {
-        type: 'text',
-        markup:
-          'A corretora retém um pouco na venda, o {{dedo-duro}}: 0,005% do valor vendido no swing trade e 1% no day trade. Ele avisa a Receita e abate do imposto que você deve.',
-      },
-      {
         type: 'widget',
         id: 'arvore-de-imposto',
         widget: 'tax-decision-tree',
         props: {},
         caption: 'Responda as perguntas e veja como a venda é tributada.',
+      },
+      {
+        type: 'more',
+        id: 'mais-dedo-duro',
+        title: 'O que a corretora retém na venda',
+        blocks: [
+          {
+            type: 'text',
+            markup:
+              'A corretora retém um pouco na venda, o {{dedo-duro}}: 0,005% do valor vendido no swing trade e 1% no day trade. Ele avisa a Receita e abate do imposto que você deve.',
+          },
+        ],
       },
       {
         type: 'check',
@@ -967,15 +974,22 @@ export const BLOCKS_IMPOSTO: LessonBlocks = {
           'Os dividendos das ações também têm regra própria: a empresa retém parte do imposto quando paga muito a uma mesma pessoa no mês. Abaixo desse limite, não há retenção.',
       },
       {
-        type: 'widget',
-        id: 'hoje-isencao-dividendos',
-        widget: 'callout',
-        props: {
-          tone: 'info',
-          title: 'Valores de hoje',
-          body:
-            'A isenção vale para vendas de até R$ 20 mil em ações no mês. Nos dividendos, desde 2026 a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Esses valores são definidos em lei e podem mudar.',
-        },
+        type: 'more',
+        id: 'mais-valores-de-hoje',
+        title: 'Os limites em vigor',
+        blocks: [
+          {
+            type: 'widget',
+            id: 'hoje-isencao-dividendos',
+            widget: 'callout',
+            props: {
+              tone: 'info',
+              title: 'Valores de hoje',
+              body:
+                'A isenção vale para vendas de até R$ 20 mil em ações no mês. Nos dividendos, desde 2026 a empresa retém 10% quando paga mais de R$ 50 mil no mês a uma mesma pessoa. Esses valores são definidos em lei e podem mudar.',
+            },
+          },
+        ],
       },
       {
         type: 'check',

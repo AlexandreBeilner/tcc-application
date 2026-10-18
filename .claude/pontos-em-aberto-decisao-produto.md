@@ -1076,3 +1076,10 @@ O app agora grava eventos próprios de funil (`funnel_events`: quem viu um convi
 - **Opções:** (a) ficar só com o retorno por ativo e o resultado agregado contra o custo (decisão proposta na Fase I); (b) gravar um instantâneo diário de patrimônio por usuário e desenhar a curva, com custo de armazenamento e um job novo; (c) calcular a curva sob demanda por replay, mais barato de manter e mais caro por consulta.
 - **Status:** aberto. Recomendação: (a) agora, e reavaliar (b) quando houver pedido real de gráfico de evolução.
 
+
+### 057 · Lições longas não chegam a 12 cartões só movendo detalhe para "Saiba mais" (LJ.5.7), achado em 2026-10-18
+
+- **Local:** as 7 lições com 15 cartões ou mais (2.4, 2.12, F.2, 1.11, 1.12, 2.7.6, 2.10) e o teto de 12 cartões do caminho principal em `seedLessons.test.ts`.
+- **Origem:** o bloco `more` (pergunta nunca vai dentro) foi construído e aplicado, mas quase todo cartão de texto e widget dessas lições tem uma pergunta amarrada a ele, e mover só o texto deixaria a pergunta sem contexto. O que sobrou como detalhe de verdade (pregão e custos na 2.4, frequência do provento na 2.7.6, dedo-duro e limites de hoje na 2.12, taxas de hoje na F.2) tirou 6 cartões: 2.4 17 para 15, 2.12 18 para 16, F.2 17 para 16, 2.7.6 15 para 14; 1.11, 1.12 e 2.10 ficaram como estavam (16, 15, 15). Além disso, 7 lições terminam com um cartão "Completar esta lição libera..." que repete o que a tela final já mostra.
+- **Opções:** (a) dividir as lições mais longas em duas (muda numeração e trilha, 43 passa a ~50); (b) aceitar 15 como teto em vez de 12; (c) deixar o "Saiba mais" levar também uma pergunta de prática opcional, fora do placar e do caminho que trava o Continuar (exige o contrato e o servidor aceitarem checkpoint opcional); (d) tirar o cartão "Completar esta lição libera..." (a tela final já diz o mesmo) e fundir cartões de texto curtos vizinhos.
+- **Status:** aberto. Recomendação: (d) já, que é puro ganho, e (a) só para 2.12 e 2.4, as duas maiores.

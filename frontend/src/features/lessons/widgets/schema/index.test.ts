@@ -50,6 +50,18 @@ describe('parseLessonBlocks', () => {
         expect(parseLessonBlocks(withoutSummary)?.summary).toBeUndefined()
     })
 
+    it('aceita o "Saiba mais" com texto e widget, e recusa o vazio', () => {
+        const more = (blocks: unknown[]) => ({ type: 'more', id: 'm', title: 'Detalhe', blocks })
+        const withMore = (block: unknown) => ({
+            ...CONTRACT_EXAMPLE,
+            phases: { ...CONTRACT_EXAMPLE.phases, scenario: [{ type: 'text', markup: 'a' }, block] },
+        })
+        const widget = { type: 'widget', id: 'w', widget: 'callout', props: {} }
+
+        expect(parseLessonBlocks(withMore(more([{ type: 'text', markup: 'x' }, widget])))?.phases.scenario).toHaveLength(2)
+        expect(parseLessonBlocks(withMore(more([])))).toBeNull()
+    })
+
     it('resumo fora do contrato (1 item ou frase longa) derruba o blocks para o texto legado', () => {
         expect(parseLessonBlocks({ ...CONTRACT_EXAMPLE, summary: ['só uma'] })).toBeNull()
         expect(parseLessonBlocks({ ...CONTRACT_EXAMPLE, summary: ['a', 'x'.repeat(121)] })).toBeNull()

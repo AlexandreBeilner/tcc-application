@@ -93,17 +93,28 @@ export type CheckBlock =
 
 export type EstimateUnit = 'brl' | 'pct' | 'years' | 'none'
 
-export type LessonBlock =
-  | { type: 'text'; markup: string }
-  | {
-      type: 'widget'
-      id: string
-      widget: WidgetId
-      props?: unknown
-      caption?: string
-      goal?: WidgetGoal
-    }
-  | CheckBlock
+export type TextBlock = { type: 'text'; markup: string }
+
+export type WidgetBlock = {
+  type: 'widget'
+  id: string
+  widget: WidgetId
+  props?: unknown
+  caption?: string
+  goal?: WidgetGoal
+}
+
+// "Saiba mais" (LJ.5.7): detalhe que o caminho principal da lição dispensa (exceção de regra, valor de
+// hoje, número complementar). O player mostra como `<details>` recolhido colado ao cartão anterior, então
+// não conta como cartão. Só texto e widget sem missão: pergunta e missão são do caminho principal.
+export type MoreBlock = {
+  type: 'more'
+  id: string
+  title: string
+  blocks: (TextBlock | WidgetBlock)[]
+}
+
+export type LessonBlock = TextBlock | WidgetBlock | CheckBlock | MoreBlock
 
 export interface LessonBlocks {
   schemaVersion: 1

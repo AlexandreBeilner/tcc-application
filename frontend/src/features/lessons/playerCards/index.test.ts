@@ -90,3 +90,36 @@ describe('termsSeenBeforeEachCard', () => {
         expect([...(seen.get(c) ?? [])]).toEqual(['FGC', 'Selic'])
     })
 })
+
+describe('buildPhaseCards: "Saiba mais" recolhido (LJ.5.7)', () => {
+    const more = (id: string, markup = 'detalhe') => ({
+        type: 'more' as const,
+        id,
+        title: 'Título',
+        blocks: [{ type: 'text' as const, markup }],
+    })
+
+    it('gruda no cartão anterior e não conta como cartão', () => {
+        const cards = buildPhaseCards([{ type: 'text', markup: 'a\n\nb' }, more('m1'), { type: 'text', markup: 'c' }], '')
+
+        expect(cards).toEqual([
+            { kind: 'text', text: 'a', hidden: false },
+            { kind: 'text', text: 'b', hidden: false, more: [more('m1')] },
+            { kind: 'text', text: 'c', hidden: false },
+        ])
+    })
+
+    it('convive com a nota "Na plataforma" no mesmo cartão', () => {
+        const note = { type: 'widget' as const, id: 'n', widget: 'platform-note', props: {} }
+        const [card] = buildPhaseCards([{ type: 'text', markup: 'a' }, note, more('m1')], '')
+
+        expect(card).toMatchObject({ footnotes: [note], more: [more('m1')] })
+    })
+
+    it('sem cartão a que se colar, o conteúdo vira cartões em vez de sumir', () => {
+        expect(buildPhaseCards([more('m1', 'solto'), { type: 'text', markup: 'a' }], '')).toEqual([
+            { kind: 'text', text: 'solto', hidden: false },
+            { kind: 'text', text: 'a', hidden: false },
+        ])
+    })
+})

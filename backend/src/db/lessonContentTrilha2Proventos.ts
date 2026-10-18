@@ -107,9 +107,16 @@ export const BLOCKS_2_7_6: LessonBlocks = {
           'A retenção só vale quando o total do mês, da mesma empresa para você, passa do limite.',
       },
       {
-        type: 'text',
-        markup:
-          'Cada empresa escolhe a frequência: trimestral, semestral ou anual. Por isso o provento não cai todo mês, e não dá para tratá-lo como um salário.',
+        type: 'more',
+        id: 'mais-frequencia-do-provento',
+        title: 'De quanto em quanto tempo o provento cai',
+        blocks: [
+          {
+            type: 'text',
+            markup:
+              'Cada empresa escolhe a frequência: trimestral, semestral ou anual. Por isso o provento não cai todo mês, e não dá para tratá-lo como um salário.',
+          },
+        ],
       },
       {
         type: 'check',

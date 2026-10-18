@@ -1,12 +1,13 @@
 import { termsInText } from '../parseLessonMarkup'
 import { splitIntoCards } from '../splitIntoCards'
-import type { CheckBlock, LessonBlock, WidgetBlock } from '../widgets/schema'
+import type { CheckBlock, LessonBlock, MoreBlock, WidgetBlock } from '../widgets/schema'
 
 // Cartão do player (RC.3.1/RC.3.2): texto (como antes da fase 3), widget ou
 // pergunta intermediária. Widget e pergunta são sempre um cartão próprio: evita tela cheia de coisa e mantém o
 // Voltar simples. `footnotes` (LJ.1.3) são blocos "Na plataforma" que vinham logo depois dele e que o player
-// mostra como rodapé recolhido, em vez de cartão próprio.
-export type PlayerCard = { footnotes?: WidgetBlock[] } & (
+// mostra como rodapé recolhido, em vez de cartão próprio. `more` (LJ.5.7) são os "Saiba mais" colados ao cartão,
+// também recolhidos e fora da contagem de cartões.
+export type PlayerCard = { footnotes?: WidgetBlock[]; more?: MoreBlock[] } & (
     { kind: 'text'; text: string; hidden: boolean } | { kind: 'widget'; block: WidgetBlock } | { kind: 'check'; block: CheckBlock }
 )
 
@@ -25,10 +26,17 @@ export function buildPhaseCards(blocks: LessonBlock[] | undefined, legacyText: s
     }
 
     const cards: PlayerCard[] = []
-    for (const block of blocks) {
+    const pushBlock = (block: LessonBlock) => {
         const previous = cards[cards.length - 1]
         if (previous && isPlatformNote(block)) {
             cards[cards.length - 1] = { ...previous, footnotes: [...(previous.footnotes ?? []), block] }
+        } else if (block.type === 'more') {
+            if (previous) {
+                cards[cards.length - 1] = { ...previous, more: [...(previous.more ?? []), block] }
+            } else {
+                // Sem cartão a que se colar (o servidor recusa, mas conteúdo antigo ou editado não pode sumir): vira cartões.
+                block.blocks.forEach(pushBlock)
+            }
         } else if (block.type === 'text') {
             cards.push(...splitIntoCards(block.markup).map((card): PlayerCard => ({ kind: 'text', ...card })))
         } else if (block.type === 'check') {
@@ -37,6 +45,7 @@ export function buildPhaseCards(blocks: LessonBlock[] | undefined, legacyText: s
             cards.push({ kind: 'widget', block })
         }
     }
+    blocks.forEach(pushBlock)
     return cards
 }
 

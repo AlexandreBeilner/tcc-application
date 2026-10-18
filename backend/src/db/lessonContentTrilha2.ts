@@ -102,6 +102,23 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
           'As ações negociam em lotes de 100. Quantidades de 1 a 99 vão para o mercado fracionário, e o código da ação ganha um F no fim.',
       },
       {
+        type: 'more',
+        id: 'mais-pregao-e-custos',
+        title: 'Pregão e custos',
+        blocks: [
+          {
+            type: 'text',
+            markup:
+              'O pregão funciona em dias úteis, em horário definido pela B3, com uma fase de leilão antes de abrir e outra no fechamento.',
+          },
+          {
+            type: 'text',
+            markup:
+              'Investir em ações tem custos. A corretagem é combinada livremente com a corretora, e muitas nem cobram. A B3 cobra emolumentos e taxa de liquidação, e há a custódia.',
+          },
+        ],
+      },
+      {
         type: 'check',
         id: 'lote-ou-fracionario',
         kind: 'single',
@@ -109,16 +126,6 @@ export const BLOCKS_B3_CORRETORA_ORDENS: LessonBlocks = {
         options: ['Lote padrão', 'Fracionário'],
         answer: 1,
         explanation: 'O lote padrão é de 100 ações. De 1 a 99, a compra é no mercado fracionário.',
-      },
-      {
-        type: 'text',
-        markup:
-          'O pregão funciona em dias úteis, em horário definido pela B3, com uma fase de leilão antes de abrir e outra no fechamento.',
-      },
-      {
-        type: 'text',
-        markup:
-          'Investir em ações tem custos. A corretagem é combinada livremente com a corretora, e muitas nem cobram. A B3 cobra emolumentos e taxa de liquidação, e há a custódia.',
       },
       {
         type: 'text',
