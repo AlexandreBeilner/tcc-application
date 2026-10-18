@@ -144,6 +144,15 @@ export const BLOCKS_1_5: LessonBlocks = {
         widget: 'ir-regressive-table',
         props: { grossYield: 1000, initialDays: 90 },
         caption: 'Mova o prazo e veja a alíquota mudar.',
+        goal: {
+          text: 'Ache o prazo em que a alíquota chega à menor da tabela',
+          metric: 'irRatePct',
+          op: 'lte',
+          value: 15,
+          reveal:
+            'Passados 720 dias de aplicação, a alíquota cai para 15%, a menor da tabela. Quanto mais tempo o dinheiro fica aplicado, menor a mordida do IR.',
+          showMe: { initialDays: 721 },
+        },
       },
       {
         type: 'check',

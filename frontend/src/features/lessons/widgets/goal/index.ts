@@ -28,6 +28,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<string, readonly string[]>> 
     'emergency-fund-calculator': ['monthsToReach'],
     'fgc-coverage-bar': ['uncoveredAmount'],
     'growth-calculator': ['interestRatio'],
+    'ir-regressive-table': ['irRatePct'],
     'real-return': ['realReturnPct'],
     'savings-vs-selic': ['savingsGapPct'],
 }

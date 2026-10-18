@@ -34,6 +34,14 @@ const EXPECTED: Expected[] = [
     op: 'lte',
     value: 0,
   },
+  {
+    lesson: '1.6',
+    id: 'tabela-ir',
+    widget: 'ir-regressive-table',
+    metric: 'irRatePct',
+    op: 'lte',
+    value: 15,
+  },
 ]
 
 function goalsOf(code: string) {

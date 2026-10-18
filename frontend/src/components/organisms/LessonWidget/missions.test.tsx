@@ -32,6 +32,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'uncoveredAmount', op: 'lte', value: 0 },
         showMe: { institutions: 3 },
     },
+    {
+        lesson: '1.6',
+        widget: 'ir-regressive-table',
+        initial: { grossYield: 1000, initialDays: 90 },
+        goal: { metric: 'irRatePct', op: 'lte', value: 15 },
+        showMe: { initialDays: 721 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props.
@@ -81,5 +88,12 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(uncovered(6, false)).toBe(0)
         // No mesmo conglomerado os valores se somam antes do limite: sobram R$ 350 mil de fora.
         expect(uncovered(3, true)).toBe(350000)
+    })
+
+    it('1.6: a menor alíquota (15%) começa no 721º dia, e 720 dias ainda pagam 17,5%', () => {
+        const rate = (initialDays: number) => metricsOf('ir-regressive-table', { grossYield: 1000, initialDays }).irRatePct
+        expect(rate(720)).toBe(17.5)
+        expect(rate(721)).toBe(15)
+        expect(rate(1000)).toBe(15)
     })
 })
