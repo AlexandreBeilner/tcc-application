@@ -300,8 +300,17 @@ export const BLOCKS_RESERVA: LessonBlocks = {
         type: 'widget',
         id: 'calculadora-reserva',
         widget: 'emergency-fund-calculator',
-        props: { monthlyCost: 3000, incomeType: 'stable', monthlyContribution: 500 },
+        props: { monthlyCost: 3000, incomeType: 'variable', monthlyContribution: 500 },
         caption: 'Troque os valores pelos seus.',
+        goal: {
+          text: 'Chegue ao menor valor da meta em até 12 meses',
+          metric: 'monthsToReach',
+          op: 'lte',
+          value: 12,
+          reveal:
+            'O prazo é a meta dividida pelo que você guarda por mês. Para juntar uma reserva grande em um ano, o aporte mensal precisa ser alto; com um aporte menor, o caminho é mais longo.',
+          showMe: { monthlyContribution: 1500 },
+        },
       },
     ],
     microDecision: [

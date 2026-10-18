@@ -25,6 +25,7 @@ export interface WidgetGoal {
 // Métricas que cada widget com missão informa. Espelho do frontend
 // (`features/lessons/widgets/goal`), e o teste do widget quebra se a métrica for renomeada.
 export const WIDGET_MISSION_METRICS: Partial<Record<WidgetId, readonly string[]>> = {
+  'emergency-fund-calculator': ['monthsToReach'],
   'growth-calculator': ['interestRatio'],
   'real-return': ['realReturnPct'],
   'savings-vs-selic': ['savingsGapPct'],
