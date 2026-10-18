@@ -8,6 +8,7 @@ import { z } from 'zod'
 export const WIDGET_IDS = [
     'callout',
     'platform-note',
+    'formula-walkthrough',
     'equivalent-rate',
     'ir-regressive-table',
     'product-comparator',
@@ -71,6 +72,22 @@ export const widgetPropsSchemas = {
         title: z.string().min(1),
         body: z.string().min(1),
         formula: z.string().min(1).optional(),
+    }),
+    'formula-walkthrough': z.object({
+        intro: z.string().min(1).optional(),
+        items: z
+            .array(
+                z.object({
+                    label: z.string().min(1),
+                    formula: z.string().min(1),
+                    legend: z.string().min(1).optional(),
+                    numbers: z.string().min(1),
+                    result: z.string().min(1),
+                }),
+            )
+            .min(1)
+            .max(3),
+        note: z.string().min(1).optional(),
     }),
     'platform-note': z.object({
         brazil: z.string().min(1),

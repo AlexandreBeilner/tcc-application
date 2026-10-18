@@ -64,6 +64,13 @@ describe('widgetPropsSchemas', () => {
         expect(widgetPropsSchemas['platform-note'].safeParse({ brazil: 'a', here: 'b' }).success).toBe(false)
     })
 
+    it('formula-walkthrough exige ao menos um item com fórmula, números e resultado', () => {
+        const item = { label: 'Simples', formula: 'M = C', numbers: 'M = 1.000', result: 'R$ 1.000' }
+        expect(widgetPropsSchemas['formula-walkthrough'].safeParse({ items: [item] }).success).toBe(true)
+        expect(widgetPropsSchemas['formula-walkthrough'].safeParse({ items: [] }).success).toBe(false)
+        expect(widgetPropsSchemas['formula-walkthrough'].safeParse({ items: [{ ...item, result: '' }] }).success).toBe(false)
+    })
+
     it('rejeita props inválidas', () => {
         expect(widgetPropsSchemas['live-indicator'].safeParse({}).success).toBe(false)
         expect(widgetPropsSchemas['growth-calculator'].safeParse({ a: 1 }).success).toBe(false)

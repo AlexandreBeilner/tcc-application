@@ -19,6 +19,7 @@ export const MAX_CHECKPOINTS_PER_LESSON = 7
 export const WIDGET_IDS = [
   'callout',
   'platform-note',
+  'formula-walkthrough',
   'equivalent-rate',
   'ir-regressive-table',
   'product-comparator',
@@ -71,6 +72,25 @@ const calloutProps = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
   formula: z.string().min(1).optional(),
+})
+
+// Fórmula passo a passo: a fórmula com letras, a mesma conta com os números e o
+// resultado, no mesmo cartão, para a pessoa nunca ver só a fórmula solta.
+const formulaWalkthroughProps = z.object({
+  intro: z.string().min(1).optional(),
+  items: z
+    .array(
+      z.object({
+        label: z.string().min(1),
+        formula: z.string().min(1),
+        legend: z.string().min(1).optional(),
+        numbers: z.string().min(1),
+        result: z.string().min(1),
+      }),
+    )
+    .min(1)
+    .max(3),
+  note: z.string().min(1).optional(),
 })
 
 // Bloco "Na plataforma" (RC.3.3): onde a plataforma difere do Brasil real, a
@@ -232,6 +252,7 @@ const companyMarginsProps = z.object({
 export const widgetPropsSchemas = {
   callout: calloutProps,
   'platform-note': platformNoteProps,
+  'formula-walkthrough': formulaWalkthroughProps,
   'equivalent-rate': equivalentRateProps,
   'ir-regressive-table': irRegressiveTableProps,
   'product-comparator': productComparatorProps,

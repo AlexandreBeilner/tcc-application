@@ -453,3 +453,24 @@ describe('parseLessonBlocks', () => {
     expect(parseLessonBlocks(CONTRACT_EXAMPLE)?.phases.revelation).toHaveLength(3)
   })
 })
+
+describe('formula-walkthrough', () => {
+  const doc = (items: unknown[]) => ({
+    schemaVersion: 1,
+    phases: {
+      scenario: [{ type: 'text', markup: 'a' }],
+      microDecision: [{ type: 'text', markup: 'a' }],
+      revelation: [{ type: 'widget', id: 'f', widget: 'formula-walkthrough', props: { items } }],
+    },
+  })
+  const item = { label: 'Simples', formula: 'M = C', numbers: 'M = 1.000', result: 'R$ 1.000' }
+
+  it('aceita itens completos', () => {
+    expect(lessonBlocksSchema.safeParse(doc([item])).success).toBe(true)
+  })
+
+  it('rejeita lista vazia e item sem resultado', () => {
+    expect(lessonBlocksSchema.safeParse(doc([])).success).toBe(false)
+    expect(lessonBlocksSchema.safeParse(doc([{ ...item, result: '' }])).success).toBe(false)
+  })
+})
