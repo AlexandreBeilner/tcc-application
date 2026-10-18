@@ -103,7 +103,7 @@ describe('missões do seed (LJ.3.2)', () => {
     expect(found).toEqual(
       expect.arrayContaining([
         '0.2:calculadora',
-        '0.4:rendimento-real-8-6',
+        '0.4:rendimento-real',
         '0.5:juro-real',
         '0.6:poupanca-vs-tesouro',
       ]),

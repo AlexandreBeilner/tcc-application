@@ -110,7 +110,7 @@ export const BLOCKS_0_2: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Use a calculadora com o mesmo capital e o mesmo aporte mensal, alternando entre os modos Simples e Composto. Compare o total ao final do período antes de continuar.',
+          'Os mesmos R$ 1.000 a 10% ao ano rendem de um jeito nos juros simples e de outro nos compostos. Mexa no prazo da calculadora e alterne entre Simples e Composto para ver quando a diferença fica grande.',
       },
       {
         type: 'widget',
@@ -133,7 +133,7 @@ export const BLOCKS_0_2: LessonBlocks = {
         id: 'conta-simples-composto',
         widget: 'formula-walkthrough',
         props: {
-          intro: 'R$ 1.000 a 10% ao ano, por 3 anos. A taxa é a mesma, e o resultado muda.',
+          intro: 'O que você viu tem nome: juros sobre juros. R$ 1.000 a 10% ao ano, por 3 anos. A taxa é a mesma, e o resultado muda.',
           items: [
             {
               label: 'Juros simples',
@@ -252,16 +252,29 @@ export const BLOCKS_0_4: LessonBlocks = {
       {
         type: 'text',
         markup:
-          'Uma aplicação rendeu 8% em um ano. Parece um bom retorno. Mas, nesse ano, a {{inflação}} medida pelo {{IPCA}} foi de 6%.' +
-          '\n\n' +
-          'Os 8% são o rendimento nominal, o que a aplicação anuncia. O rendimento real é o que sobra depois de descontar a inflação.',
+          'Uma aplicação rendeu 8% em um ano. Parece um bom retorno. Mas, nesse ano, a {{inflação}} medida pelo {{IPCA}} foi de 6%.',
+      },
+      {
+        type: 'widget',
+        id: 'rendimento-real',
+        widget: 'real-return',
+        props: { nominalPct: 8, inflationPct: 3, amount: 10000 },
+        caption: 'Mexa nos dois controles',
+        goal: {
+          text: 'Deixe o rendimento real negativo',
+          metric: 'realReturnPct',
+          op: 'lt',
+          value: 0,
+          reveal: 'Rendeu no papel e perdeu no mercado: a inflação passou o rendimento.',
+          showMe: { inflationPct: 10 },
+        },
       },
     ],
     microDecision: [
       {
         type: 'text',
         markup:
-          'Com 8% de rendimento nominal e 6% de inflação, o rendimento real fica perto de quanto?',
+          'O que você viu tem nome: rendimento real é o que sobra do rendimento nominal, o que a aplicação anuncia, depois de descontar a inflação. Com 8% nominal e 6% de inflação, o rendimento real fica perto de quanto?',
       },
     ],
     revelation: [
@@ -271,20 +284,6 @@ export const BLOCKS_0_4: LessonBlocks = {
           'Perto de 2%. A conta aproximada é 8 − 6. A conta exata é (1,08 ÷ 1,06) − 1, cerca de 1,89%, um pouco menos.' +
           '\n\n' +
           'Quanto maior a inflação do período, maior a diferença entre as duas contas.',
-      },
-      {
-        type: 'widget',
-        id: 'rendimento-real-8-6',
-        widget: 'real-return',
-        props: { nominalPct: 8, inflationPct: 6, amount: 10000 },
-        goal: {
-          text: 'Deixe o rendimento real negativo',
-          metric: 'realReturnPct',
-          op: 'lt',
-          value: 0,
-          reveal: 'Rendeu no papel e perdeu no mercado: a inflação passou o rendimento.',
-          showMe: { inflationPct: 10 },
-        },
       },
       {
         type: 'check',

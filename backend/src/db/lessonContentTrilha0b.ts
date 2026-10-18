@@ -144,9 +144,26 @@ export const BLOCKS_POUPANCA: LessonBlocks = {
           'A poupança é o investimento mais popular do Brasil: o dinheiro fica à mão, e o rendimento cai uma vez por mês, no aniversário do depósito.',
       },
       {
+        type: 'widget',
+        id: 'poupanca-vs-tesouro',
+        widget: 'savings-vs-selic',
+        props: { selicPct: 6, trMonthlyPct: 0.15, amount: 10000, months: 12 },
+        caption: 'Mexa na Selic, na TR e no prazo e compare',
+        goal: {
+          text: 'Ache a Selic em que a poupança e o Tesouro Selic rendem quase igual',
+          metric: 'savingsGapPct',
+          op: 'between',
+          min: -0.25,
+          max: 0.25,
+          reveal:
+            'Nesse ponto as duas rendem quase igual. Com a Selic mais baixa, a poupança, isenta de imposto, passa na frente; com a Selic mais alta, o Tesouro Selic vence.',
+          showMe: { selicPct: 10 },
+        },
+      },
+      {
         type: 'text',
         markup:
-          'A regra de rendimento depende da meta da {{Selic}}. Acima de 8,5% ao ano, ela rende 0,5% ao mês mais a {{TR}}. Com a meta em 8,5% ou menos, rende 70% da meta ao ano, mais a TR.',
+          'O que você viu tem nome: a regra de rendimento da poupança, que depende da meta da {{Selic}}. Acima de 8,5% ao ano, ela rende 0,5% ao mês mais a {{TR}}. Com a meta em 8,5% ou menos, rende 70% da meta ao ano, mais a TR.',
       },
       {
         type: 'check',
@@ -171,23 +188,6 @@ export const BLOCKS_POUPANCA: LessonBlocks = {
         type: 'text',
         markup:
           'Menos. Com a Selic alta, a poupança paga uma fração do que o Tesouro Selic rende, mesmo depois de ele pagar imposto de renda.',
-      },
-      {
-        type: 'widget',
-        id: 'poupanca-vs-tesouro',
-        widget: 'savings-vs-selic',
-        props: { selicPct: 14, trMonthlyPct: 0.15, amount: 10000, months: 12 },
-        caption: 'Mexa na Selic, na TR e no prazo e compare',
-        goal: {
-          text: 'Ache a Selic em que a poupança e o Tesouro Selic rendem quase igual',
-          metric: 'savingsGapPct',
-          op: 'between',
-          min: -0.25,
-          max: 0.25,
-          reveal:
-            'Nesse ponto as duas rendem quase igual. Com a Selic mais baixa, a poupança, isenta de imposto, passa na frente; com a Selic mais alta, o Tesouro Selic vence.',
-          showMe: { selicPct: 10 },
-        },
       },
       {
         type: 'check',
