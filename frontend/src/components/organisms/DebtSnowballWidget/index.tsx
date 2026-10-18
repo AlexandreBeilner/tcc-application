@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { annualFromMonthlyPct, simulateDebt } from '../../../features/lessons/widgets/debtMath'
 import { formatCurrency } from '../../../features/portfolio/format'
 import type { DebtSnowballWidgetProps } from './types'
@@ -24,12 +24,15 @@ function monthsLabel(months: number): string {
 // meses a dívida acaba, quanto se paga de juros e a curva do saldo; quando o pagamento não
 // cobre nem os juros do mês, avisa que a dívida só cresce. Os números saem escritos, então a
 // leitura não depende da cor.
-export function DebtSnowballWidget(props: DebtSnowballWidgetProps) {
+export function DebtSnowballWidget({ onMetrics, ...props }: DebtSnowballWidgetProps) {
     const [balance, setBalance] = useState(props.balance)
     const [rate, setRate] = useState(props.monthlyRatePct)
     const [payment, setPayment] = useState(props.payment)
 
     const result = useMemo(() => simulateDebt({ balance, monthlyRatePct: rate, payment }), [balance, rate, payment])
+    // Sem quitação (pagamento não cobre os juros) o prazo é infinito: nunca cumpre uma missão de prazo.
+    const monthsToPayOff = result.months ?? Infinity
+    useEffect(() => onMetrics?.({ monthsToPayOff }), [monthsToPayOff, onMetrics])
     const horizon = result.points[result.points.length - 1].month || 1
     const max = Math.max(...result.points.map((p) => p.balance), 1)
     const path = result.points

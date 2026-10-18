@@ -123,6 +123,14 @@ const EXPECTED: Expected[] = [
     op: 'gte',
     value: 10,
   },
+  {
+    lesson: 'F.2',
+    id: 'simulador-de-divida',
+    widget: 'debt-snowball',
+    metric: 'monthsToPayOff',
+    op: 'lt',
+    value: 12,
+  },
 ]
 
 function goalsOf(code: string) {

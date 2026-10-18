@@ -102,6 +102,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'surplusPct', op: 'gte', value: 10 },
         showMe: { leisure: 500 },
     },
+    {
+        lesson: 'F.2',
+        widget: 'debt-snowball',
+        initial: { payment: 400 },
+        goal: { metric: 'monthsToPayOff', op: 'lt', value: 12 },
+        showMe: { payment: 700 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props, validadas pelo schema como o player faz
@@ -250,6 +257,16 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(surplus(550)).toBeCloseTo(8.75, 6)
         expect(surplus(500)).toBeGreaterThanOrEqual(10)
         expect(surplus(450)).toBeGreaterThan(10)
+    })
+
+    it('F.2: dívida de R$ 5.000 a 5% ao mês leva 21 meses com R$ 400, 12 com R$ 600 (ainda não é menos de 12) e 10 com R$ 650', () => {
+        const months = (payment: number) => metricsOf('debt-snowball', { payment }).monthsToPayOff
+        expect(months(400)).toBe(21)
+        expect(months(600)).toBe(12)
+        expect(months(650)).toBe(10)
+        expect(months(700)).toBe(10)
+        // Pagamento que não cobre os R$ 250 de juros do primeiro mês nunca quita.
+        expect(months(250)).toBe(Infinity)
     })
 
     describe('2.4: ordem limitada de compra executada (o widget só informa depois de "Enviar ordem")', () => {

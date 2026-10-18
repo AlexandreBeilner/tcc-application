@@ -39,6 +39,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<WidgetId, readonly string[]>
   'fee-drag': ['differenceBRL'],
   'allocation-donut': ['maxSharePct'],
   'budget-split': ['surplusPct'],
+  'debt-snowball': ['monthsToPayOff'],
   'real-return': ['realReturnPct'],
   'savings-vs-selic': ['savingsGapPct'],
 }

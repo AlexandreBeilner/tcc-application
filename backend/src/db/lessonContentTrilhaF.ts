@@ -195,9 +195,18 @@ export const BLOCKS_DIVIDA: LessonBlocks = {
         type: 'widget',
         id: 'simulador-de-divida',
         widget: 'debt-snowball',
-        props: {},
+        props: { payment: 400 },
         caption:
           'Mude a dívida, os juros e o pagamento mensal. Pagar pouco faz a dívida durar anos, ou nunca acabar.',
+        goal: {
+          text: 'Quite a dívida em menos de 12 meses',
+          metric: 'monthsToPayOff',
+          op: 'lt',
+          value: 12,
+          reveal:
+            'Pagar mais por mês encurta o prazo e reduz o total de juros, porque cada real pago cedo deixa de render juros contra você.',
+          showMe: { payment: 700 },
+        },
       },
       {
         type: 'check',
