@@ -296,7 +296,7 @@ describe('página do Diário Selucra (/diario/)', () => {
         assert.match(invite, /\bhidden\b/)
         assert.match(invite, /Entre no app para ganhar XP e manter sua sequência/)
         assert.match(invite, new RegExp(`href="${APP}/diario\\?origem=diario"`))
-        assert.match(invite, new RegExp(`href="${APP}/login\\?modo=cadastro"`))
+        assert.match(invite, new RegExp(`href="${APP}/login\\?modo=cadastro&origem=diario"`))
     })
 
     it('está no menu da home e do cabeçalho dos guias, e no sitemap', async () => {

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AdminDailyAgenda } from '../../components/organisms/AdminDailyAgenda'
+import { AdminDailyMetrics } from '../../components/organisms/AdminDailyMetrics'
 import { AdminDailyLaunch } from '../../components/organisms/AdminDailyLaunch'
 import { DAILY_ALERT_MESSAGES } from '../../features/admin/dailyAdmin'
 import { useDailyOverviewQuery } from '../../features/admin/useAdminDaily'
@@ -52,6 +53,7 @@ export function AdminDiario() {
                             <AdminDailyAgenda overview={overview} />
                         </div>
                     </div>
+                    <AdminDailyMetrics />
                 </>
             )}
         </main>

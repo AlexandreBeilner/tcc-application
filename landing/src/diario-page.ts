@@ -1,6 +1,6 @@
 // Entrada da página /diario/: monta o módulo do jogo em modo `publico` e liga o convite para o app.
 // Bundle próprio, sem a cena 3D da home. Estado só no navegador; a CORS da landing não aceita credenciais, então nunca vai token.
-import { createDailyApi, createLocalKeeper, mountDiario } from './diario/index.ts'
+import { createDailyApi, createLocalKeeper, mountDiario, reportMetric } from './diario/index.ts'
 
 const root = document.getElementById('diario')
 if (root) {
@@ -22,7 +22,14 @@ if (root) {
         keeper: createLocalKeeper(),
         shareUrl: `${site.replace(/^https?:\/\//, '')}/diario`,
         learnMoreHref: (l) => (l.kind === 'guide' && guideSlugs.has(l.ref) ? `/aprender/${l.ref}/` : null),
-        onComplete: showInvite,
+        // Contador agregado (DI.7.1): só o jogo de hoje, uma vez por navegador, sem identificador.
+        onStart: ({ game }) => {
+            if (game.isToday) reportMetric(baseUrl, 'started')
+        },
+        onComplete: ({ game }) => {
+            if (game.isToday) reportMetric(baseUrl, 'completed')
+            showInvite()
+        },
         onUnauthorized: () => undefined,
     })
 }

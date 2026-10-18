@@ -220,6 +220,32 @@ describe('Resultado', () => {
     })
 })
 
+describe('aviso de início (DI.7.1)', () => {
+    it('avisa a primeira jogada uma vez, e reabrir um jogo começado não avisa de novo', async () => {
+        const storage = memoryStorage()
+        let started = 0
+        const first = setup({ storage, extra: { onStart: () => void started++ } })
+        await first.flush()
+        assert.equal(started, 0)
+        first.type('carro')
+        first.key('Enter')
+        await first.flush()
+        assert.equal(started, 1)
+        first.type('bolsa')
+        first.key('Enter')
+        await first.flush()
+        assert.equal(started, 1)
+        first.ctl.destroy()
+
+        const again = setup({ storage, extra: { onStart: () => void started++ } })
+        await again.flush()
+        again.type('prazo')
+        again.key('Enter')
+        await again.flush()
+        assert.equal(started, 1)
+    })
+})
+
 describe('estado salvo no navegador', () => {
     it('recarregar no mesmo dia mostra o jogo como estava, sem chamar a API de novo', async () => {
         const storage = memoryStorage()

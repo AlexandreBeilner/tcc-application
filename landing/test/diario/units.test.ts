@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { createDailyApi, DailyApiError } from '../../src/diario/api.ts'
+import { createDailyApi, DailyApiError, reportMetric } from '../../src/diario/api.ts'
 import { createLocalKeeper, KEEP_GAMES, parseState, STORAGE_KEY } from '../../src/diario/keeper.ts'
 import { applyGuess, applyTrivia, emptyProgress, parseProgress } from '../../src/diario/progress.ts'
 import { buildShareText } from '../../src/diario/share.ts'
@@ -156,5 +156,31 @@ describe('ordenação', () => {
         assert.deepEqual(moveItem(['a', 'b'], 0, 5), ['a', 'b'])
         assert.equal(dropIndex([10, 30, 50], 35), 2)
         assert.equal(dropIndex([10, 30, 50], 0), 0)
+    })
+})
+
+describe('aviso ao contador (DI.7.1)', () => {
+    it('manda só o nome do evento, sem token e sem credenciais, e nunca lança', async () => {
+        const seen: { url: string; init: RequestInit }[] = []
+        const ok = (async (url: string, init: RequestInit) => {
+            seen.push({ url, init })
+            return json(204, null)
+        }) as unknown as typeof fetch
+
+        reportMetric('https://api.test/', 'started', ok)
+
+        assert.equal(seen[0].url, 'https://api.test/daily/metrics')
+        assert.deepEqual(JSON.parse(seen[0].init.body as string), { event: 'started' })
+        assert.equal(seen[0].init.credentials, 'omit')
+        assert.equal(seen[0].init.headers && 'Authorization' in (seen[0].init.headers as object), false)
+
+        const down = (async () => {
+            throw new Error('offline')
+        }) as unknown as typeof fetch
+        assert.doesNotThrow(() => reportMetric('x', 'completed', down))
+        const sync = (() => {
+            throw new Error('sync')
+        }) as unknown as typeof fetch
+        assert.doesNotThrow(() => reportMetric('x', 'completed', sync))
     })
 })

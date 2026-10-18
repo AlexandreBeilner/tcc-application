@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { getDailyOverview, prepareDailyDraft, publishDailyPuzzles, setDailyStartDate } from '../../services/admin'
+import { getDailyMetrics, getDailyOverview, prepareDailyDraft, publishDailyPuzzles, setDailyStartDate } from '../../services/admin'
 import type { DailyAgendaDay, DailyOverview, DailyTally } from '../../services/admin'
 import { ApiError } from '../../services/client'
 import { AdminDiario } from '.'
@@ -15,6 +15,7 @@ vi.mock('../../features/admin/AdminReauth', async () => {
 })
 vi.mock('../../services/admin', () => ({
     getDailyOverview: vi.fn(),
+    getDailyMetrics: vi.fn(),
     prepareDailyDraft: vi.fn(),
     setDailyStartDate: vi.fn(),
     publishDailyPuzzles: vi.fn(),
@@ -65,6 +66,7 @@ function renderPage() {
 beforeEach(() => {
     vi.resetAllMocks()
     vi.mocked(useAuth).mockReturnValue({ token: 'tok', user: null, login: vi.fn() } as unknown as ReturnType<typeof useAuth>)
+    vi.mocked(getDailyMetrics).mockResolvedValue({ days: [] })
 })
 
 describe('AdminDiario', () => {

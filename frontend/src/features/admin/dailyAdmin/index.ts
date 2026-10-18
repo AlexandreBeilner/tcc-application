@@ -1,5 +1,13 @@
 import { ApiError } from '../../../services/client'
-import type { DailyAlertCode, DailyCardOrigin, DailyLearnMore, DailyScope, DailyStatus, DailyTally } from '../../../services/admin'
+import type {
+    DailyMetricsDay,
+    DailyAlertCode,
+    DailyCardOrigin,
+    DailyLearnMore,
+    DailyScope,
+    DailyStatus,
+    DailyTally,
+} from '../../../services/admin'
 
 // Categorias do conteúdo do Diário (lista fechada do backend, `content/categories.ts`).
 export const DAILY_CATEGORY_LABELS: Record<string, string> = {
@@ -112,4 +120,18 @@ export function commonOf(item: { category: string; scope: DailyScope; learn_more
 
 export function learnMoreOf(common: ItemCommon): DailyLearnMore | null {
     return common.learnKind === '' || common.learnRef.trim() === '' ? null : { kind: common.learnKind, ref: common.learnRef.trim() }
+}
+
+// Soma de cada coluna da medição do Diário (DI.7.1).
+export function sumMetrics(days: DailyMetricsDay[]): Omit<DailyMetricsDay, 'date'> {
+    const totals = { anon_started: 0, anon_completed: 0, logged_started: 0, logged_completed: 0, signups: 0, logins: 0 }
+    for (const d of days) {
+        totals.anon_started += d.anon_started
+        totals.anon_completed += d.anon_completed
+        totals.logged_started += d.logged_started
+        totals.logged_completed += d.logged_completed
+        totals.signups += d.signups
+        totals.logins += d.logins
+    }
+    return totals
 }

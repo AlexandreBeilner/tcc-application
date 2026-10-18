@@ -1499,3 +1499,15 @@ export interface DailyChangeImpact {
     affected_puzzles: number[]
     cleared_reviews: number[]
 }
+
+// Contadores do Diário por dia UTC (DI.7.1). Quem tem conta vem de `daily_results`; o resto, dos
+// contadores agregados (sem identificador de ninguém).
+export interface DailyMetricsDay {
+    date: string
+    anon_started: number
+    anon_completed: number
+    logged_started: number
+    logged_completed: number
+    signups: number
+    logins: number
+}

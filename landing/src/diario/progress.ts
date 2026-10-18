@@ -26,6 +26,11 @@ export function emptyProgress(game: DailyGame): GameProgress {
     }
 }
 
+/** Ninguém jogou nada neste jogo ainda (nem um palpite). */
+export function isUntouched(p: GameProgress): boolean {
+    return p.word.guesses.length === 0 && !p.word.finished && !p.trivia.answered && !p.timeline.answered
+}
+
 export function isComplete(p: GameProgress): boolean {
     return p.word.finished && p.trivia.answered && p.timeline.answered
 }

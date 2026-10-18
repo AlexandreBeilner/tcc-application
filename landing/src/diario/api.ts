@@ -36,6 +36,28 @@ export interface ApiOptions {
     getToken?: () => string | null
 }
 
+export type MetricEvent = 'started' | 'completed' | 'signup' | 'login'
+
+/**
+ * Avisa o contador agregado do servidor (DI.7.1). Dispara e esquece: nunca lança, nunca bloqueia o
+ * jogo, não manda identificador nem token (só o nome do evento).
+ */
+export function reportMetric(baseUrl: string, event: MetricEvent, fetchImpl?: typeof fetch): void {
+    const doFetch = fetchImpl ?? globalThis.fetch?.bind(globalThis)
+    if (!doFetch) return
+    try {
+        void doFetch(`${baseUrl.replace(/\/$/, '')}/daily/metrics`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event }),
+            credentials: 'omit',
+            keepalive: true,
+        }).catch(() => undefined)
+    } catch {
+        // medir é secundário
+    }
+}
+
 export function createDailyApi({ baseUrl, fetch: fetchImpl, getToken }: ApiOptions): DailyApi {
     const base = baseUrl.replace(/\/$/, '')
 

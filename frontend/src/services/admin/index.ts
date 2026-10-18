@@ -6,6 +6,7 @@ import type {
     DailyDraftResult,
     DailyEvent,
     DailyEventInput,
+    DailyMetricsDay,
     DailyOverview,
     DailyPatch,
     DailyPuzzleDetail,
@@ -111,6 +112,7 @@ export type {
     DailyDraftResult,
     DailyEvent,
     DailyEventInput,
+    DailyMetricsDay,
     DailyOverview,
     DailyPatch,
     DailyPuzzleDetail,
@@ -594,6 +596,11 @@ export function getLessonRevision(token: string, lessonId: string, revisionId: s
 
 export function restoreLessonRevision(token: string, lessonId: string, revisionId: string) {
     return apiRequest<LessonSaveResult>(`/admin/lessons/${lessonId}/revisions/${revisionId}/restore`, { token, method: 'POST' })
+}
+
+// Contadores do Diário (DI.7.1): um dia por linha, do mais recente ao mais antigo.
+export function getDailyMetrics(token: string, days = 30) {
+    return apiRequest<{ days: DailyMetricsDay[] }>(`/admin/daily/metrics?days=${days}`, { token })
 }
 
 // Painel do Diário (DI.5.1). Mudar a data da estreia pede senha recente (`withReauth`).

@@ -4,7 +4,7 @@ import type { CardEnv, CardView } from './cards.ts'
 import { describeError } from './errors.ts'
 import { append, el, formatCountdown, formatDate } from './dom.ts'
 import type { StateKeeper } from './keeper.ts'
-import { correctCards, emptyProgress, isComplete } from './progress.ts'
+import { correctCards, emptyProgress, isComplete, isUntouched } from './progress.ts'
 import { buildShareText, DEFAULT_SHARE_URL } from './share.ts'
 import { createTimelineCard } from './timeline.ts'
 import { createTriviaCard } from './trivia.ts'
@@ -24,6 +24,8 @@ export interface MountOptions {
     /** Para onde leva o "Saiba mais"; sem função (ou `null`) o link não aparece. */
     learnMoreHref?: (l: NonNullable<LearnMore>) => string | null
     /** O jogo fechou nesta sessão (`completion` só existe logado). A landing usa para o convite; o app, para o teatro de recompensa. */
+    /** A primeira jogada deste jogo (palpite ou resposta) neste navegador. Reabrir um jogo já começado não chama de novo. */
+    onStart?: (info: { game: DailyGame }) => void
     onComplete?: (info: { game: DailyGame; progress: GameProgress; completion: Completion | null }) => void
     onUnauthorized?: () => void
 }
@@ -178,6 +180,7 @@ export function mountDiario(root: HTMLElement, options: MountOptions): DiarioCon
             api,
             progress: () => progress,
             commit(next, comp, settleMs) {
+                if (isUntouched(progress) && !isUntouched(next)) options.onStart?.({ game })
                 progress = next
                 if (comp) completion = comp
                 void keeper.save(game, next)

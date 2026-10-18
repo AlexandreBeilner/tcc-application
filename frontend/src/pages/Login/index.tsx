@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../features/auth/AuthContext'
+import { reportDiarioOrigin } from '../../features/diario/origin'
 import { computePasswordStrength } from '../../features/auth/passwordStrength'
 import { captureReferralCode, clearReferralCode } from '../../features/referral/referralCode'
 import { isAccountSuspendedError, isEmailNotVerifiedError } from '../../services/client'
@@ -87,6 +88,7 @@ export function Login() {
                 // Sem sessão: a conta só entra depois de confirmar o e-mail.
                 await registerRequest({ name, email, username, password, ...(referralCode ? { referralCode } : {}) })
                 clearReferralCode()
+                reportDiarioOrigin('signup')
                 setPassword('')
                 setConfirmPassword('')
                 setRegistered(true)
@@ -95,6 +97,7 @@ export function Login() {
             }
             const result = await loginRequest({ email, password })
             login(result.token, result.user)
+            reportDiarioOrigin('login')
             navigate('/', { replace: true })
         } catch (err) {
             // 401 (login) e 409 (cadastro) chegam com mensagens distintas do backend

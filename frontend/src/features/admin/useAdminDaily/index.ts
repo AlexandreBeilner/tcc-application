@@ -7,6 +7,7 @@ import {
     createDailyWord,
     getDailyAcceptedWords,
     getDailyEvents,
+    getDailyMetrics,
     getDailyOverview,
     getDailyPuzzle,
     getDailyQuestions,
@@ -26,6 +27,7 @@ import type {
     DailyDraftResult,
     DailyEvent,
     DailyEventInput,
+    DailyMetricsDay,
     DailyOverview,
     DailyPatch,
     DailyPuzzleDetail,
@@ -63,6 +65,12 @@ function useDailyQuery<T>(key: readonly unknown[], load: (token: string) => Prom
     const { token } = useAuth()
     return useQuery({ queryKey: key, queryFn: () => load(token as string), enabled: token !== null && enabled, retry: false })
 }
+
+export const useDailyMetricsQuery = (days = 30) =>
+    useDailyQuery<DailyMetricsDay[]>(
+        [...ADMIN_DAILY_QUERY_KEY, 'metrics', days],
+        async (token) => (await getDailyMetrics(token, days)).days,
+    )
 
 export const useDailyOverviewQuery = () => useDailyQuery<DailyOverview>(OVERVIEW_KEY, getDailyOverview)
 

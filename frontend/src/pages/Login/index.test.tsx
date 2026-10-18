@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../services/client'
 import { googleLoginUrl, login, register, resendVerification } from '../../services/auth'
 import { useAuth } from '../../features/auth/AuthContext'
+import { captureDiarioOrigin } from '../../features/diario/origin'
 import { Login } from '.'
 
 vi.mock('../../services/auth', () => ({
@@ -421,5 +422,89 @@ describe('Login (tela 1.1)', () => {
 
         expect(screen.getByText('tela protegida')).toBeInTheDocument()
         expect(screen.queryByLabelText('E-mail')).not.toBeInTheDocument()
+    })
+    describe('origem do Diário (DI.7.1)', () => {
+        const unauth = () =>
+            vi.mocked(useAuth).mockReturnValue({
+                token: null,
+                user: null,
+                isLoading: false,
+                login: vi.fn(),
+                logout: vi.fn(),
+                setUser: vi.fn(),
+            })
+        const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+        afterEach(() => vi.unstubAllGlobals())
+
+        it('cadastro de quem veio do Diário avisa o contador só com o evento', async () => {
+            unauth()
+            vi.stubGlobal('fetch', fetchMock)
+            fetchMock.mockClear()
+            captureDiarioOrigin('?origem=diario')
+            vi.mocked(register).mockResolvedValue({
+                user: {
+                    id: '1',
+                    name: 'Ana',
+                    email: 'a@x.com',
+                    username: 'ana',
+                    role: 'user',
+                    onboardingCompleted: false,
+                    avatarUrl: null,
+                },
+                emailVerificationRequired: true,
+            })
+
+            renderLogin('/login?modo=cadastro&origem=diario')
+            fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Ana' } })
+            fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'a@x.com' } })
+            fireEvent.change(screen.getByLabelText('Nome de usuário'), { target: { value: 'ana' } })
+            fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+            fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'senha1234' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+            await screen.findByText('Enviamos um link para a@x.com')
+            expect(fetchMock).toHaveBeenCalledTimes(1)
+            const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+            expect(url).toMatch(/\/daily\/metrics$/)
+            expect(JSON.parse(init.body as string)).toEqual({ event: 'signup' })
+        })
+
+        it('login sem origem do Diário não avisa nada', async () => {
+            unauth()
+            vi.stubGlobal('fetch', fetchMock)
+            fetchMock.mockClear()
+            vi.mocked(login).mockResolvedValue({
+                token: 't',
+                user: { id: '1', name: 'Ana', email: 'a@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
+            })
+
+            renderLogin()
+            fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'a@x.com' } })
+            fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
+
+            await screen.findByText('tela protegida')
+            expect(fetchMock).not.toHaveBeenCalled()
+        })
+
+        it('login de quem veio do Diário avisa o evento login', async () => {
+            unauth()
+            vi.stubGlobal('fetch', fetchMock)
+            fetchMock.mockClear()
+            captureDiarioOrigin('?origem=diario')
+            vi.mocked(login).mockResolvedValue({
+                token: 't',
+                user: { id: '1', name: 'Ana', email: 'a@x.com', username: 'ana', role: 'user', onboardingCompleted: true, avatarUrl: null },
+            })
+
+            renderLogin()
+            fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'a@x.com' } })
+            fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha1234' } })
+            fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
+
+            await screen.findByText('tela protegida')
+            const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+            expect(JSON.parse(init.body as string)).toEqual({ event: 'login' })
+        })
     })
 })
