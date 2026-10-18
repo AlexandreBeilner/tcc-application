@@ -146,24 +146,12 @@ describe('blocks no seed (RC.3.1)', () => {
   })
 
   // LJ.5.7: o caminho principal (cartões que o player conta; "Na plataforma" e "Saiba mais" colam no
-  // cartão anterior) tem no máximo 12 cartões. Lições acima disso entram aqui com a contagem de hoje:
-  // catraca, como o baseline de conteúdo. Lição nova ou editada não pode passar de 12 nem crescer, e a que
-  // encolher falha até a linha baixar ou sair. Quase todo cartão de texto dessas lições tem uma pergunta
-  // amarrada a ele, então o que sobra para "Saiba mais" é pouco (ponto em aberto com o autor).
-  const MAIN_PATH_CARD_LIMIT = 12
+  // cartão anterior) tem no máximo 15 cartões (teto subido de 12 pelo autor em 2026-10-18, ponto 057).
+  // Lições acima disso entram aqui com a contagem de hoje: catraca, como o baseline de conteúdo. Lição
+  // nova ou editada não pode passar de 15 nem crescer, e a que encolher falha até a linha baixar ou sair.
+  const MAIN_PATH_CARD_LIMIT = 15
   const MAIN_PATH_BASELINE: Record<string, number> = {
-    '0.5': 13,
-    '1.9': 14,
-    '1.11': 15,
-    '1.12': 14,
-    '2.4': 15,
-    '2.7.6': 14,
-    '2.10': 13,
-    '2.11': 13,
     '2.12': 16,
-    '3.1': 13,
-    '3.2': 14,
-    'F.1': 14,
     'F.2': 16,
   }
 

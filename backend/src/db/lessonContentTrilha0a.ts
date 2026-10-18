@@ -261,7 +261,7 @@ export const BLOCKS_0_4: LessonBlocks = {
         props: { nominalPct: 8, inflationPct: 3, amount: 10000 },
         caption: 'Mexa nos dois controles',
         goal: {
-          text: 'Deixe o rendimento real negativo',
+          text: 'Faça a inflação passar o rendimento',
           metric: 'realReturnPct',
           op: 'lt',
           value: 0,

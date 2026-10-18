@@ -520,7 +520,7 @@ dado que já existe (quem errou antes de acertar).
 **Critérios de aceite:** nunca vira cobrança (sem contador vermelho, sem "atrasada"); checklist do
 backend; rota documentada; testes do agendamento.
 
-### LJ.5.7 · Lições longas: caminho principal até 12 cartões, resto em "Saiba mais" (parcial: mecanismo ✅, teto de 12 não alcançado)
+### LJ.5.7 · Lições longas: caminho principal até 15 cartões, resto em "Saiba mais" ✅ (teto decidido pelo autor)
 
 **O que fazer:** novo tipo de bloco `more` (`{ type: 'more', id, title, blocks: LessonBlock[] }`,
 sem checkpoint dentro) renderizado como `<details>` recolhido no cartão anterior, igual ao
@@ -532,6 +532,7 @@ rodapé do LJ.1.3. Aplicar nas 7 lições que passam de 15 cartões (2.4, 2.12, 
 de `more`; teste do seed acusa lição com mais de 12 cartões no caminho principal (baseline com as
 que ainda não foram tratadas, no molde dos testes de conteúdo).
 
+- **Decisão do autor (2026-10-18):** o teto do caminho principal subiu de 12 para **15** (ponto 057, opção b). O teste do seed tem `MAIN_PATH_CARD_LIMIT = 15` e catraca só para 2.12 e F.2 (16). O texto abaixo registra o histórico com o teto de 12.
 - **Entregável parcial (2026-10-18):** **Mecanismo:** bloco `more` (`{ type, id, title (até 60), blocks }`, 1 a 4 blocos de texto ou widget sem missão; sem pergunta, sem outro `more`, nunca primeiro bloco da fase), tipo no domínio, Zod no backend (ids de dentro entram na checagem de id único) e no espelho do frontend. `buildPhaseCards` cola o `more` no cartão anterior (`PlayerCard.more`), como o rodapé "Na plataforma", então não conta na barra, no placar nem no tempo estimado; sem cartão a que se colar vira cartões (nada some). Organismo `MoreDetails` (`<details>` recolhido, "Saiba mais" + título, conteúdo montado só aberto para widget não buscar dado à toa; aberto/fechado guardado junto com os rodapés). `contentRules.blockTextFields` varre título e conteúdo sem o teto de cartão; `legacyText` inclui o texto no lugar do bloco; `countMainPathCards` (espelho do player) e teste do seed com baseline por lição (catraca, 15 lições acima de 12). Script aditivo `src/db/applyMoreBlocks.ts` (`applyMoreBlocks` pura e idempotente, só move o que encontra), aplicado no banco de desenvolvimento. **Conteúdo movido (6 cartões):** 2.4 pregão e custos, 2.7.6 frequência do provento, 2.12 dedo-duro e limites de hoje, F.2 taxas de hoje. Contagens: 2.4 17 para 15, 2.12 18 para 16, F.2 17 para 16, 2.7.6 15 para 14; **1.11, 1.12 e 2.10 não foram tocadas** (o que sobraria como detalhe está amarrado a uma pergunta). **O teto de 12 não foi alcançado nas 7 lições** e isso é decisão do autor: ponto 057 de `pontos-em-aberto-decisao-produto.md` (opções: dividir lições, subir o teto, pergunta opcional dentro do "Saiba mais", tirar o cartão "Completar esta lição libera..."). `.docs/backend/lessons.md` documenta o bloco e o script. **Ponto 057, opção (d) aplicada (2026-10-18):** o cartão final "Completar esta lição libera..." saiu de 6 lições (1.2, 1.5, 1.7, 1.8, 1.11, 1.12; a tela final já mostra o `unlocksDescription`) e dois pares de cartões curtos da 2.10 foram fundidos (`src/db/applyTrimCards.ts`, pura e idempotente, aplicada em desenvolvimento). 1.5 e 1.7 chegaram a 12; 1.11 15, 1.12 14, 2.10 13. Continuam acima de 12: 2.4, 2.12, F.2, 2.7.6 e as acima, à espera de dividir lições ou subir o teto. Conferido no navegador (desktop e mobile 390 px por iframe) na 2.4 com usuário descartável (removido): recolhido sob o cartão dos lotes, abre com os dois parágrafos.
 
 ### LJ.5.8 · Gancho no primeiro cartão das 43 lições
@@ -603,3 +604,10 @@ Era R$ 6.727."), e o link de convite da pessoa (`/convidar`).
 | 5 O resto que melhora a experiência | 10 (LJ.5.1 a LJ.5.10) |
 | Decisões | 6 (LJ-D1 a LJ-D6), todas fechadas em 2026-10-17 |
 | Fora deste backlog | personagem da Trilha 0 (proposta 4.1), à espera do teste do autor |
+
+## Ajustes decididos pelo autor em 2026-10-18 (depois da LJ.2.5)
+
+- **Chute da 2.11 antes do widget `fee-drag`:** movido no seed e no banco (`src/db/applyAuthorDecisions.ts`, `moveBefore` pura e idempotente).
+- **Missão da 0.4 em palavras comuns:** "Faça a inflação passar o rendimento" no lugar de "Deixe o rendimento real negativo" (o termo só aparece na definição do cartão seguinte). Mesmo script (`replaceGoalText`).
+- **Perguntas que saíram na LJ.2.7:** ficam só na explicação da nova, nenhuma recolocada.
+- **Teto de cartões:** 15 (ver LJ.5.7).

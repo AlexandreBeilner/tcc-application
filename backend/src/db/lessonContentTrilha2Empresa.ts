@@ -786,14 +786,6 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
           'Perto de 70%. A taxa leva cerca de 30% do saldo final em 20 anos, e mais de um terço do ganho, porque ela corrói o retorno todo ano e os juros seguintes incidem sobre o que sobrou.',
       },
       {
-        type: 'widget',
-        id: 'efeito-da-taxa',
-        widget: 'fee-drag',
-        props: {},
-        caption:
-          'Mude as taxas, o retorno e o prazo e veja a diferença entre os dois produtos crescer.',
-      },
-      {
         type: 'check',
         id: 'chute-taxa-30-anos',
         kind: 'estimate',
@@ -807,6 +799,14 @@ export const BLOCKS_CUSTOS: LessonBlocks = {
         tolerancePct: 10,
         explanation:
           'A taxa leva cerca de R$ 74 mil: o saldo cai de R$ 174,5 mil para R$ 100,6 mil. Parece só 2% ao ano, mas ela corrói o retorno todo ano, por 30 anos.',
+      },
+      {
+        type: 'widget',
+        id: 'efeito-da-taxa',
+        widget: 'fee-drag',
+        props: {},
+        caption:
+          'Mude as taxas, o retorno e o prazo e veja a diferença entre os dois produtos crescer.',
       },
       {
         type: 'text',
