@@ -1227,6 +1227,130 @@ describe('Lesson (tela 3.2)', () => {
         })
     })
 
+    describe('sequência de acertos (LJ.1.6) e vibração (LJ.5.4)', () => {
+        const ids = ['q0', 'q1', 'q2', 'q3', 'q4']
+        const vibrate = vi.fn()
+        const right = { correct: true, attempts: 1, firstTry: true, wrongOptions: [], explanation: 'ok' }
+        const wrong = { correct: false, attempts: 1, firstTry: false, wrongOptions: [1] }
+        const later = { correct: true, attempts: 2, firstTry: false, wrongOptions: [1], explanation: 'ok' }
+
+        function withFive(overrides: Partial<LessonType> = {}) {
+            return lesson({
+                blocks: {
+                    schemaVersion: 1,
+                    phases: {
+                        scenario: ids.map((id) => ({ type: 'check', id, kind: 'true_false', prompt: `Pergunta ${id}` })),
+                        microDecision: [],
+                        revelation: [],
+                    },
+                },
+                ...overrides,
+            })
+        }
+
+        // Responde a pergunta `index` com o gabarito simulado; acertando, espera o selo "Acertou" e (se `goOn`) segue.
+        async function answer(index: number, response: Awaited<ReturnType<typeof answerCheckpoint>>, goOn = true) {
+            await screen.findByText(`Pergunta q${index}`)
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce(response)
+            fireEvent.click(screen.getByRole('button', { name: 'Verdadeiro' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            if (!response.correct) {
+                await screen.findByRole('alert')
+                return
+            }
+            await screen.findByText(/Acertou|Resposta certa/)
+            if (goOn) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+        }
+
+        beforeEach(() => {
+            vibrate.mockClear()
+            vi.mocked(answerCheckpoint).mockReset()
+            Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true })
+        })
+        afterEach(() => Reflect.deleteProperty(navigator, 'vibrate'))
+
+        it('mostra o selo ao chegar a 3 e a 5 acertos de primeira seguidos, e só nesses', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive() })
+            renderLesson()
+
+            for (let i = 0; i < 5; i++) {
+                await answer(i, right, false)
+                if (i === 2) expect(screen.getByText('3 de primeira seguidas!')).toBeInTheDocument()
+                if (i === 3) expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+                if (i === 4) expect(screen.getByText('5 de primeira seguidas!')).toBeInTheDocument()
+                if (i < 4) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            }
+        })
+
+        it('errar zera a sequência sem nenhuma mensagem e a contagem recomeça', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive() })
+            renderLesson()
+
+            await answer(0, right)
+            await answer(1, wrong, false)
+            expect(screen.queryByText(/sequência|perdeu|seguidas/i)).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Falso' }))
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce(later)
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            await screen.findByText(/Acertou na 2ª tentativa/)
+            expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
+            await answer(2, right)
+            await answer(3, right)
+            await answer(4, right, false)
+
+            // Só 3 acertos de primeira depois do erro: o selo de 3 vem na q4, não na q2.
+            expect(await screen.findByText('3 de primeira seguidas!')).toBeInTheDocument()
+        })
+
+        it('em revisão não mostra selo nem vibra', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive({ status: 'completed', currentStep: 3 }) })
+            renderLesson()
+
+            for (let i = 0; i < 4; i++) {
+                await answer(i, right)
+            }
+
+            expect(screen.queryByText(/de primeira seguidas/)).not.toBeInTheDocument()
+            expect(vibrate).not.toHaveBeenCalled()
+        })
+
+        it('vibra ao concluir a lição, mas não ao só rever uma já concluída', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ currentStep: 2 }) })
+            vi.mocked(advanceLesson).mockResolvedValue({ currentStep: 3, completed: true, xpAwarded: 50 })
+            const first = renderLesson()
+
+            fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+
+            await waitFor(() => expect(vibrate).toHaveBeenCalledWith([60, 50, 90]))
+            first.unmount()
+            vibrate.mockClear()
+
+            vi.mocked(getLesson).mockResolvedValue({ lesson: lesson({ status: 'completed', currentStep: 3 }) })
+            renderLesson()
+            for (let i = 0; i < 3; i++) fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+            await screen.findByRole('heading', { level: 1, name: 'Lição concluída' })
+
+            expect(vibrate).not.toHaveBeenCalled()
+        })
+
+        it('vibra no acerto e fica silencioso no erro', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withFive() })
+            renderLesson()
+
+            await answer(0, wrong, false)
+            expect(await screen.findByRole('alert')).toBeInTheDocument()
+            expect(vibrate).not.toHaveBeenCalled()
+
+            fireEvent.click(screen.getByRole('button', { name: 'Falso' }))
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce(later)
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+            await screen.findByText(/Acertou na 2ª tentativa/)
+            expect(vibrate).toHaveBeenCalledTimes(1)
+        })
+    })
+
     describe('tempo estimado (LJ.5.2)', () => {
         const long = { scenarioText: 'a'.repeat(3000), revelationText: 'a'.repeat(1500) }
 

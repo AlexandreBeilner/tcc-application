@@ -447,7 +447,7 @@ widgets arrastáveis (ordenar, agrupar); testes dos atalhos.
 - **Entregável:** (2026-10-18) `lessonShortcuts` (decisão pura de tecla e de gesto) + hook `useLessonShortcuts` (clica nos botões reais `data-lesson-*`, então herda o `disabled` e nunca pula pergunta): setas, Enter (responde se há alternativa marcada, senão avança), 1 a 4 escolhem alternativa; deslizar à esquerda avança e à direita volta (60 px, 2:1 horizontal, até 800 ms; ignora pinça, widget, campo e área com rolagem horizontal). Nada dispara em campo, widget com foco (`data-lesson-widget` na figura do widget), com modificador ou com janela aberta por cima. Enter em botão fica com o botão. Dica "Dica: Enter avança..." só com mouse e teclado, uma vez por pessoa (`selucra:lesson-shortcut-hint-seen`, try/catch). Corrigido de passagem: o aviso de erro do `LessonCheckpoint` saía com aspas literais.
 
 
-### LJ.5.4 · Som e vibração no acerto (opcional)
+### LJ.5.4 · Som e vibração no acerto (opcional) ✅ concluída
 
 **O que fazer:** acerto de checkpoint, missão atingida e conclusão da lição ganham um **som curto**
 (arquivo local, até 20 KB cada, gerado ou com licença livre registrada no repositório) e uma
@@ -460,6 +460,7 @@ asset com hash (nunca rota de API, regra do PWA); respeita `prefers-reduced-moti
 vibração; preferência gravada só no navegador (hoje só existe `email_preferences`, e uma
 preferência de som não justifica tabela nova), com leitura em try/catch.
 
+- **Entregável:** (2026-10-18) `features/lessons/lessonFeedback`: `playLessonCue('correct' | 'goal' | 'complete')`, preferências (`readLessonFeedbackPrefs`/`writeLessonFeedbackPref`, chaves `app.lesson.sound` e `app.lesson.vibration` em `STORAGE_KEYS`, leitura em try/catch; padrão som desligado e vibração ligada) e vibração só com `navigator.vibrate` e sem `prefers-reduced-motion`. Três WAV (6,8, 12,2 e 19,2 KB) gerados por `frontend/scripts/generateLessonSounds.py` (ondas senoidais, sem amostra de terceiros, então não há licença a registrar); entram no build com hash e o glob do precache do service worker ganhou `wav` (conferido no `sw.js` gerado: 3 entradas). Acerto de pergunta (em `useCheckpoints`) e conclusão da lição (primeira vez que chega à tela final, em `Lesson`) disparam o cue; erro e revisão são silenciosos. Seção "Lições" em Configurações (`LessonFeedbackSection`, reusa `EmailCategoryOption`; ligar toca uma amostra; a vibração some onde o aparelho não vibra). **Pendente para a LJ.3:** o cue `goal` (missão atingida) existe e tem som, mas nenhum widget tem missão ainda; quem implementar a missão chama `playLessonCue('goal')`. Não conferi na tela (navegador de automação indisponível); nem o som nem a vibração foram ouvidos/sentidos em aparelho real.
 
 ### LJ.5.5 · "Relembra?": uma pergunta de lição anterior no início
 

@@ -89,9 +89,9 @@ export default defineConfig({
             injectRegister: false,
             manifest: false,
             injectManifest: {
-                // App shell: JS e CSS com hash, a fonte latina, ícones e a página offline. `index.html` fica de fora
+                // App shell: JS e CSS com hash, a fonte latina, ícones, os sons das lições e a página offline. `index.html` fica de fora
                 // (navegação vai à rede primeiro). `latin-ext` só baixa quando um caractere raro aparece.
-                globPatterns: ['**/*.{js,css,woff2,png,svg,ico}', 'offline.html'],
+                globPatterns: ['**/*.{js,css,woff2,png,svg,ico,wav}', 'offline.html'],
                 globIgnores: [
                     '**/*latin-ext*',
                     '**/Purchases.es-*.js',

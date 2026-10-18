@@ -10,6 +10,7 @@ import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDec
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
 import { useLessonShortcuts } from '../../features/lessons/useLessonShortcuts'
+import { playLessonCue } from '../../features/lessons/lessonFeedback'
 import { useShortcutHint } from '../../features/lessons/useShortcutHint'
 import { Button } from '../../components/atoms/Button'
 import { LockedGate } from '../../components/organisms/LockedGate'
@@ -201,7 +202,16 @@ function LessonView({ lessonId }: { lessonId: string }) {
             navigation.goToStep(step + 1)
             return
         }
-        advanceLesson.mutate({ step: step + 1 }, { onSuccess: () => navigation.goToStep(step + 1) })
+        advanceLesson.mutate(
+            { step: step + 1 },
+            {
+                onSuccess: () => {
+                    navigation.goToStep(step + 1)
+                    // Concluir a lição (LJ.5.4): só aqui, nunca ao reavançar uma fase já alcançada nem em revisão.
+                    if (step + 1 === TOTAL_STEPS - 1) playLessonCue('complete')
+                },
+            },
+        )
     }
 
     // Uma tentativa da pergunta (RC.2.4): o erro só descarta a alternativa

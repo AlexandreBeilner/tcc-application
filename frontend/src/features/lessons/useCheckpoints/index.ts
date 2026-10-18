@@ -5,6 +5,7 @@ import { answerCheckpoint } from '../../../services/lessons'
 import type { CheckpointState } from '../../../services/lessons'
 import type { CheckBlock } from '../widgets/schema'
 import { nextStreak, streakMilestone } from '../answerStreak'
+import { playLessonCue } from '../lessonFeedback'
 import type { CheckpointView } from './types'
 
 export type { CheckpointView } from './types'
@@ -54,6 +55,8 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
         const milestone = isReview
             ? undefined
             : streakMilestone((streak.current = nextStreak(streak.current, { correct: result.correct, firstTry: result.firstTry })))
+        // Som e vibração só no acerto, e nunca em revisão (LJ.5.4). Erro é silencioso.
+        if (result.correct && !isReview) playLessonCue('correct')
         const tried = 'selectedOption' in response ? response.selectedOption : undefined
         setLocal((current) => ({
             ...current,
