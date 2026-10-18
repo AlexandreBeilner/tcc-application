@@ -7,6 +7,7 @@ import {
   InvalidCardPositionError,
   InvalidCheckpointResponseError,
   InvalidMicroDecisionOptionError,
+  InvalidPollOptionError,
   LessonLockedError,
   LessonNotCompletedError,
   LessonNotFoundError,
@@ -14,6 +15,7 @@ import {
   LessonStepTooFastError,
   MicroDecisionUnsolvedError,
   NoMicroDecisionError,
+  PollNotFoundError,
 } from '../../domain/errors'
 import type { AnswerCheckpointUseCase } from '../../application/useCases/answerCheckpoint'
 import type { AnswerMicroDecisionUseCase } from '../../application/useCases/answerMicroDecision'
@@ -22,6 +24,7 @@ import type { GetLessonUseCase } from '../../application/useCases/getLesson'
 import type { GetTrackMapUseCase } from '../../application/useCases/getTrackMap'
 import type { GetReviewSessionUseCase } from '../../application/useCases/getReviewSession'
 import type { RecordCardReachUseCase } from '../../application/useCases/recordCardReach'
+import type { VotePollUseCase } from '../../application/useCases/votePoll'
 import type { RecordReviewResultUseCase } from '../../application/useCases/recordReviewResult'
 import type { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import {
@@ -29,6 +32,7 @@ import {
   answerCheckpointBodySchema,
   answerMicroDecisionBodySchema,
   recordCardReachBodySchema,
+  votePollBodySchema,
   reviewResultBodySchema,
 } from './schemas'
 
@@ -40,6 +44,7 @@ export interface LessonsRouterDeps {
   answerCheckpoint: AnswerCheckpointUseCase
   reviewLesson: ReviewLessonUseCase
   recordCardReach: RecordCardReachUseCase
+  votePoll: VotePollUseCase
   getReviewSession: GetReviewSessionUseCase
   recordReviewResult: RecordReviewResultUseCase
   authMiddleware: AuthMiddleware
@@ -291,6 +296,47 @@ export function createLessonsRouter(deps: LessonsRouterDeps): Router {
       throw err
     }
   })
+
+  router.post(
+    '/lessons/:id/polls/:pollId/vote',
+    deps.authMiddleware.authenticate,
+    async (req, res) => {
+      if (!req.auth) {
+        res.status(401).json({ error: 'token ausente' })
+        return
+      }
+
+      const parsed = votePollBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+        return
+      }
+
+      try {
+        const poll = await deps.votePoll.execute({
+          userId: req.auth.userId,
+          lessonId: req.params.id as string,
+          pollId: req.params.pollId as string,
+          option: parsed.data.option,
+        })
+        res.status(200).json({ poll })
+      } catch (err) {
+        if (
+          err instanceof LessonNotFoundError ||
+          err instanceof LessonLockedError ||
+          err instanceof PollNotFoundError
+        ) {
+          res.status(404).json({ error: err.message })
+          return
+        }
+        if (err instanceof InvalidPollOptionError) {
+          res.status(400).json({ error: err.message })
+          return
+        }
+        throw err
+      }
+    },
+  )
 
   router.post('/lessons/:id/review', deps.authMiddleware.authenticate, async (req, res) => {
     if (!req.auth) {

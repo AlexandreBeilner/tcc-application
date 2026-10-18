@@ -58,6 +58,20 @@ export interface Lesson {
     waived?: boolean
     // Só em `GET /lessons/:id` de lição ainda não começada (LJ.5.5): uma pergunta de lição anterior concluída.
     recall?: PracticeQuestion
+    // Só em `GET /lessons/:id` (LJ.2.6): enquetes em que a pessoa já votou, com o resultado quando há votos suficientes.
+    polls?: PollState[]
+}
+
+// Enquete da comunidade (LJ.2.6): o voto da própria pessoa e, só com 20 votos ou mais (LJ-D5), o resultado
+// agregado em percentual inteiro por alternativa. Nunca nome nem lista de quem votou.
+export interface PollState {
+    pollId: string
+    vote: number
+    results?: { total: number; percentages: number[] }
+}
+
+export interface VotePollResult {
+    poll: PollState
 }
 
 // Pergunta de prática (LJ.5.5 "Relembra?", LJ.5.6 revisão): `block` é a pergunta pública da lição de origem,

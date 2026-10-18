@@ -1,5 +1,6 @@
 import { classifyEstimate, findCheckBlock, toPublicBlocks } from './widgets/lessonBlocks'
 import type { EstimateResult, LessonBlocks, PublicLessonBlocks } from './widgets/lessonBlocks'
+import type { PollState } from './poll'
 import type { RecallView } from './recall'
 // Dia calendário em UTC, formato YYYY-MM-DD — reexportado daqui (usado pra
 // comparar a data de `completedAt`, missões 5.4 precisam saber "concluiu uma
@@ -247,6 +248,9 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   checkpointsFirstTry: number
   // "Relembra?" (LJ.5.5): pergunta de uma lição anterior para abrir esta. Só `GetLessonUseCase` preenche.
   recall?: RecallView
+  // Enquetes da comunidade (LJ.2.6) em que a pessoa já votou: o voto e, com votos suficientes, o resultado.
+  // Só `GetLessonUseCase` preenche; enquete ainda não votada não aparece (o resultado só vem depois do voto).
+  polls?: PollState[]
   status: LessonStatus
   currentStep: number
   // Estado da pergunta (RC.2.3), pra o player restaurar a tela depois de sair

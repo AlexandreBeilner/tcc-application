@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lessonProgress, progressMarkers } from '.'
+import { lessonProgress, progressMarkers, scoredCardId } from '.'
 import type { PlayerCard } from '../playerCards'
 
 describe('lessonProgress', () => {
@@ -33,6 +33,13 @@ describe('lessonProgress', () => {
 describe('progressMarkers', () => {
     const text: PlayerCard = { kind: 'text', text: 'a', hidden: false }
     const check = (id: string): PlayerCard => ({ kind: 'check', block: { type: 'check', id, kind: 'true_false', prompt: 'p' } })
+
+    it('a enquete tem cartão na barra, mas não ganha marco nem vale ponto (LJ.2.6)', () => {
+        const poll: PlayerCard = { kind: 'poll', block: { type: 'poll', id: 'e', prompt: 'p', options: ['a', 'b'] } }
+
+        expect(progressMarkers([[text, poll, check('q1')], [], []], () => 'pending')).toEqual([{ position: 3, state: 'pending' }])
+        expect(scoredCardId(poll)).toBeUndefined()
+    })
 
     it('marca só os cartões de pergunta, com a posição na lição inteira e o estado de cada um', () => {
         const states: Record<string, 'pending' | 'first-try' | 'later'> = { q1: 'first-try', q2: 'later', q3: 'pending' }

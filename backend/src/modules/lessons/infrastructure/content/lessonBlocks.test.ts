@@ -94,6 +94,59 @@ describe('lessonBlocksSchema', () => {
     expect(lessonBlocksSchema.safeParse(withSummary(['a', ''])).success).toBe(false)
   })
 
+  describe('enquete (LJ.2.6)', () => {
+    const poll = {
+      type: 'poll',
+      id: 'enquete',
+      prompt: 'O que você faz?',
+      options: ['a', 'b'],
+      closing: 'Na próxima tela você vê o que isso custa.',
+    }
+    const withPoll = (block: unknown) => ({
+      ...CONTRACT_EXAMPLE,
+      phases: { ...CONTRACT_EXAMPLE.phases, scenario: [block] },
+    })
+
+    it('aceita enquete com 2 a 4 alternativas, com e sem frase final', () => {
+      expect(lessonBlocksSchema.safeParse(withPoll(poll)).success).toBe(true)
+      const { closing: _closing, ...bare } = poll
+      void _closing
+      expect(lessonBlocksSchema.safeParse(withPoll(bare)).success).toBe(true)
+      expect(
+        lessonBlocksSchema.safeParse(withPoll({ ...poll, options: ['a', 'b', 'c', 'd'] })).success,
+      ).toBe(true)
+    })
+
+    it.each([
+      ['com uma alternativa só', { ...poll, options: ['a'] }],
+      ['com cinco alternativas', { ...poll, options: ['a', 'b', 'c', 'd', 'e'] }],
+      ['com alternativa vazia', { ...poll, options: ['a', ''] }],
+      ['sem pergunta', { ...poll, prompt: '' }],
+      ['com frase final longa demais', { ...poll, closing: 'x'.repeat(201) }],
+    ])('recusa enquete %s', (_name, block) => {
+      expect(lessonBlocksSchema.safeParse(withPoll(block)).success).toBe(false)
+    })
+
+    it('recusa dentro de "Saiba mais" e com id repetido', () => {
+      const more = { type: 'more', id: 'm1', title: 'Mais', blocks: [poll] }
+      expect(
+        lessonBlocksSchema.safeParse({
+          ...CONTRACT_EXAMPLE,
+          phases: {
+            ...CONTRACT_EXAMPLE.phases,
+            scenario: [{ type: 'text', markup: 'x' }, more],
+          },
+        }).success,
+      ).toBe(false)
+      expect(
+        lessonBlocksSchema.safeParse({
+          ...CONTRACT_EXAMPLE,
+          phases: { ...CONTRACT_EXAMPLE.phases, scenario: [poll, poll] },
+        }).success,
+      ).toBe(false)
+    })
+  })
+
   describe('"Saiba mais" (LJ.5.7)', () => {
     const more = (blocks: unknown[], id = 'm1') => ({ type: 'more', id, title: 'Detalhe', blocks })
     const withScenario = (...scenario: unknown[]) => ({

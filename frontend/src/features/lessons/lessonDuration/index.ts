@@ -26,7 +26,7 @@ function stringPropsLength(props: unknown): number {
 // Rodapés "Na plataforma" (LJ.1.3) vêm recolhidos e são leitura opcional: não entram na conta.
 export function cardSeconds(card: PlayerCard): number {
     if (card.kind === 'text') return plainLessonText(card.text).length / READING_CHARS_PER_SECOND
-    if (card.kind === 'check') return CHECK_SECONDS
+    if (card.kind === 'check' || card.kind === 'poll') return CHECK_SECONDS
     if (card.block.goal) return MISSION_SECONDS
     return READ_ONLY_WIDGETS.has(card.block.widget) ? stringPropsLength(card.block.props) / READING_CHARS_PER_SECOND : WIDGET_SECONDS
 }

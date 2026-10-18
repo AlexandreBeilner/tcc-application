@@ -46,3 +46,6 @@ export class LessonUnchangedError extends Error {}
 export class LessonRevisionNotFoundError extends Error {}
 // Funil por cartão (LJ.5.1): fase/índice fora dos limites do player.
 export class InvalidCardPositionError extends Error {}
+// Enquete da comunidade (LJ.2.6): enquete inexistente na lição, ou opção fora das alternativas.
+export class PollNotFoundError extends Error {}
+export class InvalidPollOptionError extends Error {}

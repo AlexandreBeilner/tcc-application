@@ -62,6 +62,19 @@ describe('parseLessonBlocks', () => {
         expect(parseLessonBlocks(withMore(more([])))).toBeNull()
     })
 
+    it('aceita a enquete com 2 a 4 alternativas e recusa fora disso (LJ.2.6)', () => {
+        const poll = (options: string[]) => ({ type: 'poll', id: 'e', prompt: 'E você?', options, closing: 'A seguir.' })
+        const withPoll = (block: unknown) => ({
+            ...CONTRACT_EXAMPLE,
+            phases: { ...CONTRACT_EXAMPLE.phases, scenario: [block] },
+        })
+
+        expect(parseLessonBlocks(withPoll(poll(['a', 'b'])))?.phases.scenario[0]).toMatchObject({ type: 'poll', id: 'e' })
+        expect(parseLessonBlocks(withPoll(poll(['a', 'b', 'c', 'd'])))).not.toBeNull()
+        expect(parseLessonBlocks(withPoll(poll(['só uma'])))).toBeNull()
+        expect(parseLessonBlocks(withPoll(poll(['a', 'b', 'c', 'd', 'e'])))).toBeNull()
+    })
+
     it('resumo fora do contrato (1 item ou frase longa) derruba o blocks para o texto legado', () => {
         expect(parseLessonBlocks({ ...CONTRACT_EXAMPLE, summary: ['só uma'] })).toBeNull()
         expect(parseLessonBlocks({ ...CONTRACT_EXAMPLE, summary: ['a', 'x'.repeat(121)] })).toBeNull()

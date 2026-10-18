@@ -1,6 +1,6 @@
 import { termsInText } from '../parseLessonMarkup'
 import { splitIntoCards } from '../splitIntoCards'
-import type { CheckBlock, LessonBlock, MoreBlock, WidgetBlock } from '../widgets/schema'
+import type { CheckBlock, LessonBlock, MoreBlock, PollBlock, WidgetBlock } from '../widgets/schema'
 
 // Cartão do player (RC.3.1/RC.3.2): texto (como antes da fase 3), widget ou
 // pergunta intermediária. Widget e pergunta são sempre um cartão próprio: evita tela cheia de coisa e mantém o
@@ -8,7 +8,11 @@ import type { CheckBlock, LessonBlock, MoreBlock, WidgetBlock } from '../widgets
 // mostra como rodapé recolhido, em vez de cartão próprio. `more` (LJ.5.7) são os "Saiba mais" colados ao cartão,
 // também recolhidos e fora da contagem de cartões.
 export type PlayerCard = { footnotes?: WidgetBlock[]; more?: MoreBlock[] } & (
-    { kind: 'text'; text: string; hidden: boolean } | { kind: 'widget'; block: WidgetBlock } | { kind: 'check'; block: CheckBlock }
+    | { kind: 'text'; text: string; hidden: boolean }
+    | { kind: 'widget'; block: WidgetBlock }
+    | { kind: 'check'; block: CheckBlock }
+    // Enquete (LJ.2.6): cartão próprio, mas sem resposta certa, sem trava e fora do placar.
+    | { kind: 'poll'; block: PollBlock }
 )
 
 const PLATFORM_NOTE_WIDGET = 'platform-note'
@@ -41,6 +45,8 @@ export function buildPhaseCards(blocks: LessonBlock[] | undefined, legacyText: s
             cards.push(...splitIntoCards(block.markup).map((card): PlayerCard => ({ kind: 'text', ...card })))
         } else if (block.type === 'check') {
             cards.push({ kind: 'check', block })
+        } else if (block.type === 'poll') {
+            cards.push({ kind: 'poll', block })
         } else {
             cards.push({ kind: 'widget', block })
         }

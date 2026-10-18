@@ -271,6 +271,13 @@ export const BLOCKS_RESERVA: LessonBlocks = {
           'Se o seu salário atrasasse dois meses, o que você faria? Antes de investir para ganhar, vem o seguro contra o imprevisto: a reserva de emergência. É o dinheiro para um conserto, um problema de saúde ou uma perda de renda, sem precisar se endividar.',
       },
       {
+        type: 'poll',
+        id: 'enquete-meses-guardados',
+        prompt: 'Hoje, quantos meses de gastos você teria guardados?',
+        options: ['Nenhum', 'De 1 a 2 meses', 'De 3 a 5 meses', '6 meses ou mais'],
+        closing: 'Sem julgamento: cada um parte de um ponto. A seguir: quanto vale a pena guardar.',
+      },
+      {
         type: 'check',
         id: 'funcao-reserva',
         kind: 'single',

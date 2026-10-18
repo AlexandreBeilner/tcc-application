@@ -13,6 +13,7 @@ import {
     listLessons,
     recordCardReach,
     reviewLesson,
+    votePoll,
 } from '../../services/lessons'
 import type { Lesson as LessonType } from '../../services/lessons'
 import { getAsset, getFixedIncomeTaxRate, getIndicatorHistory, listAssets } from '../../services/market'
@@ -29,6 +30,7 @@ vi.mock('../../services/lessons', () => ({
     answerCheckpoint: vi.fn(),
     reviewLesson: vi.fn(),
     recordCardReach: vi.fn().mockResolvedValue({ recorded: true }),
+    votePoll: vi.fn(),
 }))
 vi.mock('../../services/market', () => ({
     listAssets: vi.fn(),
@@ -1499,6 +1501,77 @@ describe('Lesson (tela 3.2)', () => {
                 if (i < 6) fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
             }
             expect(advanceLesson).not.toHaveBeenCalled()
+        })
+    })
+
+    describe('enquete da comunidade (LJ.2.6)', () => {
+        const poll = {
+            type: 'poll',
+            id: 'e1',
+            prompt: 'Com R$ 1.000 de bônus, o que você faria?',
+            options: ['Deixaria na conta', 'Investiria'],
+            closing: 'A seguir: o que investir quer dizer.',
+        }
+        const withPoll = (overrides: Partial<LessonType> = {}) =>
+            lesson({
+                currentStep: 0,
+                blocks: {
+                    schemaVersion: 1,
+                    phases: { scenario: [poll, { type: 'text', markup: 'Depois da enquete' }], microDecision: [], revelation: [] },
+                },
+                ...overrides,
+            })
+
+        it('não trava o Continuar: dá para seguir sem votar', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withPoll() })
+
+            renderLesson()
+
+            expect(await screen.findByText(poll.prompt)).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+            expect(await screen.findByText('Depois da enquete')).toBeInTheDocument()
+        })
+
+        it('votar chama a rota e mostra o convite quando há poucos votos', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withPoll() })
+            vi.mocked(votePoll).mockResolvedValue({ poll: { pollId: 'e1', vote: 1 } })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Investiria' }))
+
+            await waitFor(() => expect(votePoll).toHaveBeenCalledWith('token-valido', 'lesson-1', 'e1', 1))
+            expect(await screen.findByText('Você está entre os primeiros a responder.')).toBeInTheDocument()
+            expect(screen.getByText('A seguir: o que investir quer dizer.')).toBeInTheDocument()
+            // Enquete não é pergunta: não entra no placar nem na barra de marcos.
+            expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+        })
+
+        it('mostra o resultado e restaura o voto de quem já votou, inclusive em revisão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({
+                lesson: withPoll({
+                    status: 'completed',
+                    currentStep: 3,
+                    polls: [{ pollId: 'e1', vote: 0, results: { total: 40, percentages: [70, 30] } }],
+                }),
+            })
+
+            renderLesson()
+
+            expect(await screen.findByText('70% responderam como você.')).toBeInTheDocument()
+            expect(screen.getByText('Seu voto')).toBeInTheDocument()
+            expect(votePoll).not.toHaveBeenCalled()
+        })
+
+        it('falha de rede mostra o aviso e mantém as alternativas', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withPoll() })
+            vi.mocked(votePoll).mockRejectedValue(new Error('rede'))
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Investiria' }))
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('Não deu para registrar seu voto')
+            expect(screen.getByRole('button', { name: 'Investiria' })).toBeInTheDocument()
         })
     })
 

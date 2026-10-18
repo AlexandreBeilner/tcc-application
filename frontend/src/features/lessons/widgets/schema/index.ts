@@ -403,7 +403,16 @@ const moreBlock = z.object({
     blocks: z.array(z.union([textBlock, widgetBlock])).min(1),
 })
 
-const anyBlock = z.union([textBlock, widgetBlock, checkBlock, moreBlock])
+// Enquete da comunidade (LJ.2.6): opinião, sem resposta certa. Não é pergunta: não trava o Continuar nem entra no placar.
+const pollBlock = z.object({
+    type: z.literal('poll'),
+    id: z.string().min(1),
+    prompt: z.string().min(1),
+    options: z.array(z.string().min(1)).min(2).max(4),
+    closing: z.string().min(1).optional(),
+})
+
+const anyBlock = z.union([textBlock, widgetBlock, checkBlock, moreBlock, pollBlock])
 
 const lessonBlocksSchema = z.object({
     schemaVersion: z.literal(1),
@@ -421,6 +430,7 @@ export type LessonBlock = LessonBlocks['phases']['scenario'][number]
 export type WidgetBlock = Extract<LessonBlock, { type: 'widget' }>
 export type CheckBlock = Extract<LessonBlock, { type: 'check' }>
 export type MoreBlock = Extract<LessonBlock, { type: 'more' }>
+export type PollBlock = Extract<LessonBlock, { type: 'poll' }>
 // Perguntas de alternativas (única escolha e verdadeiro/falso), as que têm `selectedOption`.
 export type ChoiceBlock = Extract<CheckBlock, { kind: 'single' | 'true_false' }>
 export type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>

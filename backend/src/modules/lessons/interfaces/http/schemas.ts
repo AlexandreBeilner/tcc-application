@@ -35,5 +35,9 @@ export const recordCardReachBodySchema = z.object({
   cardIndex: z.number().int().min(0).max(MAX_CARD_INDEX),
 })
 
+// Voto numa enquete da lição (LJ.2.6): índice da alternativa; os limites finos (quantas alternativas a
+// enquete tem) são do caso de uso.
+export const votePollBodySchema = z.object({ option: z.number().int().min(0).max(3) })
+
 // Resultado de uma pergunta da revisão de 1 minuto (LJ.5.6): acertou sem errar antes.
 export const reviewResultBodySchema = z.object({ correct: z.boolean() })

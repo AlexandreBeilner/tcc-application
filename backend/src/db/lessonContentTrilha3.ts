@@ -496,6 +496,13 @@ export const BLOCKS_VIESES: LessonBlocks = {
           'Você vende uma ação na baixa e ela sobe 40% no mês seguinte. Quanto isso dói, de 0 a 10? Conhecer produtos e contas não basta: na hora do susto, a emoção decide mais rápido que a razão, e os atalhos da mente nos levam a erros previsíveis, os vieses.',
       },
       {
+        type: 'poll',
+        id: 'enquete-queda-sem-noticia',
+        prompt: 'Sua ação caiu 30% e não saiu notícia nenhuma. O que você faz?',
+        options: ['Vendo para não perder mais', 'Seguro e espero', 'Compro mais'],
+        closing: 'Não existe resposta certa só pelo susto. A seguir: os erros que a emoção costuma causar.',
+      },
+      {
         type: 'text',
         markup:
           'A Comissão de Valores Mobiliários (CVM) estuda esses erros para orientar o investidor. Três deles aparecem o tempo todo.',

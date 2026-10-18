@@ -33,6 +33,13 @@ export const BLOCKS_0_1: LessonBlocks = {
         markup:
           'Antes de continuar, pense: com esses R$ 1.000 em mãos, você deixaria parado ou aplicaria? O que te faria escolher um ou outro?',
       },
+      {
+        type: 'poll',
+        id: 'enquete-bonus',
+        prompt: 'Com R$ 1.000 de bônus, o que você faria?',
+        options: ['Deixaria na conta', 'Poria na poupança', 'Investiria', 'Gastaria'],
+        closing: 'Não existe resposta certa aqui. A seguir: o que investir quer dizer de verdade.',
+      },
     ],
     revelation: [
       {

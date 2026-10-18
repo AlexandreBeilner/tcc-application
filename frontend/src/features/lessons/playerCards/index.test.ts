@@ -123,3 +123,15 @@ describe('buildPhaseCards: "Saiba mais" recolhido (LJ.5.7)', () => {
         ])
     })
 })
+
+describe('buildPhaseCards: enquete (LJ.2.6)', () => {
+    const poll = { type: 'poll' as const, id: 'e1', prompt: 'E você?', options: ['a', 'b'] }
+
+    it('vira um cartão próprio, na posição do bloco, e uma nota "Na plataforma" cola nele', () => {
+        const note = { type: 'widget' as const, id: 'n', widget: 'platform-note' as const, props: { brazil: 'a', here: 'b', why: 'c' } }
+        const cards = buildPhaseCards([{ type: 'text', markup: 'antes' }, poll, note, { type: 'text', markup: 'depois' }], '')
+
+        expect(cards.map((card) => card.kind)).toEqual(['text', 'poll', 'text'])
+        expect(cards[1]).toEqual({ kind: 'poll', block: poll, footnotes: [note] })
+    })
+})

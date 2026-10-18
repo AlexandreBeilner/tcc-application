@@ -151,6 +151,10 @@ export function blockTextFields(
       }
       push('lowLabel', block.lowLabel)
       push('highLabel', block.highLabel)
+    } else if (block.type === 'poll') {
+      push('prompt', block.prompt)
+      push('closing', block.closing)
+      if (Array.isArray(block.options)) block.options.forEach((o, j) => push(`options[${j}]`, o))
     } else if (block.type === 'widget') {
       const props = (block.props ?? {}) as Record<string, unknown>
       const exempt = block.widget === 'platform-note' ? PLATFORM_NOTE_EXEMPT_RULE_IDS : undefined

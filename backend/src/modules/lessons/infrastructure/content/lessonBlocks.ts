@@ -604,7 +604,19 @@ const moreBlock = z.object({
     .max(4),
 })
 
-export const blockSchema = z.union([textBlock, widgetBlock, checkBlock, moreBlock])
+// Enquete (LJ.2.6): de 2 a 4 alternativas, e o banco guarda o índice em 0 a 3 (`lesson_poll_votes_option_chk`).
+export const POLL_OPTION_MAX_CHARS = 80
+export const POLL_CLOSING_MAX_CHARS = 200
+
+const pollBlock = z.object({
+  type: z.literal('poll'),
+  id: z.string().min(1).max(64),
+  prompt: z.string().min(1),
+  options: z.array(z.string().min(1).max(POLL_OPTION_MAX_CHARS)).min(2).max(4),
+  closing: z.string().min(1).max(POLL_CLOSING_MAX_CHARS).optional(),
+})
+
+export const blockSchema = z.union([textBlock, widgetBlock, checkBlock, moreBlock, pollBlock])
 
 export const lessonBlocksSchema = z
   .object({

@@ -251,12 +251,14 @@ import { HasMicroDecisionStreakTodayUseCase } from './modules/lessons/applicatio
 import { GetLessonCardFunnelUseCase } from './modules/lessons/application/useCases/getLessonCardFunnel'
 import { GetReviewSessionUseCase } from './modules/lessons/application/useCases/getReviewSession'
 import { RecordCardReachUseCase } from './modules/lessons/application/useCases/recordCardReach'
+import { VotePollUseCase } from './modules/lessons/application/useCases/votePoll'
 import { RecordReviewResultUseCase } from './modules/lessons/application/useCases/recordReviewResult'
 import { ReviewLessonUseCase } from './modules/lessons/application/useCases/reviewLesson'
 import { GetTrackMapUseCase } from './modules/lessons/application/useCases/getTrackMap'
 import { createInProcessStreakTracker } from './modules/lessons/infrastructure/gamification/inProcessStreakTracker'
 import { createInProcessXpAwarder } from './modules/lessons/infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleLessonCardReachRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonCardReachRepository'
+import { createDrizzleLessonPollRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonPollRepository'
 import { createDrizzleLessonRepository } from './modules/lessons/infrastructure/persistence/drizzleLessonRepository'
 import { createInProcessSocialFeedRecorder } from './modules/lessons/infrastructure/socialfeed/inProcessSocialFeedRecorder'
 import { createLessonsRouter } from './modules/lessons/interfaces/http/lessonsRouter'
@@ -853,7 +855,8 @@ export function createApp(deps: AppDeps = {}): Express {
       ? configuredStepInterval
       : LESSON_MIN_STEP_INTERVAL_MS
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
-  const getLesson = new GetLessonUseCase(lessonRepository)
+  const lessonPollRepository = createDrizzleLessonPollRepository(db)
+  const getLesson = new GetLessonUseCase(lessonRepository, lessonPollRepository)
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
   // Indicação (MO.7.2): recompensa do indicador quando a pessoa indicada conclui a primeira lição.
@@ -1403,6 +1406,7 @@ export function createApp(deps: AppDeps = {}): Express {
       answerCheckpoint,
       reviewLesson,
       recordCardReach: new RecordCardReachUseCase(lessonRepository, lessonCardReachRepository),
+      votePoll: new VotePollUseCase(lessonRepository, lessonPollRepository),
       getReviewSession: new GetReviewSessionUseCase(lessonRepository),
       recordReviewResult: new RecordReviewResultUseCase(lessonRepository),
       authMiddleware,

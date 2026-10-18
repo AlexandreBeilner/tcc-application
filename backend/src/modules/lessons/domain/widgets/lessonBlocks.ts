@@ -150,7 +150,19 @@ export type MoreBlock = {
   blocks: (TextBlock | WidgetBlock)[]
 }
 
-export type LessonBlock = TextBlock | WidgetBlock | CheckBlock | MoreBlock
+// Enquete da comunidade (LJ.2.6): pergunta de opinião, sem resposta certa. Não é `check`: não trava o
+// Continuar, não entra no placar nem na barra e não tem gabarito a esconder, então o bloco vai ao
+// cliente como está. `closing` é a frase que liga o resultado à lição; não afirma nada sobre o que
+// a maioria respondeu (o resultado é dado vivo, o texto é fixo).
+export type PollBlock = {
+  type: 'poll'
+  id: string
+  prompt: string
+  options: string[]
+  closing?: string
+}
+
+export type LessonBlock = TextBlock | WidgetBlock | CheckBlock | MoreBlock | PollBlock
 
 export interface LessonBlocks {
   schemaVersion: 1
@@ -291,6 +303,13 @@ export function findCheckBlock(
   checkpointId: string,
 ): CheckBlock | undefined {
   return allBlocks(blocks).find((b): b is CheckBlock => b.type === 'check' && b.id === checkpointId)
+}
+
+export function findPollBlock(
+  blocks: LessonBlocks | null | undefined,
+  pollId: string,
+): PollBlock | undefined {
+  return allBlocks(blocks).find((b): b is PollBlock => b.type === 'poll' && b.id === pollId)
 }
 
 // Checkpoints que o aluno precisa resolver pra sair de uma fase (0, 1 ou 2).

@@ -6,6 +6,7 @@ import { useLessonsQuery } from '../../features/lessons/useLessonsQuery'
 import { useAdvanceLesson } from '../../features/lessons/useAdvanceLesson'
 import { useCardReach } from '../../features/lessons/useCardReach'
 import { useCheckpoints } from '../../features/lessons/useCheckpoints'
+import { useLessonPolls } from '../../features/lessons/useLessonPolls'
 import type { MissionOutcome } from '../../features/lessons/useWidgetMission'
 import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDecision'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
@@ -16,6 +17,7 @@ import { useShortcutHint } from '../../features/lessons/useShortcutHint'
 import { Button } from '../../components/atoms/Button'
 import { LockedGate } from '../../components/organisms/LockedGate'
 import { LessonCheckpoint } from '../../components/organisms/LessonCheckpoint'
+import { PollCard } from '../../components/organisms/PollCard'
 import { PracticeCheckpoint } from '../../components/organisms/PracticeCheckpoint'
 import { LessonWidget } from '../../components/organisms/LessonWidget'
 import type { WidgetMissionController } from '../../components/organisms/LessonWidget/types'
@@ -27,7 +29,7 @@ import { featureUnlockCtaFor } from '../../features/lessons/featureUnlockCta'
 import { buildPhaseCards, termsSeenBeforeEachCard } from '../../features/lessons/playerCards'
 import type { PlayerCard } from '../../features/lessons/playerCards'
 import { parseCheckBlock, parseLessonBlocks } from '../../features/lessons/widgets/schema'
-import type { CheckBlock, WidgetBlock } from '../../features/lessons/widgets/schema'
+import type { CheckBlock, PollBlock, WidgetBlock } from '../../features/lessons/widgets/schema'
 import { LessonCardBody } from '../../components/molecules/LessonCardText'
 import { LessonProgressBar } from '../../components/molecules/LessonProgressBar'
 import { lessonProgress, progressMarkers } from '../../features/lessons/lessonProgress'
@@ -163,6 +165,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const blocks = useMemo(() => parseLessonBlocks(lesson?.blocks), [lesson?.blocks])
     // Perguntas intermediárias (RC.3.2): estado restaurado do servidor + sessão.
     const checkpoints = useCheckpoints(lessonId, lesson?.checkpoints, isReview === true)
+    // Enquetes da comunidade (LJ.2.6): não travam o Continuar e não entram no placar nem na barra.
+    const polls = useLessonPolls(lessonId, lesson?.polls)
     const microDecisionHasBlocks = (blocks?.phases.microDecision.length ?? 0) > 0
     const revelationHasBlocks = (blocks?.phases.revelation.length ?? 0) > 0
     const isLiveIndicator = lesson?.microDecisionType === 'live_indicator'
@@ -349,6 +353,19 @@ function LessonView({ lessonId }: { lessonId: string }) {
         )
     }
 
+    function renderPoll(block: PollBlock) {
+        return (
+            <PollCard
+                key={block.id}
+                block={block}
+                state={polls.stateFor(block.id)}
+                pending={polls.isPending}
+                error={polls.isError}
+                onVote={(option) => polls.vote(block.id, option)}
+            />
+        )
+    }
+
     function handleReveal() {
         navigation.reveal()
     }
@@ -434,6 +451,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         card={scenarioCards[subStep]}
                         mission={missionFor(scenarioCards[subStep])}
                         renderCheckpoint={renderCheckpoint}
+                        renderPoll={renderPoll}
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
@@ -467,6 +485,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         card={microDecisionCards[subStep]}
                         mission={missionFor(microDecisionCards[subStep])}
                         renderCheckpoint={renderCheckpoint}
+                        renderPoll={renderPoll}
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
@@ -590,6 +609,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
                         card={revelationCards[subStep]}
                         mission={missionFor(revelationCards[subStep])}
                         renderCheckpoint={renderCheckpoint}
+                        renderPoll={renderPoll}
                         revealed={navigation.isRevealed}
                         onReveal={handleReveal}
                         lessons={lessons}
@@ -690,6 +710,7 @@ function cardClassName(card: PlayerCard | undefined): string {
 function CardBody({
     mission,
     renderCheckpoint,
+    renderPoll,
     card,
     revealed,
     onReveal,
@@ -698,6 +719,7 @@ function CardBody({
 }: {
     mission: WidgetMissionController | undefined
     renderCheckpoint: (block: CheckBlock) => React.ReactNode
+    renderPoll: (block: PollBlock) => React.ReactNode
     card: PlayerCard
     revealed: boolean
     onReveal: () => void
@@ -706,6 +728,10 @@ function CardBody({
 }) {
     if (card.kind === 'check') {
         return <>{renderCheckpoint(card.block)}</>
+    }
+
+    if (card.kind === 'poll') {
+        return <>{renderPoll(card.block)}</>
     }
 
     if (card.kind === 'widget') {

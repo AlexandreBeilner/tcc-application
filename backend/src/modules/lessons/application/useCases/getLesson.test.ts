@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LessonLockedError, LessonNotFoundError } from '../../domain/errors'
+import { createFakeLessonPollRepository } from '../../test/fakes/fakeLessonPollRepository'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { GetLessonUseCase } from './getLesson'
 import type { LessonSummary } from '../../domain/lesson'
@@ -27,7 +28,7 @@ const lessons = [1, 2].map((n) => ({
 describe('GetLessonUseCase', () => {
   it('rejeita id inexistente com LessonNotFoundError (404 no router)', async () => {
     const repository = createFakeLessonRepository(lessons)
-    const useCase = new GetLessonUseCase(repository)
+    const useCase = new GetLessonUseCase(repository, createFakeLessonPollRepository())
 
     await expect(useCase.execute({ userId: 'u1', lessonId: 'nope' })).rejects.toBeInstanceOf(
       LessonNotFoundError,
@@ -36,7 +37,7 @@ describe('GetLessonUseCase', () => {
 
   it('rejeita lição ainda bloqueada com LessonLockedError (404 no router)', async () => {
     const repository = createFakeLessonRepository(lessons)
-    const useCase = new GetLessonUseCase(repository)
+    const useCase = new GetLessonUseCase(repository, createFakeLessonPollRepository())
 
     await expect(useCase.execute({ userId: 'u1', lessonId: 'l2' })).rejects.toBeInstanceOf(
       LessonLockedError,
@@ -46,7 +47,7 @@ describe('GetLessonUseCase', () => {
   it('retorna a lição disponível com progresso pra retomar', async () => {
     const repository = createFakeLessonRepository(lessons)
     await repository.upsertProgress('u1', 'l1', { currentStep: 2, completedAt: null })
-    const useCase = new GetLessonUseCase(repository)
+    const useCase = new GetLessonUseCase(repository, createFakeLessonPollRepository())
 
     const result = await useCase.execute({ userId: 'u1', lessonId: 'l1' })
 
@@ -87,7 +88,7 @@ describe('GetLessonUseCase: Relembra? (LJ.5.5)', () => {
 
   async function build() {
     const repository = createFakeLessonRepository(track)
-    const useCase = new GetLessonUseCase(repository, () => day)
+    const useCase = new GetLessonUseCase(repository, createFakeLessonPollRepository(), () => day)
     return { repository, useCase }
   }
 
@@ -159,5 +160,43 @@ describe('GetLessonUseCase: Relembra? (LJ.5.5)', () => {
     await repository.upsertProgress('u1', 'r1', { currentStep: 3, completedAt: day })
     const result = await useCase.execute({ userId: 'u2', lessonId: 'r1' })
     expect(result.recall).toBeUndefined()
+  })
+})
+
+describe('GetLessonUseCase: enquetes (LJ.2.6)', () => {
+  const pollBlock = {
+    type: 'poll' as const,
+    id: 'enquete',
+    prompt: 'E você?',
+    options: ['a', 'b'],
+  }
+  const lesson: LessonSummary = {
+    ...(lessons[0] as Omit<LessonSummary, 'blocks'>),
+    id: 'p1',
+    blocks: {
+      schemaVersion: 1,
+      phases: { scenario: [pollBlock], microDecision: [], revelation: [] },
+    },
+  }
+
+  it('não traz enquete que a pessoa ainda não votou', async () => {
+    const polls = createFakeLessonPollRepository()
+    polls.seed('p1', 'enquete', 0, 30)
+    const useCase = new GetLessonUseCase(createFakeLessonRepository([lesson]), polls)
+
+    expect((await useCase.execute({ userId: 'u1', lessonId: 'p1' })).polls).toBeUndefined()
+  })
+
+  it('traz o voto da própria pessoa e o resultado atual depois de votar', async () => {
+    const polls = createFakeLessonPollRepository()
+    polls.seed('p1', 'enquete', 0, 30)
+    await polls.castVote({ userId: 'u1', lessonId: 'p1', pollId: 'enquete', option: 1 })
+    const useCase = new GetLessonUseCase(createFakeLessonRepository([lesson]), polls)
+
+    const result = await useCase.execute({ userId: 'u1', lessonId: 'p1' })
+
+    expect(result.polls).toEqual([
+      { pollId: 'enquete', vote: 1, results: { total: 31, percentages: [97, 3] } },
+    ])
   })
 })

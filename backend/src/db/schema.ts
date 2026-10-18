@@ -350,6 +350,29 @@ export const lessonCardReach = pgTable(
   ],
 )
 
+// Enquete da comunidade (LJ.2.6): um voto por pessoa e enquete. Sem resposta certa e sem gabarito; a
+// leitura devolve só a distribuição agregada, e só com votos suficientes (LJ-D5). `pollId` é o id do
+// bloco `poll` dentro do conteúdo da lição.
+export const lessonPollVotes = pgTable(
+  'lesson_poll_votes',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id),
+    pollId: text('poll_id').notNull(),
+    option: smallint('option').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.lessonId, table.pollId] }),
+    index('lesson_poll_votes_poll_idx').on(table.lessonId, table.pollId),
+    check('lesson_poll_votes_option_chk', sql`${table.option} BETWEEN 0 AND 3`),
+  ],
+)
+
 export const friendships = pgTable(
   'friendships',
   {

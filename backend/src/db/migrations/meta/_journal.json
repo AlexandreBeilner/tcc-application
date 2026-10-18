@@ -393,6 +393,13 @@
       "when": 1794700000000,
       "tag": "0055_add_checkpoint_review_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794800000000,
+      "tag": "0056_add_lesson_poll_votes",
+      "breakpoints": true
     }
   ]
 }

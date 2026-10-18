@@ -7,10 +7,12 @@ import type {
     ListLessonsResult,
     ReviewLessonResult,
     ReviewSession,
+    VotePollResult,
 } from './types'
 
 export type {
     Lesson,
+    PollState,
     PracticeQuestion,
     ListLessonsResult,
     GetLessonResult,
@@ -77,6 +79,14 @@ export function recordCardReach(token: string, id: string, phase: number, cardIn
 
 // Revisão de 1 minuto (LJ.5.6): as 3 perguntas vencidas e o resultado de cada uma. `correct` é "acertou sem errar
 // antes"; a rota só age em pergunta vencida, uma vez por vencimento.
+export function votePoll(token: string, id: string, pollId: string, option: number): Promise<VotePollResult> {
+    return apiRequest<VotePollResult>(`/lessons/${id}/polls/${encodeURIComponent(pollId)}/vote`, {
+        token,
+        method: 'POST',
+        body: { option },
+    })
+}
+
 export function getReviewSession(token: string): Promise<ReviewSession> {
     return apiRequest<ReviewSession>('/lessons/review/session', { token })
 }

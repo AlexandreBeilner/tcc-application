@@ -15,6 +15,8 @@ import { ReviewLessonUseCase } from '../../application/useCases/reviewLesson'
 import { LESSON_UNLOCK_STEP, LESSON_XP_REWARD } from '../../domain/lesson'
 import { createFakeAchievementChecker } from '../../test/fakes/fakeAchievementChecker'
 import { createFakeLessonCardReachRepository } from '../../test/fakes/fakeLessonCardReachRepository'
+import { createFakeLessonPollRepository } from '../../test/fakes/fakeLessonPollRepository'
+import { VotePollUseCase } from '../../application/useCases/votePoll'
 import { createFakeLessonRepository } from '../../test/fakes/fakeLessonRepository'
 import { createFakeSocialFeedRecorder } from '../../test/fakes/fakeSocialFeedRecorder'
 import { createFakeStreakTracker } from '../../test/fakes/fakeStreakTracker'
@@ -80,8 +82,9 @@ function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
   const lessonRepository = createFakeLessonRepository(lessonSet)
   const tokenIssuer = createFakeTokenIssuer()
   const authMiddleware = createAuthMiddleware(tokenIssuer)
+  const lessonPollRepository = createFakeLessonPollRepository()
   const getTrackMap = new GetTrackMapUseCase(lessonRepository)
-  const getLesson = new GetLessonUseCase(lessonRepository)
+  const getLesson = new GetLessonUseCase(lessonRepository, lessonPollRepository)
   const advanceLesson = new AdvanceLessonUseCase(
     lessonRepository,
     createFakeXpAwarder(),
@@ -108,6 +111,7 @@ function buildApp(minStepIntervalMs = 0, lessonSet: typeof lessons = lessons) {
       answerCheckpoint,
       reviewLesson,
       recordCardReach,
+      votePoll: new VotePollUseCase(lessonRepository, lessonPollRepository),
       getReviewSession: new GetReviewSessionUseCase(lessonRepository, () => reviewClock()),
       recordReviewResult: new RecordReviewResultUseCase(lessonRepository, () => reviewClock()),
       authMiddleware,
@@ -985,6 +989,55 @@ describe('lessons routes', () => {
       expect((await request(app).post(url).send({ phase: 0, cardIndex: 0 })).status).toBe(401)
     })
   })
+  describe('enquete da comunidade (LJ.2.6)', () => {
+    const pollLessons = lessons.map((lesson) => ({
+      ...lesson,
+      blocks: {
+        schemaVersion: 1 as const,
+        phases: {
+          scenario: [
+            { type: 'poll' as const, id: 'enquete', prompt: 'E você?', options: ['a', 'b', 'c'] },
+          ],
+          microDecision: [],
+          revelation: [],
+        },
+      },
+    }))
+    const url = '/lessons/l1/polls/enquete/vote'
+
+    it('grava o voto e o GET devolve o voto da pessoa, sem dado individual', async () => {
+      const { app, tokenIssuer } = buildApp(0, pollLessons)
+      const auth = authHeader(tokenIssuer)
+
+      const res = await request(app).post(url).set('Authorization', auth).send({ option: 1 })
+      const again = await request(app).post(url).set('Authorization', auth).send({ option: 2 })
+      const lesson = await request(app).get('/lessons/l1').set('Authorization', auth)
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ poll: { pollId: 'enquete', vote: 1 } })
+      expect(again.body.poll.vote).toBe(1)
+      expect(lesson.body.lesson.polls).toEqual([{ pollId: 'enquete', vote: 1 }])
+    })
+
+    it('valida payload (400), opção inexistente (400), enquete ou lição inexistente e bloqueada (404) e exige token (401)', async () => {
+      const { app, tokenIssuer } = buildApp(0, pollLessons)
+      const auth = authHeader(tokenIssuer)
+      const post = (path: string, body: unknown) =>
+        request(app)
+          .post(path)
+          .set('Authorization', auth)
+          .send(body as object)
+
+      expect((await post(url, { option: 'a' })).status).toBe(400)
+      expect((await post(url, { option: 9 })).status).toBe(400)
+      expect((await post(url, { option: 3 })).status).toBe(400)
+      expect((await post('/lessons/l1/polls/nada/vote', { option: 0 })).status).toBe(404)
+      expect((await post('/lessons/nope/polls/enquete/vote', { option: 0 })).status).toBe(404)
+      expect((await post('/lessons/l2/polls/enquete/vote', { option: 0 })).status).toBe(404)
+      expect((await request(app).post(url).send({ option: 0 })).status).toBe(401)
+    })
+  })
+
   describe('revisão de 1 minuto (LJ.5.6)', () => {
     const checks = ['q1', 'q2', 'q3', 'q4']
     const reviewLessons = lessons.map((lesson) =>
