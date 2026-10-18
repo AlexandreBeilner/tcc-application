@@ -73,6 +73,16 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
         widget: 'real-return',
         props: { nominalPct: 12, inflationPct: 5, amount: 10000 },
         caption: 'Exemplo hipotético: juro de 12% e inflação de 5%',
+        goal: {
+          text: 'Ache a inflação em que o juro real zera',
+          metric: 'realReturnPct',
+          op: 'between',
+          min: -0.1,
+          max: 0.1,
+          reveal:
+            'Com juro real zero, o saldo cresce, mas só acompanha os preços: o dinheiro não perde, mas também não ganha.',
+          showMe: { inflationPct: 12 },
+        },
       },
       {
         type: 'check',
@@ -168,6 +178,16 @@ export const BLOCKS_POUPANCA: LessonBlocks = {
         widget: 'savings-vs-selic',
         props: { selicPct: 14, trMonthlyPct: 0.15, amount: 10000, months: 12 },
         caption: 'Mexa na Selic, na TR e no prazo e compare',
+        goal: {
+          text: 'Ache a Selic em que a poupança e o Tesouro Selic rendem quase igual',
+          metric: 'savingsGapPct',
+          op: 'between',
+          min: -0.25,
+          max: 0.25,
+          reveal:
+            'Nesse ponto as duas rendem quase igual. Com a Selic mais baixa, a poupança, isenta de imposto, passa na frente; com a Selic mais alta, o Tesouro Selic vence.',
+          showMe: { selicPct: 10 },
+        },
       },
       {
         type: 'check',

@@ -103,6 +103,19 @@ describe('métricas declaradas pelos widgets', () => {
         expect(onMetrics.mock.calls[0][0].interestRatio).toBeCloseTo(2.1181, 3)
     })
 
+    it('os valores do "Me mostra" das lições cumprem a missão', () => {
+        const metrics = (widget: WidgetId, props: Record<string, unknown>) => {
+            const onMetrics = vi.fn()
+            const Component = widgetRegistry[widget].component as ComponentType<Record<string, unknown>>
+            render(<Component {...props} onMetrics={onMetrics} />)
+            return onMetrics.mock.calls[0][0]
+        }
+        // Inflação igual ao rendimento: juro real zero (lição de Selic e CDI).
+        expect(Math.abs(metrics('real-return', { nominalPct: 12, inflationPct: 12, amount: 10000 }).realReturnPct)).toBeLessThan(0.1)
+        // Inflação acima do rendimento: juro real negativo (lição de rendimento real).
+        expect(metrics('real-return', { nominalPct: 8, inflationPct: 10, amount: 10000 }).realReturnPct).toBeLessThan(0)
+    })
+
     it('savings-vs-selic: a diferença fica perto de zero com Selic em 10%, no primeiro ano', () => {
         const onMetrics = vi.fn()
         const Component = widgetRegistry['savings-vs-selic'].component as ComponentType<Record<string, unknown>>

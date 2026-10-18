@@ -1,0 +1,90 @@
+import { eq } from 'drizzle-orm'
+import { createDb } from './client'
+import { lessons } from './schema'
+import { LESSON_SEEDS } from './seedLessons'
+
+// Migração de conteúdo aditiva (LJ.3.2): missões de widget (`goal`) entraram no seed, mas o seed nunca
+// sobrescreve uma lição já importada (N.23), então o banco ainda guarda o widget sem missão. Para cada
+// widget do seed que tem `goal`, acha o mesmo `id` no banco: se existe sem missão, leva a missão e os
+// valores iniciais do seed e preserva todo o resto (inclusive edição do painel); se não existe, insere
+// o bloco depois do bloco que o antecede no seed. Idempotente: widget que já tem `goal` não é tocado.
+// Reutilizada pela LJ.3.4 (missões das outras trilhas): basta o seed ganhar o `goal`.
+// Uso: DATABASE_URL=... npx tsx src/db/applyWidgetGoals.ts
+
+type Block = { type?: string; id?: string; props?: unknown; goal?: unknown } & Record<
+  string,
+  unknown
+>
+type Phases = Record<string, Block[] | undefined>
+type Blocks = { phases?: Phases } & Record<string, unknown>
+
+function sameBlock(a: Block, b: Block): boolean {
+  return a.id && b.id ? a.id === b.id : JSON.stringify(a) === JSON.stringify(b)
+}
+
+export function applyWidgetGoals(
+  current: Blocks,
+  seed: { phases?: Phases },
+): { blocks: Blocks; changed: number } {
+  let changed = 0
+  const phases: Phases = {}
+  for (const [phase, list] of Object.entries(current.phases ?? {}))
+    phases[phase] = [...(list ?? [])]
+
+  for (const [phase, seedList] of Object.entries(seed.phases ?? {})) {
+    ;(seedList ?? []).forEach((seedBlock, index) => {
+      if (seedBlock.type !== 'widget' || !seedBlock.goal || !seedBlock.id) return
+      const target = (phases[phase] ??= [])
+      const at = target.findIndex((b) => b.type === 'widget' && b.id === seedBlock.id)
+      if (at >= 0) {
+        if (target[at].goal) return
+        target[at] = {
+          ...target[at],
+          props: { ...(target[at].props as object), ...(seedBlock.props as object) },
+          goal: seedBlock.goal,
+        }
+        changed += 1
+        return
+      }
+      // Ainda não existe no banco: entra depois do bloco que vinha antes dele no seed (texto não tem `id`, então
+      // casa pelo conteúdo). Se esse bloco foi removido ou editado pelo painel, entra no fim da fase.
+      const previous = (seedList ?? [])[index - 1]
+      const after = previous ? target.findIndex((b) => sameBlock(b, previous)) : -1
+      target.splice(after >= 0 ? after + 1 : previous ? target.length : 0, 0, seedBlock)
+      changed += 1
+    })
+  }
+  return { blocks: { ...current, phases }, changed }
+}
+
+async function main() {
+  const databaseUrl = process.env.DATABASE_URL
+  if (!databaseUrl) {
+    console.error('defina DATABASE_URL antes de rodar')
+    process.exit(1)
+  }
+  const db = createDb(databaseUrl)
+  for (const seed of LESSON_SEEDS) {
+    if (!seed.blocks) continue
+    const [row] = await db.select().from(lessons).where(eq(lessons.stableKey, seed.stableKey))
+    if (!row?.blocks) continue
+    const { blocks, changed } = applyWidgetGoals(
+      row.blocks as Blocks,
+      seed.blocks as { phases?: Phases },
+    )
+    if (changed === 0) continue
+    await db
+      .update(lessons)
+      .set({ blocks: blocks as typeof row.blocks })
+      .where(eq(lessons.id, row.id))
+    console.log(`lição ${seed.code}: ${changed} missão(ões) de widget aplicada(s)`)
+  }
+  process.exit(0)
+}
+
+if (process.env.VITEST === undefined) {
+  main().catch((err) => {
+    console.error('erro ao aplicar missões:', err)
+    process.exit(1)
+  })
+}

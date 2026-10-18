@@ -112,7 +112,20 @@ export const BLOCKS_0_2: LessonBlocks = {
         markup:
           'Use a calculadora com o mesmo capital e o mesmo aporte mensal, alternando entre os modos Simples e Composto. Compare o total ao final do período antes de continuar.',
       },
-      { type: 'widget', id: 'calculadora', widget: 'growth-calculator', props: {} },
+      {
+        type: 'widget',
+        id: 'calculadora',
+        widget: 'growth-calculator',
+        props: { initialCapital: 1000, ratePct: 10, periodYears: 1 },
+        goal: {
+          text: 'Ache o prazo em que os juros compostos passam do dobro dos juros simples',
+          metric: 'interestRatio',
+          op: 'gte',
+          value: 2,
+          reveal: 'Os juros sobre juros demoram para aparecer e depois disparam.',
+          showMe: { periodYears: 15, ratePct: 10 },
+        },
+      },
     ],
     revelation: [
       {
@@ -258,6 +271,20 @@ export const BLOCKS_0_4: LessonBlocks = {
           'Perto de 2%. A conta aproximada é 8 − 6. A conta exata é (1,08 ÷ 1,06) − 1, cerca de 1,89%, um pouco menos.' +
           '\n\n' +
           'Quanto maior a inflação do período, maior a diferença entre as duas contas.',
+      },
+      {
+        type: 'widget',
+        id: 'rendimento-real-8-6',
+        widget: 'real-return',
+        props: { nominalPct: 8, inflationPct: 6, amount: 10000 },
+        goal: {
+          text: 'Deixe o rendimento real negativo',
+          metric: 'realReturnPct',
+          op: 'lt',
+          value: 0,
+          reveal: 'Rendeu no papel e perdeu no mercado: a inflação passou o rendimento.',
+          showMe: { inflationPct: 10 },
+        },
       },
       {
         type: 'check',
