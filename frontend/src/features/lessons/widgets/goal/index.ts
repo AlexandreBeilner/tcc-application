@@ -32,6 +32,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<string, readonly string[]>> 
     'equivalent-rate': ['cdbGapPct'],
     'bond-price-calculator': ['unitPrice'],
     'mtm-seesaw': ['priceChangePct'],
+    'breakeven-inflation': ['inflationAboveBreakevenPp'],
     'real-return': ['realReturnPct'],
     'savings-vs-selic': ['savingsGapPct'],
 }

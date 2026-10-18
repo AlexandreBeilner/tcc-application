@@ -863,8 +863,17 @@ export const BLOCKS_1_10: LessonBlocks = {
         type: 'widget',
         id: 'inflacao-de-equilibrio',
         widget: 'breakeven-inflation',
-        props: { prefixedPct: 12.5, realPct: 7.5, expectedInflationPct: 5 },
+        props: { prefixedPct: 12.5, realPct: 7.5, expectedInflationPct: 3 },
         caption: 'Taxas de exemplo. Com elas, qual rende mais para a inflação que você espera?',
+        goal: {
+          text: 'Ache a inflação esperada em que o IPCA+ passa a render mais que o prefixado',
+          metric: 'inflationAboveBreakevenPp',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'Acima da inflação de equilíbrio o IPCA+ rende mais, e abaixo dela o prefixado vence. É o ponto em que os dois empatam.',
+          showMe: { expectedInflationPct: 6 },
+        },
       },
       {
         type: 'check',

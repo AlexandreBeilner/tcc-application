@@ -60,6 +60,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'priceChangePct', op: 'lt', value: -5 },
         showMe: { marketRatePct: 17 },
     },
+    {
+        lesson: '1.11',
+        widget: 'breakeven-inflation',
+        initial: { prefixedPct: 12.5, realPct: 7.5, expectedInflationPct: 3 },
+        goal: { metric: 'inflationAboveBreakevenPp', op: 'gt', value: 0 },
+        showMe: { expectedInflationPct: 6 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props.
@@ -148,5 +155,14 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(change(17)).toBeCloseTo(-8.8, 1)
         // O vencimento longo oscila mais com a mesma taxa: 10 anos a 14% perdem mais de 5%.
         expect(change(14, 10)).toBeLessThan(-5)
+    })
+
+    it('1.11: com prefixado de 12,5% e taxa real de 7,5% o equilíbrio é 4,65%: 4,5% ainda é do prefixado e 4,75% já é do IPCA+', () => {
+        const gap = (expectedInflationPct: number) =>
+            metricsOf('breakeven-inflation', { prefixedPct: 12.5, realPct: 7.5, expectedInflationPct }).inflationAboveBreakevenPp
+        // 1,125 / 1,075 - 1 = 4,6512%
+        expect(gap(4.5)).toBeLessThan(0)
+        expect(gap(4.75)).toBeGreaterThan(0)
+        expect(gap(4.75)).toBeCloseTo(0.0988, 3)
     })
 })

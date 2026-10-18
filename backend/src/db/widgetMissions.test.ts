@@ -67,6 +67,14 @@ const EXPECTED: Expected[] = [
     op: 'lt',
     value: -5,
   },
+  {
+    lesson: '1.11',
+    id: 'inflacao-de-equilibrio',
+    widget: 'breakeven-inflation',
+    metric: 'inflationAboveBreakevenPp',
+    op: 'gt',
+    value: 0,
+  },
 ]
 
 function goalsOf(code: string) {
