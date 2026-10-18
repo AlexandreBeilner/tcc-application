@@ -446,12 +446,18 @@ export const BLOCKS_2_3: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'final-onze',
-        kind: 'single',
-        prompt: 'O que costuma ser um ticker terminado em 11, como SINT11?',
-        options: ['Uma ação ordinária', 'Um fundo ou ETF', 'Uma ação preferencial'],
-        answer: 1,
-        explanation: 'O final 11 abrange fundos e ETFs. As ações simples terminam em 3 ou em 4.',
+        id: 'finais-do-ticker',
+        kind: 'match',
+        prompt: 'Ligue o número final do ticker ao que ele costuma indicar.',
+        left: ['Final 3', 'Final 4', 'Final 11'],
+        right: [
+          'Ação ordinária, com direito a voto',
+          'Ação preferencial, que pode ter preferência no dividendo',
+          'Fundo ou ETF, não uma ação simples',
+        ],
+        answer: [0, 1, 2],
+        explanation:
+          'O 3 marca a ação ordinária e o 4, a preferencial. O 11 abrange fundos e ETFs: as ações simples terminam em 3 ou em 4.',
       },
       {
         type: 'check',

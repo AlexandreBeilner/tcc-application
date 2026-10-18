@@ -214,6 +214,8 @@ export type CheckpointLastResponse =
   | { kind: 'estimate'; value: number; hit: boolean }
   | { kind: 'order'; sequence: number[] }
   | { kind: 'categorize'; groups: number[] }
+  // Ligar: pares já travados (esquerda, direita como o cliente a recebeu) e quantos erros houve.
+  | { kind: 'match'; pairs: [number, number][]; misses: number }
 
 // Estado de uma pergunta intermediária (RC.3.2) pro player restaurar a tela;
 // o gabarito nunca vai aqui.
@@ -229,6 +231,8 @@ export interface CheckpointState {
   sequence?: number[]
   // Só agrupar já resolvido: o grupo de cada item.
   groups?: number[]
+  // Só ligar: os pares já travados, para restaurar a tela no meio do caminho.
+  match?: { pairs: [number, number][] }
 }
 
 export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOption' | 'blocks'> {
@@ -248,9 +252,31 @@ export interface LessonView extends Omit<LessonSummary, 'microDecisionCorrectOpt
   waived: boolean
 }
 
+// "De primeira": resolvido sem erro antes. Estimativa resolve na 1ª resposta, então vale a que caiu na
+// mosca; ligar pares conta erros pelos pares (cada par certo é uma chamada), não pelas tentativas.
+function wasFirstTry(record: CheckpointRecord): boolean {
+  if (record.solvedAt === null) {
+    return false
+  }
+  if (record.lastResponse?.kind === 'match') {
+    return record.lastResponse.misses === 0
+  }
+  return (
+    record.attempts === 1 &&
+    (record.lastResponse?.kind === 'estimate' ? record.lastResponse.hit : true)
+  )
+}
+
 function responseStateFor(
   record: CheckpointRecord,
-): { sequence: number[] } | { groups: number[] } | Record<string, never> {
+):
+  | { sequence: number[] }
+  | { groups: number[] }
+  | { match: { pairs: [number, number][] } }
+  | Record<string, never> {
+  if (record.lastResponse?.kind === 'match') {
+    return { match: { pairs: record.lastResponse.pairs } }
+  }
   if (record.solvedAt === null) {
     return {}
   }
@@ -301,10 +327,7 @@ export function buildLessonView(
     attempts: record.attempts,
     wrongOptions: record.wrongOptions,
     // Estimativa resolve na 1ª resposta mesmo longe do valor: "de primeira" é a que caiu na mosca.
-    firstTry:
-      record.solvedAt !== null &&
-      record.attempts === 1 &&
-      (record.lastResponse?.kind === 'estimate' ? record.lastResponse.hit : true),
+    firstTry: wasFirstTry(record),
     ...estimateStateFor(lesson, record),
     ...responseStateFor(record),
   }))

@@ -505,6 +505,7 @@ export const userLessonCheckpoints = pgTable(
       | { kind: 'estimate'; value: number; hit: boolean }
       | { kind: 'order'; sequence: number[] }
       | { kind: 'categorize'; groups: number[] }
+      | { kind: 'match'; pairs: [number, number][]; misses: number }
     >(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

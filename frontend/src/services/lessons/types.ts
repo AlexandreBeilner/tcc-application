@@ -85,6 +85,8 @@ export interface CheckpointState {
     sequence?: number[]
     // Só agrupar já resolvido (LJ.2.4): o grupo escolhido para cada item.
     groups?: number[]
+    // Só ligar (LJ.2.5): os pares já travados, também no meio do caminho.
+    match?: { pairs: [number, number][] }
 }
 
 // Formatos de várias peças, ao errar (LJ-D2): quantas peças estão certas, sem dizer quais.
@@ -113,6 +115,8 @@ export interface AnswerCheckpointResult {
     explanation?: string
     estimate?: EstimateResult
     hint?: CheckHint
+    // Só ligar (LJ-D3): o veredito do par enviado e os pares já travados. `correct` vale para a pergunta inteira.
+    match?: { pairCorrect: boolean; pairs: [number, number][] }
 }
 
 // `POST /lessons/:id/answer` (RC.2.3, `.docs/backend/lessons.md`).

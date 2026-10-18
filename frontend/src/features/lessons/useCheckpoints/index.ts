@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import { answerCheckpoint } from '../../../services/lessons'
-import type { CheckpointState } from '../../../services/lessons'
+import type { AnswerCheckpointResult, CheckpointState } from '../../../services/lessons'
 import type { CheckBlock } from '../widgets/schema'
 import { nextStreak, streakMilestone } from '../answerStreak'
 import { playLessonCue } from '../lessonFeedback'
@@ -43,6 +43,7 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             ...(restored.estimate ? { estimate: restored.estimate } : {}),
             ...(restored.sequence ? { sequence: restored.sequence } : {}),
             ...(restored.groups ? { groups: restored.groups } : {}),
+            ...(restored.match ? { matched: restored.match.pairs } : {}),
         }
     }
 
@@ -53,6 +54,10 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
             result = await mutation.mutateAsync({ block, response })
         } catch {
             // Falha de rede: `isError` mostra o aviso e a pergunta segue como estava.
+            return
+        }
+        if (block.kind === 'match' && 'pair' in response && result.match) {
+            recordMatchPair(block.id, block.left.length, response.pair, before, result)
             return
         }
         const milestone = isReview
@@ -90,6 +95,42 @@ export function useCheckpoints(lessonId: string, serverState: CheckpointState[] 
                           lastAttemptWrong: true,
                           ...(result.hint ? { hint: result.hint } : {}),
                       },
+        }))
+    }
+
+    // Ligar pares (LJ-D3): cada chamada confere um par. O servidor diz se o par travou e, fora da revisão, quais
+    // pares já estão travados; em revisão (sem estado) a tela soma os pares certos por conta própria. A
+    // pergunta só resolve quando o último par trava. Sequência e som seguem a pergunta inteira: um par certo
+    // no meio do caminho não mexe na sequência, um par errado a zera (sem mensagem).
+    function recordMatchPair(
+        blockId: string,
+        total: number,
+        pair: [number, number],
+        before: CheckpointView,
+        result: AnswerCheckpointResult,
+    ) {
+        const pairCorrect = result.match?.pairCorrect === true
+        const known = before.matched ?? []
+        const pairs = isReview ? (pairCorrect ? [...known, pair] : known) : (result.match?.pairs ?? known)
+        const done = isReview ? pairs.length === total : result.correct
+        let milestone: CheckpointView['streakMilestone']
+        if (!isReview && (done || !pairCorrect)) {
+            milestone = streakMilestone((streak.current = nextStreak(streak.current, { correct: done, firstTry: done && result.firstTry })))
+        }
+        if (done && !isReview) playLessonCue('correct')
+        setLocal((current) => ({
+            ...current,
+            [blockId]: {
+                solved: done,
+                attempts: result.attempts,
+                wrongOptions: before.wrongOptions,
+                firstTry: done && result.firstTry,
+                lastAttemptWrong: false,
+                matched: pairs,
+                ...(done && result.explanation ? { explanation: result.explanation } : {}),
+                ...(milestone ? { streakMilestone: milestone } : {}),
+                ...(pairCorrect ? {} : { lastMiss: { left: pair[0], right: pair[1], n: (before.lastMiss?.n ?? 0) + 1 } }),
+            },
         }))
     }
 

@@ -4,6 +4,7 @@ import {
   classifyEstimate,
   findCheckBlock,
   isCheckCorrect,
+  isPairCorrect,
   isValidCheckResponse,
   resolvesOnFirstAnswer,
   scoreCategorize,
@@ -303,6 +304,68 @@ describe('checks (RC.3.2)', () => {
 
     it('não resolve na primeira resposta (errar não avança)', () => {
       expect(resolvesOnFirstAnswer(categorize)).toBe(false)
+    })
+  })
+  describe('ligar pares (LJ.2.5)', () => {
+    const match: CheckBlock = {
+      type: 'check',
+      id: 'm1',
+      kind: 'match',
+      prompt: 'Ligue cada sigla ao que ela mede',
+      left: ['Selic', 'CDI', 'IPCA'],
+      right: ['Juro básico da economia', 'Taxa entre bancos', 'Inflação'],
+      answer: [0, 1, 2],
+      explanation: 'por quê m1',
+    }
+    const shown = () => {
+      const result = toPublicBlocks({ ...blocks, phases: { ...blocks.phases, scenario: [match] } })
+      return result?.phases.scenario[0] as unknown as { left: string[]; right: string[] }
+    }
+    // Índice, como o cliente o recebe, da resposta certa de cada item da esquerda.
+    const rightOf = (leftIndex: number) =>
+      shown().right.indexOf((match as { right: string[] }).right[leftIndex] as string)
+
+    it('versão pública embaralha só a direita e não leva gabarito nem explicação', () => {
+      const json = JSON.stringify(
+        toPublicBlocks({ ...blocks, phases: { ...blocks.phases, scenario: [match] } }),
+      )
+
+      expect(shown().left).toEqual(['Selic', 'CDI', 'IPCA'])
+      expect([...shown().right].sort()).toEqual([...(match as { right: string[] }).right].sort())
+      expect(shown().right).not.toEqual((match as { right: string[] }).right)
+      expect(json).not.toContain('"answer"')
+      expect(json).not.toContain('por quê')
+    })
+
+    it('o embaralhamento é o mesmo a cada chamada', () => {
+      expect(shown().right).toEqual(shown().right)
+    })
+
+    it('confere um par por vez, nos índices embaralhados que o cliente recebeu', () => {
+      for (const left of [0, 1, 2]) {
+        for (const right of [0, 1, 2]) {
+          expect(isCheckCorrect(match, { pair: [left, right] })).toBe(right === rightOf(left))
+          expect(isPairCorrect(match as never, [left, right])).toBe(right === rightOf(left))
+        }
+      }
+    })
+
+    it.each([
+      [{ pair: [0, 0] }, true],
+      [{ pair: [2, 2] }, true],
+      [{ pair: [3, 0] }, false],
+      [{ pair: [0, 3] }, false],
+      [{ pair: [-1, 0] }, false],
+      [{ pair: [0.5, 0] }, false],
+      [{ pair: [0] }, false],
+      [{ selectedOption: 0 }, false],
+      [{}, false],
+    ])('isValidCheckResponse do ligar %#', (response, expected) => {
+      expect(isValidCheckResponse(match, response as never)).toBe(expected)
+    })
+
+    it('não tem contagem (o par errado é recusado na hora) nem resolve na 1ª resposta', () => {
+      expect(resolvesOnFirstAnswer(match)).toBe(false)
     })
   })
 })

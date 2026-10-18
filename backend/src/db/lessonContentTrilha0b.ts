@@ -101,12 +101,19 @@ export const BLOCKS_JUROS_SELIC_CDI_TR: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'tr-sempre-zero',
-        kind: 'true_false',
-        prompt: 'A TR é sempre zero.',
-        answer: false,
+        id: 'o-que-cada-um-mede',
+        kind: 'match',
+        prompt: 'Ligue cada sigla ao que ela mede.',
+        left: ['Selic', 'CDI', 'IPCA', 'TR'],
+        right: [
+          'A taxa básica de juros, que o Copom define',
+          'A taxa média dos empréstimos de um dia entre bancos',
+          'A inflação, a alta dos preços ao consumidor',
+          'Uma taxa do Banco Central calculada a partir dos juros de títulos públicos',
+        ],
+        answer: [0, 1, 2, 3],
         explanation:
-          'A TR acompanha os juros dos títulos públicos. Com juros baixos ela chegou a ficar zerada, mas com juros altos fica positiva. Ela entra no cálculo da poupança e de financiamentos.',
+          'A Selic é a meta do Copom, e o CDI anda colado nela. O IPCA mede a inflação. A TR vem dos juros dos títulos públicos: já ficou zerada, mas não é sempre zero.',
       },
       {
         type: 'widget',

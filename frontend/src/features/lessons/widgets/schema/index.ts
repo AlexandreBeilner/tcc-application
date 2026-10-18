@@ -385,7 +385,15 @@ const categorizeCheckBlock = z.object({
     items: z.array(z.string().min(1)).min(3).max(6),
 })
 
-const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock, orderCheckBlock, categorizeCheckBlock])
+// Ligar pares (LJ.2.5): a esquerda na ordem de autoria e a direita embaralhada pelo servidor.
+const matchCheckBlock = z.object({
+    ...checkBase,
+    kind: z.literal('match'),
+    left: z.array(z.string().min(1)).min(3).max(5),
+    right: z.array(z.string().min(1)).min(3).max(5),
+})
+
+const checkBlock = z.union([choiceCheckBlock, estimateCheckBlock, orderCheckBlock, categorizeCheckBlock, matchCheckBlock])
 
 // "Saiba mais" (LJ.5.7): detalhe recolhido, colado ao cartão anterior. Só texto e widget (sem pergunta).
 const moreBlock = z.object({
@@ -418,6 +426,7 @@ export type ChoiceBlock = Extract<CheckBlock, { kind: 'single' | 'true_false' }>
 export type EstimateBlock = Extract<CheckBlock, { kind: 'estimate' }>
 export type OrderBlock = Extract<CheckBlock, { kind: 'order' }>
 export type CategorizeBlock = Extract<CheckBlock, { kind: 'categorize' }>
+export type MatchBlock = Extract<CheckBlock, { kind: 'match' }>
 
 // Ausente ou fora do contrato vira `null` (o player usa o texto legado).
 export function parseLessonBlocks(raw: unknown): LessonBlocks | null {

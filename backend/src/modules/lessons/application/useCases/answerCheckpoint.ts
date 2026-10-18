@@ -5,6 +5,7 @@ import {
   LessonNotFoundError,
 } from '../../domain/errors'
 import { buildProgression } from '../../domain/lesson'
+import type { CheckpointRecord } from '../../domain/lesson'
 import {
   classifyEstimate,
   findCheckBlock,
@@ -40,6 +41,9 @@ export interface AnswerCheckpointResult {
   estimate?: EstimateResult
   // Formatos de várias peças, só ao errar (LJ-D2): quantas peças estão certas, sem dizer quais.
   hint?: CheckHint
+  // Só ligar pares (LJ-D3): o veredito do par enviado e os pares já travados. Nesse formato `correct`
+  // vale para a pergunta inteira (todos os pares ligados), e o `explanation` só vem nesse momento.
+  match?: { pairCorrect: boolean; pairs: [number, number][] }
 }
 
 // Pergunta intermediária da lição (`check`, RC.3.2): mesmas regras da pergunta
@@ -88,6 +92,20 @@ export class AnswerCheckpointUseCase {
     const hint = correct ? undefined : hintFor(block, input)
     const extras = { ...estimate, ...(hint ? { hint } : {}) }
 
+    if (readOnly && block.kind === 'match') {
+      // Sem estado: o par é conferido e a tela guarda os pares travados. Em revisão a explicação vem
+      // junto de cada par certo (a pergunta já foi resolvida, não há gabarito a esconder).
+      const locked = existing?.lastResponse?.kind === 'match' ? existing.lastResponse.pairs : []
+      return {
+        correct,
+        attempts: existing?.attempts ?? 0,
+        firstTry: false,
+        wrongOptions: [],
+        ...explanation,
+        match: { pairCorrect: correct, pairs: locked },
+      }
+    }
+
     if (readOnly) {
       return {
         correct,
@@ -97,6 +115,10 @@ export class AnswerCheckpointUseCase {
         ...explanation,
         ...extras,
       }
+    }
+
+    if (block.kind === 'match') {
+      return this.answerMatchPair(input, block, correct, existing)
     }
 
     const saved = await this.lessonRepository.recordCheckpointAnswer(
@@ -133,6 +155,46 @@ export class AnswerCheckpointUseCase {
       wrongOptions: saved.wrongOptions,
       ...explanation,
       ...extras,
+    }
+  }
+
+  // Ligar pares (LJ-D3): cada chamada confere um par. O par certo trava e entra em `last_response`; o
+  // errado só conta um erro (o "de primeira" é nenhum erro). Resolve quando todos os pares travam.
+  private async answerMatchPair(
+    input: AnswerCheckpointInput,
+    block: Extract<CheckBlock, { kind: 'match' }>,
+    pairCorrect: boolean,
+    existing: CheckpointRecord | undefined,
+  ): Promise<AnswerCheckpointResult> {
+    const prior =
+      existing?.lastResponse?.kind === 'match' ? existing.lastResponse : { pairs: [], misses: 0 }
+    const [left, right] = input.pair as [number, number]
+    if (prior.pairs.some(([l, r]) => l === left || r === right)) {
+      throw new InvalidCheckpointResponseError('este item já está ligado')
+    }
+    const pairs: [number, number][] = pairCorrect ? [...prior.pairs, [left, right]] : prior.pairs
+    const misses = pairCorrect ? prior.misses : prior.misses + 1
+    const done = pairs.length === block.left.length
+
+    const saved = await this.lessonRepository.recordCheckpointAnswer(
+      input.userId,
+      input.lessonId,
+      input.checkpointId,
+      {
+        choice: null,
+        correct: done,
+        solved: done,
+        answeredAt: this.clock(),
+        lastResponse: { kind: 'match', pairs, misses },
+      },
+    )
+    return {
+      correct: done,
+      attempts: saved.attempts,
+      firstTry: done && misses === 0,
+      wrongOptions: [],
+      ...(done ? { explanation: block.explanation } : {}),
+      match: { pairCorrect, pairs },
     }
   }
 }

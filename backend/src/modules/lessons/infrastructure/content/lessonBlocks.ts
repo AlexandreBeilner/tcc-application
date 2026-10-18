@@ -494,6 +494,23 @@ const checkBlock = z.discriminatedUnion('kind', [
       path: ['answer'],
       message: 'todo grupo precisa receber ao menos um item',
     }),
+  // Ligar pares (LJ.2.5): 3 a 5 pares; `answer[i]` é o índice da direita que casa com `left[i]`.
+  z
+    .object({
+      ...checkBase,
+      kind: z.literal('match'),
+      left: z.array(z.string().min(1)).min(3).max(5),
+      right: z.array(z.string().min(1)).min(3).max(5),
+      answer: z.array(z.number().int().min(0)),
+    })
+    .refine(
+      (b) =>
+        b.left.length === b.right.length &&
+        b.answer.length === b.left.length &&
+        new Set(b.answer).size === b.answer.length &&
+        b.answer.every((i) => i < b.right.length),
+      { path: ['answer'], message: 'answer precisa casar cada item da esquerda com um da direita' },
+    ),
 ])
 
 const textBlock = z.object({ type: z.literal('text'), markup: z.string().min(1) })

@@ -561,6 +561,44 @@ describe('lessonBlocksSchema', () => {
     })
   })
 
+  describe('ligar pares (LJ.2.5)', () => {
+    const match = {
+      type: 'check',
+      id: 'm1',
+      kind: 'match',
+      prompt: 'Ligue cada sigla ao que ela mede',
+      left: ['Selic', 'CDI', 'IPCA'],
+      right: ['Juro básico da economia', 'Taxa entre bancos', 'Inflação'],
+      answer: [0, 1, 2],
+      explanation: 'Porque sim.',
+    }
+    const withCheck = (check: unknown) => ({
+      schemaVersion: 1,
+      phases: { scenario: [check], microDecision: [], revelation: [] },
+    })
+
+    it('aceita ligar completo, com gabarito fora da ordem de autoria', () => {
+      expect(lessonBlocksSchema.safeParse(withCheck(match)).success).toBe(true)
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...match, answer: [2, 0, 1] })).success).toBe(
+        true,
+      )
+    })
+
+    it.each([
+      ['2 pares', { left: ['a', 'b'], right: ['c', 'd'], answer: [0, 1] }],
+      [
+        '6 pares',
+        { left: Array(6).fill('a'), right: Array(6).fill('b'), answer: [0, 1, 2, 3, 4, 5] },
+      ],
+      ['colunas de tamanhos diferentes', { right: ['a', 'b'] }],
+      ['gabarito repetido', { answer: [0, 0, 2] }],
+      ['gabarito fora da direita', { answer: [0, 1, 3] }],
+      ['gabarito curto', { answer: [0, 1] }],
+    ])('rejeita ligar inválido: %s', (_name, patch) => {
+      expect(lessonBlocksSchema.safeParse(withCheck({ ...match, ...patch })).success).toBe(false)
+    })
+  })
+
   it('rejeita mais de 7 checkpoints por lição', () => {
     const checks = Array.from({ length: 8 }, (_, i) => ({
       type: 'check',

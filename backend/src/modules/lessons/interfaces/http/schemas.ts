@@ -7,13 +7,15 @@ export const answerMicroDecisionBodySchema = z.object({
 })
 
 // Resposta por formato (LJ.2.1): `selectedOption` (única escolha ou verdadeiro/falso) ou
-// `value` (estimativa) ou `sequence` (ordenar) ou `groups` (agrupar), um dos quatro. O intervalo válido depende do bloco e é validado no
+// `value` (estimativa) ou `sequence` (ordenar) ou `groups` (agrupar) ou `pair` (ligar, um par por vez), um dos cinco. O intervalo válido depende do bloco e é validado no
 // caso de uso.
 export const answerCheckpointBodySchema = z.union([
   z.object({ selectedOption: z.number().int().min(0) }),
   z.object({ value: z.number().finite() }),
   z.object({ sequence: z.array(z.number().int().min(0)).min(2).max(12) }),
   z.object({ groups: z.array(z.number().int().min(0)).min(2).max(12) }),
+  // Ligar pares (LJ.2.5, LJ-D3): um par por chamada, `[esquerda, direita]`.
+  z.object({ pair: z.tuple([z.number().int().min(0), z.number().int().min(0)]) }),
 ])
 
 export const advanceLessonBodySchema = z.object({

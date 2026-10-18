@@ -788,6 +788,96 @@ describe('lessons routes', () => {
     })
   })
 
+  describe('ligar pares (LJ.2.5)', () => {
+    const right = ['Juro básico da economia', 'Taxa entre bancos', 'Inflação']
+    const lessonsWithMatch = lessons.map((lesson) =>
+      lesson.id === 'l1'
+        ? {
+            ...lesson,
+            blocks: {
+              schemaVersion: 1 as const,
+              phases: {
+                scenario: [
+                  {
+                    type: 'check' as const,
+                    id: 'm1',
+                    kind: 'match' as const,
+                    prompt: 'Ligue cada sigla ao que ela mede',
+                    left: ['Selic', 'CDI', 'IPCA'],
+                    right,
+                    answer: [0, 1, 2],
+                    explanation: 'Porque cada índice mede uma coisa.',
+                  },
+                ],
+                microDecision: [],
+                revelation: [],
+              },
+            },
+          }
+        : lesson,
+    )
+    const url = '/lessons/l1/checkpoints/m1/answer'
+
+    it('GET embaralha só a direita; par errado é recusado, par certo trava e o GET restaura os pares', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithMatch)
+      const auth = authHeader(tokenIssuer)
+
+      const before = await request(app).get('/lessons/l1').set('Authorization', auth)
+      const block = before.body.lesson.blocks.phases.scenario[0]
+      expect(block.left).toEqual(['Selic', 'CDI', 'IPCA'])
+      expect([...block.right].sort()).toEqual([...right].sort())
+      expect(block).not.toHaveProperty('answer')
+      const rightOf = (left: number) => block.right.indexOf(right[left])
+
+      const miss = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [0, (rightOf(0) + 1) % 3] })
+      expect(miss.body).toMatchObject({ correct: false, match: { pairCorrect: false, pairs: [] } })
+      expect(miss.body.explanation).toBeUndefined()
+
+      const hit = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [0, rightOf(0)] })
+      expect(hit.body).toMatchObject({ match: { pairCorrect: true, pairs: [[0, rightOf(0)]] } })
+
+      const mid = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(mid.body.lesson.checkpoints[0]).toMatchObject({
+        solved: false,
+        match: { pairs: [[0, rightOf(0)]] },
+      })
+
+      await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [1, rightOf(1)] })
+      const last = await request(app)
+        .post(url)
+        .set('Authorization', auth)
+        .send({ pair: [2, rightOf(2)] })
+      expect(last.body).toMatchObject({
+        correct: true,
+        firstTry: false,
+        explanation: 'Porque cada índice mede uma coisa.',
+      })
+      const done = await request(app).get('/lessons/l1').set('Authorization', auth)
+      expect(done.body.lesson.checkpoints[0]).toMatchObject({ solved: true, firstTry: false })
+    })
+
+    it('400 pra par malformado, fora do intervalo ou de outro formato; 400 ao religar item travado', async () => {
+      const { app, tokenIssuer } = buildApp(0, lessonsWithMatch)
+      const auth = authHeader(tokenIssuer)
+      const post = (body: unknown) => request(app).post(url).set('Authorization', auth).send(body)
+
+      expect((await post({ pair: [0] })).status).toBe(400)
+      expect((await post({ pair: [0, 3] })).status).toBe(400)
+      expect((await post({ pair: [-1, 0] })).status).toBe(400)
+      expect((await post({ groups: [0, 1, 2] })).status).toBe(400)
+      expect((await post({ pair: [0, 0] })).status).toBe(200)
+    })
+  })
+
   describe('POST /lessons/:id/cards/reached (LJ.5.1)', () => {
     const url = '/lessons/l1/cards/reached'
 

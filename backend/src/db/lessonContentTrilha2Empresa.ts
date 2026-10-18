@@ -503,12 +503,20 @@ export const BLOCKS_2_7_7: LessonBlocks = {
       },
       {
         type: 'check',
-        id: 'dividendo-do-passado',
-        kind: 'true_false',
-        prompt: 'Quem pagou muito dividendo no ano passado vai pagar o mesmo no próximo.',
-        answer: false,
+        id: 'pergunta-de-cada-indicador',
+        kind: 'match',
+        prompt: 'Ligue cada indicador à pergunta que ele responde.',
+        left: ['P/L', 'ROE', 'Margem líquida', 'Dívida líquida sobre EBIT', 'Dividend Yield'],
+        right: [
+          'Quanto o mercado paga por cada real de lucro?',
+          'Quanto os sócios ganham por cada real que é deles?',
+          'Quanto de cada real vendido vira lucro?',
+          'Em quantos anos de operação a dívida seria quitada?',
+          'Quanto a ação paga de dividendos frente ao preço?',
+        ],
+        answer: [0, 1, 2, 3, 4],
         explanation:
-          'O dividendo depende do lucro e da decisão da empresa. O Dividend Yield olha para trás e não garante nada.',
+          'Cada indicador responde a uma pergunta diferente. Todos olham para trás: o Dividend Yield, por exemplo, não garante o dividendo do próximo ano.',
       },
       {
         type: 'text',

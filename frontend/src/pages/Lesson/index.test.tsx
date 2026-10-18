@@ -1264,6 +1264,168 @@ describe('Lesson (tela 3.2)', () => {
             })
         })
 
+        describe('ligar pares (LJ.2.5)', () => {
+            const match = {
+                type: 'check',
+                id: 'm1',
+                kind: 'match',
+                prompt: 'Ligue cada sigla ao que ela mede',
+                left: ['Selic', 'CDI', 'IPCA'],
+                right: ['Inflação', 'Juro básico da economia', 'Taxa entre bancos'],
+            }
+            const pairResult = (pairCorrect: boolean, pairs: [number, number][], extra: object = {}) => ({
+                correct: false,
+                attempts: 1,
+                firstTry: false,
+                wrongOptions: [],
+                match: { pairCorrect, pairs },
+                ...extra,
+            })
+            const pick = (left: string, right: string) => {
+                fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${left}`) }))
+                fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${right}`) }))
+            }
+
+            it('cada par vai ao servidor na hora; o errado treme e se desfaz, o certo trava e o último libera o Continuar', async () => {
+                vi.mocked(getLesson).mockResolvedValue({ lesson: withChecks([match]) })
+                vi.mocked(answerCheckpoint)
+                    .mockResolvedValueOnce(pairResult(false, []))
+                    .mockResolvedValueOnce(pairResult(true, [[0, 1]]))
+                    .mockResolvedValueOnce(
+                        pairResult(true, [
+                            [0, 1],
+                            [1, 2],
+                        ]),
+                    )
+                    .mockResolvedValueOnce(
+                        pairResult(
+                            true,
+                            [
+                                [0, 1],
+                                [1, 2],
+                                [2, 0],
+                            ],
+                            { correct: true, firstTry: false, explanation: 'Cada índice mede uma coisa.' },
+                        ),
+                    )
+
+                renderLesson()
+                await screen.findByText('Ligue cada sigla ao que ela mede')
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+                pick('Selic', 'Inflação')
+                expect(await screen.findByText('Esse par não combina. Tente outro.')).toBeInTheDocument()
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'm1', { pair: [0, 0] })
+                expect(screen.getByRole('button', { name: /^Selic/ })).toBeEnabled()
+
+                pick('Selic', 'Juro básico')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^Selic.*par 1/ })).toBeDisabled())
+                expect(answerCheckpoint).toHaveBeenLastCalledWith('token-valido', 'lesson-1', 'm1', { pair: [0, 1] })
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+
+                pick('CDI', 'Taxa entre bancos')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^CDI.*par 2/ })).toBeDisabled())
+                pick('IPCA', 'Inflação')
+
+                expect(await screen.findByText('Ligou todos os pares.')).toBeInTheDocument()
+                expect(screen.getByText('Cada índice mede uma coisa.')).toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+
+            it('em revisão (sem estado) soma os pares certos na tela e resolve no último', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([match], {
+                        status: 'completed',
+                        currentStep: 3,
+                        checkpoints: [
+                            {
+                                checkpointId: 'm1',
+                                solved: true,
+                                attempts: 3,
+                                wrongOptions: [],
+                                firstTry: true,
+                                match: {
+                                    pairs: [
+                                        [0, 1],
+                                        [1, 2],
+                                        [2, 0],
+                                    ],
+                                },
+                            },
+                        ],
+                    }),
+                })
+                // Sem estado no servidor: cada resposta só diz se aquele par está certo.
+                vi.mocked(answerCheckpoint).mockResolvedValue(
+                    pairResult(true, [], { correct: true, explanation: 'Cada índice mede uma coisa.' }),
+                )
+
+                renderLesson()
+                await screen.findByText('Ligue cada sigla ao que ela mede')
+
+                pick('Selic', 'Juro básico')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^Selic.*par 1/ })).toBeDisabled())
+                expect(screen.queryByText('Tudo ligado.')).not.toBeInTheDocument()
+                pick('CDI', 'Taxa entre bancos')
+                await waitFor(() => expect(screen.getByRole('button', { name: /^CDI.*par 2/ })).toBeDisabled())
+                pick('IPCA', 'Inflação')
+
+                expect(await screen.findByText('Tudo ligado.')).toBeInTheDocument()
+            })
+
+            it('restaura os pares já travados no meio do caminho', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([match], {
+                        checkpoints: [
+                            {
+                                checkpointId: 'm1',
+                                solved: false,
+                                attempts: 1,
+                                wrongOptions: [],
+                                firstTry: false,
+                                match: { pairs: [[1, 2]] },
+                            },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByRole('button', { name: /^CDI.*par 1/ })).toBeDisabled()
+                expect(screen.getByRole('button', { name: /^Taxa entre bancos.*par 1/ })).toBeDisabled()
+                expect(screen.getByRole('button', { name: /^Selic/ })).toBeEnabled()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+            })
+
+            it('restaura a pergunta resolvida', async () => {
+                vi.mocked(getLesson).mockResolvedValue({
+                    lesson: withChecks([match], {
+                        checkpoints: [
+                            {
+                                checkpointId: 'm1',
+                                solved: true,
+                                attempts: 3,
+                                wrongOptions: [],
+                                firstTry: true,
+                                match: {
+                                    pairs: [
+                                        [0, 1],
+                                        [1, 2],
+                                        [2, 0],
+                                    ],
+                                },
+                            },
+                        ],
+                    }),
+                })
+
+                renderLesson()
+
+                expect(await screen.findByText('Você já resolveu esta pergunta.')).toBeInTheDocument()
+                expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+            })
+        })
+
         it('restaura o estado do servidor ao voltar: erro desativado e pergunta resolvida liberada', async () => {
             vi.mocked(getLesson).mockResolvedValue({
                 lesson: withChecks([check], {

@@ -409,4 +409,105 @@ describe('AnswerCheckpointUseCase', () => {
       ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
     })
   })
+  describe('ligar pares (LJ-D3)', () => {
+    const block = {
+      type: 'check' as const,
+      id: 'm1',
+      kind: 'match' as const,
+      prompt: 'Ligue cada sigla ao que ela mede',
+      left: ['Selic', 'CDI', 'IPCA'],
+      right: ['Juro básico da economia', 'Taxa entre bancos', 'Inflação'],
+      answer: [0, 1, 2],
+      explanation: 'porque cada índice mede uma coisa',
+    }
+    const lesson: LessonSummary = {
+      ...base,
+      blocks: {
+        schemaVersion: 1,
+        phases: { scenario: [block], microDecision: [], revelation: [] },
+      },
+    }
+    const shownRight = (
+      toPublicBlocks(lesson.blocks)?.phases.scenario[0] as unknown as { right: string[] }
+    ).right
+    // Posição, como o cliente a recebe, da resposta certa de cada item da esquerda.
+    const rightOf = (left: number) => shownRight.indexOf(block.right[left] as string)
+    const wrongOf = (left: number) => (rightOf(left) + 1) % 3
+
+    function buildMatch() {
+      const repo = createFakeLessonRepository([lesson])
+      return { repo, useCase: new AnswerCheckpointUseCase(repo, () => new Date('2026-02-01')) }
+    }
+    const send = (useCase: AnswerCheckpointUseCase, pair: [number, number]) =>
+      useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'm1', pair })
+
+    it('par certo trava e não resolve a pergunta; a explicação só vem no último', async () => {
+      const { repo, useCase } = buildMatch()
+
+      const first = await send(useCase, [0, rightOf(0)])
+      expect(first).toMatchObject({
+        correct: false,
+        match: { pairCorrect: true, pairs: [[0, rightOf(0)]] },
+      })
+      expect(first.explanation).toBeUndefined()
+
+      await send(useCase, [1, rightOf(1)])
+      const last = await send(useCase, [2, rightOf(2)])
+      expect(last).toMatchObject({
+        correct: true,
+        firstTry: true,
+        explanation: 'porque cada índice mede uma coisa',
+      })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.solvedAt).not.toBeNull()
+      expect(record.lastResponse).toMatchObject({ kind: 'match', misses: 0 })
+    })
+
+    it('par errado é recusado na hora, sem explicação, e tira o "de primeira"', async () => {
+      const { repo, useCase } = buildMatch()
+
+      const miss = await send(useCase, [0, wrongOf(0)])
+      expect(miss).toMatchObject({ correct: false, match: { pairCorrect: false, pairs: [] } })
+      expect(miss.explanation).toBeUndefined()
+
+      await send(useCase, [0, rightOf(0)])
+      await send(useCase, [1, rightOf(1)])
+      const last = await send(useCase, [2, rightOf(2)])
+      expect(last).toMatchObject({ correct: true, firstTry: false })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.lastResponse).toMatchObject({ misses: 1 })
+    })
+
+    it('recusa ligar de novo um item que já está travado', async () => {
+      const { useCase } = buildMatch()
+      await send(useCase, [0, rightOf(0)])
+
+      await expect(send(useCase, [0, rightOf(1)])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+      await expect(send(useCase, [1, rightOf(0)])).rejects.toBeInstanceOf(
+        InvalidCheckpointResponseError,
+      )
+    })
+
+    it('rejeita par fora do intervalo e resposta de outro formato', async () => {
+      const { useCase } = buildMatch()
+
+      await expect(send(useCase, [3, 0])).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+      await expect(
+        useCase.execute({ userId: 'u1', lessonId: 'l1', checkpointId: 'm1', selectedOption: 0 }),
+      ).rejects.toBeInstanceOf(InvalidCheckpointResponseError)
+    })
+
+    it('depois de resolvida a pergunta vira leitura: o par é conferido sem gravar', async () => {
+      const { repo, useCase } = buildMatch()
+      for (const left of [0, 1, 2]) await send(useCase, [left, rightOf(left)])
+
+      const again = await send(useCase, [0, wrongOf(0)])
+
+      expect(again).toMatchObject({ correct: false, match: { pairCorrect: false } })
+      const [record] = await repo.listCheckpointsForUser('u1', 'l1')
+      expect(record.lastResponse).toMatchObject({ misses: 0 })
+    })
+  })
 })

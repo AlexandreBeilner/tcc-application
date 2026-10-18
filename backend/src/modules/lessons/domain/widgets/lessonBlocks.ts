@@ -114,6 +114,18 @@ export type CheckBlock =
       answer: number[]
       explanation: string
     }
+  // Ligar pares (LJ.2.5): `answer[i]` é o índice (de `right`, na ordem de autoria) que casa com `left[i]`.
+  // O cliente recebe `right` embaralhado e confere um par por vez (LJ-D3).
+  | {
+      type: 'check'
+      id: string
+      kind: 'match'
+      prompt: string
+      left: string[]
+      right: string[]
+      answer: number[]
+      explanation: string
+    }
 
 export type EstimateUnit = 'brl' | 'pct' | 'years' | 'none'
 
@@ -165,6 +177,9 @@ export interface PublicCheckBlock {
   // `order`: itens embaralhados (ver `shuffledIndices`). `categorize`: itens na ordem de autoria e os grupos.
   items?: string[]
   groups?: string[]
+  // `match`: coluna da esquerda na ordem de autoria e a da direita embaralhada.
+  left?: string[]
+  right?: string[]
   lowLabel?: string
   highLabel?: string
 }
@@ -206,6 +221,17 @@ function toPublicBlock(block: LessonBlock): PublicLessonBlock {
       kind: 'estimate',
       prompt: block.prompt,
       range: { min: block.min, max: block.max, step: block.step, unit: block.unit },
+    }
+  }
+  if (block.kind === 'match') {
+    const shuffle = matchShuffle(block)
+    return {
+      type: 'check',
+      id: block.id,
+      kind: 'match',
+      prompt: block.prompt,
+      left: block.left,
+      right: shuffle.map((authored) => block.right[authored] as string),
     }
   }
   if (block.kind === 'categorize') {
@@ -289,6 +315,8 @@ export interface CheckResponse {
   sequence?: number[]
   // Agrupar: o grupo escolhido para cada item, na ordem dos itens.
   groups?: number[]
+  // Ligar: um par por vez, `[índice da esquerda, índice da direita como o cliente o recebeu]`.
+  pair?: [number, number]
 }
 
 // Quantas peças a resposta acertou, para a dica de contagem dos formatos de várias peças (LJ-D2).
@@ -351,6 +379,21 @@ export function scoreOrder(block: OrderBlock, sequence: number[]): CheckHint {
     (publicIndex, position) => shuffle[publicIndex] === block.answer[position],
   ).length
   return { correctCount, total: block.items.length }
+}
+
+type MatchBlock = Extract<CheckBlock, { kind: 'match' }>
+
+// `shuffle[j]` é o índice de autoria do item da direita que o cliente vê na posição `j`. Nunca nasce
+// com todos os pares já alinhados linha a linha.
+function matchShuffle(block: MatchBlock): number[] {
+  return shuffledIndices(block.right.length, block.id, (permutation) =>
+    permutation.every((authored, position) => authored === block.answer[position]),
+  )
+}
+
+// O par `[esquerda, direita embaralhada]` está certo?
+export function isPairCorrect(block: MatchBlock, pair: [number, number]): boolean {
+  return matchShuffle(block)[pair[1]] === block.answer[pair[0]]
 }
 
 type CategorizeBlock = Extract<CheckBlock, { kind: 'categorize' }>
@@ -428,6 +471,19 @@ export function isValidCheckResponse(block: CheckBlock, response: CheckResponse)
       sequence.every((i) => Number.isInteger(i) && i >= 0 && i < block.items.length)
     )
   }
+  if (block.kind === 'match') {
+    const { pair } = response
+    return (
+      Array.isArray(pair) &&
+      pair.length === 2 &&
+      Number.isInteger(pair[0]) &&
+      Number.isInteger(pair[1]) &&
+      pair[0] >= 0 &&
+      pair[0] < block.left.length &&
+      pair[1] >= 0 &&
+      pair[1] < block.right.length
+    )
+  }
   if (block.kind === 'categorize') {
     const { groups } = response
     return (
@@ -453,6 +509,10 @@ export function isCheckCorrect(block: CheckBlock, response: CheckResponse): bool
   if (block.kind === 'order') {
     const { correctCount, total } = scoreOrder(block, response.sequence as number[])
     return correctCount === total
+  }
+  // Ligar confere um par por vez: aqui "correto" é o par enviado.
+  if (block.kind === 'match') {
+    return isPairCorrect(block, response.pair as [number, number])
   }
   if (block.kind === 'categorize') {
     const { correctCount, total } = scoreCategorize(block, response.groups as number[])

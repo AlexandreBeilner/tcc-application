@@ -25,6 +25,19 @@ export const GAME_SWAPS: GameSwap[] = [
   { stableKey: '1.5', kind: 'order', oldId: 'ir-90-dias', newId: 'ordem-aliquotas' },
   { stableKey: '2.2', kind: 'order', oldId: 'dinheiro-no-secundario', newId: 'etapas-da-oferta' },
   { stableKey: '2.6.1', kind: 'order', oldId: 'ebit-x-lucro', newId: 'ordem-do-resultado' },
+  {
+    stableKey: 'juros-selic-cdi-tr',
+    kind: 'match',
+    oldId: 'tr-sempre-zero',
+    newId: 'o-que-cada-um-mede',
+  },
+  { stableKey: '2.3', kind: 'match', oldId: 'final-onze', newId: 'finais-do-ticker' },
+  {
+    stableKey: '2.6.6',
+    kind: 'match',
+    oldId: 'dividendo-do-passado',
+    newId: 'pergunta-de-cada-indicador',
+  },
   { stableKey: '1.1', kind: 'categorize', oldId: 'tipo-hibrido', newId: 'tipos-de-regra' },
   { stableKey: '2.8', kind: 'categorize', oldId: 'setor-defensivo', newId: 'ciclico-ou-defensivo' },
   {
