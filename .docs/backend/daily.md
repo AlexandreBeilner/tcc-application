@@ -12,7 +12,7 @@ Módulo: `backend/src/modules/daily/`. Jogo diário com três cartões, igual pa
 - **Sem login o servidor não guarda estado:** o progresso anônimo fica no navegador. Nada jogado sem login é importado (DI8).
 - **Com login** (`Authorization: Bearer`, opcional nas quatro rotas de jogo; um token inválido é `401`, nunca vira anônimo em silêncio) as mesmas rotas gravam em `daily_results`: uma tentativa válida por cartão por jogo, com os palpites e as respostas dadas (nunca o gabarito). Gravação e fechamento do jogo são uma operação só, com a linha travada: com duas abas só uma chamada fecha o jogo e só ela concede XP e streak.
 - **Resposta que fecha o jogo** traz `completion` (só logado): `{ "correctCards": 0-3, "xpAwarded": number }`. **Só o jogo do dia, concluído antes da virada, vale XP** (DI6: 20 + 10 por cartão certo, de 20 a 50) e toca o streak principal (DI4); nesse caso `completion` traz também `level`, `leveledUp`, `streakMilestone` (`7`, `30` ou `null`) e `unlockedAchievements` (`{ id, name, description }[]`, inclui as conquistas por qualidade do Diário, DI.6.1: ver `.docs/backend/achievements.md`), para o teatro de recompensa. Dia anterior, ou jogo começado num dia e concluído depois da virada, fecha com `xpAwarded: 0`, sem `level` e sem tocar streak.
-- **CORS:** estas quatro rotas aceitam também a origem da landing (`LANDING_URL`, padrão `https://selucra.com.br`), sem credenciais. O resto da API continua só com a origem do app (`FRONTEND_URL`).
+- **CORS:** estas rotas (as quatro de jogo e `POST /daily/metrics`) aceitam também a origem da landing (`LANDING_URL`, padrão `https://selucra.com.br`), sem credenciais. O resto da API continua só com a origem do app (`FRONTEND_URL`).
 - **Rate limit:** 120 requisições por minuto por IP (IP real atrás do proxy, `TRUSTED_PROXY_HOPS`), `429` com `Retry-After`.
 - **Conteúdo servido: só jogo publicado** (ponto 058, decisão (b), 2026-10-17). A agenda materializa, o admin revisa e publica no painel (seção "Painel" abaixo). Jogo materializado e não publicado responde como se não existisse: hoje é `503 game_unavailable`, dia anterior é `404`.
 
@@ -117,6 +117,16 @@ A ordem de `timeline.events` é a de exibição (embaralhada de propósito). `is
 
 ---
 
+### `POST /daily/metrics`
+
+- **Autenticação:** público (nenhum token é lido).
+- **Payload:** `{ "event": "started" | "completed" | "signup" | "login" }`, **só isso** (campo extra é `400`). `started` e `completed` vêm da página pública da landing (um jogo de **hoje** começou ou terminou, uma vez por navegador); `signup` e `login` vêm do app, de quem chegou com `?origem=diario`.
+- **Sucesso:** `204`, sem corpo.
+- **Erros:** `400` payload inválido; `429` rate limit de `/daily`.
+- **Regra:** `RecordDailyMetricUseCase` soma 1 ao contador do dia UTC em que o aviso chegou (`daily_metrics`, PK `(metric_date, metric)`, upsert atômico). **Nada de pessoa é gravado**: sem usuário, IP, aparelho ou número de jogo, só o nome do evento e o dia (DI.7.1). O contador é uma estimativa (o aviso vem do navegador, então quem limpa os dados pode contar de novo e qualquer um pode chamar a rota); quem tem conta é medido por `daily_results`, que não passa por aqui.
+
+---
+
 ### `GET /daily/me/stats`
 
 - **Autenticação:** Bearer token.
@@ -144,6 +154,13 @@ Erros comuns: `400` formato (Zod); `404` item ou jogo inexistente; `409 { error,
   - `days[]`: `{ number, date, reviewed, published, origins: { word, question, timeline }, word, question, events[] }`, com categoria e marcador `brasil`/`fora` de cada cartão. Até 45 dias a partir de `agenda_from` (hoje no ar; a estreia quando agendado; o primeiro rascunho quando desligado).
   - `coverage`: `{ window_days: 30, word, trivia, timeline }`, cada um `{ total, brasil, fora, by_category }` (a Linha do tempo conta eventos).
   - `bank`: itens ativos (`words`, `questions`, `events`) e `accepted_extra`.
+
+### `GET /admin/daily/metrics`
+
+- **Payload:** query `days` (inteiro de 1 a 90, padrão 30).
+- **Sucesso:** `200 { "days": [{ "date", "anon_started", "anon_completed", "logged_started", "logged_completed", "signups", "logins" }] }`, um por dia UTC, do mais recente ao mais antigo, com zero nos dias sem registro. `logged_*` saem de `daily_results` (iniciados pelo dia UTC de `started_at`, concluídos pelo de `completed_at`, inclusive dia anterior e fechado depois da virada: é o jogo, não o XP); `anon_*`, `signups` e `logins` são os contadores de `POST /daily/metrics`.
+- **Erros:** `400` `days` inválido; `401`/`403`.
+- **Regra:** `GetDailyMetricsUseCase`. Leitura, sem auditoria.
 
 ### `POST /admin/daily/draft`
 
