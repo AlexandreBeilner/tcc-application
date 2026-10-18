@@ -53,6 +53,11 @@ import {
 import { createDrizzleEmailOutboxHealthReader } from './modules/admin/infrastructure/health/emailOutboxHealthReader'
 import { GetSystemHealthUseCase } from './modules/admin/application/useCases/getSystemHealth'
 import { GetAdminOverviewUseCase } from './modules/admin/application/useCases/getAdminOverview'
+import { createDrizzleRetentionReader } from './modules/admin/infrastructure/persistence/drizzleRetentionReader'
+import { GetActiveUsersUseCase } from './modules/admin/application/useCases/getActiveUsers'
+import { GetMilestoneTimesUseCase } from './modules/admin/application/useCases/getMilestoneTimes'
+import { GetRetentionCohortsUseCase } from './modules/admin/application/useCases/getRetentionCohorts'
+import { createAdminRetentionRouter } from './modules/admin/interfaces/http/adminRetentionRouter'
 import { createAdminSystemRouter } from './modules/admin/interfaces/http/adminSystemRouter'
 import { createEngineMarketMonitorReader } from './modules/admin/infrastructure/engine/engineMarketMonitorReader'
 import { ListMarketMonitorUseCase } from './modules/admin/application/useCases/listMarketMonitor'
@@ -1230,6 +1235,15 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminSystemRouter({ getSystemHealth, getAdminOverview, authMiddleware }))
+  const retentionReader = createDrizzleRetentionReader(db)
+  app.use(
+    createAdminRetentionRouter({
+      getRetentionCohorts: new GetRetentionCohortsUseCase(retentionReader),
+      getActiveUsers: new GetActiveUsersUseCase(retentionReader),
+      getMilestoneTimes: new GetMilestoneTimesUseCase(retentionReader),
+      authMiddleware,
+    }),
+  )
   app.use(createAdminMarketRouter({ listMarketMonitor, getMarketMonitorAsset, authMiddleware }))
   app.use(
     createAdminHaltsRouter({ listTradingHalts, pauseTrading, liftTradingHalt, authMiddleware }),

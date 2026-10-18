@@ -689,3 +689,10 @@ export const dailyEventUpdateBodySchema = z
   .refine((b) => Object.keys(b).some((k) => k !== 'confirm_published'), {
     message: 'informe pelo menos um campo a alterar',
   })
+
+// GET /admin/retention (RT.1.2) — `weeks` limita as coortes semanais (a mais antiga é a semana de
+// hoje menos `weeks - 1`), `days` o gráfico de ativos por dia. Tetos de 52 semanas e 180 dias.
+export const retentionQuerySchema = z.object({
+  weeks: z.coerce.number().int().min(1).max(52).default(12),
+  days: z.coerce.number().int().min(7).max(180).default(60),
+})
