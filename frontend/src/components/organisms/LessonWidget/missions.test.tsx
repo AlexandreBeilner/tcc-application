@@ -88,6 +88,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'differenceBRL', op: 'gte', value: 10000 },
         showMe: { feeBPct: 0.3 },
     },
+    {
+        lesson: '3.1',
+        widget: 'allocation-donut',
+        initial: { profile: 'conservative', amount: 10000 },
+        goal: { metric: 'maxSharePct', op: 'lt', value: 40 },
+        showMe: { postFixedPct: 35, longerFixedPct: 30, fiiPct: 15, stocksPct: 20 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props, validadas pelo schema como o player faz
@@ -215,6 +222,17 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(lost(0.3)).toBeCloseTo(13726.3, 0)
         // A taxa da estimativa (2% em 30 anos) fica longe do ponto de partida do widget: não entrega a resposta dela.
         expect(lost(2)).toBeCloseTo(73867.5, 0)
+    })
+
+    it('3.1: os três perfis de exemplo não cumprem (o moderado fica em 40%, que não é menos de 40%), e soma fora de 100% não conta', () => {
+        const maxShare = (props: Record<string, unknown>) => metricsOf('allocation-donut', props).maxSharePct
+        expect(maxShare({ profile: 'conservative' })).toBe(70)
+        expect(maxShare({ profile: 'moderate' })).toBe(40)
+        expect(maxShare({ profile: 'aggressive' })).toBe(55)
+        // Quatro fatias de 25%.
+        expect(maxShare({ postFixedPct: 25, longerFixedPct: 25, fiiPct: 25, stocksPct: 25 })).toBe(25)
+        // Quatro sliders em 30% somam 120%: o donut é proporcional, mas a carteira não está montada.
+        expect(maxShare({ postFixedPct: 30, longerFixedPct: 30, fiiPct: 30, stocksPct: 30 })).toBe(Infinity)
     })
 
     describe('2.4: ordem limitada de compra executada (o widget só informa depois de "Enviar ordem")', () => {

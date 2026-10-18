@@ -37,6 +37,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<string, readonly string[]>> 
     'interactive-balance': ['netIncome'],
     'roe-lab': ['roeMinusSelicPp'],
     'fee-drag': ['differenceBRL'],
+    'allocation-donut': ['maxSharePct'],
     'real-return': ['realReturnPct'],
     'savings-vs-selic': ['savingsGapPct'],
 }

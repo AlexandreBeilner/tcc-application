@@ -107,6 +107,14 @@ const EXPECTED: Expected[] = [
     op: 'gte',
     value: 10000,
   },
+  {
+    lesson: '3.1',
+    id: 'pesos-da-carteira',
+    widget: 'allocation-donut',
+    metric: 'maxSharePct',
+    op: 'lt',
+    value: 40,
+  },
 ]
 
 function goalsOf(code: string) {

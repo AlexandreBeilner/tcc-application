@@ -53,8 +53,17 @@ export const BLOCKS_3_1: LessonBlocks = {
         type: 'widget',
         id: 'pesos-da-carteira',
         widget: 'allocation-donut',
-        props: { profile: 'moderate', amount: 10000 },
+        props: { profile: 'conservative', amount: 10000 },
         caption: 'Mude os pesos e veja quanto cada classe pesa num ano ruim. Valores ilustrativos.',
+        goal: {
+          text: 'Monte uma carteira em que nenhuma fatia chegue a 40% e a soma feche em 100%',
+          metric: 'maxSharePct',
+          op: 'lt',
+          value: 40,
+          reveal:
+            'Quando nenhuma fatia domina, o problema de uma classe pesa pouco no total. Diversificar é espalhar o dinheiro para que nenhuma parte decida sozinha o resultado.',
+          showMe: { postFixedPct: 35, longerFixedPct: 30, fiiPct: 15, stocksPct: 20 },
+        },
       },
       {
         type: 'text',

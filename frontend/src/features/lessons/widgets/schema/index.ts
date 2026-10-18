@@ -276,6 +276,10 @@ export const widgetPropsSchemas = {
     'allocation-donut': z.object({
         profile: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
         amount: z.number().min(100).max(1_000_000).default(10000),
+        postFixedPct: z.number().min(0).max(100).optional(),
+        longerFixedPct: z.number().min(0).max(100).optional(),
+        fiiPct: z.number().min(0).max(100).optional(),
+        stocksPct: z.number().min(0).max(100).optional(),
     }),
     'risk-profile-quiz': emptyProps,
     'behavior-bias-quiz': emptyProps,
