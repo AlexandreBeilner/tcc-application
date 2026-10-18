@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { dupont, formatMillions, formatPct, formatRatio } from '../../../features/lessons/widgets/companyMath'
 import type { RoeLabWidgetProps } from './types'
 import styles from '../LessonWidget/widgetControls.module.css'
@@ -9,7 +9,7 @@ export type { RoeLabWidgetProps } from './types'
 // e alavancagem (DuPont). O aluno mexe na parte do ativo financiada por dívida,
 // com o lucro fixo, e vê o ROE subir só porque o patrimônio encolheu. A Selic
 // de referência é um exemplo, editável, para comparar com a renda fixa.
-export function RoeLabWidget({ revenue, netIncome, assets, equity, selicPct }: RoeLabWidgetProps) {
+export function RoeLabWidget({ revenue, netIncome, assets, equity, selicPct, onMetrics }: RoeLabWidgetProps) {
     const initialDebtPct = Math.min(95, Math.max(0, Math.round(((assets - equity) / assets) * 100)))
     const [debtPct, setDebtPct] = useState(initialDebtPct)
     const [selic, setSelic] = useState(selicPct)
@@ -17,6 +17,9 @@ export function RoeLabWidget({ revenue, netIncome, assets, equity, selicPct }: R
     const currentEquity = assets * (1 - debtPct / 100)
     const d = dupont(revenue, netIncome, assets, currentEquity)
     const premium = d.roePct === null ? null : d.roePct - selic
+    // Sem patrimônio positivo não há ROE: nunca cumpre a missão.
+    const roeMinusSelicPp = premium ?? -Infinity
+    useEffect(() => onMetrics?.({ roeMinusSelicPp }), [roeMinusSelicPp, onMetrics])
 
     return (
         <div className={styles.root}>

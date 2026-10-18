@@ -74,6 +74,13 @@ const MISSION_CASES: MissionCase[] = [
         goal: { metric: 'netIncome', op: 'gt', value: 0 },
         showMe: { costsPct: 60 },
     },
+    {
+        lesson: '2.7.4',
+        widget: 'roe-lab',
+        initial: { netIncome: 50 },
+        goal: { metric: 'roeMinusSelicPp', op: 'gt', value: 0 },
+        showMe: { equity: 400 },
+    },
 ]
 
 // Últimas métricas que o widget informa ao ser montado com essas props, validadas pelo schema como o player faz
@@ -183,6 +190,15 @@ describe('missões das Trilhas 1 a 3 e F (LJ.3.4)', () => {
         expect(netIncome(75)).toBeCloseTo(0, 6)
         expect(netIncome(74)).toBeCloseTo(7, 6)
         expect(netIncome(60)).toBeCloseTo(105, 6)
+    })
+
+    it('2.7.4: com lucro de 50 e ativo de 1.000, o ROE começa em 10% (abaixo da Selic de 10,5%) e passa dela com 55% de dívida', () => {
+        // A dívida inicial é 50% do ativo (patrimônio de 500); o controle anda de 5 em 5 pontos.
+        expect(metricsOf('roe-lab', { netIncome: 50 }).roeMinusSelicPp).toBeCloseTo(-0.5, 6)
+        // Patrimônio de 450 (55% de dívida): 50 / 450 = 11,11%.
+        expect(metricsOf('roe-lab', { netIncome: 50, equity: 450 }).roeMinusSelicPp).toBeCloseTo(0.611, 3)
+        // O "Me mostra" (patrimônio de 400): 12,5% de ROE, 2 pontos acima.
+        expect(metricsOf('roe-lab', { netIncome: 50, equity: 400 }).roeMinusSelicPp).toBeCloseTo(2, 6)
     })
 
     describe('2.4: ordem limitada de compra executada (o widget só informa depois de "Enviar ordem")', () => {

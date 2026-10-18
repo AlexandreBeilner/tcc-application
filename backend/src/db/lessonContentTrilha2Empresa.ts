@@ -317,9 +317,18 @@ export const BLOCKS_2_7_4: LessonBlocks = {
         type: 'widget',
         id: 'laboratorio-de-roe',
         widget: 'roe-lab',
-        props: {},
+        props: { netIncome: 50 },
         caption:
           'O ROE é margem vezes giro vezes alavancagem. Mude a dívida e veja o ROE subir junto com o risco.',
+        goal: {
+          text: 'Leve o ROE acima da Selic de referência sem mexer na Selic',
+          metric: 'roeMinusSelicPp',
+          op: 'gt',
+          value: 0,
+          reveal:
+            'O lucro não mudou: o ROE subiu porque a dívida encolheu o patrimônio dos sócios. Um ROE acima da Selic parece bom, mas o risco subiu junto.',
+          showMe: { equity: 400 },
+        },
       },
       {
         type: 'check',

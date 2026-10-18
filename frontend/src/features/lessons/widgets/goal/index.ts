@@ -35,6 +35,7 @@ export const WIDGET_MISSION_METRICS: Partial<Record<string, readonly string[]>> 
     'breakeven-inflation': ['inflationAboveBreakevenPp'],
     'order-book': ['limitFilledQty'],
     'interactive-balance': ['netIncome'],
+    'roe-lab': ['roeMinusSelicPp'],
     'real-return': ['realReturnPct'],
     'savings-vs-selic': ['savingsGapPct'],
 }

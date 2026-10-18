@@ -91,6 +91,14 @@ const EXPECTED: Expected[] = [
     op: 'gt',
     value: 0,
   },
+  {
+    lesson: '2.7.4',
+    id: 'laboratorio-de-roe',
+    widget: 'roe-lab',
+    metric: 'roeMinusSelicPp',
+    op: 'gt',
+    value: 0,
+  },
 ]
 
 function goalsOf(code: string) {
