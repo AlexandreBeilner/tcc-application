@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ADMIN,
-  buildAdminWorld,
-  eventFixture,
-  questionFixture,
-  reviewAll,
-} from '../../../test/adminWorld'
+import { ADMIN, buildAdminWorld, eventFixture } from '../../../test/adminWorld'
 
 const TODAY = '2026-10-20T12:00:00Z'
 const START = '2026-11-10'
@@ -59,7 +53,6 @@ describe('palavras', () => {
   it('editar a definição de palavra em jogo publicado pede confirmação', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
     await w.prepareDraft.execute(START)
-    await reviewAll(w)
     await w.publishPuzzles.execute()
     const used = w.puzzles.items.find((p) => p.number === 1)!.wordId
     await expect(
@@ -76,19 +69,7 @@ describe('palavras', () => {
     const used = w.puzzles.items.find((p) => p.number === 4)!.wordId
     const result = await w.updateWord.execute(ADMIN, used, { active: false }, false)
     expect(result.affectedPuzzles).toEqual([4])
-    expect(result.clearedReviews).toEqual([])
     expect(w.puzzles.items.find((p) => p.number === 4)!.wordId).toBe(used)
-  })
-
-  it('editar o texto mostrado zera a revisão dos dias ainda não publicados', async () => {
-    const w = buildAdminWorld({ startDate: null, now: TODAY })
-    await w.prepareDraft.execute(START)
-    await reviewAll(w)
-    const used = w.puzzles.items.find((p) => p.number === 2)!.wordId
-    const result = await w.updateWord.execute(ADMIN, used, { definition: 'Outra.' }, false)
-    expect(result.clearedReviews).toEqual([2])
-    expect(w.puzzles.items.find((p) => p.number === 2)!.reviewedAt).toBeNull()
-    expect(w.puzzles.items.find((p) => p.number === 3)!.reviewedAt).not.toBeNull()
   })
 })
 
@@ -155,13 +136,18 @@ describe('perguntas', () => {
     ).rejects.toBeDefined()
   })
 
-  it('editar campo mostrado tira a revisão; ligar e desligar não', async () => {
+  it('editar o texto mostrado atualiza a pergunta e avisa os jogos afetados', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
-    const q = await w.questions.create({ ...questionFixture(99), reviewedAt: new Date(TODAY) })
-    await w.updateQuestion.execute(ADMIN, q.id, { active: false }, false)
-    expect(w.questions.items.find((x) => x.id === q.id)!.reviewedAt).not.toBeNull()
-    await w.updateQuestion.execute(ADMIN, q.id, { question: 'Outra pergunta?' }, false)
-    expect(w.questions.items.find((x) => x.id === q.id)!.reviewedAt).toBeNull()
+    await w.prepareDraft.execute(START)
+    const used = w.puzzles.items.find((p) => p.number === 2)!.questionId
+    const result = await w.updateQuestion.execute(
+      ADMIN,
+      used,
+      { question: 'Outra pergunta?' },
+      false,
+    )
+    expect(result.item.question).toBe('Outra pergunta?')
+    expect(result.affectedPuzzles).toEqual([2])
   })
 
   it('o patch com campo ausente (undefined) não apaga o valor atual', async () => {
@@ -210,7 +196,6 @@ describe('eventos', () => {
   it('editar o ano de evento em jogo publicado pede confirmação', async () => {
     const w = buildAdminWorld({ startDate: null, now: TODAY })
     await w.prepareDraft.execute(START)
-    await reviewAll(w)
     await w.publishPuzzles.execute()
     const id = w.puzzles.items.find((p) => p.number === 1)!.timelineEventIds[0]
     await expect(w.updateEvent.execute(ADMIN, id, { year: 1801 }, false)).rejects.toMatchObject({

@@ -14,7 +14,6 @@ export type DailyQuestionFields = Partial<
     | 'category'
     | 'scope'
     | 'active'
-    | 'reviewedAt'
   >
 >
 
@@ -26,7 +25,6 @@ export interface DailyQuestionRepository {
   listActive(): Promise<DailyQuestion[]>
   // Painel: inclui as desativadas.
   listAll(): Promise<DailyQuestion[]>
-  // `reviewedAt` entra no patch para o painel zerar a revisão de quem foi editado. Nulo = não existe.
+  // Nulo = não existe.
   update(id: string, fields: DailyQuestionFields, updatedBy: string): Promise<DailyQuestion | null>
-  markReviewed(ids: readonly string[], reviewedBy: string, now: Date): Promise<void>
 }

@@ -72,7 +72,6 @@ describe('permissões', () => {
     ['put', '/admin/daily/start-date'],
     ['post', '/admin/daily/puzzles/publish'],
     ['get', '/admin/daily/puzzles/1'],
-    ['post', '/admin/daily/puzzles/1/review'],
     ['put', '/admin/daily/puzzles/1/card'],
     ['get', '/admin/daily/words'],
     ['post', '/admin/daily/words'],
@@ -121,15 +120,8 @@ describe('prévia de dia futuro', () => {
 })
 
 describe('estreia', () => {
-  it('rascunho, revisão, agendamento e publicação em lote, tudo auditado', async () => {
+  it('rascunho, agendamento e publicação em lote, tudo auditado', async () => {
     const { app, adminToken, auth, auditLog } = await buildApp()
-    const draft = await request(app)
-      .post('/admin/daily/draft')
-      .set(auth(adminToken))
-      .send({ start_date: START })
-    expect(draft.status).toBe(200)
-    expect(draft.body).toMatchObject({ start_date: START, created: 30 })
-
     const refused = await request(app)
       .put('/admin/daily/start-date')
       .set(auth(adminToken))
@@ -137,11 +129,13 @@ describe('estreia', () => {
     expect(refused.status).toBe(409)
     expect(refused.body.code).toBe('insufficient_content')
 
-    for (let n = 1; n <= 30; n++) {
-      expect(
-        (await request(app).post(`/admin/daily/puzzles/${n}/review`).set(auth(adminToken))).status,
-      ).toBe(200)
-    }
+    const draft = await request(app)
+      .post('/admin/daily/draft')
+      .set(auth(adminToken))
+      .send({ start_date: START })
+    expect(draft.status).toBe(200)
+    expect(draft.body).toMatchObject({ start_date: START, created: 30 })
+
     const scheduled = await request(app)
       .put('/admin/daily/start-date')
       .set(auth(adminToken))
@@ -154,7 +148,7 @@ describe('estreia', () => {
     expect(overview.body).toMatchObject({
       status: 'scheduled',
       start_date: START,
-      reviewed_days_ahead: 30,
+      ready_days_ahead: 30,
       published_days_ahead: 30,
       alerts: [],
       bank: { words: 60, questions: 60, events: 200, accepted_extra: 1 },
@@ -164,7 +158,6 @@ describe('estreia', () => {
     expect(actions).toContain('daily.draft:success')
     expect(actions).toContain('daily.start_date:failed')
     expect(actions).toContain('daily.start_date:success')
-    expect(actions.filter((a) => a === 'daily.puzzle_review:success')).toHaveLength(30)
   })
 
   it('mudar a data exige senha recente', async () => {
@@ -194,21 +187,20 @@ describe('estreia', () => {
 })
 
 describe('publicar e trocar cartão', () => {
-  it('publicar dia não revisado é 409 not_reviewed', async () => {
+  it('publicar sem números publica todos os jogos que ainda não estão no ar', async () => {
     const { app, adminToken, auth } = await buildApp()
     await request(app).post('/admin/daily/draft').set(auth(adminToken)).send({ start_date: START })
     const res = await request(app)
       .post('/admin/daily/puzzles/publish')
       .set(auth(adminToken))
-      .send({ numbers: [1] })
-    expect(res.status).toBe(409)
-    expect(res.body.code).toBe('not_reviewed')
+      .send({})
+    expect(res.status).toBe(200)
+    expect(res.body.published).toHaveLength(30)
   })
 
   it('jogo publicado só troca com confirm_published', async () => {
     const { app, adminToken, auth, world } = await buildApp()
     await request(app).post('/admin/daily/draft').set(auth(adminToken)).send({ start_date: START })
-    await request(app).post('/admin/daily/puzzles/1/review').set(auth(adminToken))
     await request(app)
       .post('/admin/daily/puzzles/publish')
       .set(auth(adminToken))

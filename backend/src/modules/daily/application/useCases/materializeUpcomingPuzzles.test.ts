@@ -116,11 +116,29 @@ describe('MaterializeUpcomingPuzzlesUseCase', () => {
     expect(puzzles.items[0]).toMatchObject({
       number: 1,
       gameDate: '2026-11-10',
-      reviewedAt: null,
-      publishedAt: null,
+      publishedAt: new Date('2026-11-01T12:00:00Z'),
     })
     expect(puzzles.items.at(-1)).toMatchObject({ number: 30, gameDate: '2026-12-09' })
     expect(result.warnings).toEqual([])
+  })
+
+  it('o rascunho de estreia não vai ao ar: só quando o admin agenda', async () => {
+    const { useCase, puzzles } = setup({ start: null, now: '2026-11-01T12:00:00Z' })
+    const result = await useCase.execute('2026-11-10')
+    expect(result.created).toHaveLength(30)
+    expect(puzzles.items.every((p) => p.publishedAt === null)).toBe(true)
+  })
+
+  it('no ar: publica também o que ficou materializado sem publicação', async () => {
+    const { useCase, puzzles } = setup({
+      start: '2026-11-01',
+      now: '2026-11-11T12:00:00Z',
+      horizon: 5,
+    })
+    await useCase.execute()
+    puzzles.items.forEach((p) => (p.publishedAt = null))
+    await useCase.execute()
+    expect(puzzles.items.every((p) => p.publishedAt !== null)).toBe(true)
   })
 
   it('no ar: materializa a partir de hoje, com a numeração da estreia', async () => {

@@ -19,7 +19,7 @@ const scheduled: DailyOverview = {
     today: '2026-10-20',
     can_change_start: true,
     agenda_from: '2026-11-10',
-    reviewed_days_ahead: 30,
+    ready_days_ahead: 30,
     published_days_ahead: 30,
     min_days_to_schedule: 30,
     low_cover_threshold: 14,
@@ -49,7 +49,7 @@ beforeEach(() => {
 })
 
 describe('AdminDailyLaunch', () => {
-    it('agendado: mostra a data e os dias revisados contra o mínimo', () => {
+    it('agendado: mostra a data e os dias prontos contra o mínimo', () => {
         renderLaunch(scheduled)
 
         expect(screen.getByText('Estreia em 10/11/2026. Até lá nenhuma rota de jogo responde.')).toBeInTheDocument()

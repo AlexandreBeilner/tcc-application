@@ -51,12 +51,11 @@ export type DailyAdminConflictCode =
   | 'already_started'
   | 'not_in_future'
   | 'insufficient_content'
-  | 'not_reviewed'
   | 'confirmation_required'
   | 'duplicate'
   | 'word_in_use'
 
-// O pedido é válido, mas o estado atual não deixa: Diário já no ar, pouco conteúdo revisado, jogo
+// O pedido é válido, mas o estado atual não deixa: Diário já no ar, pouco conteúdo pronto, jogo
 // publicado sem confirmação. `code` deixa o painel explicar sem interpretar texto.
 export class DailyAdminConflictError extends Error {
   constructor(

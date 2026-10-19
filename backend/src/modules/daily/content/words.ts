@@ -628,6 +628,60 @@ const MAIS_TERMOS: readonly [DailyCategory, readonly Entry[]][] = [
       ['POUPADOR', 'Quem guarda parte do que ganha em vez de gastar tudo.'],
     ],
   ],
+  [
+    'commodities-e-setores',
+    [
+      ['BARRIL', 'Unidade de volume usada para o petróleo, equivalente a cerca de 159 litros.'],
+      ['ETANOL', 'Álcool combustível, produzido no Brasil sobretudo a partir da cana-de-açúcar.'],
+      [
+        'DIESEL',
+        'Combustível derivado do petróleo usado por caminhões e ônibus, cujo preço pesa no frete.',
+      ],
+      [
+        'GASOLINA',
+        'Combustível derivado do petróleo usado em carros, cujo preço pesa na inflação.',
+      ],
+    ],
+  ],
+  [
+    'cambio-e-setor-externo',
+    [
+      [
+        'DIVISAS',
+        'Moedas estrangeiras que entram ou saem de um país, como os dólares das exportações.',
+      ],
+    ],
+  ],
+  [
+    'eventos-globais',
+    [
+      [
+        'CHOQUE',
+        'Mudança brusca e inesperada, como na oferta ou no preço de um produto, que abala a economia.',
+      ],
+      ['EMBARGO', 'Proibição oficial de comprar ou vender de um país, usada como sanção.'],
+    ],
+  ],
+  [
+    'crises-e-choques',
+    [
+      [
+        'QUEBRA',
+        'Falência de empresa ou banco que não paga o que deve. Também se diz da perda de uma safra.',
+      ],
+      ['GREVE', 'Paralisação coletiva do trabalho que pode afetar a produção e o abastecimento.'],
+    ],
+  ],
+  [
+    'politica-fiscal',
+    [
+      [
+        'LICITAÇÃO',
+        'Processo público pelo qual o governo escolhe quem vai lhe vender produtos ou prestar serviços.',
+      ],
+      ['REFORMA', 'Mudança nas regras de um sistema, como a tributária ou a da Previdência.'],
+    ],
+  ],
 ]
 
 const ALL: WordSeed[] = [

@@ -7,12 +7,7 @@ import {
     describeDailyError,
     formatGameDate,
 } from '../../../features/admin/dailyAdmin'
-import {
-    useDailyPuzzleQuery,
-    usePublishDailyPuzzlesMutation,
-    useReplaceDailyCardMutation,
-    useReviewDailyPuzzleMutation,
-} from '../../../features/admin/useAdminDaily'
+import { useDailyPuzzleQuery, usePublishDailyPuzzlesMutation, useReplaceDailyCardMutation } from '../../../features/admin/useAdminDaily'
 import { ApiError } from '../../../services/client'
 import type { DailyPuzzleDetail, DailyReplaceCardInput } from '../../../services/admin'
 import { Button } from '../../atoms/Button'
@@ -38,11 +33,10 @@ function currentIdsOf(card: PickerCard, puzzle: DailyPuzzleDetail): string[] {
 }
 
 // Um dia do Diário como o jogador vai ver, mais o gabarito (só o painel mostra), com as ações de
-// revisar, publicar e trocar cartão (DI.5.1). Revisar é afirmar que o texto, as alternativas, o
-// gabarito e as fontes foram conferidos; trocar um cartão zera a revisão do dia.
+// publicar e trocar cartão (DI.5.1). O conteúdo nasce pronto (criado e conferido pela skill
+// `diario-conteudo`), então não há etapa de revisão: a prévia serve para conferir e corrigir.
 export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
     const query = useDailyPuzzleQuery(number)
-    const review = useReviewDailyPuzzleMutation()
     const publish = usePublishDailyPuzzlesMutation()
     const replace = useReplaceDailyCardMutation()
     const [picker, setPicker] = useState<PickerCard | null>(null)
@@ -64,10 +58,6 @@ export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
         })
     }
 
-    function doReview() {
-        run((cb) => review.mutate(number, cb), 'Dia marcado como revisado.')
-    }
-
     function doPublish() {
         run((cb) => publish.mutate([number], cb), 'Dia publicado.')
     }
@@ -79,7 +69,7 @@ export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
             {
                 onSuccess: () => {
                     setPicker(null)
-                    setNotice('Cartão trocado. O dia precisa ser revisado de novo.')
+                    setNotice('Cartão trocado.')
                 },
                 onError: (err) => setPickerError(describeDailyError(err).message),
             },
@@ -96,9 +86,8 @@ export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
         )
     }
 
-    const reviewed = puzzle.reviewed_at !== null
     const published = puzzle.published_at !== null
-    const busy = review.isPending || publish.isPending || replace.isPending
+    const busy = publish.isPending || replace.isPending
     const rank = new Map(puzzle.correct_order.map((id, index) => [id, index + 1]))
 
     return (
@@ -109,9 +98,6 @@ export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
                         Jogo #{puzzle.number} · {formatGameDate(puzzle.date)}
                     </h1>
                     <div className={styles.badges}>
-                        <span className={reviewed ? styles.badge : `${styles.badge} ${styles.dashed}`}>
-                            {reviewed ? 'Revisado' : 'Sem revisão'}
-                        </span>
                         <span className={published ? styles.badge : `${styles.badge} ${styles.dashed}`}>
                             {published ? 'Publicado' : 'Fora do ar'}
                         </span>
@@ -119,10 +105,7 @@ export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
                     </div>
                 </div>
                 <div className={styles.actions}>
-                    <Button disabled={busy || reviewed} onClick={doReview}>
-                        {review.isPending ? 'Revisando…' : reviewed ? 'Revisado' : 'Marcar como revisado'}
-                    </Button>
-                    <Button variant="secondary" disabled={busy || !reviewed || published} onClick={doPublish}>
+                    <Button disabled={busy || published} onClick={doPublish}>
                         {publish.isPending ? 'Publicando…' : published ? 'Publicado' : 'Publicar'}
                     </Button>
                 </div>

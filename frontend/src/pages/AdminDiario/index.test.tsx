@@ -26,7 +26,6 @@ const tally = (total: number): DailyTally => ({ total, brasil: total - 1, fora: 
 const day = (number: number, over: Partial<DailyAgendaDay> = {}): DailyAgendaDay => ({
     number,
     date: `2026-11-${String(9 + number).padStart(2, '0')}`,
-    reviewed: false,
     published: false,
     origins: { word: 'generated', question: 'generated', timeline: 'generated' },
     word: { display: 'SELIC', category: 'juros-e-inflacao', scope: 'brasil' },
@@ -41,7 +40,7 @@ const overview = (over: Partial<DailyOverview> = {}): DailyOverview => ({
     today: '2026-10-20',
     can_change_start: true,
     agenda_from: '2026-11-10',
-    reviewed_days_ahead: 0,
+    ready_days_ahead: 0,
     published_days_ahead: 0,
     min_days_to_schedule: 30,
     low_cover_threshold: 14,
@@ -84,22 +83,19 @@ describe('AdminDiario', () => {
             overview({
                 status: 'scheduled',
                 start_date: '2026-11-10',
-                alerts: ['low_reviewed_cover'],
-                reviewed_days_ahead: 1,
-                days: [
-                    day(1, { reviewed: true, published: true }),
-                    day(2, { origins: { word: 'manual', question: 'generated', timeline: 'generated' } }),
-                ],
+                alerts: ['low_ready_cover'],
+                ready_days_ahead: 1,
+                days: [day(1, { published: true }), day(2, { origins: { word: 'manual', question: 'generated', timeline: 'generated' } })],
                 coverage: { window_days: 30, word: tally(2), trivia: tally(2), timeline: tally(8) },
             }),
         )
         renderPage()
 
         expect(await screen.findByText('Estreia agendada')).toBeInTheDocument()
-        expect(screen.getAllByRole('alert')[0]).toHaveTextContent('Menos de 14 dias revisados')
+        expect(screen.getAllByRole('alert')[0]).toHaveTextContent('Menos de 14 dias prontos')
         expect(screen.getAllByText('Publicado').length).toBeGreaterThan(0)
         expect(screen.getAllByText('Trocado à mão').length).toBeGreaterThan(0)
-        expect(screen.getByRole('button', { name: 'Publicar revisados (0)' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Publicar pendentes (1)' })).toBeEnabled()
         expect(screen.getAllByRole('link', { name: 'Abrir' })[0]).toHaveAttribute('href', '/admin/diario/jogo/1')
     })
 
@@ -118,7 +114,7 @@ describe('AdminDiario', () => {
     it('agendar confirma antes e mostra a recusa de conteúdo insuficiente', async () => {
         vi.mocked(getDailyOverview).mockResolvedValue(overview())
         vi.mocked(setDailyStartDate).mockRejectedValue(
-            new ApiError(409, 'a estreia exige 30 dias seguidos de jogos revisados a partir da data', {
+            new ApiError(409, 'a estreia exige 30 dias seguidos de jogos prontos a partir da data', {
                 error: 'x',
                 code: 'insufficient_content',
             }),
@@ -146,19 +142,19 @@ describe('AdminDiario', () => {
         expect(screen.getAllByRole('alert')[0]).toHaveTextContent('O jogo de hoje não está publicado')
     })
 
-    it('publica em lote os dias revisados', async () => {
+    it('publica em lote os dias pendentes', async () => {
         vi.mocked(getDailyOverview).mockResolvedValue(
             overview({
                 status: 'live',
                 start_date: '2026-10-01',
                 can_change_start: false,
-                days: [day(1, { reviewed: true }), day(2, { reviewed: true })],
+                days: [day(1), day(2)],
             }),
         )
         vi.mocked(publishDailyPuzzles).mockResolvedValue({ published: [1, 2] })
         renderPage()
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Publicar revisados (2)' }))
+        fireEvent.click(await screen.findByRole('button', { name: 'Publicar pendentes (2)' }))
 
         await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Publicados: #1, #2.'))
         expect(publishDailyPuzzles).toHaveBeenCalledWith('tok', undefined)

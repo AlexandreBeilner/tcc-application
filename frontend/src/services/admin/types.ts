@@ -1366,7 +1366,7 @@ export interface AgendaTemplate extends AgendaTemplateContent {
 export type DailyScope = 'brasil' | 'fora'
 export type DailyStatus = 'off' | 'scheduled' | 'live'
 export type DailyCardOrigin = 'generated' | 'manual'
-export type DailyAlertCode = 'low_reviewed_cover' | 'scheduled_below_minimum' | 'today_not_published'
+export type DailyAlertCode = 'low_ready_cover' | 'scheduled_below_minimum' | 'today_not_published'
 export type DailyLearnMoreKind = 'lesson' | 'glossary' | 'guide'
 
 export interface DailyLearnMore {
@@ -1377,7 +1377,6 @@ export interface DailyLearnMore {
 export interface DailyAgendaDay {
     number: number
     date: string
-    reviewed: boolean
     published: boolean
     origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
     word: { display: string; category: string; scope: DailyScope } | null
@@ -1398,7 +1397,7 @@ export interface DailyOverview {
     today: string
     can_change_start: boolean
     agenda_from: string
-    reviewed_days_ahead: number
+    ready_days_ahead: number
     published_days_ahead: number
     min_days_to_schedule: number
     low_cover_threshold: number
@@ -1431,7 +1430,6 @@ export interface DailyQuestion {
     learn_more: DailyLearnMore | null
     category: string
     scope: DailyScope
-    reviewed_at: string | null
     active: boolean
 }
 
@@ -1445,7 +1443,6 @@ export interface DailyEvent {
     learn_more: DailyLearnMore | null
     category: string
     scope: DailyScope
-    reviewed_at: string | null
     active: boolean
 }
 
@@ -1453,7 +1450,6 @@ export interface DailyPuzzleDetail {
     number: number
     date: string
     is_today_or_past: boolean
-    reviewed_at: string | null
     published_at: string | null
     origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
     word: DailyWord
@@ -1514,7 +1510,6 @@ export type DailyPatch<T> = Partial<T> & { active?: boolean; confirm_published?:
 
 export interface DailyChangeImpact {
     affected_puzzles: number[]
-    cleared_reviews: number[]
 }
 
 // Contadores do Diário por dia UTC (DI.7.1). Quem tem conta vem de `daily_results`; o resto, dos

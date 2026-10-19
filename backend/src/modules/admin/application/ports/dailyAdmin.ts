@@ -43,10 +43,8 @@ export interface DailyAdmin {
   // Contadores por dia UTC, do mais recente ao mais antigo (DI.7.1).
   metrics(days?: number): Promise<DailyMetricsDay[]>
   getPuzzle(number: number): Promise<AdminPuzzleView>
-  reviewPuzzle(actorId: string, number: number): Promise<{ number: number }>
   publishPuzzles(numbers?: number[]): Promise<{ published: number[] }>
   replaceCard(
-    actorId: string,
     number: number,
     input: ReplaceCardInput,
     confirmPublished: boolean,

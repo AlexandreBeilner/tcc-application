@@ -14,7 +14,7 @@ export type { AdminDailyLaunchProps } from './types'
 // agendar, mudar a data enquanto futura e desligar. Depois que o jogo está no ar a data trava
 // (mudar renumeraria jogos já jogados e compartilhados), então os controles somem.
 export function AdminDailyLaunch({ overview }: AdminDailyLaunchProps) {
-    const { status, start_date, can_change_start, reviewed_days_ahead, published_days_ahead, min_days_to_schedule } = overview
+    const { status, start_date, can_change_start, ready_days_ahead, published_days_ahead, min_days_to_schedule } = overview
     const [date, setDate] = useState(start_date ?? '')
     const [confirming, setConfirming] = useState<'schedule' | 'off' | null>(null)
     const [notice, setNotice] = useState<string | null>(null)
@@ -49,7 +49,7 @@ export function AdminDailyLaunch({ overview }: AdminDailyLaunchProps) {
                 setNotice(
                     next === null
                         ? 'Diário desligado. Nenhum jogo está no ar.'
-                        : `Estreia agendada para ${formatGameDate(next)}. ${result.published.length} jogo(s) revisado(s) publicado(s): ${formatNumbers(result.published.slice(0, 5))}${result.published.length > 5 ? '…' : ''}`,
+                        : `Estreia agendada para ${formatGameDate(next)}. ${result.published.length} jogo(s) publicado(s): ${formatNumbers(result.published.slice(0, 5))}${result.published.length > 5 ? '…' : ''}`,
                 )
             },
             onError: fail,
@@ -72,9 +72,9 @@ export function AdminDailyLaunch({ overview }: AdminDailyLaunchProps) {
 
             <dl className={styles.metrics}>
                 <div>
-                    <dt>Dias revisados seguidos</dt>
+                    <dt>Dias prontos seguidos</dt>
                     <dd>
-                        {reviewed_days_ahead}
+                        {ready_days_ahead}
                         {status !== 'live' && <span className={styles.of}> de {min_days_to_schedule} necessários</span>}
                     </dd>
                 </div>
@@ -112,8 +112,8 @@ export function AdminDailyLaunch({ overview }: AdminDailyLaunchProps) {
                         )}
                     </div>
                     <p className={styles.hint}>
-                        Primeiro prepare o rascunho dos 30 dias, depois revise cada jogo. Agendar exige {min_days_to_schedule} dias seguidos
-                        revisados a partir da data.
+                        Primeiro prepare o rascunho dos 30 dias. Agendar exige {min_days_to_schedule} dias seguidos de jogos prontos a
+                        partir da data, e qualquer dia pode ser conferido na prévia.
                     </p>
                 </div>
             ) : null}
@@ -148,10 +148,7 @@ export function AdminDailyLaunch({ overview }: AdminDailyLaunchProps) {
                     <p>
                         O Diário estreia em <strong>{formatGameDate(date)}</strong>, com o jogo #1 nesse dia.
                     </p>
-                    <p>
-                        Os jogos já revisados são publicados agora, em lote. O que ainda não foi revisado continua fora do ar. Depois da
-                        estreia a data não muda mais.
-                    </p>
+                    <p>Os jogos da agenda são publicados agora, em lote. Depois da estreia a data não muda mais.</p>
                 </ConfirmDialog>
             )}
             {confirming === 'off' && (
@@ -163,7 +160,7 @@ export function AdminDailyLaunch({ overview }: AdminDailyLaunchProps) {
                     onConfirm={() => apply(null)}
                     onCancel={() => setConfirming(null)}
                 >
-                    <p>A estreia deixa de estar agendada e todos os jogos saem do ar. A revisão feita é mantida.</p>
+                    <p>A estreia deixa de estar agendada e todos os jogos saem do ar.</p>
                 </ConfirmDialog>
             )}
         </section>

@@ -34,7 +34,6 @@ function impactNotice(result: DailyChangeImpact, what: string): string {
             `Aparece nos jogos ${formatNumbers(result.affected_puzzles)}. Desativar não tira do jogo já montado; troque o cartão se for o caso.`,
         )
     }
-    if (result.cleared_reviews.length > 0) parts.push(`A revisão dos jogos ${formatNumbers(result.cleared_reviews)} foi zerada.`)
     return parts.join(' ')
 }
 

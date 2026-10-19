@@ -649,10 +649,6 @@ export function getDailyPuzzle(token: string, number: number) {
     return apiRequest<DailyPuzzleDetail>(`/admin/daily/puzzles/${number}`, { token })
 }
 
-export function reviewDailyPuzzle(token: string, number: number) {
-    return apiRequest<{ number: number }>(`/admin/daily/puzzles/${number}/review`, { token, method: 'POST' })
-}
-
 export function replaceDailyCard(token: string, number: number, input: DailyReplaceCardInput) {
     return apiRequest<{ number: number }>(`/admin/daily/puzzles/${number}/card`, { token, method: 'PUT', body: input })
 }

@@ -74,7 +74,6 @@ function serializeQuestion(q: DailyQuestion) {
     learn_more: serializeLearnMore(q.learnMore),
     category: q.category,
     scope: q.scope,
-    reviewed_at: q.reviewedAt?.toISOString() ?? null,
     active: q.active,
   }
 }
@@ -90,7 +89,6 @@ function serializeEvent(e: DailyEvent) {
     learn_more: serializeLearnMore(e.learnMore),
     category: e.category,
     scope: e.scope,
-    reviewed_at: e.reviewedAt?.toISOString() ?? null,
     active: e.active,
   }
 }
@@ -106,7 +104,7 @@ function serializeOverview(o: AdminOverview) {
     today: o.today,
     can_change_start: o.canChangeStart,
     agenda_from: o.agendaFrom,
-    reviewed_days_ahead: o.reviewedDaysAhead,
+    ready_days_ahead: o.readyDaysAhead,
     published_days_ahead: o.publishedDaysAhead,
     min_days_to_schedule: o.minDaysToSchedule,
     low_cover_threshold: o.lowCoverThreshold,
@@ -114,7 +112,6 @@ function serializeOverview(o: AdminOverview) {
     days: o.days.map((d) => ({
       number: d.number,
       date: d.date,
-      reviewed: d.reviewed,
       published: d.published,
       origins: d.origins,
       word: d.word,
@@ -141,7 +138,6 @@ function serializePuzzle(p: AdminPuzzleView) {
     number: p.number,
     date: p.date,
     is_today_or_past: p.isTodayOrPast,
-    reviewed_at: p.reviewedAt?.toISOString() ?? null,
     published_at: p.publishedAt?.toISOString() ?? null,
     origins: p.origins,
     word: serializeWord(p.word),
@@ -273,19 +269,6 @@ export function createAdminDailyRouter(deps: AdminDailyRouterDeps): Router {
     }
   })
 
-  router.post('/admin/daily/puzzles/:number/review', ...adminOnly, async (req, res) => {
-    const number = parseNumber(req.params.number)
-    if (number === null) {
-      res.status(404).json({ error: 'jogo não encontrado' })
-      return
-    }
-    try {
-      res.status(200).json(await deps.puzzles.review(req.auth!.userId, number))
-    } catch (err) {
-      sendDailyError(err, res)
-    }
-  })
-
   router.put('/admin/daily/puzzles/:number/card', ...adminOnly, async (req, res) => {
     const number = parseNumber(req.params.number)
     if (number === null) {
@@ -357,7 +340,6 @@ export function createAdminDailyRouter(deps: AdminDailyRouterDeps): Router {
       res.status(200).json({
         word: serializeWord(result.item),
         affected_puzzles: result.affectedPuzzles,
-        cleared_reviews: result.clearedReviews,
       })
     } catch (err) {
       sendDailyError(err, res)
@@ -439,7 +421,6 @@ export function createAdminDailyRouter(deps: AdminDailyRouterDeps): Router {
       res.status(200).json({
         question: serializeQuestion(result.item),
         affected_puzzles: result.affectedPuzzles,
-        cleared_reviews: result.clearedReviews,
       })
     } catch (err) {
       sendDailyError(err, res)
@@ -495,7 +476,6 @@ export function createAdminDailyRouter(deps: AdminDailyRouterDeps): Router {
       res.status(200).json({
         event: serializeEvent(result.item),
         affected_puzzles: result.affectedPuzzles,
-        cleared_reviews: result.clearedReviews,
       })
     } catch (err) {
       sendDailyError(err, res)

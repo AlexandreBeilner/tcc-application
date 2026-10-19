@@ -23,7 +23,6 @@ import {
   GetAdminPuzzleUseCase,
   PublishPuzzlesUseCase,
   ReplacePuzzleCardUseCase,
-  ReviewPuzzleUseCase,
 } from '../application/useCases/admin/puzzles'
 import type { DailyEvent, DailyQuestion, DailyWord } from '../domain/content'
 import {
@@ -136,9 +135,8 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
       now,
     ),
     getPuzzle: new GetAdminPuzzleUseCase(puzzles, words, questions, events, now),
-    reviewPuzzle: new ReviewPuzzleUseCase(puzzles, words, questions, events, now),
     publishPuzzles: new PublishPuzzlesUseCase(puzzles, now),
-    replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions, events, now),
+    replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions, events),
     prepareDraft: new PrepareLaunchDraftUseCase(settings, puzzles, materialize, now),
     setStartDate: new SetStartDateUseCase(settings, puzzles, materialize, now),
     listWords: new ListAdminWordsUseCase(words),
@@ -158,10 +156,3 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
 }
 
 export type AdminWorld = ReturnType<typeof buildAdminWorld>
-
-// Revisa todos os jogos materializados.
-export async function reviewAll(world: AdminWorld): Promise<void> {
-  for (const puzzle of [...world.puzzles.items]) {
-    await world.reviewPuzzle.execute(ADMIN, puzzle.number)
-  }
-}

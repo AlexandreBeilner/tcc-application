@@ -10,7 +10,6 @@ import {
     getDailyWords,
     publishDailyPuzzles,
     replaceDailyCard,
-    reviewDailyPuzzle,
 } from '../../services/admin'
 import type { DailyEvent, DailyPuzzleDetail, DailyQuestion, DailyWord } from '../../services/admin'
 import { ApiError } from '../../services/client'
@@ -19,7 +18,6 @@ import { AdminDiarioJogo } from '.'
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/admin', () => ({
     getDailyPuzzle: vi.fn(),
-    reviewDailyPuzzle: vi.fn(),
     publishDailyPuzzles: vi.fn(),
     replaceDailyCard: vi.fn(),
     getDailyWords: vi.fn(),
@@ -50,7 +48,6 @@ const question: DailyQuestion = {
     learn_more: null,
     category: 'instituicoes',
     scope: 'brasil',
-    reviewed_at: null,
     active: true,
 }
 
@@ -64,7 +61,6 @@ const event = (id: string, year: number, label: string): DailyEvent => ({
     learn_more: null,
     category: 'planos-e-moeda',
     scope: 'brasil',
-    reviewed_at: null,
     active: true,
 })
 
@@ -79,14 +75,13 @@ const puzzle = (over: Partial<DailyPuzzleDetail> = {}): DailyPuzzleDetail => ({
     number: 12,
     date: '2026-11-21',
     is_today_or_past: false,
-    reviewed_at: null,
     published_at: null,
     origins: { word: 'generated', question: 'generated', timeline: 'generated' },
     word: word('w1', 'Selic'),
     question,
     events,
     correct_order: ['e2', 'e3', 'e1', 'e4'],
-    warnings: ['há pergunta ou evento deste dia ainda sem revisão'],
+    warnings: ['há evento desativado na Linha do tempo'],
     ...over,
 })
 
@@ -124,40 +119,20 @@ describe('AdminDiarioJogo', () => {
         expect(items[0]).toHaveTextContent('Crise global')
         expect(items[0]).toHaveTextContent('3')
         expect(items[1]).toHaveTextContent('1')
-        expect(screen.getByRole('list', { name: 'Avisos do dia' })).toHaveTextContent('sem revisão')
+        expect(screen.getByRole('list', { name: 'Avisos do dia' })).toHaveTextContent('evento desativado')
         expect(screen.getByText('Fora do ar')).toBeInTheDocument()
     })
 
-    it('revisa e só então deixa publicar', async () => {
+    it('publica o dia direto, sem etapa de revisão', async () => {
         vi.mocked(getDailyPuzzle).mockResolvedValue(puzzle())
-        vi.mocked(reviewDailyPuzzle).mockResolvedValue({ number: 12 })
         vi.mocked(publishDailyPuzzles).mockResolvedValue({ published: [12] })
         renderPage()
 
-        expect(await screen.findByRole('button', { name: 'Publicar' })).toBeDisabled()
-        vi.mocked(getDailyPuzzle).mockResolvedValue(puzzle({ reviewed_at: '2026-10-20T12:00:00Z' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Marcar como revisado' }))
-        await waitFor(() => expect(reviewDailyPuzzle).toHaveBeenCalledWith('tok', 12))
-
+        expect(screen.queryByRole('button', { name: 'Marcar como revisado' })).not.toBeInTheDocument()
         const publish = await screen.findByRole('button', { name: 'Publicar' })
-        await waitFor(() => expect(publish).toBeEnabled())
+        expect(publish).toBeEnabled()
         fireEvent.click(publish)
         await waitFor(() => expect(publishDailyPuzzles).toHaveBeenCalledWith('tok', [12]))
-    })
-
-    it('mostra a recusa da revisão quando há item desativado', async () => {
-        vi.mocked(getDailyPuzzle).mockResolvedValue(puzzle())
-        vi.mocked(reviewDailyPuzzle).mockRejectedValue(
-            new ApiError(422, 'a pergunta do dia está desativada', {
-                code: 'invalid_daily_content',
-                problems: ['a pergunta do dia está desativada'],
-            }),
-        )
-        renderPage()
-
-        fireEvent.click(await screen.findByRole('button', { name: 'Marcar como revisado' }))
-
-        expect(await screen.findByRole('alert')).toHaveTextContent('a pergunta do dia está desativada')
     })
 
     it('troca a palavra escolhendo outra do banco', async () => {
@@ -190,7 +165,7 @@ describe('AdminDiarioJogo', () => {
     })
 
     it('jogo publicado exige a confirmação marcada para trocar', async () => {
-        vi.mocked(getDailyPuzzle).mockResolvedValue(puzzle({ reviewed_at: '2026-10-20T12:00:00Z', published_at: '2026-10-20T12:00:00Z' }))
+        vi.mocked(getDailyPuzzle).mockResolvedValue(puzzle({ published_at: '2026-10-20T12:00:00Z' }))
         vi.mocked(getDailyQuestions).mockResolvedValue({
             questions: [question, { ...question, id: 'q2', question: 'Qual índice mede a inflação?' }],
         })

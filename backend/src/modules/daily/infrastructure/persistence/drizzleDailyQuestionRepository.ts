@@ -79,22 +79,12 @@ export function createDrizzleDailyQuestionRepository(db: Database): DailyQuestio
         .set({
           ...rest,
           ...(learnMore !== undefined ? learnMoreColumns(learnMore) : {}),
-          // Editar tira a revisão, a menos que o painel diga o contrário.
-          ...(fields.reviewedAt === undefined ? { reviewedAt: null, reviewedBy: null } : {}),
           updatedBy,
           updatedAt: new Date(),
         })
         .where(eq(dailyQuestions.id, id))
         .returning()
       return row ? toQuestion(row) : null
-    },
-
-    async markReviewed(ids, reviewedBy, now) {
-      if (ids.length === 0) return
-      await db
-        .update(dailyQuestions)
-        .set({ reviewedBy, reviewedAt: now })
-        .where(inArray(dailyQuestions.id, [...ids]))
     },
   }
 }

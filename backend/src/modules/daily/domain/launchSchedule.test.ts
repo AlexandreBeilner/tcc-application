@@ -15,8 +15,8 @@ describe('validateStartDateChange', () => {
     ['depois do início: trava', '2026-11-01', '2026-11-20', 99, 'already_started'],
     ['muito depois do início: trava', '2026-10-01', '2026-11-20', 99, 'already_started'],
     ['no ar não pode ser desligado', '2026-10-01', null, 0, 'already_started'],
-  ])('%s', (_label, current, next, reviewedDaysFromNext, expected) => {
-    expect(validateStartDateChange({ current, next, today, reviewedDaysFromNext })).toBe(expected)
+  ])('%s', (_label, current, next, readyDaysFromNext, expected) => {
+    expect(validateStartDateChange({ current, next, today, readyDaysFromNext })).toBe(expected)
   })
 
   it('o mínimo é 30 dias (DI11)', () => {

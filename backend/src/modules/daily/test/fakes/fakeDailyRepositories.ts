@@ -114,12 +114,8 @@ export function createFakeDailyQuestionRepository(
     async update(id, fields) {
       const x = items.find((i) => i.id === id)
       if (!x) return null
-      // Como o repositório real: editar tira a revisão, a menos que o patch diga o contrário.
-      Object.assign(x, { reviewedAt: null }, fields)
+      Object.assign(x, fields)
       return x
-    },
-    async markReviewed(ids, _by, now) {
-      for (const x of items) if (ids.includes(x.id)) x.reviewedAt = now
     },
   }
 }
@@ -150,12 +146,8 @@ export function createFakeDailyEventRepository(
     async update(id, fields) {
       const x = items.find((i) => i.id === id)
       if (!x) return null
-      // Como o repositório real: editar tira a revisão, a menos que o patch diga o contrário.
-      Object.assign(x, { reviewedAt: null }, fields)
+      Object.assign(x, fields)
       return x
-    },
-    async markReviewed(ids, _by, now) {
-      for (const x of items) if (ids.includes(x.id)) x.reviewedAt = now
     },
   }
 }
@@ -206,19 +198,11 @@ export function createFakeDailyPuzzleRepository(
       } else {
         Object.assign(p, { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual' })
       }
-      Object.assign(p, { reviewedBy: null, reviewedAt: null })
     },
-    async clearReview(numbers) {
-      for (const p of items) {
-        if (numbers.includes(p.number) && p.publishedAt === null) {
-          Object.assign(p, { reviewedBy: null, reviewedAt: null })
-        }
-      }
-    },
-    async publishReviewed(fromDate, now) {
+    async publishPending(fromDate, now) {
       const done: number[] = []
       for (const p of sorted()) {
-        if (p.gameDate >= fromDate && p.reviewedAt !== null && p.publishedAt === null) {
+        if (p.gameDate >= fromDate && p.publishedAt === null) {
           p.publishedAt = now
           done.push(p.number)
         }
@@ -234,10 +218,6 @@ export function createFakeDailyPuzzleRepository(
         }
       }
       return n
-    },
-    async markReviewed(number, reviewedBy, now) {
-      const p = items.find((x) => x.number === number)
-      if (p) Object.assign(p, { reviewedBy, reviewedAt: now })
     },
     async markPublished(number, now) {
       const p = items.find((x) => x.number === number)

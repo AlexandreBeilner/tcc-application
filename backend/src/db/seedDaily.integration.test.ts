@@ -61,14 +61,13 @@ describe.skipIf(!databaseUrl)('seed do conteúdo do Diário (banco real)', () =>
     expect(orphans.rows).toEqual([])
   })
 
-  it('grava fonte, categoria e marcador de cada pergunta e evento, sem revisão', async () => {
+  it('grava fonte, categoria e marcador de cada pergunta e evento', async () => {
     const questions = await db.select().from(schema.dailyQuestions)
     const events = await db.select().from(schema.dailyEvents)
     for (const row of [...questions, ...events]) {
       expect(row.sourceRef.trim().length).toBeGreaterThan(0)
       expect(['brasil', 'fora']).toContain(row.scope)
       expect(row.category.length).toBeGreaterThan(0)
-      expect(row.reviewedAt).toBeNull()
     }
   })
 

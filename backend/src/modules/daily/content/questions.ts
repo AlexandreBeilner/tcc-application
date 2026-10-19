@@ -680,4 +680,160 @@ export const QUESTION_SEEDS: readonly QuestionSeed[] = [
     category: 'planos-e-moeda',
     scope: 'brasil',
   },
+  {
+    key: 'o-que-e-resultado-primario',
+    question:
+      'O que o resultado primário do governo deixa de fora na conta de receitas e despesas?',
+    options: [
+      'Os gastos com saúde e educação',
+      'Os impostos sobre o consumo',
+      'As despesas com salários',
+      'Os juros da dívida pública',
+    ],
+    correctIndex: 3,
+    explanation:
+      'É a diferença entre as receitas e as despesas do governo sem contar os juros da dívida. Receita maior que despesa dá superávit primário; o contrário, déficit primário.',
+    source:
+      'Tesouro Nacional, Tesouro Transparente, Resultado do Tesouro Nacional (tesourotransparente.gov.br).',
+    category: 'politica-fiscal',
+    scope: 'brasil',
+  },
+  {
+    key: 'quem-aprova-o-orcamento-anual',
+    question:
+      'Quem aprova a lei do orçamento anual da União, que prevê as receitas e despesas do ano?',
+    options: [
+      'O Congresso Nacional',
+      'O Banco Central',
+      'O Tribunal de Contas da União',
+      'O Ministério da Fazenda',
+    ],
+    correctIndex: 0,
+    explanation:
+      'O Poder Executivo envia o projeto, mas as duas Casas do Congresso Nacional o apreciam e votam, com análise de uma comissão mista de deputados e senadores.',
+    source: 'Constituição Federal de 1988, arts. 165 e 166 (planalto.gov.br).',
+    category: 'politica-fiscal',
+    scope: 'brasil',
+  },
+  {
+    key: 'o-que-sao-reservas-internacionais',
+    question: 'O que são as reservas internacionais do Brasil, mantidas pelo Banco Central?',
+    options: [
+      'Ouro guardado em cofres de bancos privados',
+      'Dinheiro em reais depositado no exterior',
+      'Dívida do país com outros governos',
+      'Ativos em moeda estrangeira de fácil resgate',
+    ],
+    correctIndex: 3,
+    explanation:
+      'São ativos externos de liquidez imediata controlados pelo Banco Central, que servem para financiar o balanço de pagamentos e atuar no mercado de câmbio quando necessário.',
+    source:
+      'Banco Central do Brasil, Dados Abertos, Reservas internacionais, conceito liquidez (dadosabertos.bcb.gov.br).',
+    category: 'cambio-e-setor-externo',
+    scope: 'brasil',
+  },
+  {
+    key: 'o-que-e-a-ptax',
+    question: 'O que é a taxa PTAX, divulgada pelo Banco Central?',
+    options: [
+      'A taxa de juros dos títulos do Tesouro',
+      'A meta de inflação do ano',
+      'Uma média das cotações do dólar do dia, apuradas pelo BC',
+      'O preço fixo do dólar definido por lei',
+    ],
+    correctIndex: 2,
+    explanation:
+      'Desde 2011 a PTAX é a média das taxas de câmbio obtidas em quatro consultas diárias a instituições financeiras, e serve de referência para contratos e cálculos.',
+    source:
+      'Banco Central do Brasil, Dados Abertos, cotações diárias do dólar (dadosabertos.bcb.gov.br).',
+    category: 'cambio-e-setor-externo',
+    scope: 'brasil',
+  },
+  {
+    key: 'taxa-basica-dos-eua',
+    question:
+      'Como se chama a taxa de juros que o Fed, banco central dos EUA, fixa como meta e que é o equivalente aproximado da Selic no Brasil?',
+    options: ['Prime rate', 'Libor', 'Taxa do Tesouro americano', 'Federal funds rate'],
+    correctIndex: 3,
+    explanation:
+      'O Fed define uma faixa-alvo para a federal funds rate. Quando ela sobe, o dinheiro tende a migrar para os EUA e o dólar se fortalece frente ao real e a outras moedas emergentes.',
+    source: 'Federal Reserve, comunicados do FOMC (federalreserve.gov).',
+    category: 'eventos-globais',
+    scope: 'fora',
+  },
+  {
+    key: 'origem-da-crise-de-2008',
+    question:
+      'Em que mercado dos Estados Unidos começou a crise financeira de 2007 a 2010, que atingiu o mundo todo?',
+    options: [
+      'Hipotecas para devedores de maior risco',
+      'Ações de empresas de tecnologia',
+      'Contratos futuros de petróleo',
+      'Títulos do Tesouro americano',
+    ],
+    correctIndex: 0,
+    explanation:
+      'A crise nasceu nos empréstimos imobiliários a devedores de maior risco, os subprime. Com a queda dos preços das casas, o problema se espalhou e afetou bancos e bolsas, inclusive no Brasil.',
+    source: 'Federal Reserve History, Subprime Mortgage Crisis (federalreservehistory.org).',
+    category: 'eventos-globais',
+    scope: 'fora',
+  },
+  {
+    key: 'maior-produtor-de-soja',
+    question: 'Qual país é o maior produtor mundial de soja?',
+    options: ['Estados Unidos', 'Argentina', 'Brasil', 'China'],
+    correctIndex: 2,
+    explanation:
+      'O Brasil lidera a produção mundial de soja, com cerca de 40% do total na safra 2024/25. Estados Unidos e Argentina vêm em seguida. A soja está entre os principais produtos de exportação do país.',
+    source:
+      'USDA, Foreign Agricultural Service, Oilseeds: World Markets and Trade (fas.usda.gov); Conab, levantamento da safra de grãos (conab.gov.br).',
+    category: 'commodities-e-setores',
+    scope: 'brasil',
+  },
+  {
+    key: 'quem-regula-o-petroleo',
+    question:
+      'Qual agência federal regula e fiscaliza as atividades da indústria do petróleo, do gás natural e dos biocombustíveis?',
+    options: ['ANP', 'Aneel', 'CVM', 'Cade'],
+    correctIndex: 0,
+    explanation:
+      'A ANP, criada pela Lei do Petróleo de 1997, tem a finalidade de regular, contratar e fiscalizar essas atividades. A Aneel cuida da energia elétrica e a CVM do mercado de capitais.',
+    source: 'Lei nº 9.478, de 06/08/1997, art. 8 (planalto.gov.br/ccivil_03/leis/l9478.htm).',
+    category: 'commodities-e-setores',
+    scope: 'brasil',
+  },
+  {
+    key: 'o-que-e-commodity',
+    question: 'O que é uma commodity, no mercado financeiro?',
+    options: [
+      'Uma ação de empresa estatal',
+      'Uma mercadoria padronizada, negociada com preço de referência nos mercados',
+      'Um título de dívida do governo',
+      'Uma moeda estrangeira',
+    ],
+    correctIndex: 1,
+    explanation:
+      'É um produto básico e padronizado, como café, açúcar, etanol, petróleo ou minério, cujo preço é formado em mercados e bolsas. Por isso o preço sobe e desce com a oferta e a demanda globais.',
+    source: 'B3, glossário e material educativo sobre commodities (b3.com.br).',
+    category: 'commodities-e-setores',
+    scope: 'brasil',
+  },
+  {
+    key: 'quem-recebe-royalties-do-petroleo',
+    question:
+      'Quem recebe os royalties pagos pelas empresas que produzem petróleo e gás natural no Brasil?',
+    options: [
+      'Só os acionistas da Petrobras',
+      'Apenas os estados produtores',
+      'Os consumidores de combustíveis',
+      'União, estados e municípios beneficiários',
+    ],
+    correctIndex: 3,
+    explanation:
+      'Royalties são uma compensação financeira paga pela produção. A ANP apura e distribui o valor à União, aos estados, ao Distrito Federal e aos municípios beneficiários.',
+    source:
+      'ANP, Royalties e Participações Governamentais (gov.br/anp); Lei nº 9.478/1997, art. 47 (planalto.gov.br).',
+    category: 'commodities-e-setores',
+    scope: 'brasil',
+  },
 ]

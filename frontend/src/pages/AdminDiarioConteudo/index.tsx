@@ -16,7 +16,7 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 // Conteúdo do Diário (DI.5.1): os bancos que a agenda sorteia. Tudo que o jogador vê tem fonte primária
-// registrada e passa pela revisão do dia antes de ir ao ar. Não há IA: o conteúdo é curado à mão.
+// registrada. O conteúdo é criado e conferido pela skill `diario-conteudo` (sem IA no produto); aqui só se corrige.
 export function AdminDiarioConteudo() {
     const [tab, setTab] = useState<Tab>('words')
 
@@ -28,8 +28,7 @@ export function AdminDiarioConteudo() {
             <header>
                 <h1 className={styles.title}>Conteúdo do Diário</h1>
                 <p className={styles.subtitle}>
-                    Palavras, perguntas e eventos da Linha do tempo. Editar o que o jogador vê zera a revisão dos dias ainda não publicados
-                    que usam o item.
+                    Palavras, perguntas e eventos da Linha do tempo. Item em jogo já publicado só muda com confirmação.
                 </p>
             </header>
 

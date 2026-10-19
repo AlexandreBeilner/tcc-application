@@ -8,12 +8,11 @@ import type {
 } from '../domain/content'
 import type { DailyStatus } from '../domain/gameDay'
 
-// Visões do painel (DI.5.1). Diferente das rotas públicas, o painel vê o gabarito: é para revisar.
+// Visões do painel (DI.5.1). Diferente das rotas públicas, o painel vê o gabarito: é para conferir.
 
 export interface AdminAgendaDay {
   number: number
   date: string
-  reviewed: boolean
   published: boolean
   origins: { word: CardOrigin; question: CardOrigin; timeline: CardOrigin }
   word: { display: string; category: string; scope: ContentScope } | null
@@ -22,9 +21,9 @@ export interface AdminAgendaDay {
 }
 
 export type AdminAlertCode =
-  // Dias revisados e consecutivos à frente abaixo de 14.
-  | 'low_reviewed_cover'
-  // Agendado, mas com menos revisados do que a estreia exige: algo foi editado depois.
+  // Dias prontos e consecutivos à frente abaixo de 14.
+  | 'low_ready_cover'
+  // Agendado, mas com menos dias prontos do que a estreia exige.
   | 'scheduled_below_minimum'
   // No ar e o jogo de hoje não está publicado: o jogador vê "indisponível".
   | 'today_not_published'
@@ -37,7 +36,7 @@ export interface AdminOverview {
   canChangeStart: boolean
   // Primeiro dia da agenda mostrada: hoje (no ar), a estreia (agendado) ou o primeiro rascunho.
   agendaFrom: string
-  reviewedDaysAhead: number
+  readyDaysAhead: number
   publishedDaysAhead: number
   minDaysToSchedule: number
   lowCoverThreshold: number
@@ -56,7 +55,6 @@ export interface AdminPuzzleView {
   number: number
   date: string
   isTodayOrPast: boolean
-  reviewedAt: Date | null
   publishedAt: Date | null
   origins: { word: CardOrigin; question: CardOrigin; timeline: CardOrigin }
   word: DailyWord
@@ -72,8 +70,6 @@ export interface ContentChangeResult<T> {
   item: T
   // Jogos (hoje e à frente) que usam o item: o painel avisa, desativar não tira o item do jogo.
   affectedPuzzles: number[]
-  // Dias não publicados que perderam a revisão por causa da edição.
-  clearedReviews: number[]
 }
 
 export interface StartDateResult {

@@ -39,11 +39,10 @@ export interface MaterializeOptions {
 }
 
 // Garante jogos materializados para os próximos N dias: a partir da estreia enquanto o Diário está
-// agendado, a partir de hoje depois que está no ar. Materializar não é publicar (revisão e
-// publicação são do admin). Idempotente: dia que já tem jogo não é tocado, e jogo publicado nunca
+// agendado, a partir de hoje depois que está no ar. Sem etapa de revisão, o jogo
+// materializado já nasce publicado (só o rascunho de estreia espera o admin agendar). Idempotente: dia que já tem jogo não é tocado, e jogo publicado nunca
 // é regenerado. Mudar a estreia enquanto agendada é absorvido aqui: a cada execução os jogos não
-// publicados são realinhados (renumerados, ou descartados se ficaram antes da estreia), mantendo a
-// revisão. Banco sem conteúdo suficiente gera aviso para o dia, nunca um jogo quebrado.
+// publicados são realinhados (renumerados, ou descartados se ficaram antes da estreia). Banco sem conteúdo suficiente gera aviso para o dia, nunca um jogo quebrado.
 export class MaterializeUpcomingPuzzlesUseCase {
   constructor(
     private readonly settings: DailySettingsRepository,
@@ -56,11 +55,12 @@ export class MaterializeUpcomingPuzzlesUseCase {
   ) {}
 
   // `draftStartDate`: o painel prepara o rascunho de uma estreia que ainda não foi agendada (sem
-  // jogo revisado não há como agendar, e sem agendar a agenda não materializa). Só para uma data
+  // jogo pronto não há como agendar, e sem agendar a agenda não materializa). Só para uma data
   // futura; no ar, vale sempre a data gravada.
   async execute(draftStartDate?: string): Promise<MaterializeResult> {
     const startDate = draftStartDate ?? (await this.settings.get()).startDate
-    const today = dailyDay(this.now())
+    const now = this.now()
+    const today = dailyDay(now)
     const state = resolveStatus(startDate, today)
     const result: MaterializeResult = {
       status: state.status,
@@ -119,7 +119,9 @@ export class MaterializeUpcomingPuzzlesUseCase {
         timelineOrigin: 'generated',
         reviewedBy: null,
         reviewedAt: null,
-        publishedAt: null,
+        // Sem etapa de revisão, o jogo nasce no ar. O rascunho de estreia é a exceção: só vai ao ar
+        // quando o admin agenda (`SetStartDateUseCase` publica em lote).
+        publishedAt: draftStartDate === undefined ? now : null,
       })
       result.created.push(number)
       const word = activeWords.find((w) => w.id === plan.wordId)
@@ -134,6 +136,10 @@ export class MaterializeUpcomingPuzzlesUseCase {
         questionScope: question?.scope ?? null,
         timelineEventIds: plan.timelineEventIds,
       })
+    }
+    // No ar, nenhum dia materializado de hoje em diante fica fora: o jogador veria "indisponível".
+    if (state.status === 'live' && draftStartDate === undefined) {
+      await this.puzzles.publishPending(today, now)
     }
     return result
   }

@@ -89,7 +89,7 @@ describe('AdminDailyWords', () => {
     })
 
     it('desativar avisa os jogos que ainda usam a palavra', async () => {
-        vi.mocked(updateDailyWord).mockResolvedValue({ word: { ...selic, active: false }, affected_puzzles: [4, 9], cleared_reviews: [] })
+        vi.mocked(updateDailyWord).mockResolvedValue({ word: { ...selic, active: false }, affected_puzzles: [4, 9] })
         renderPanel()
 
         fireEvent.click(await screen.findByRole('button', { name: 'Desativar' }))
@@ -101,7 +101,7 @@ describe('AdminDailyWords', () => {
     it('editar palavra de jogo publicado pede confirmação e repete com ela', async () => {
         vi.mocked(updateDailyWord)
             .mockRejectedValueOnce(new ApiError(409, 'o item está em jogo já publicado (#3)', { code: 'confirmation_required' }))
-            .mockResolvedValueOnce({ word: selic, affected_puzzles: [3], cleared_reviews: [] })
+            .mockResolvedValueOnce({ word: selic, affected_puzzles: [3] })
         renderPanel()
 
         fireEvent.click(await screen.findByRole('button', { name: 'Editar' }))

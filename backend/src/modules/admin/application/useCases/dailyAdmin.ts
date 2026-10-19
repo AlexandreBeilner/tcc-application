@@ -88,25 +88,13 @@ export class DailyPuzzleAdminUseCase {
     private readonly recordAdminAction: RecordAdminActionUseCase,
   ) {}
 
-  review(adminId: string, number: number): Promise<{ number: number }> {
-    return this.recordAdminAction.run(
-      {
-        adminId,
-        action: 'daily.puzzle_review',
-        targetType: 'daily_puzzle',
-        targetId: String(number),
-      },
-      () => this.daily.reviewPuzzle(adminId, number),
-    )
-  }
-
   publish(adminId: string, numbers?: number[]): Promise<{ published: number[] }> {
     return this.recordAdminAction.run(
       {
         adminId,
         action: 'daily.puzzle_publish',
         targetType: 'daily_puzzle',
-        payload: { requested: numbers ?? 'all_reviewed' },
+        payload: { requested: numbers ?? 'all_pending' },
       },
       () => this.daily.publishPuzzles(numbers),
       (result) => ({ payload: { published: result.published } }),
@@ -127,7 +115,7 @@ export class DailyPuzzleAdminUseCase {
         targetId: String(number),
         payload: { card: input.card, confirmed_published: confirmPublished },
       },
-      () => this.daily.replaceCard(adminId, number, input, confirmPublished),
+      () => this.daily.replaceCard(number, input, confirmPublished),
     )
   }
 }

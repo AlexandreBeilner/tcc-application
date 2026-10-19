@@ -684,4 +684,99 @@ export const EVENT_SEEDS: readonly EventSeed[] = [
     category: 'produtos-e-regras',
     scope: 'brasil',
   },
+  {
+    key: 'petrobras-1953',
+    year: 1953,
+    label: 'Lei cria a Petrobras e fixa o monopólio da União sobre o petróleo',
+    explanation:
+      'A Lei 2.004 criou a Petróleo Brasileiro S.A. e deixou com a União a pesquisa, a lavra e a refinação do petróleo, executadas pela nova estatal.',
+    source: 'Lei nº 2.004, de 03/10/1953 (planalto.gov.br/ccivil_03/leis/l2004.htm).',
+    category: 'commodities-e-setores',
+    scope: 'brasil',
+  },
+  {
+    key: 'tesouro-nacional-1986',
+    year: 1986,
+    label: 'Governo cria a Secretaria do Tesouro Nacional no Ministério da Fazenda',
+    explanation:
+      'O Decreto 92.452 criou a STN como um dos órgãos centrais de planejamento, coordenação e controle financeiro do governo federal.',
+    source: 'Decreto nº 92.452, de 10/03/1986 (planalto.gov.br).',
+    category: 'politica-fiscal',
+    scope: 'brasil',
+  },
+  {
+    key: 'constituicao-1988',
+    year: 1988,
+    label: 'Nova Constituição reparte tributos entre União, estados e municípios',
+    explanation:
+      'A Constituição promulgada em 5 de outubro de 1988 definiu o sistema tributário e mandou a União entregar parte do imposto de renda e do IPI a estados e municípios.',
+    source:
+      'Constituição da República Federativa do Brasil, de 05/10/1988, arts. 145 a 162 (planalto.gov.br).',
+    category: 'politica-fiscal',
+    scope: 'brasil',
+  },
+  {
+    key: 'acordo-divida-externa-1994',
+    year: 1994,
+    label: 'Brasil fecha a renegociação da dívida externa com os bancos privados',
+    explanation:
+      'Em 15 de abril de 1994 o país trocou a dívida antiga com bancos por novos títulos, os Brady Bonds, no formato do plano americano para aliviar dívidas externas.',
+    source:
+      'Ipea, Pesquisa e Planejamento Econômico, v. 29, n. 3 (repositorio.ipea.gov.br); Tesouro Nacional, Relatório Anual da Dívida (tesouro.gov.br).',
+    category: 'cambio-e-setor-externo',
+    scope: 'brasil',
+  },
+  {
+    key: 'lei-do-petroleo-1997',
+    year: 1997,
+    label: 'Lei cria a ANP e regula a exploração de petróleo por empresas',
+    explanation:
+      'A Lei 9.478 criou a ANP e o CNPE e previu que as atividades do petróleo possam ser exercidas por empresas, mediante concessão ou autorização, reguladas pela União.',
+    source:
+      'Lei nº 9.478, de 06/08/1997, arts. 2, 5 e 8 (planalto.gov.br/ccivil_03/leis/l9478.htm).',
+    category: 'commodities-e-setores',
+    scope: 'brasil',
+  },
+  {
+    key: 'racionamento-energia-2001',
+    year: 2001,
+    label: 'Governo impõe metas de economia de energia elétrica aos consumidores',
+    explanation:
+      'Diante da situação hidrológica crítica, o governo criou a Câmara de Gestão da Crise de Energia. As casas ganharam metas de consumo e podiam ter o fornecimento suspenso se as descumprissem.',
+    source: 'Medida Provisória nº 2.198-5, de 24/08/2001, arts. 1 e 14 (planalto.gov.br).',
+    category: 'commodities-e-setores',
+    scope: 'brasil',
+  },
+  {
+    key: 'taper-tantrum-2013',
+    year: 2013,
+    label: 'Fed sinaliza reduzir compras de títulos e o dólar sobe frente ao real',
+    explanation:
+      'Em 22/05/2013 o presidente do Fed disse que o banco poderia reduzir o ritmo das compras de títulos. Nas semanas seguintes o dólar (PTAX) subiu no Brasil, de R$ 2,04 naquele dia para R$ 2,22 em 28/06.',
+    source:
+      'Federal Reserve, depoimento de Ben Bernanke de 22/05/2013 (federalreserve.gov); Banco Central do Brasil, cotações PTAX (bcb.gov.br).',
+    category: 'eventos-globais',
+    scope: 'fora',
+  },
+  {
+    key: 'calamidade-publica-2020',
+    year: 2020,
+    label: 'Congresso reconhece calamidade pública e dispensa a meta fiscal da União',
+    explanation:
+      'O Decreto Legislativo 6 reconheceu a calamidade da pandemia só para fins da LRF: dispensou a meta de resultado fiscal e a limitação de empenho até 31/12/2020.',
+    source:
+      'Decreto Legislativo nº 6, de 20/03/2020 (planalto.gov.br); Lei Complementar nº 101/2000, art. 65.',
+    category: 'politica-fiscal',
+    scope: 'brasil',
+  },
+  {
+    key: 'fed-inicia-alta-2022',
+    year: 2022,
+    label: 'Fed inicia ciclo de alta dos juros nos Estados Unidos',
+    explanation:
+      'Em 16/03/2022 o Fed subiu a meta dos juros americanos para 0,25% a 0,50% ao ano. Juros maiores lá tendem a atrair capital e pressionar o câmbio de países emergentes, como o Brasil.',
+    source: 'Federal Reserve, comunicado do FOMC de 16/03/2022 (federalreserve.gov).',
+    category: 'eventos-globais',
+    scope: 'fora',
+  },
 ]
