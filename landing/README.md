@@ -78,6 +78,22 @@ no GitHub. Os botões da landing levam ao app em `https://app.selucra.com.br`, q
 
 O app em `app.selucra.com.br` é outro projeto do Pages (LW.3.16); a landing não depende dele para ser publicada.
 
+## Arquivo do Diário (DI.3.4)
+
+`/diario/arquivo/` (índice) e `/diario/arquivo/<n>/` (um jogo encerrado: palavra, pergunta com a resposta e linha do tempo) são gerados
+no build por `diarioArquivo.mjs`, a partir de `GET /daily/archive` da API (`API_URL`). O jogo do dia nunca entra: a API só devolve jogo
+encerrado e o build filtra de novo pela data (UTC).
+
+- **API fora no build:** o build não falha. Ele lê o `diario/arquivo/jogos.json` do deploy anterior (publicado junto das páginas) e, se nem
+  isso existir, segue sem arquivo e avisa no log. Enquanto não há jogo encerrado (antes da estreia e no dia dela), nenhuma página do arquivo é
+  criada, nem o bloco "Dias anteriores" na página do Diário.
+- **Build diário:** o workflow `.github/workflows/diario-arquivo.yml` dispara o deploy da landing todo dia às 00:10 UTC (21:10 de Brasília),
+  logo depois de o jogo do dia anterior encerrar. Ele usa o segredo `CF_PAGES_DEPLOY_HOOK_LANDING` (sem o segredo, só avisa).
+  Para criar: Cloudflare, projeto `selucra-landing`, Settings, Builds, **Deploy hooks**, Add (branch `main`), copie a URL; no GitHub,
+  Settings, Secrets and variables, Actions, New repository secret, nome `CF_PAGES_DEPLOY_HOOK_LANDING`. Teste com Actions, "Arquivo do
+  Diário", Run workflow.
+- **Texto da API é tratado como não confiável:** escapado no HTML, e o `<` vira `\u003c` no JSON-LD.
+
 ## Estrutura
 
 - `src/index.html`: conteúdo (placeholders `{{...}}` preenchidos no build). O FAQ visível gera o JSON-LD `FAQPage`.
@@ -85,6 +101,7 @@ O app em `app.selucra.com.br` é outro projeto do Pages (LW.3.16); a landing nã
 - `src/main.js`: movimento (valor piscando, demo de ordem). `src/scene.js`: cena three.js, carregada por `import()` depois do `load`.
 - `content/aprender/*.json` + `aprender.mjs`: guias evergreen (`/aprender/<slug>/`) e o hub `/aprender/`. Número regulatório nunca é digitado: entra por `{{fact:id}}`, lido de `backend/src/modules/lessons/domain/regulatoryFacts.ts` (o build precisa do repositório inteiro, não só de `landing/`). A build **falha** se o fato não existe, foi conferido só por trecho de busca ou tem mais de 12 meses, e cada guia lista as fontes. Para criar um guia: copie um JSON, escreva (cartão curto, sem travessão, sem preço) e rode `npm test`.
 - `src/diario.html` + `src/diario-page.ts`: página `/diario/` (Diário Selucra). O conteúdo para busca está no HTML; o jogo é o módulo `src/diario/` montado em modo `publico` por um bundle próprio (sem a cena 3D). O convite para o app ao terminar já está no HTML, escondido, e o script o mostra. Variável de build `API_URL`.
+- `diarioArquivo.mjs`: arquivo público dos jogos encerrados (dados, páginas, JSON-LD, sitemap).
 - `svg.mjs`: sparkline e mapa da trilha gerados no build (determinísticos, com altos e baixos).
 - `src/static/`: favicon, ícones, `og-image.png`, `robots.txt`, `_headers`. O `sitemap.xml` é gerado no build. `src/article.html` é o molde dos guias (cabeçalho e rodapé são os da home).
 

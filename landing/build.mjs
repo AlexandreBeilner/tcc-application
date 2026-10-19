@@ -3,6 +3,18 @@
 import { build } from 'esbuild'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { articleJsonLd, checkFact, esc, hubHtml, loadFacts, loadPages, renderArticle, usedFactIds } from './aprender.mjs'
+import {
+    ARCHIVE_DATA_PATH,
+    archiveTeaser,
+    gameJsonLd,
+    gameMeta,
+    gamePath,
+    indexJsonLd,
+    indexMeta,
+    loadArchive,
+    renderGame,
+    renderIndex,
+} from './diarioArquivo.mjs'
 import { heroSparkSvg, trailSvg } from './svg.mjs'
 
 const SITE_URL = (process.env.SITE_URL || 'https://selucra.com.br').replace(/\/$/, '')
@@ -76,7 +88,12 @@ export async function buildLanding({
     outDir = 'dist',
     now = new Date(),
     analyticsToken = process.env.CF_ANALYTICS_TOKEN,
+    // Jogos já encerrados do Diário (DI.3.4). Sem este parâmetro o build os busca na API; os testes
+    // passam a lista pronta para não depender de rede.
+    archive,
 } = {}) {
+    // Lê o arquivo ANTES de apagar o dist: o fallback é o `jogos.json` do deploy anterior, publicado no site.
+    const archiveGames = archive ?? (await loadArchive({ apiUrl, siteUrl, now })).games
     await rm(outDir, { recursive: true, force: true })
     await mkdir(`${outDir}/assets`, { recursive: true })
 
@@ -190,6 +207,7 @@ export async function buildLanding({
         .replaceAll('{{APP_URL}}', appUrl)
         .replaceAll('{{SITE_URL}}', siteUrl)
         .replace('{{GUIDE_SLUGS}}', pages.map((p) => p.slug).join(','))
+        .replace('{{ARQUIVO}}', archiveTeaser(archiveGames))
     const diarioLd = JSON.stringify({
         '@context': 'https://schema.org',
         '@graph': [
@@ -214,6 +232,26 @@ export async function buildLanding({
         article(diarioMeta, diarioBody, diarioLd, 'website', `<script type="module" src="${rel(diarioJs)}"></script>`, 'og-diario.png'),
     )
     urls.splice(2, 0, { loc: diarioUrl, priority: '0.9' })
+
+    // Arquivo do Diário (DI.3.4): só existe quando há jogo encerrado (índice vazio seria página fina).
+    const guideSlugs = new Set(pages.map((p) => p.slug))
+    if (archiveGames.length > 0) {
+        const idxMeta = indexMeta(siteUrl, archiveGames.length)
+        await writePage(
+            'diario/arquivo',
+            article(idxMeta, renderIndex(archiveGames), indexJsonLd(archiveGames, { siteUrl }), 'website', '', 'og-diario.png'),
+        )
+        urls.splice(3, 0, { loc: idxMeta.url, lastmod: archiveGames[0].date, priority: '0.7' })
+        for (const [i, g] of archiveGames.entries()) {
+            // A lista vem do mais recente ao mais antigo: o vizinho "anterior" é o próximo item.
+            const body = renderGame(g, { guideSlugs, appUrl, prev: archiveGames[i + 1], next: archiveGames[i - 1] })
+            const ld = gameJsonLd(g, { siteUrl })
+            await writePage(`diario/arquivo/${g.number}`, article(gameMeta(g, siteUrl), body, ld, 'article', '', 'og-diario.png'))
+        }
+        for (const g of archiveGames) urls.push({ loc: gameMeta(g, siteUrl).url, lastmod: g.date, priority: '0.6' })
+        // O dado do arquivo vai junto: se a API estiver fora no próximo build, ele serve de base.
+        await writeFile(`${outDir}/${ARCHIVE_DATA_PATH}`, JSON.stringify({ games: archiveGames }))
+    }
 
     await cp('src/static', outDir, { recursive: true })
     const sitemap =

@@ -18,6 +18,7 @@ import { AnswerTriviaUseCase } from './application/useCases/answerTrivia'
 import { EvaluateWordGuessUseCase } from './application/useCases/evaluateWordGuess'
 import { GetDailyQualityUseCase } from './application/useCases/getDailyQuality'
 import { HasCompletedDailyTodayUseCase } from './application/useCases/hasCompletedDailyToday'
+import { GetArchiveUseCase } from './application/useCases/getArchive'
 import { GetGameUseCase } from './application/useCases/getGame'
 import { GetTodayUseCase } from './application/useCases/getToday'
 import { MaterializeUpcomingPuzzlesUseCase } from './application/useCases/materializeUpcomingPuzzles'
@@ -148,6 +149,7 @@ export function createDailyComposition(db: Database, deps: DailyRouterCompositio
   const router = createDailyRouter({
     getToday: new GetTodayUseCase(settings, loader),
     getGame: new GetGameUseCase(loader),
+    getArchive: new GetArchiveUseCase(settings, loader),
     evaluateWordGuess: new EvaluateWordGuessUseCase(loader, acceptedWords, recorder),
     answerTrivia: new AnswerTriviaUseCase(loader, recorder),
     answerTimeline: new AnswerTimelineUseCase(loader, recorder),

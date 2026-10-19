@@ -49,6 +49,25 @@ A ordem de `timeline.events` é a de exibição (embaralhada de propósito). `is
 
 ---
 
+### `GET /daily/archive`
+
+- **Autenticação:** público (mesmo limite por IP das outras rotas `/daily`). Registrada antes de `/daily/:number`.
+- **Payload:** nenhum.
+- **Sucesso:** `200` →
+  ```json
+  { "games": [ {
+      "number": 47, "date": "2026-12-16",
+      "word": { "answer": "AÇÕES", "length": 5, "definition": "...", "learnMore": null },
+      "trivia": { "question": "...", "options": ["..."], "correctIndex": 1, "explanation": "...", "sourceRef": "...", "learnMore": null },
+      "timeline": { "events": [ { "id": "...", "label": "...", "year": 1994, "explanation": "...", "sourceRef": "...", "learnMore": null } ] }
+  } ] }
+  ```
+  Do mais recente ao mais antigo; `timeline.events` já na ordem cronológica certa, com o ano.
+- **Erros:** nenhum esperado. Diário desligado ou antes da estreia responde `200` com `{ "games": [] }` (nada é revelado).
+- **Regra:** `GetArchiveUseCase`, via `DailyGameLoader`. Traz **só jogos já encerrados** (número menor que o de hoje, na virada de 00:00 UTC): o jogo do dia e os futuros nunca entram, então o gabarito exposto aqui já não é segredo. Dia anterior sem jogo publicado é só um buraco. Consumida pelo build da landing (DI.3.4), que gera `/diario/arquivo/`; sem cache (`no-store`), quem guarda é o build.
+
+---
+
 ### `GET /daily/:number`
 
 - **Autenticação:** público.

@@ -409,3 +409,56 @@ describe('POST /daily/metrics (DI.7.1)', () => {
     expect([...world.metrics.counts.keys()]).toEqual(['2026-11-03|anon_started'])
   })
 })
+
+describe('GET /daily/archive', () => {
+  it('o jogo do dia ainda não entra; só os já encerrados, com o gabarito', async () => {
+    const res = await request(appAt(AT.brasilia2059)).get('/daily/archive')
+    expect(res.status).toBe(200)
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.body.games.map((g: { number: number }) => g.number)).toEqual([1])
+    expect(res.body.games[0]).toMatchObject({
+      number: 1,
+      date: START,
+      word: { answer: 'AÇÕES', length: 5, definition: 'Pedaços de uma empresa.' },
+      trivia: { correctIndex: 1, explanation: 'O IPCA é a referência da meta de inflação.' },
+    })
+    // Linha do tempo na ordem cronológica certa, já com o ano.
+    expect(res.body.games[0].timeline.events.map((e: { id: string }) => e.id)).toEqual(
+      CORRECT_ORDER,
+    )
+    expect(res.body.games[0].timeline.events[0].year).toBe(1994)
+  })
+
+  it('na virada (20h59 e 21h00 de Brasília) o jogo que encerrou passa a constar', async () => {
+    const before = await request(appAt(AT.brasilia2059)).get('/daily/archive')
+    const after = await request(appAt(AT.brasilia2100)).get('/daily/archive')
+    expect(before.body.games.map((g: { number: number }) => g.number)).toEqual([1])
+    expect(after.body.games.map((g: { number: number }) => g.number)).toEqual([2, 1])
+  })
+
+  it('no dia da estreia, antes dela e desligado não há arquivo e nada vaza', async () => {
+    for (const [now, start] of [
+      [AT.launchDay, START],
+      [AT.beforeLaunch, START],
+      [AT.launchDay, null],
+    ] as const) {
+      const res = await request(appAt(now, start)).get('/daily/archive')
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual({ games: [] })
+    }
+  })
+
+  it('jogo passado ainda não publicado vira buraco, sem derrubar o arquivo', async () => {
+    const world = buildDailyWorld({ startDate: START })
+    const puzzle = world.puzzleRepo.items.find((p) => p.number === 1)!
+    puzzle.publishedAt = null
+    const app = express()
+    app.use(createDailyRouter({ ...world, now: () => AT.brasilia2100 }))
+    const res = await request(app).get('/daily/archive')
+    expect(res.body.games.map((g: { number: number }) => g.number)).toEqual([2])
+  })
+
+  it('"archive" não vira número: continua 404 para números inválidos', async () => {
+    expect((await request(appAt(AT.brasilia2059)).get('/daily/arquivo')).status).toBe(404)
+  })
+})
