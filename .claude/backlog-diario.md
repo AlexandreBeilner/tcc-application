@@ -278,10 +278,14 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
   - **Testes (3 novos, 69 na landing):** SEO da página (limites de title/description, `og:url`, imagem do Diário na página e imagem padrão na home), JSON-LD (tipos, `mainEntity` igual ao `faqFromHtml`, URL) e CSP/cache no `_headers` buildado (origem da API, nenhum placeholder sobrando).
   - **Não rodei:** Lighthouse (SEO e Acessibilidade >= 95) e o Rich Results Test, que dependem de ferramenta externa/rede e da página publicada; ficam para conferir depois do deploy (mesmo passo de conferência do README da landing). A imagem usa fonte do sistema (não a Sora do site): se quiser a arte final com a tipografia da marca, trocar o PNG, sem mudar código.
 
-### DI.3.4 · Arquivo público dos dias anteriores (recomendado)
+### DI.3.4 · Arquivo público dos dias anteriores ✅ (2026-10-18)
 - **Descrição:** uma página estática por jogo encerrado (`/diario/47`, com a palavra, a definição, as perguntas e as explicações) e um índice do arquivo. É o que mais traz busca de cauda longa ("o que é spread", "quando foi o Plano Real"), porque o jogo do dia, sozinho, muda todo dia e carrega por JS. `GET /daily/archive` (público, só jogos encerrados) alimenta o build; um **build agendado por dia** (gatilho de deploy do Cloudflare Pages, disparado por um job agendado do GitHub Actions logo depois das 21h) gera as páginas novas. Se a API estiver fora no momento do build, o build mantém o arquivo anterior e não falha.
 - **Dependências:** DI.3.3; Pages da landing publicado (LW.6.x).
 - **Aceite:** jogo do dia nunca aparece no arquivo antes de encerrar; páginas no sitemap; links internos para os guias e para o Diário do dia.
+- **Entregável:** `GET /daily/archive` (`GetArchiveUseCase`, registrada antes de `/daily/:number`): jogos com número menor que o de hoje, do mais recente ao mais antigo, com palavra, pergunta com gabarito e linha do tempo já em ordem cronológica; desligado ou antes da estreia, `{ games: [] }`; dia sem jogo publicado vira buraco. Documentada em `.docs/backend/daily.md`. Na landing, `diarioArquivo.mjs` gera `/diario/arquivo/` e `/diario/arquivo/<n>/` (h1 único, canonical, JSON-LD `Article` + `BreadcrumbList` + `FAQPage`, dias vizinhos, convite para o jogo de hoje, guias quando há `learnMore`), entradas no sitemap com `lastmod`, bloco "Dias anteriores" na página do Diário e `diario/arquivo/jogos.json`. Workflow `diario-arquivo.yml` dispara o deploy hook do Pages às 00:10 UTC.
+  - **Escolhas:** (1) "mantém o arquivo anterior" foi feito lendo o `jogos.json` do deploy anterior (o Pages clona do zero a cada build, então não há `dist` antigo); sem API e sem `jogos.json`, o build segue sem arquivo e avisa, nunca falha. (2) Sem jogo encerrado não se cria o índice (página vazia seria conteúdo fino). (3) O filtro por data roda de novo no build, além do da API. (4) O texto vindo da API é escapado no HTML e o `<` é escapado no JSON-LD (um teste pegou o `</script>` no JSON-LD).
+  - **Testes:** backend, 5 no router (jogo do dia fora, virada 20h59/21h00 de Brasília, antes/desligado vazios, buraco, rota inválida); landing, 11 novos (limpeza e filtro por dia UTC, fallback da API, páginas, escape, sitemap, vazio).
+  - **Falta (fora do código):** criar o deploy hook no Pages e o segredo `CF_PAGES_DEPLOY_HOOK_LANDING` no GitHub; conferir o Rich Results Test depois que houver o primeiro jogo encerrado.
 
 ## Fase D, o jogo dentro do app
 
@@ -374,7 +378,7 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 3. **DI.2.1 → DI.3.1 → DI.3.2 → DI.3.3**: a partir daqui o jogo já roda na landing, sem login (dá para testar com amigos).
 4. **DI.2.2 → DI.4.1 → DI.4.2**: o jogo no app, com XP e streak.
 5. **DI.5.1** (painel e controle da estreia), depois **DI.6.1, DI.6.2, DI.7.1**.
-6. **DI.3.4** quando a landing estiver publicada no Pages.
+6. **DI.3.4** ✅ (feita; só rende depois de haver jogo encerrado).
 
 **Roteiro de lançamento** (fora do código, depois que tudo acima estiver publicado):
 1. Publicar com o Diário **agendado** para uma data com folga (ex: 2 a 3 semanas). A página pública vai ao ar com a data de estreia.

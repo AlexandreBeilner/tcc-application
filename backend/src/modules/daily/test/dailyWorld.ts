@@ -9,6 +9,7 @@ import { AnswerTimelineUseCase } from '../application/useCases/answerTimeline'
 import { AnswerTriviaUseCase } from '../application/useCases/answerTrivia'
 import { DailyGameLoader } from '../application/dailyGameLoader'
 import { EvaluateWordGuessUseCase } from '../application/useCases/evaluateWordGuess'
+import { GetArchiveUseCase } from '../application/useCases/getArchive'
 import { GetGameUseCase } from '../application/useCases/getGame'
 import { GetTodayUseCase } from '../application/useCases/getToday'
 import { RecordDailyMetricUseCase } from '../application/useCases/recordDailyMetric'
@@ -142,6 +143,7 @@ export function buildDailyWorld(options: WorldOptions) {
     tokenFor: (userId: string) => tokenIssuer.issue({ sub: userId, role: 'user' }),
     getToday: new GetTodayUseCase(settings, loader),
     getGame: new GetGameUseCase(loader),
+    getArchive: new GetArchiveUseCase(settings, loader),
     evaluateWordGuess: new EvaluateWordGuessUseCase(loader, acceptedWords, recorder),
     answerTrivia: new AnswerTriviaUseCase(loader, recorder),
     answerTimeline: new AnswerTimelineUseCase(loader, recorder),

@@ -1,0 +1,27 @@
+name: Arquivo do Diário
+
+# DI.3.4: o arquivo público do Diário (selucra.com.br/diario/arquivo/) é gerado no build da landing
+# a partir de GET /daily/archive. O jogo do dia só entra depois de encerrar (00:00 UTC, 21h de
+# Brasília), então todo dia, logo depois da virada, este job dispara um novo deploy da landing no
+# Cloudflare Pages pelo deploy hook. Sem o segredo, o job só avisa (não derruba nada).
+on:
+  schedule:
+    # 00:10 UTC = 21:10 em Brasília, dez minutos depois de o jogo do dia anterior encerrar.
+    - cron: "10 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  rebuild:
+    name: disparar o build da landing
+    runs-on: ubuntu-latest
+    steps:
+      - name: deploy hook do Cloudflare Pages
+        env:
+          HOOK_URL: ${{ secrets.CF_PAGES_DEPLOY_HOOK_LANDING }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "::warning::Segredo CF_PAGES_DEPLOY_HOOK_LANDING não configurado: o arquivo do Diário não será atualizado."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 30 -X POST "$HOOK_URL" > /dev/null
+          echo "Build da landing disparado."

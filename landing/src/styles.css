@@ -1176,3 +1176,39 @@ footer p {
 .diario-page .art-sec ul strong {
     color: var(--text);
 }
+
+/* Arquivo do Diário (DI.3.4) */
+.diario-arquivo .arq-opcoes {
+    list-style: none;
+    padding: 0;
+}
+.diario-arquivo .arq-opcoes li {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md, 10px);
+    background: var(--surface);
+}
+.diario-arquivo .arq-opcoes .arq-certa {
+    border-color: var(--brand);
+}
+.diario-arquivo .arq-linha {
+    padding-left: 22px;
+    display: grid;
+    gap: 14px;
+    max-width: 68ch;
+}
+.diario-arquivo .arq-fonte {
+    color: var(--text2);
+}
+.diario-arquivo .arq-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin-top: 40px;
+    font-size: 14px;
+}
+.diario-arquivo .arq-nav a {
+    color: var(--brand-300);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}

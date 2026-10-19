@@ -15,7 +15,7 @@ describe('landing buildada', () => {
     let html
     before(async () => {
         dir = await mkdtemp(join(tmpdir(), 'landing-'))
-        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir })
+        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir, archive: [] })
         html = await readFile(join(dir, 'index.html'), 'utf8')
     })
     after(() => rm(dir, { recursive: true, force: true }))
@@ -100,7 +100,7 @@ describe('guias (páginas de conteúdo)', () => {
     let files
     before(async () => {
         dir = await mkdtemp(join(tmpdir(), 'landing-guias-'))
-        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir })
+        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir, archive: [] })
         files = await htmlFiles(dir)
     })
     after(() => rm(dir, { recursive: true, force: true }))
@@ -211,7 +211,7 @@ describe('analytics (Cloudflare Web Analytics)', () => {
 
     it('sem token, nenhuma página carrega o beacon nem deixa placeholder', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'landing-an0-'))
-        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir, analyticsToken: '' })
+        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir, analyticsToken: '', archive: [] })
         for (const f of await htmlFiles(dir)) {
             const html = await readFile(f, 'utf8')
             assert.doesNotMatch(html, /cloudflareinsights|\{\{ANALYTICS\}\}/, f)
@@ -221,7 +221,7 @@ describe('analytics (Cloudflare Web Analytics)', () => {
 
     it('com token, a home e todos os guias carregam o beacon com o token', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'landing-an1-'))
-        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir, analyticsToken: TOKEN })
+        await buildLanding({ siteUrl: SITE, appUrl: APP, outDir: dir, analyticsToken: TOKEN, archive: [] })
         const files = await htmlFiles(dir)
         assert.ok(files.length >= 5)
         for (const f of files) {
@@ -268,7 +268,7 @@ describe('página do Diário Selucra (/diario/)', () => {
     let html
     before(async () => {
         dir = await mkdtemp(join(tmpdir(), 'landing-diario-'))
-        await buildLanding({ siteUrl: SITE, appUrl: APP, apiUrl: API, outDir: dir })
+        await buildLanding({ siteUrl: SITE, appUrl: APP, apiUrl: API, outDir: dir, archive: [] })
         html = await readFile(join(dir, 'diario/index.html'), 'utf8')
     })
     after(() => rm(dir, { recursive: true, force: true }))

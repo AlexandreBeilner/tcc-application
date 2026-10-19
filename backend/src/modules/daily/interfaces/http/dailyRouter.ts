@@ -7,6 +7,7 @@ import type { AnswerTriviaUseCase } from '../../application/useCases/answerTrivi
 import type { EvaluateWordGuessUseCase } from '../../application/useCases/evaluateWordGuess'
 import type { GetMyGameStateUseCase } from '../../application/useCases/getMyGameState'
 import type { GetMyStatsUseCase } from '../../application/useCases/getMyStats'
+import type { GetArchiveUseCase } from '../../application/useCases/getArchive'
 import type { GetGameUseCase } from '../../application/useCases/getGame'
 import type { GetTodayUseCase } from '../../application/useCases/getToday'
 import type { RecordDailyMetricUseCase } from '../../application/useCases/recordDailyMetric'
@@ -31,6 +32,7 @@ import {
 export interface DailyRouterDeps {
   getToday: GetTodayUseCase
   getGame: GetGameUseCase
+  getArchive: GetArchiveUseCase
   evaluateWordGuess: EvaluateWordGuessUseCase
   answerTrivia: AnswerTriviaUseCase
   answerTimeline: AnswerTimelineUseCase
@@ -98,6 +100,12 @@ export function createDailyRouter(deps: DailyRouterDeps): Router {
     } catch (err) {
       if (!handleError(err, res)) throw err
     }
+  })
+
+  // Arquivo dos jogos já encerrados (DI.3.4), lido pelo build da landing. Antes de `/daily/:number`,
+  // senão "archive" seria tratado como número e viraria 404.
+  router.get('/daily/archive', async (_req, res) => {
+    res.status(200).json(await deps.getArchive.execute({ now: clock() }))
   })
 
   // Contador agregado (DI.7.1): a landing avisa que um jogo anônimo começou ou terminou, e o app
