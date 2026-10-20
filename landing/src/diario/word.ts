@@ -19,7 +19,9 @@ const FLIP_MS = 500
 export function createWordCard(env: CardEnv): CardView {
     const { doc, game } = env
     const { length, maxAttempts } = game.cards.word
-    let typed = ''
+    // casas da tentativa atual ('' = vazia) e a casa selecionada, como no Termo: dá para escrever em qualquer casa
+    let slots: string[] = Array(length).fill('')
+    let cursor = 0
     let busy = false
 
     const rows: HTMLElement[] = []
@@ -30,6 +32,13 @@ export function createWordCard(env: CardEnv): CardView {
         rows.push(row)
         grid.appendChild(row)
     }
+    grid.addEventListener('click', (ev) => {
+        const tile = (ev.target as HTMLElement | null)?.closest?.('.dg-tile')
+        const w = env.progress().word
+        if (!tile || busy || w.finished || tile.parentElement !== rows[w.guesses.length]) return
+        cursor = Array.prototype.indexOf.call(tile.parentElement.children, tile)
+        paintRow(w.guesses.length, slots)
+    })
 
     const keys = new Map<string, HTMLButtonElement>()
     const keyboard = el(doc, 'div', { class: 'dg-kb', role: 'group', 'aria-label': 'Teclado' })
@@ -61,24 +70,27 @@ export function createWordCard(env: CardEnv): CardView {
     nextBtn.addEventListener('click', () => env.next())
     const root = el(doc, 'div', { class: 'dg-word' }, grid, reveal, keyboard, nextBtn)
 
-    function paintTile(tile: HTMLElement, letter: string, state: string, position: number): void {
+    function paintTile(tile: HTMLElement, letter: string, state: string, position: number, selected: boolean): void {
         tile.textContent = letter
         tile.dataset.state = state
-        tile.setAttribute(
-            'aria-label',
-            letter
-                ? `Letra ${position}, ${letter}, ${state in STATE_LABEL ? STATE_LABEL[state as LetterState] : 'ainda não enviada'}`
-                : `Letra ${position}, vazia`,
-        )
+        tile.toggleAttribute('data-cursor', selected)
+        const label = letter
+            ? `Letra ${position}, ${letter}, ${state in STATE_LABEL ? STATE_LABEL[state as LetterState] : 'ainda não enviada'}`
+            : `Letra ${position}, vazia`
+        tile.setAttribute('aria-label', selected ? `${label}, selecionada` : label)
     }
 
-    function paintRow(index: number, word: string, letters?: LetterState[], animate = false): void {
+    /** `word` é a palavra enviada ou as casas da tentativa atual; só a linha atual (sem `letters`) mostra a casa selecionada. */
+    function paintRow(index: number, word: string | readonly string[], letters?: LetterState[], animate = false): void {
         const row = rows[index]
+        const w = env.progress().word
+        const active = !letters && !w.finished && index === w.guesses.length
         row.classList.toggle('dg-flip', animate && !env.reduced())
+        row.toggleAttribute('data-active', active)
         const tiles = Array.from(row.children) as HTMLElement[]
         tiles.forEach((tile, i) => {
             tile.style.setProperty('--i', String(i))
-            paintTile(tile, word[i] ?? '', letters ? letters[i] : word[i] ? 'typing' : 'empty', i + 1)
+            paintTile(tile, word[i] ?? '', letters ? letters[i] : word[i] ? 'typing' : 'empty', i + 1, active && i === cursor)
         })
     }
 
@@ -135,7 +147,7 @@ export function createWordCard(env: CardEnv): CardView {
         rows.forEach((_, i) => {
             const g = w.guesses[i]
             if (g) paintRow(i, g.guess, g.letters)
-            else paintRow(i, i === w.guesses.length && !w.finished ? typed : '')
+            else paintRow(i, i === w.guesses.length && !w.finished ? slots : '')
         })
         paintKeyboard()
         paintReveal()
@@ -153,13 +165,13 @@ export function createWordCard(env: CardEnv): CardView {
         const w = progress.word
         if (busy || w.finished) return
         const rowIndex = w.guesses.length
-        if (typed.length < length) {
+        if (slots.some((ch) => !ch)) {
             shake(rowIndex)
             env.say(`Faltam letras. A palavra tem ${length} letras.`)
             return
         }
         busy = true
-        const guess = typed
+        const guess = slots.join('')
         let res
         try {
             res = await env.api.guess(game.number, guess, env.mode === 'publico' ? rowIndex + 1 : undefined)
@@ -174,7 +186,7 @@ export function createWordCard(env: CardEnv): CardView {
             } else env.say(env.fail(e))
             return
         }
-        typed = ''
+        clearSlots()
         const next = applyGuess(progress, guess, res)
         const settle = env.reduced() ? 0 : (length - 1) * FLIP_STEP_MS + FLIP_MS
         paintRow(rowIndex, guess, res.letters, true)
@@ -201,19 +213,38 @@ export function createWordCard(env: CardEnv): CardView {
             return true
         }
         if (key === '⌫') {
-            typed = typed.slice(0, -1)
-        } else if (typed.length < length) {
-            typed += key
-        } else return true
-        paintRow(w.guesses.length, typed)
+            // apaga a casa selecionada; se ela já está vazia, volta uma e apaga essa
+            if (!slots[cursor] && cursor > 0) cursor--
+            slots[cursor] = ''
+        } else if (key === '←') {
+            cursor = Math.max(0, cursor - 1)
+        } else if (key === '→') {
+            cursor = Math.min(length - 1, cursor + 1)
+        } else {
+            slots[cursor] = key
+            cursor = nextCursor(cursor)
+        }
+        paintRow(w.guesses.length, slots)
         return true
+    }
+
+    /** Depois de escrever na casa `from`: a próxima vazia à direita, senão a primeira vazia, senão a casa seguinte. */
+    function nextCursor(from: number): number {
+        for (let i = from + 1; i < length; i++) if (!slots[i]) return i
+        const empty = slots.indexOf('')
+        return empty >= 0 ? empty : Math.min(length - 1, from + 1)
+    }
+
+    function clearSlots(): void {
+        slots = Array(length).fill('')
+        cursor = 0
     }
 
     draw()
     return {
         el: root,
         refresh: () => {
-            typed = ''
+            clearSlots()
             busy = false
             draw()
         },
@@ -224,6 +255,8 @@ export function createWordCard(env: CardEnv): CardView {
                 return press('↵')
             }
             if (e.key === 'Backspace') return press('⌫')
+            if (e.key === 'ArrowLeft') return press('←')
+            if (e.key === 'ArrowRight') return press('→')
             if (e.key.length === 1) {
                 const letter = normalizeLetters(e.key)
                 if (letter.length === 1) return press(letter)

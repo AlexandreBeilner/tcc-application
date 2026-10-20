@@ -97,6 +97,36 @@ describe('Palavra do dia', () => {
         assert.equal(t.api.calls.guess.length, 1)
     })
 
+    it('casa selecionada: toque ou setas escolhem onde a letra entra, sem preencher as anteriores', async () => {
+        const t = setup()
+        await t.flush()
+        const tiles = () => Array.from(t.$$('.dg-row')[0].children) as HTMLElement[]
+        assert.ok(tiles()[0].hasAttribute('data-cursor'))
+        t.click(tiles()[3])
+        assert.ok(tiles()[3].hasAttribute('data-cursor'))
+        assert.match(tiles()[3].getAttribute('aria-label')!, /selecionada/)
+        t.type('e')
+        assert.equal(t.rowText(0), 'E')
+        assert.equal(tiles()[3].textContent, 'E')
+        t.type('s')
+        // sem casa vazia à direita, volta para a primeira vazia
+        assert.ok(tiles()[0].hasAttribute('data-cursor'))
+        t.type('aco')
+        assert.equal(t.rowText(0), 'ACOES')
+        // seta para a esquerda e Backspace apagam a casa selecionada; digitar sobrescreve
+        t.key('ArrowLeft')
+        t.key('Backspace')
+        assert.equal(tiles()[2].textContent, '')
+        t.key('Enter')
+        assert.equal(t.api.calls.guess.length, 0)
+        t.type('o')
+        t.key('Enter')
+        await t.flush()
+        assert.deepEqual(t.api.calls.guess, [{ guess: 'ACOES', attempt: 1 }])
+        // linha enviada não tem mais casa selecionada
+        assert.ok(!tiles().some((tile) => tile.hasAttribute('data-cursor')))
+    })
+
     it('seis tentativas erradas: revela a palavra com acento', async () => {
         const t = setup()
         await t.flush()
