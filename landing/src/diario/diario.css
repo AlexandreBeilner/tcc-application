@@ -237,6 +237,14 @@
 .dg-tile[data-state='typing'] {
     --tile-bd: var(--dg-text2);
 }
+/* linha atual: toque numa casa seleciona onde a próxima letra entra (como no Termo); a selecionada ganha a base grossa */
+.dg-row[data-active] .dg-tile {
+    cursor: pointer;
+}
+.dg-tile[data-cursor] {
+    --tile-bd: var(--dg-text2);
+    border-bottom-width: 6px;
+}
 /* certo: borda sólida grossa e ✓; lugar errado: borda tracejada e ●; fora da palavra: borda pontilhada, apagado e ✗ */
 .dg-tile[data-state='correct'] {
     --tile-bg: var(--dg-gain-bg);
