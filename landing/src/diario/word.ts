@@ -12,7 +12,7 @@ const STATE_LABEL: Record<LetterState, string> = {
     absent: 'letra que não está na palavra',
 }
 const RANK: Record<LetterState, number> = { absent: 0, present: 1, correct: 2 }
-const KEY_ROWS = ['QWERTYUIOP', 'ASDFGHJKL', '↵ZXCVBNM⌫']
+const KEY_ROWS = ['QWERTYUIOP', 'ASDFGHJKL⌫', 'ZXCVBNM↵']
 const FLIP_STEP_MS = 250
 const FLIP_MS = 500
 
@@ -46,12 +46,7 @@ export function createWordCard(env: CardEnv): CardView {
         const rowEl = el(doc, 'div', { class: 'dg-kb-row' })
         for (const ch of letters) {
             const label = ch
-            const btn = el(
-                doc,
-                'button',
-                { type: 'button', class: ch === '↵' || ch === '⌫' ? 'dg-key dg-key-wide' : 'dg-key', 'data-key': ch },
-                label,
-            )
+            const btn = el(doc, 'button', { type: 'button', class: ch === '↵' ? 'dg-key dg-key-wide' : 'dg-key', 'data-key': ch }, label)
             if (ch === '⌫') btn.setAttribute('aria-label', 'Apagar')
             if (ch === '↵') btn.setAttribute('aria-label', 'Enviar palpite')
             btn.addEventListener('click', (ev) => {

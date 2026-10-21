@@ -160,7 +160,8 @@
     margin: 0;
 }
 .dg-panel {
-    padding: 16px;
+    --dg-panel-pad: 16px;
+    padding: var(--dg-panel-pad);
     border: 1px solid var(--dg-border);
     border-radius: 16px;
     background: var(--dg-surface);
@@ -323,16 +324,21 @@
     display: grid;
     gap: 6px;
     width: 100%;
+    max-width: 480px;
 }
+/* Grade de 20 meias-colunas: cada letra ocupa 2, então todas têm a mesma largura nas três linhas.
+   Apagar fecha a linha do meio; a de baixo começa meia tecla para dentro e o Enviar fecha a linha, alinhado à direita. */
 .dg-kb-row {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(20, minmax(0, 1fr));
     gap: 4px;
 }
+.dg-kb-row:last-child > .dg-key:first-child {
+    grid-column: 2 / span 2;
+}
 .dg-key {
-    flex: 1 1 0;
+    grid-column: span 2;
     min-width: 0;
-    max-width: 44px;
     min-height: 48px;
     padding: 0;
     border: 2px solid var(--dg-border-strong);
@@ -341,10 +347,12 @@
     font-weight: 700;
     cursor: pointer;
 }
-.dg-key-wide {
-    flex: 1.6 1 0;
-    max-width: 66px;
+.dg-key[data-key='⌫'] {
     font-size: 1.1rem;
+}
+.dg-key-wide {
+    grid-column: span 5;
+    font-size: 1.4rem;
 }
 .dg-key[data-state='correct'] {
     border-color: var(--dg-gain);
@@ -720,9 +728,23 @@
         grid-area: note;
     }
 }
+/* No celular o teclado avança sobre o padding do painel para as teclas ganharem largura. */
+@media (max-width: 767px) {
+    .dg-kb {
+        width: calc(100% + 2 * (var(--dg-panel-pad) - 4px));
+        max-width: none;
+        margin-inline: calc(4px - var(--dg-panel-pad));
+    }
+    .dg-kb-row {
+        gap: 3px;
+    }
+    .dg-key {
+        border-radius: 6px;
+    }
+}
 @media (max-width: 380px) {
     .dg-panel {
-        padding: 12px;
+        --dg-panel-pad: 12px;
     }
     .dg-tabs {
         gap: 2px;
