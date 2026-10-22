@@ -1,9 +1,8 @@
-import type { DailyEvent, DailyQuestion, DailyWord } from './content'
+import type { DailyQuestion, DailyWord } from './content'
 import { addDays, daysBetween } from './gameDay'
 import { seededRandom } from './seededRandom'
-import { generateTimeline } from './timelineGenerator'
 
-// Planejamento puro de um dia da agenda (DI.1.3): escolhe palavra, pergunta e Linha do tempo a partir
+// Planejamento puro de um dia da agenda (DI.1.3): escolhe palavra e pergunta a partir
 // dos bancos e do que já está agendado ao redor. Sem I/O; o caso de uso carrega os dados e grava.
 
 export interface AgendaWindows {
@@ -11,15 +10,11 @@ export interface AgendaWindows {
   wordDays: number
   // O mesmo para a pergunta do cartão `trivia`.
   questionDays: number
-  // O mesmo para os fatos da Linha do tempo (janela menor: o mesmo evento em ordenações
-  // diferentes é aceitável, e janela grande exigiria um banco enorme).
-  timelineDays: number
 }
 
 export const DEFAULT_WINDOWS: AgendaWindows = {
   wordDays: 365,
   questionDays: 365,
-  timelineDays: 14,
 }
 
 // O que já está agendado num dia, com o que a regra de variedade precisa saber. Categoria e
@@ -32,27 +27,23 @@ export interface ScheduledDay {
   questionId: string
   questionCategory: string | null
   questionScope: 'brasil' | 'fora' | null
-  timelineEventIds: string[]
 }
 
 export type AgendaWarningCode =
   | 'no_word_available'
   | 'no_question_available'
-  | 'no_timeline_available'
   // Faltou conteúdo do Brasil para manter a maioria da semana.
   | 'scope_rule_relaxed'
 
 export interface DayPlan {
   wordId: string
   questionId: string
-  timelineEventIds: string[]
 }
 
 export interface PlanDayInput {
   date: string
   words: readonly DailyWord[]
   questions: readonly DailyQuestion[]
-  events: readonly DailyEvent[]
   history: readonly ScheduledDay[]
   windows?: AgendaWindows
 }
@@ -106,10 +97,8 @@ function choose<T extends Pickable>(
   return { item: pool[Math.floor(seededRandom(context.seed)() * pool.length)], relaxed }
 }
 
-const decadeOf = (year: number) => Math.floor(year / 10)
-
 export function planDay(input: PlanDayInput): PlanDayResult {
-  const { date, words, questions, events, history } = input
+  const { date, words, questions, history } = input
   const windows = input.windows ?? DEFAULT_WINDOWS
   const warnings: AgendaWarningCode[] = []
 
@@ -145,39 +134,8 @@ export function planDay(input: PlanDayInput): PlanDayResult {
   if (!question) warnings.push('no_question_available')
   else if (question.relaxed) warnings.push('scope_rule_relaxed')
 
-  // Linha do tempo: eventos ativos fora da janela. Tenta algumas sementes até misturar décadas e
-  // categorias; sem isso, fica com a primeira.
-  const timelinePool = events
-    .filter((e) => e.active)
-    .filter(
-      (e) =>
-        !history.some(
-          (h) => h.timelineEventIds.includes(e.id) && within(h.date, date, windows.timelineDays),
-        ),
-    )
-  let timeline: typeof timelinePool | null = null
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const candidate = generateTimeline(`${date}#${attempt}`, timelinePool)
-    if (!candidate) break
-    timeline ??= candidate
-    const decades = new Set(candidate.map((e) => decadeOf(e.year))).size
-    const categories = new Set(candidate.map((e) => e.category)).size
-    if (decades >= 3 && categories >= 2) {
-      timeline = candidate
-      break
-    }
-  }
-  if (!timeline) warnings.push('no_timeline_available')
-
-  if (!word || !question || !timeline) return { plan: null, warnings }
-  return {
-    plan: {
-      wordId: word.item.id,
-      questionId: question.item.id,
-      timelineEventIds: timeline.map((e) => e.id),
-    },
-    warnings,
-  }
+  if (!word || !question) return { plan: null, warnings }
+  return { plan: { wordId: word.item.id, questionId: question.item.id }, warnings }
 }
 
 export function windowDates(start: string, days: number): string[] {

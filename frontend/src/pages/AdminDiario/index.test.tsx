@@ -27,10 +27,9 @@ const day = (number: number, over: Partial<DailyAgendaDay> = {}): DailyAgendaDay
     number,
     date: `2026-11-${String(9 + number).padStart(2, '0')}`,
     published: false,
-    origins: { word: 'generated', question: 'generated', timeline: 'generated' },
+    origins: { word: 'generated', question: 'generated' },
     word: { display: 'SELIC', category: 'juros-e-inflacao', scope: 'brasil' },
     question: { text: 'Quem fixa a meta de inflação?', category: 'instituicoes', scope: 'brasil' },
-    events: [{ label: 'Plano Real', year: 1994, category: 'planos-e-moeda', scope: 'brasil' }],
     ...over,
 })
 
@@ -46,8 +45,8 @@ const overview = (over: Partial<DailyOverview> = {}): DailyOverview => ({
     low_cover_threshold: 14,
     alerts: [],
     days: [],
-    coverage: { window_days: 30, word: tally(0), trivia: tally(0), timeline: tally(0) },
-    bank: { words: 60, questions: 60, events: 200, accepted_extra: 1 },
+    coverage: { window_days: 30, word: tally(0), trivia: tally(0) },
+    bank: { words: 60, questions: 60, accepted_extra: 1 },
     ...over,
 })
 
@@ -85,8 +84,8 @@ describe('AdminDiario', () => {
                 start_date: '2026-11-10',
                 alerts: ['low_ready_cover'],
                 ready_days_ahead: 1,
-                days: [day(1, { published: true }), day(2, { origins: { word: 'manual', question: 'generated', timeline: 'generated' } })],
-                coverage: { window_days: 30, word: tally(2), trivia: tally(2), timeline: tally(8) },
+                days: [day(1, { published: true }), day(2, { origins: { word: 'manual', question: 'generated' } })],
+                coverage: { window_days: 30, word: tally(2), trivia: tally(2) },
             }),
         )
         renderPage()

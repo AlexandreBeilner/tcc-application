@@ -75,7 +75,6 @@ export function createInProcessProgressSnapshotReader(deps: {
         referralsQualified,
         dailyWordFirstTry: dailyQuality.wordFirstTryGames,
         dailyPerfectDays: dailyQuality.perfectDays,
-        dailyTimelineStreak: dailyQuality.bestTimelineRun,
       }
     },
   }

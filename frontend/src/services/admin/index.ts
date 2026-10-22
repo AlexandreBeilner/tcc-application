@@ -4,8 +4,6 @@ import type {
     AchievementCatalog,
     DailyChangeImpact,
     DailyDraftResult,
-    DailyEvent,
-    DailyEventInput,
     DailyMetricsDay,
     DailyOverview,
     DailyPatch,
@@ -113,8 +111,6 @@ export type {
     DailyTally,
     DailyChangeImpact,
     DailyDraftResult,
-    DailyEvent,
-    DailyEventInput,
     DailyMetricsDay,
     DailyOverview,
     DailyPatch,
@@ -691,18 +687,6 @@ export function updateDailyQuestion(token: string, id: string, patch: DailyPatch
         method: 'PATCH',
         body: patch,
     })
-}
-
-export function getDailyEvents(token: string) {
-    return apiRequest<{ events: DailyEvent[] }>('/admin/daily/events', { token })
-}
-
-export function createDailyEvent(token: string, input: DailyEventInput) {
-    return apiRequest<{ event: DailyEvent }>('/admin/daily/events', { token, method: 'POST', body: input })
-}
-
-export function updateDailyEvent(token: string, id: string, patch: DailyPatch<DailyEventInput>) {
-    return apiRequest<{ event: DailyEvent } & DailyChangeImpact>(`/admin/daily/events/${id}`, { token, method: 'PATCH', body: patch })
 }
 
 // Comunicados globais e modo de manutenção (N.20). Encerrar a manutenção levanta a pausa de

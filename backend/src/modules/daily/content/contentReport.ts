@@ -7,7 +7,7 @@ import { MAX_EXPLANATION_LENGTH, validateContent, type ContentBundle } from './d
 // (que é o portão), apenas mostra o estado e aponta lacunas e possíveis duplicatas.
 
 // Mínimos que os testes de `dailyContent.test.ts` já exigem do conteúdo inicial.
-export const CONTENT_FLOOR = { words: 250, questions: 30, events: 56 } as const
+export const CONTENT_FLOOR = { words: 250, questions: 30 } as const
 
 // Quanto da explicação já é "quase no teto": o painel de edição pode estourar ao ajustar.
 const NEAR_LIMIT = MAX_EXPLANATION_LENGTH - 30
@@ -20,14 +20,12 @@ interface Tallied {
 }
 
 export interface ContentReport {
-  counts: { words: number; questions: number; events: number }
-  // Dias de agenda que o banco sustenta sem repetir item: palavra e pergunta uma por dia, quatro
-  // eventos por dia (a janela de não repetição de eventos é menor, então isto é folga, não limite).
-  runwayDays: { words: number; questions: number; events: number }
+  counts: { words: number; questions: number }
+  // Dias de agenda que o banco sustenta sem repetir item: uma palavra e uma pergunta por dia.
+  runwayDays: { words: number; questions: number }
   belowFloor: string[]
   words: Tallied
   questions: Tallied & { correctIndex: Record<string, number> }
-  events: Tallied & { distinctYears: number; byDecade: Record<string, number> }
   nearLimit: string[]
   possibleDuplicates: string[]
   errors: string[]
@@ -54,18 +52,6 @@ function duplicatesOf(content: ContentBundle): string[] {
     if (other) found.push(`perguntas ${other} e ${q.key} têm o mesmo enunciado`)
     askedBefore.set(text, q.key)
   }
-  const byYearAndCategory = new Map<string, string[]>()
-  for (const e of content.events) {
-    const key = `${e.year}|${e.category}`
-    byYearAndCategory.set(key, [...(byYearAndCategory.get(key) ?? []), e.key])
-  }
-  for (const [key, keys] of byYearAndCategory) {
-    if (keys.length > 1) {
-      found.push(
-        `eventos ${keys.join(', ')}: mesmo ano e categoria (${key}); confira se não é o mesmo fato`,
-      )
-    }
-  }
   return found
 }
 
@@ -76,42 +62,22 @@ export function buildContentReport(
   const counts = {
     words: content.words.length,
     questions: content.questions.length,
-    events: content.events.length,
   }
   const correctIndex: Record<string, number> = {}
   for (const q of content.questions)
     correctIndex[q.correctIndex] = (correctIndex[q.correctIndex] ?? 0) + 1
-  const byDecade: Record<string, number> = {}
-  for (const e of content.events) {
-    const decade = `${Math.floor(e.year / 10) * 10}s`
-    byDecade[decade] = (byDecade[decade] ?? 0) + 1
-  }
-  const nearLimit = [
-    ...content.questions
-      .filter((q) => q.explanation.length >= NEAR_LIMIT)
-      .map((q) => `pergunta ${q.key}`),
-    ...content.events
-      .filter((e) => e.explanation.length >= NEAR_LIMIT)
-      .map((e) => `evento ${e.key}`),
-  ]
+  const nearLimit = content.questions
+    .filter((q) => q.explanation.length >= NEAR_LIMIT)
+    .map((q) => `pergunta ${q.key}`)
   const belowFloor = (Object.keys(CONTENT_FLOOR) as (keyof typeof CONTENT_FLOOR)[])
     .filter((bank) => counts[bank] < CONTENT_FLOOR[bank])
     .map((bank) => `${bank}: ${counts[bank]} de ${CONTENT_FLOOR[bank]}`)
   return {
     counts,
-    runwayDays: {
-      words: counts.words,
-      questions: counts.questions,
-      events: Math.floor(counts.events / 4),
-    },
+    runwayDays: { words: counts.words, questions: counts.questions },
     belowFloor,
     words: tally(content.words),
     questions: { ...tally(content.questions), correctIndex },
-    events: {
-      ...tally(content.events),
-      distinctYears: new Set(content.events.map((e) => e.year)).size,
-      byDecade,
-    },
     nearLimit,
     possibleDuplicates: duplicatesOf(content),
     errors: validateContent(content, accepted),

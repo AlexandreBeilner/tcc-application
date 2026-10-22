@@ -3,6 +3,7 @@ import {
   buildAchievementView,
   isSatisfied,
   progressValueFor,
+  type AchievementCriteriaType,
   type ProgressSnapshot,
 } from './achievement'
 
@@ -18,7 +19,6 @@ const snapshot: ProgressSnapshot = {
   referralsQualified: 3,
   dailyWordFirstTry: 6,
   dailyPerfectDays: 4,
-  dailyTimelineStreak: 2,
 }
 
 describe('progressValueFor', () => {
@@ -34,9 +34,13 @@ describe('progressValueFor', () => {
     ['referrals_qualified', 3],
     ['daily_word_first_try', 6],
     ['daily_perfect_days', 4],
-    ['daily_timeline_streak', 2],
   ] as const)('lê o número certo do snapshot pra %s', (criteriaType, expected) => {
     expect(progressValueFor(criteriaType, snapshot)).toBe(expected)
+  })
+
+  it('critério aposentado que ficou no banco (DI18) não tem progresso', () => {
+    const retired = 'daily_timeline_streak' as unknown as AchievementCriteriaType
+    expect(progressValueFor(retired, snapshot)).toBe(0)
   })
 })
 
@@ -65,8 +69,6 @@ describe('isSatisfied', () => {
     ['daily_word_first_try', 7, false],
     ['daily_perfect_days', 4, true],
     ['daily_perfect_days', 5, false],
-    ['daily_timeline_streak', 2, true],
-    ['daily_timeline_streak', 7, false],
   ] as const)('%s >= %d ? %s', (criteriaType, criteriaValue, expected) => {
     expect(isSatisfied(criteriaType, criteriaValue, snapshot)).toBe(expected)
   })

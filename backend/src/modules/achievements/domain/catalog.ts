@@ -26,11 +26,7 @@ export const ACHIEVEMENT_CRITERIA: Record<
     label: 'Diários com a Palavra acertada de primeira',
     valueKind: 'integer',
   },
-  daily_perfect_days: { label: 'Diários com os três cartões certos', valueKind: 'integer' },
-  daily_timeline_streak: {
-    label: 'Melhor sequência de Diários com a Linha do tempo certa',
-    valueKind: 'integer',
-  },
+  daily_perfect_days: { label: 'Diários com os dois cartões certos', valueKind: 'integer' },
 }
 
 export const ACHIEVEMENT_CRITERIA_TYPES = Object.keys(

@@ -16,6 +16,5 @@ export const triviaAnswerBodySchema = z.object({
   choice: z.number().int().min(0).max(20),
 })
 
-export const timelineAnswerBodySchema = z.object({
-  order: z.array(z.string().min(1).max(64)).min(1).max(12),
-})
+// `POST /daily/:number/cards/:card/answer` só serve a Pergunta do dia (DI18).
+export const answerCardParamSchema = z.literal('trivia')

@@ -198,8 +198,7 @@ export async function buildLanding({
     const diarioUrl = `${siteUrl}/diario/`
     const diarioMeta = {
         title: 'Diário Selucra: jogo diário de finanças',
-        description:
-            'Jogo diário de finanças com três desafios: a palavra do mercado, uma pergunta de economia e uma linha do tempo. Jogue sem login.',
+        description: 'Jogo diário de finanças com dois desafios: a palavra do mercado e uma pergunta de economia. Jogue sem login.',
         url: diarioUrl,
     }
     const diarioBody = (await readFile('src/diario.html', 'utf8'))

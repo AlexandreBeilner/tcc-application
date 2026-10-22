@@ -1191,12 +1191,6 @@ footer p {
 .diario-arquivo .arq-opcoes .arq-certa {
     border-color: var(--brand);
 }
-.diario-arquivo .arq-linha {
-    padding-left: 22px;
-    display: grid;
-    gap: 14px;
-    max-width: 68ch;
-}
 .diario-arquivo .arq-fonte {
     color: var(--text2);
 }

@@ -4,7 +4,6 @@ import { createDailyApi, DailyApiError, reportMetric } from '../../src/diario/ap
 import { createLocalKeeper, KEEP_GAMES, parseState, STORAGE_KEY } from '../../src/diario/keeper.ts'
 import { applyGuess, applyTrivia, emptyProgress, parseProgress } from '../../src/diario/progress.ts'
 import { buildShareText } from '../../src/diario/share.ts'
-import { dropIndex, moveItem } from '../../src/diario/timeline.ts'
 import { makeGame, memoryStorage } from './fixtures.ts'
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -91,8 +90,7 @@ describe('estado local', () => {
         const finish = (n: number, isToday: boolean) => {
             const g = makeGame(n, { isToday })
             if (isToday) clock = Date.parse(g.nextGameAt) - 3600_000
-            const p = played(g)
-            return keeper.save(g, { ...p, timeline: { answered: true, order: [], correct: false, positionHits: [], events: [] } })
+            return keeper.save(g, played(g))
         }
         await finish(45, true)
         await finish(46, true)
@@ -115,12 +113,23 @@ describe('estado local', () => {
                 failed: 0,
                 word: { played: 1, correct: 1 },
                 trivia: { played: 0, correct: 0 },
-                timeline: { played: 0, correct: 0 },
                 distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
                 streak: { current: 5, longest: 5, last: 999 },
             },
         })
         assert.equal(parseState(bad, 47).stats.games, 0)
+    })
+
+    it('parseState: estado salvo com três cartões é lido ignorando a Linha do tempo (DI18)', () => {
+        const old = { ...JSON.parse(JSON.stringify(played())), timeline: { answered: false } }
+        const stats = { ...parseState(null, 47).stats, games: 4, timeline: { played: 4, correct: 1 } }
+        const state = parseState(JSON.stringify({ v: 1, games: { '47': old }, stats }), 47)
+        assert.equal(state.stats.games, 4)
+        assert.equal('timeline' in state.stats, false)
+        const game = state.games['47']
+        assert.ok(game && 'timeline' in game === false)
+        assert.equal(game.word.solved, true)
+        assert.equal(game.trivia.answered, true)
     })
 
     it('parseState: jogo com número maior que o de hoje é ignorado, os outros ficam', () => {
@@ -146,16 +155,7 @@ describe('cartão compartilhável', () => {
             attempt: 6,
             finished: true,
         })
-        assert.match(buildShareText(g, p, 'x.test/d'), /palavra não resolvida\n❓ ❌  ⏳ ❌\nx\.test\/d$/)
-    })
-})
-
-describe('ordenação', () => {
-    it('moveItem e dropIndex', () => {
-        assert.deepEqual(moveItem(['a', 'b', 'c', 'd'], 3, 1), ['a', 'd', 'b', 'c'])
-        assert.deepEqual(moveItem(['a', 'b'], 0, 5), ['a', 'b'])
-        assert.equal(dropIndex([10, 30, 50], 35), 2)
-        assert.equal(dropIndex([10, 30, 50], 0), 0)
+        assert.match(buildShareText(g, p, 'x.test/d'), /palavra não resolvida\n❓ ❌\nx\.test\/d$/)
     })
 })
 

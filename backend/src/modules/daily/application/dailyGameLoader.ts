@@ -1,11 +1,10 @@
-import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../domain/content'
+import type { DailyPuzzle, DailyQuestion, DailyWord } from '../domain/content'
 import {
   DailyGameNotFoundError,
   DailyGameUnavailableError,
   DailyNotStartedError,
 } from '../domain/errors'
 import { dailyDay, dayStartInstant, resolveGameAccess } from '../domain/gameDay'
-import type { DailyEventRepository } from './ports/dailyEventRepository'
 import type { DailyPuzzleRepository } from './ports/dailyPuzzleRepository'
 import type { DailyQuestionRepository } from './ports/dailyQuestionRepository'
 import type { DailySettingsRepository } from './ports/dailySettingsRepository'
@@ -20,8 +19,6 @@ export interface LoadedGame {
   puzzle: DailyPuzzle
   word: DailyWord
   question: DailyQuestion
-  // Na ordem de exibição do jogo (embaralhada de propósito).
-  events: DailyEvent[]
 }
 
 // Resolve "este número é jogável agora?" e monta o jogo com o conteúdo de cada cartão. É o único
@@ -37,7 +34,6 @@ export class DailyGameLoader {
     private readonly puzzles: DailyPuzzleRepository,
     private readonly words: DailyWordRepository,
     private readonly questions: DailyQuestionRepository,
-    private readonly events: DailyEventRepository,
   ) {}
 
   async load(number: number, now: Date): Promise<LoadedGame> {
@@ -60,14 +56,11 @@ export class DailyGameLoader {
     puzzle: DailyPuzzle,
     access: { number: number; date: string; isToday: boolean; awardsXp: boolean },
   ): Promise<LoadedGame> {
-    const [word, question, events] = await Promise.all([
+    const [word, question] = await Promise.all([
       this.words.findById(puzzle.wordId),
       this.questions.findById(puzzle.questionId),
-      this.events.findManyByIds(puzzle.timelineEventIds),
     ])
-    const byId = new Map(events.map((e) => [e.id, e]))
-    const ordered = puzzle.timelineEventIds.map((id) => byId.get(id))
-    if (!word || !question || ordered.some((e) => !e)) throw new DailyGameUnavailableError()
+    if (!word || !question) throw new DailyGameUnavailableError()
 
     return {
       number: access.number,
@@ -77,7 +70,6 @@ export class DailyGameLoader {
       puzzle,
       word,
       question,
-      events: ordered as DailyEvent[],
     }
   }
 }

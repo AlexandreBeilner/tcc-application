@@ -80,7 +80,7 @@ O app em `app.selucra.com.br` é outro projeto do Pages (LW.3.16); a landing nã
 
 ## Arquivo do Diário (DI.3.4)
 
-`/diario/arquivo/` (índice) e `/diario/arquivo/<n>/` (um jogo encerrado: palavra, pergunta com a resposta e linha do tempo) são gerados
+`/diario/arquivo/` (índice) e `/diario/arquivo/<n>/` (um jogo encerrado: palavra e pergunta com a resposta) são gerados
 no build por `diarioArquivo.mjs`, a partir de `GET /daily/archive` da API (`API_URL`). O jogo do dia nunca entra: a API só devolve jogo
 encerrado e o build filtra de novo pela data (UTC).
 

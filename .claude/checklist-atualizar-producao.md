@@ -103,3 +103,52 @@ Anote a "versão no .env" de produção: é o SHA para onde voltar se algo der e
 - Mudança de **backend + frontend juntas**: publique o backend primeiro (compatível com o frontend antigo) e o frontend depois.
 - Mudança que apaga ou reescreve dado: confirme antes que o backup do início do deploy existe (o log do `deploy.sh` mostra).
 - O `.env` de produção tem o `SIMULATION_SEED`, que **nunca** muda. Nunca refaça o `prod.env` com `--force`.
+
+## 8. Versões com passo extra
+
+Roteiros de uma versão só. Siga o roteiro normal (seções 3 a 5) e encaixe os passos abaixo onde indicado. Depois que a versão estiver em
+produção, o roteiro fica aqui como histórico.
+
+### Diário com dois cartões, sem a Linha do tempo (DI18, migração `0061`)
+
+A migração apaga a tabela de eventos e as colunas da Linha do tempo, **mantém os jogos e os resultados** (o arquivo e os dias anteriores
+continuam), desativa a conquista "Cronologia em Dia" (quem ganhou continua com ela), troca "três cartões" por "dois cartões" nos textos de
+"Diário Perfeito", "Mão Cheia" e da missão "Jogue o Diário de hoje", e fecha sem XP o jogo que só esperava a Linha do tempo.
+
+**A janela entre as versões, e por que aqui o cliente vai antes do backend.** Conferido no ensaio:
+
+| Combinação | O que acontece |
+|---|---|
+| Landing ou app **antigo** + backend **novo** | O jogo não abre: "Algo deu errado. Tente de novo." para todo mundo (o módulo antigo procura a Linha do tempo, que não vem mais). |
+| Landing ou app **novo** + backend **antigo** | Funciona: dois cartões, resultado e cartão compartilhável certos (o campo da Linha do tempo que ainda vem é ignorado). Única perda: **logado no app**, o jogo não fecha no servidor (o backend antigo espera o terceiro cartão), então não sai XP; quando o backend novo sobe, a migração fecha esse jogo **sem XP**. |
+
+Por isso a ordem que minimiza o estrago é **clientes primeiro, backend logo em seguida**, e não o contrário (que deixaria o Diário
+quebrado na landing e no app durante toda a janela). O que se perde na janela é só o XP do Diário de quem fechar o jogo logado nela, então
+ela tem que ser curta: tudo seguido, fora das 18h às 23h (o `deploy.sh` já recusa esse horário, e às 21h vira o dia do Diário).
+
+- [ ] **Staging:** publique o frontend e a landing do staging, depois `deploy.sh staging <SHA>` (a `0061` roda na subida), depois os seeds:
+  ```
+  STG="docker compose -p selucra-staging --env-file /opt/selucra/staging.env -f /opt/selucra/docker-compose.prod.yml"
+  $STG exec backend node dist/db/seedDaily.js
+  $STG exec backend node dist/db/seedAchievements.js
+  $STG exec backend node dist/db/seedMissions.js
+  ```
+  Os seeds não devem criar nada (só importam o que falta; o texto novo chega pela migração). Conferir:
+  `curl -s https://api-staging.selucra.com.br/daily/today | head -c 400` traz só `word` e `trivia` em `cards`, e o Diário do staging abre
+  e fecha com dois cartões.
+- [ ] **Produção, na mesma sentada e fora do pico:**
+  1. Mescle o PR na `main`: o app (`selucra-app`) publica sozinho. Publique em seguida a landing (`selucra-landing`, Cloudflare Pages,
+     **Deployments**, **Retry deployment** do último commit da `main`, se ela não publicar sozinha). Os dois funcionam com o backend antigo.
+  2. Logo depois, `deploy.sh prod <SHA>`. Confira no log que o **backup do início** foi feito: a migração apaga a tabela de eventos e as
+     colunas da Linha do tempo, e voltar a imagem não traz isso de volta (seção 6, restauração do backup).
+  3. Seeds no servidor (devem dizer que tudo já existia):
+     ```
+     PROD="docker compose -p selucra-prod --env-file /opt/selucra/prod.env -f /opt/selucra/docker-compose.prod.yml"
+     $PROD exec backend node dist/db/seedDaily.js
+     $PROD exec backend node dist/db/seedAchievements.js
+     $PROD exec backend node dist/db/seedMissions.js
+     ```
+  4. Conferir `curl -s https://api.selucra.com.br/daily/today | head -c 400` (só `word` e `trivia` em `cards`), jogar o Diário de hoje
+     na landing e no app, e abrir `/admin/diario`.
+- [ ] Se o backend novo **não** subir logo depois dos clientes, nada quebra: a landing e o app novos continuam funcionando com o backend
+  antigo, só sem o XP do Diário para quem fechar o jogo logado até o backend subir.

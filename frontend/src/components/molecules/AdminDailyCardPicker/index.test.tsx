@@ -2,12 +2,12 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
-import { getDailyEvents, getDailyQuestions, getDailyWords } from '../../../services/admin'
+import { getDailyQuestions, getDailyWords } from '../../../services/admin'
 import type { DailyWord } from '../../../services/admin'
 import { AdminDailyCardPicker } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../../services/admin', () => ({ getDailyWords: vi.fn(), getDailyQuestions: vi.fn(), getDailyEvents: vi.fn() }))
+vi.mock('../../../services/admin', () => ({ getDailyWords: vi.fn(), getDailyQuestions: vi.fn() }))
 
 const word = (id: string, display: string, active = true): DailyWord => ({
     id,
@@ -26,7 +26,6 @@ beforeEach(() => {
     vi.mocked(useAuth).mockReturnValue({ token: 'tok', user: null, login: vi.fn() } as unknown as ReturnType<typeof useAuth>)
     vi.mocked(getDailyWords).mockResolvedValue({ words: [word('w1', 'Selic'), word('w2', 'Câmbio'), word('w3', 'Copom', false)] })
     vi.mocked(getDailyQuestions).mockResolvedValue({ questions: [] })
-    vi.mocked(getDailyEvents).mockResolvedValue({ events: [] })
 })
 
 function renderPicker(onSubmit = vi.fn()) {

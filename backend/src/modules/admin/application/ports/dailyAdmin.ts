@@ -6,8 +6,6 @@ import type {
   StartDateResult,
 } from '../../../daily/application/adminViews'
 import type {
-  EventInput,
-  EventPatch,
   QuestionInput,
   QuestionPatch,
   WordInput,
@@ -15,15 +13,13 @@ import type {
 } from '../../../daily/application/useCases/admin/content'
 import type { DailyMetricsDay } from '../../../daily/domain/metrics'
 import type { ReplaceCardInput } from '../../../daily/application/useCases/admin/puzzles'
-import type { DailyEvent, DailyQuestion, DailyWord } from '../../../daily/domain/content'
+import type { DailyQuestion, DailyWord } from '../../../daily/domain/content'
 
 export type {
   AdminOverview,
   AdminPuzzleView,
   ContentChangeResult,
   DraftResult,
-  EventInput,
-  EventPatch,
   QuestionInput,
   QuestionPatch,
   ReplaceCardInput,
@@ -31,7 +27,7 @@ export type {
   WordInput,
   WordPatch,
 }
-export type { DailyEvent, DailyQuestion, DailyWord, DailyMetricsDay }
+export type { DailyQuestion, DailyWord, DailyMetricsDay }
 
 type Changed<T> = ContentChangeResult<T> & { changedFields: string[] }
 
@@ -73,13 +69,4 @@ export interface DailyAdmin {
     patch: QuestionPatch,
     confirmPublished: boolean,
   ): Promise<Changed<DailyQuestion>>
-
-  listEvents(): Promise<DailyEvent[]>
-  createEvent(input: EventInput): Promise<DailyEvent>
-  updateEvent(
-    actorId: string,
-    id: string,
-    patch: EventPatch,
-    confirmPublished: boolean,
-  ): Promise<Changed<DailyEvent>>
 }

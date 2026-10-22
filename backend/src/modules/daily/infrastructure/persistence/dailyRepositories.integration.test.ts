@@ -9,13 +9,12 @@ import * as schema from '../../../../db/schema'
 import { MaterializeUpcomingPuzzlesUseCase } from '../../application/useCases/materializeUpcomingPuzzles'
 import type { DailyResult } from '../../domain/content'
 import { createDrizzleAcceptedWordRepository } from './drizzleAcceptedWordRepository'
-import { createDrizzleDailyEventRepository } from './drizzleDailyEventRepository'
 import { createDrizzleDailyQuestionRepository } from './drizzleDailyQuestionRepository'
 import { createDrizzleDailyPuzzleRepository } from './drizzleDailyPuzzleRepository'
 import { DailyProgressRecorder } from '../../application/dailyProgressRecorder'
 import type { LoadedGame } from '../../application/dailyGameLoader'
 import { CardAlreadyAnsweredError } from '../../domain/errors'
-import { recordTimeline } from '../../domain/resultState'
+import { recordTrivia } from '../../domain/resultState'
 import {
   createFakeStreakTracker,
   createFakeXpAwarder,
@@ -61,20 +60,6 @@ const questionInput = (key: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
-const eventInput = (key: string, year: number, extra: Record<string, unknown> = {}) => ({
-  stableKey: key,
-  year,
-  label: key,
-  explanation: 'Por que importou.',
-  sourceRef: 'Banco Central do Brasil',
-  learnMore: null,
-  category: 'moeda',
-  scope: 'brasil' as const,
-  reviewedAt: null,
-  active: true,
-  ...extra,
-})
-
 describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
   let pool: Pool
   let db: Database
@@ -82,7 +67,6 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
 
   const words = () => createDrizzleDailyWordRepository(db)
   const questions = () => createDrizzleDailyQuestionRepository(db)
-  const events = () => createDrizzleDailyEventRepository(db)
   const puzzles = () => createDrizzleDailyPuzzleRepository(db)
   const results = () => createDrizzleDailyResultRepository(db)
 
@@ -91,7 +75,6 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
     await db.delete(schema.dailyMetrics)
     await db.delete(schema.dailyPuzzles)
     await db.delete(schema.dailyQuestions)
-    await db.delete(schema.dailyEvents)
     await db.delete(schema.dailyWords)
     await db.delete(schema.dailyAcceptedWords)
     await db.update(schema.dailySettings).set({ startDate: null, updatedBy: null })
@@ -130,18 +113,13 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
   async function seedPuzzle(number: number, gameDate: string, publishedAt: Date | null = null) {
     const word = await words().create(wordInput(`PALAVRA${String.fromCharCode(64 + number)}`))
     const question = await questions().create(questionInput(`pergunta-${number}`))
-    const created = [] as string[]
-    for (let i = 0; i < 4; i++)
-      created.push((await events().create(eventInput(`evento-${number}-${i}`, 1980 + i * 10))).id)
     await puzzles().create({
       number,
       gameDate,
       wordId: word.id,
       questionId: question.id,
-      timelineEventIds: created,
       wordOrigin: 'generated',
       questionOrigin: 'generated',
-      timelineOrigin: 'generated',
       reviewedBy: null,
       reviewedAt: null,
       publishedAt,
@@ -240,25 +218,6 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
     })
   })
 
-  describe('eventos da Linha do tempo', () => {
-    it('cria e lê, inclusive por lista de ids', async () => {
-      const a = await events().create(eventInput('plano-real', 1994))
-      const b = await events().create(eventInput('plano-collor', 1990))
-      expect(await events().findById(a.id)).toEqual(a)
-      expect((await events().findManyByIds([a.id, b.id])).map((e) => e.id).sort()).toEqual(
-        [a.id, b.id].sort(),
-      )
-      expect(await events().findManyByIds([])).toEqual([])
-      expect((await events().listActive()).map((e) => e.year)).toEqual([1990, 1994])
-    })
-
-    it('exige fonte primária, ano plausível e marcador válido', async () => {
-      await expect(events().create(eventInput('k1', 1990, { sourceRef: ' ' }))).rejects.toThrow()
-      await expect(events().create(eventInput('k2', 900))).rejects.toThrow()
-      await expect(events().create(eventInput('k3', 1990, { scope: 'mundo' }))).rejects.toThrow()
-    })
-  })
-
   describe('jogos (agenda)', () => {
     it('lista a partir da data em ordem, respeitando o limite', async () => {
       await seedPuzzle(2, '2026-11-04')
@@ -320,16 +279,14 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       }
       for (let i = 0; i < 12; i++)
         await questions().create(questionInput(`pergunta-${i}`, { category: `c${i % 4}` }))
-      for (let i = 0; i < 30; i++)
-        await events().create(eventInput(`evento-${i}`, 1950 + i * 2, { category: `c${i % 4}` }))
+      // Rascunho de estreia: o único caminho em que a agenda cria jogo não publicado (o publicado
+      // nunca é realinhado), então é por ele que se prova o realinhamento ao mudar a data.
       const settings = createDrizzleDailySettingsRepository(db)
-      await settings.setStartDate('2026-11-10', userId, NOW)
       const build = () =>
         new MaterializeUpcomingPuzzlesUseCase(
           settings,
           words(),
           questions(),
-          events(),
           puzzles(),
           () => NOW,
           {
@@ -337,12 +294,11 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
           },
         )
 
-      const first = await build().execute()
+      const first = await build().execute('2026-11-10')
       expect(first.created).toEqual([1, 2, 3, 4])
-      expect((await build().execute()).created).toEqual([])
+      expect((await build().execute('2026-11-10')).created).toEqual([])
 
-      await settings.setStartDate('2026-11-11', userId, NOW)
-      const moved = await build().execute()
+      const moved = await build().execute('2026-11-11')
       expect(moved).toMatchObject({ removed: 1, renumbered: 3 })
       const list = await puzzles().listFromDate('2026-11-01', 10)
       expect(list.map((p) => [p.number, p.gameDate])).toEqual([
@@ -351,6 +307,7 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
         [3, '2026-11-13'],
         [4, '2026-11-14'],
       ])
+      expect(list.every((p) => p.publishedAt === null)).toBe(true)
     })
   })
 
@@ -362,8 +319,6 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       wordCorrect: null,
       questionChoice: null,
       questionCorrect: null,
-      timelineOrder: null,
-      timelineCorrect: null,
       xpAwarded: 0,
       startedAt: NOW,
       completedAt: null,
@@ -380,10 +335,8 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
         wordGuesses: ['JUROS', 'SELIC'],
         wordCorrect: true,
         questionChoice: 2,
-        questionCorrect: true,
-        timelineOrder: ['a', 'b', 'c', 'd'],
-        timelineCorrect: false,
-        xpAwarded: 40,
+        questionCorrect: false,
+        xpAwarded: 35,
         completedAt: NOW,
       }
       await repo.save(done)
@@ -450,8 +403,6 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
         ...base(),
         wordGuesses: ['JUROS'],
         wordCorrect: true,
-        questionChoice: 1,
-        questionCorrect: true,
       })
       const xp = createFakeXpAwarder()
       const streak = createFakeStreakTracker()
@@ -459,7 +410,7 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       const game = { number: 1, awardsXp: true } as LoadedGame
       const submit = () =>
         recorder.record(userId, game, NOW, (current) => ({
-          next: recordTimeline(current, ['a', 'b', 'c', 'd'], true),
+          next: recordTrivia(current, 1, true),
           value: null,
         }))
 
@@ -496,16 +447,13 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       expect(await words().update('00000000-0000-4000-8000-000000000000', {}, userId)).toBeNull()
     })
 
-    it('pergunta e evento: editar muda os campos e preserva o resto', async () => {
+    it('pergunta: editar muda os campos e preserva o resto', async () => {
       const q = await questions().create(questionInput('q1'))
-      const e = await events().create(eventInput('e1', 1994))
 
       await questions().update(q.id, { active: false }, userId)
       expect((await questions().findById(q.id))?.active).toBe(false)
       await questions().update(q.id, { question: 'Outra?' }, userId)
       expect(await questions().findById(q.id)).toMatchObject({ question: 'Outra?', active: false })
-      await events().update(e.id, { label: 'Outro' }, userId)
-      expect((await events().listAll()).map((x) => x.label)).toEqual(['Outro'])
     })
 
     it('lista extra: lista, adiciona e remove só a extra, nunca a do dicionário', async () => {
@@ -519,7 +467,7 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       expect(await repo.isAccepted('COPOM')).toBe(false)
     })
 
-    it('jogos: listUsing acha por palavra, pergunta e evento (jsonb)', async () => {
+    it('jogos: listUsing acha por palavra e pergunta', async () => {
       await seedPuzzle(1, '2026-11-03')
       await seedPuzzle(2, '2026-11-04')
       const one = (await puzzles().findByNumber(1))!
@@ -527,10 +475,7 @@ describe.skipIf(!databaseUrl)('repositórios do Diário (banco real)', () => {
       expect((await puzzles().listUsing('question', one.questionId)).map((p) => p.number)).toEqual([
         1,
       ])
-      expect(
-        (await puzzles().listUsing('event', one.timelineEventIds[2])).map((p) => p.number),
-      ).toEqual([1])
-      expect(await puzzles().listUsing('event', '00000000-0000-4000-8000-000000000000')).toEqual([])
+      expect(await puzzles().listUsing('word', '00000000-0000-4000-8000-000000000000')).toEqual([])
     })
 
     it('jogos: updateCard troca o cartão e marca a origem como manual', async () => {

@@ -1,16 +1,10 @@
 import { JSDOM } from 'jsdom'
 import { DailyApiError } from '../../src/diario/api.ts'
 import type { DailyApi } from '../../src/diario/api.ts'
-import type { DailyGame, DailyStats, GuessResponse, LetterState, TimelineResponse, TriviaResponse } from '../../src/diario/types.ts'
+import type { DailyGame, DailyStats, GuessResponse, LetterState, TriviaResponse } from '../../src/diario/types.ts'
 
 export const ANSWER = 'ACOES'
 export const ACCEPTED = new Set(['ACOES', 'CARRO', 'AASSA', 'LUCRO', 'JUROS', 'CASAS'])
-export const EVENTS = [
-    { id: 'e1', label: 'Plano Real', year: 1994 },
-    { id: 'e2', label: 'Crise de 2008', year: 2008 },
-    { id: 'e3', label: 'Plano Collor', year: 1990 },
-    { id: 'e4', label: 'Selic a 2%', year: 2020 },
-]
 
 export function makeGame(number = 47, over: Partial<DailyGame> = {}): DailyGame {
     const day = 17 + (number - 47)
@@ -22,7 +16,6 @@ export function makeGame(number = 47, over: Partial<DailyGame> = {}): DailyGame 
         cards: {
             word: { length: 5, maxAttempts: 6 },
             trivia: { question: 'Qual índice é a referência da meta de inflação?', options: ['Selic', 'IPCA', 'IGP-M', 'CDI'] },
-            timeline: { events: [EVENTS[2], EVENTS[0], EVENTS[3], EVENTS[1]].map(({ id, label }) => ({ id, label })) },
         },
         ...over,
     }
@@ -50,7 +43,7 @@ export function score(guess: string, answer: string): LetterState[] {
 }
 
 export interface FakeApi extends DailyApi {
-    calls: { guess: { guess: string; attempt?: number }[]; trivia: number[]; timeline: string[][]; me: number[]; game: number[] }
+    calls: { guess: { guess: string; attempt?: number }[]; trivia: number[]; me: number[]; game: number[] }
     today: () => Promise<{ status: 'live'; game: DailyGame }>
     setToday(game: DailyGame): void
 }
@@ -58,13 +51,12 @@ export interface FakeApi extends DailyApi {
 /** `logged` imita o servidor com login: guarda o estado e responde `/me`. */
 export function makeApi(initial: DailyGame, { logged = false } = {}): FakeApi {
     let current = initial
-    const calls: FakeApi['calls'] = { guess: [], trivia: [], timeline: [], me: [], game: [] }
+    const calls: FakeApi['calls'] = { guess: [], trivia: [], me: [], game: [] }
     const saved = {
         guesses: [] as { guess: string; letters: LetterState[] }[],
         finished: false,
         solved: false,
         trivia: null as null | (TriviaResponse & { choice: number }),
-        timeline: null as null | (TimelineResponse & { order: string[] }),
     }
     const api: FakeApi = {
         calls,
@@ -112,23 +104,11 @@ export function makeApi(initial: DailyGame, { logged = false } = {}): FakeApi {
             if (logged) saved.trivia = { ...res, choice }
             return res
         },
-        timeline: async (_n, order) => {
-            calls.timeline.push(order)
-            if (logged && saved.timeline) throw new DailyApiError(409, 'already_answered', null, null)
-            const truth = [...EVENTS].sort((a, b) => a.year - b.year)
-            const res: TimelineResponse = {
-                correct: truth.every((e, i) => order[i] === e.id),
-                positionHits: order.map((id, i) => truth[i].id === id),
-                events: truth.map((e) => ({ ...e, explanation: 'Explicação.', sourceRef: 'Fonte', learnMore: null })),
-            }
-            if (logged) saved.timeline = { ...res, order }
-            return res
-        },
         me: async (n) => {
             calls.me.push(n)
             return {
                 number: n,
-                completed: saved.finished && !!saved.trivia && !!saved.timeline,
+                completed: saved.finished && !!saved.trivia,
                 word: {
                     guesses: saved.guesses,
                     finished: saved.finished,
@@ -136,14 +116,12 @@ export function makeApi(initial: DailyGame, { logged = false } = {}): FakeApi {
                     ...(saved.finished ? { reveal: { answer: 'AÇÕES', definition: 'Parte do capital.', learnMore: null } } : {}),
                 },
                 trivia: saved.trivia ? { answered: true, ...saved.trivia } : { answered: false },
-                timeline: saved.timeline ? { answered: true, ...saved.timeline } : { answered: false },
             }
         },
         stats: async (): Promise<DailyStats> => ({
             games: 3,
             word: { played: 3, correct: 2, accuracy: 67 },
             trivia: { played: 3, correct: 3, accuracy: 100 },
-            timeline: { played: 3, correct: 1, accuracy: 33 },
             wordAttempts: { distribution: { '1': 0, '2': 1, '3': 1, '4': 0, '5': 0, '6': 0 }, failed: 1 },
             currentStreak: 2,
             longestStreak: 3,

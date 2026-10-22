@@ -9,9 +9,7 @@ const result = (n: number, over: Partial<DailyResult> = {}): DailyResult => ({
   wordCorrect: true,
   questionChoice: 0,
   questionCorrect: true,
-  timelineOrder: ['a'],
-  timelineCorrect: false,
-  xpAwarded: 40,
+  xpAwarded: 50,
   startedAt: new Date(0),
   completedAt: new Date(1),
   ...over,
@@ -61,7 +59,6 @@ describe('computeStats', () => {
       result(4, {
         wordCorrect: null,
         questionCorrect: null,
-        timelineCorrect: null,
         completedAt: null,
       }),
     ]
@@ -69,7 +66,6 @@ describe('computeStats', () => {
     expect(s.games).toBe(2)
     expect(s.word).toEqual({ played: 3, correct: 2, accuracy: 67 })
     expect(s.trivia).toEqual({ played: 3, correct: 2, accuracy: 67 })
-    expect(s.timeline).toEqual({ played: 3, correct: 0, accuracy: 0 })
     expect(s.wordAttempts).toEqual({
       distribution: { '1': 1, '2': 0, '3': 1, '4': 0, '5': 0, '6': 0 },
       failed: 1,

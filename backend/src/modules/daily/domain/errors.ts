@@ -29,8 +29,6 @@ export class WordNotAcceptedError extends Error {}
 
 export class InvalidChoiceError extends Error {}
 
-export class InvalidOrderError extends Error {}
-
 // Logado, cada cartão tem uma única tentativa válida por jogo (DI.2.2).
 export class CardAlreadyAnsweredError extends Error {}
 

@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { categoryLabel } from '../../../features/admin/dailyAdmin'
-import { useDailyEventsQuery, useDailyQuestionsQuery, useDailyWordsQuery } from '../../../features/admin/useAdminDaily'
+import { useDailyQuestionsQuery, useDailyWordsQuery } from '../../../features/admin/useAdminDaily'
 import { Button } from '../../atoms/Button'
 import { AdminField, adminInputClass } from '../AdminField'
 import type { AdminDailyCardPickerProps } from './types'
@@ -14,8 +14,6 @@ interface Option {
     detail: string
 }
 
-const TIMELINE_SIZE = 4
-
 function normalize(text: string): string {
     return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
@@ -23,7 +21,6 @@ function normalize(text: string): string {
 function useOptions(card: AdminDailyCardPickerProps['card']): { options: Option[]; loading: boolean; failed: boolean } {
     const words = useDailyWordsQuery()
     const questions = useDailyQuestionsQuery()
-    const events = useDailyEventsQuery()
     if (card === 'word') {
         return {
             options: (words.data ?? [])
@@ -33,53 +30,35 @@ function useOptions(card: AdminDailyCardPickerProps['card']): { options: Option[
             failed: words.isError,
         }
     }
-    if (card === 'question') {
-        return {
-            options: (questions.data ?? [])
-                .filter((q) => q.active)
-                .map((q) => ({ id: q.id, title: q.question, detail: categoryLabel(q.category) })),
-            loading: questions.isLoading,
-            failed: questions.isError,
-        }
-    }
     return {
-        options: (events.data ?? [])
-            .filter((e) => e.active)
-            .map((e) => ({ id: e.id, title: e.label, detail: `${e.year} · ${categoryLabel(e.category)}` })),
-        loading: events.isLoading,
-        failed: events.isError,
+        options: (questions.data ?? [])
+            .filter((q) => q.active)
+            .map((q) => ({ id: q.id, title: q.question, detail: categoryLabel(q.category) })),
+        loading: questions.isLoading,
+        failed: questions.isError,
     }
 }
 
-// Troca de um cartão do jogo (DI.5.1): busca no banco, escolhe um item (ou quatro eventos) e confirma.
+// Troca de um cartão do jogo (DI.5.1): busca no banco, escolhe um item e confirma.
 // Jogo já publicado só troca com a confirmação marcada.
 export function AdminDailyCardPicker({ card, currentIds, published, pending, error, onSubmit, onCancel }: AdminDailyCardPickerProps) {
     const { options, loading, failed } = useOptions(card)
     const [query, setQuery] = useState('')
-    const [selected, setSelected] = useState<string[]>([])
+    const [selected, setSelected] = useState<string | null>(null)
     const [confirmed, setConfirmed] = useState(false)
     const confirmId = useId()
-    const multiple = card === 'timeline'
 
     const visible = options
-        .filter((o) => !currentIds.includes(o.id) || multiple)
+        .filter((o) => !currentIds.includes(o.id))
         .filter((o) => normalize(`${o.title} ${o.detail}`).includes(normalize(query)))
         .slice(0, 60)
-    const ready = multiple ? selected.length === TIMELINE_SIZE : selected.length === 1
     const blocked = published && !confirmed
 
-    function toggle(id: string) {
-        if (!multiple) return setSelected([id])
-        setSelected((current) =>
-            current.includes(id) ? current.filter((x) => x !== id) : current.length < TIMELINE_SIZE ? [...current, id] : current,
-        )
-    }
-
     function submit() {
+        if (selected === null) return
         const confirm_published = published ? confirmed : undefined
-        if (card === 'word') onSubmit({ card, word_id: selected[0], confirm_published })
-        else if (card === 'question') onSubmit({ card, question_id: selected[0], confirm_published })
-        else onSubmit({ card, event_ids: selected, confirm_published })
+        if (card === 'word') onSubmit({ card, word_id: selected, confirm_published })
+        else onSubmit({ card, question_id: selected, confirm_published })
     }
 
     return (
@@ -87,11 +66,6 @@ export function AdminDailyCardPicker({ card, currentIds, published, pending, err
             <AdminField label="Buscar no banco">
                 {(id) => <input id={id} className={adminInputClass} value={query} onChange={(event) => setQuery(event.target.value)} />}
             </AdminField>
-            {multiple && (
-                <p className={styles.hint}>
-                    Escolha {TIMELINE_SIZE} eventos de anos diferentes. Selecionados: {selected.length} de {TIMELINE_SIZE}.
-                </p>
-            )}
             {loading && <p className={styles.hint}>Carregando o banco…</p>}
             {failed && (
                 <p className={styles.error} role="alert">
@@ -103,10 +77,10 @@ export function AdminDailyCardPicker({ card, currentIds, published, pending, err
                     <li key={option.id}>
                         <label className={styles.option}>
                             <input
-                                type={multiple ? 'checkbox' : 'radio'}
+                                type="radio"
                                 name="daily-card-option"
-                                checked={selected.includes(option.id)}
-                                onChange={() => toggle(option.id)}
+                                checked={selected === option.id}
+                                onChange={() => setSelected(option.id)}
                             />
                             <span>
                                 <span className={styles.optionTitle}>{option.title}</span>
@@ -129,7 +103,7 @@ export function AdminDailyCardPicker({ card, currentIds, published, pending, err
                 </p>
             )}
             <div className={styles.actions}>
-                <Button disabled={!ready || blocked || pending} onClick={submit}>
+                <Button disabled={selected === null || blocked || pending} onClick={submit}>
                     {pending ? 'Trocando…' : 'Trocar cartão'}
                 </Button>
                 <Button variant="secondary" disabled={pending} onClick={onCancel}>

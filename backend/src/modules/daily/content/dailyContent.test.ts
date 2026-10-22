@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MaterializeUpcomingPuzzlesUseCase } from '../application/useCases/materializeUpcomingPuzzles'
 import {
-  createFakeDailyEventRepository,
   createFakeDailyPuzzleRepository,
   createFakeDailyQuestionRepository,
   createFakeDailySettingsRepository,
@@ -13,7 +12,6 @@ import { EXTRA_ACCEPTED_WORDS } from './extraAcceptedWords'
 import {
   INITIAL_CONTENT,
   MAX_EXPLANATION_LENGTH,
-  toNewEvent,
   toNewQuestion,
   toNewWord,
   validateContent,
@@ -63,18 +61,17 @@ describe('conteúdo inicial do Diário', () => {
   it('tem o mínimo para 30 dias com folga', () => {
     expect(INITIAL_CONTENT.words.length).toBeGreaterThanOrEqual(250)
     expect(INITIAL_CONTENT.questions.length).toBeGreaterThanOrEqual(30)
-    expect(INITIAL_CONTENT.events.length).toBeGreaterThanOrEqual(56)
   })
 
   it('maioria do conteúdo é sobre o Brasil em cada banco', () => {
-    for (const bank of [INITIAL_CONTENT.words, INITIAL_CONTENT.questions, INITIAL_CONTENT.events]) {
+    for (const bank of [INITIAL_CONTENT.words, INITIAL_CONTENT.questions]) {
       const brasil = bank.filter((item) => item.scope === 'brasil').length
       expect(brasil / bank.length).toBeGreaterThan(0.7)
     }
   })
 
   it('usa várias categorias em cada banco (a agenda alterna categoria entre dias)', () => {
-    for (const bank of [INITIAL_CONTENT.words, INITIAL_CONTENT.questions, INITIAL_CONTENT.events]) {
+    for (const bank of [INITIAL_CONTENT.words, INITIAL_CONTENT.questions]) {
       expect(new Set(bank.map((item) => item.category)).size).toBeGreaterThanOrEqual(6)
     }
   })
@@ -82,13 +79,6 @@ describe('conteúdo inicial do Diário', () => {
   it('o gabarito das perguntas varia (não fica sempre na mesma posição)', () => {
     const positions = new Set(INITIAL_CONTENT.questions.map((q) => q.correctIndex))
     expect(positions.size).toBe(4)
-  })
-
-  it('o ano de cada evento é plausível e há anos suficientes para uma Linha do tempo variada', () => {
-    const years = new Set(INITIAL_CONTENT.events.map((e) => e.year))
-    expect(years.size).toBeGreaterThanOrEqual(40)
-    const decades = new Set(INITIAL_CONTENT.events.map((e) => Math.floor(e.year / 10)))
-    expect(decades.size).toBeGreaterThanOrEqual(8)
   })
 
   it('recusa palavra-resposta fora da lista aceita', () => {
@@ -102,9 +92,8 @@ describe('conteúdo inicial do Diário', () => {
     expect(errors).toEqual(['palavra XPTOQ: fora da lista aceita'])
   })
 
-  it('recusa explicação longa, fonte vazia, categoria desconhecida, nome que entrega o ano e travessão', () => {
+  it('recusa explicação longa, fonte vazia, categoria desconhecida e travessão', () => {
     const q = INITIAL_CONTENT.questions[0]
-    const e = INITIAL_CONTENT.events[0]
     const errors = validateContent(
       {
         words: [],
@@ -117,7 +106,6 @@ describe('conteúdo inicial do Diário', () => {
           },
           { ...q, key: 'dash', question: 'Isso — aquilo?' },
         ],
-        events: [{ ...e, label: `Fato de ${e.year}` }],
       },
       accepted,
     )
@@ -127,7 +115,6 @@ describe('conteúdo inicial do Diário', () => {
         expect.stringContaining('sem fonte primária'),
         expect.stringContaining('categoria outra desconhecida'),
         expect.stringContaining('travessão'),
-        expect.stringContaining('entrega o ano'),
       ]),
     )
   })
@@ -136,7 +123,6 @@ describe('conteúdo inicial do Diário', () => {
     for (const make of [
       INITIAL_CONTENT.words.map((w) => toNewWord(w).stableKey),
       INITIAL_CONTENT.questions.map((q) => toNewQuestion(q).stableKey),
-      INITIAL_CONTENT.events.map((e) => toNewEvent(e).stableKey),
     ]) {
       expect(new Set(make).size).toBe(make.length)
     }
@@ -158,20 +144,16 @@ describe('os primeiros 30 dias materializados pela agenda', () => {
     const questions = createFakeDailyQuestionRepository(
       INITIAL_CONTENT.questions.map((q, i) => ({ ...toNewQuestion(q), id: `q${i}` })),
     )
-    const events = createFakeDailyEventRepository(
-      INITIAL_CONTENT.events.map((e, i) => ({ ...toNewEvent(e), id: `e${i}` })),
-    )
     const puzzles = createFakeDailyPuzzleRepository()
     const useCase = new MaterializeUpcomingPuzzlesUseCase(
       createFakeDailySettingsRepository(start),
       words,
       questions,
-      events,
       puzzles,
       () => new Date('2026-11-01T12:00:00Z'),
     )
     const result = await useCase.execute()
-    return { result, puzzles, words, questions, events }
+    return { result, puzzles, words, questions }
   }
 
   it('gera os 30 jogos sem nenhum aviso', async () => {
@@ -181,31 +163,12 @@ describe('os primeiros 30 dias materializados pela agenda', () => {
     expect(puzzles.items).toHaveLength(30)
   })
 
-  it('nenhuma palavra, pergunta ou evento se repete nos 30 dias', async () => {
+  it('nenhuma palavra ou pergunta se repete nos 30 dias', async () => {
     const { puzzles } = await run('2026-11-10')
     const wordIds = puzzles.items.map((p) => p.wordId)
     const questionIds = puzzles.items.map((p) => p.questionId)
     expect(new Set(wordIds).size).toBe(30)
     expect(new Set(questionIds).size).toBe(30)
-    // Eventos só não repetem dentro da janela de 14 dias (DEFAULT_WINDOWS); 67 eventos cobrem
-    // 16 dias sem repetir, e depois disso o mesmo evento volta numa Linha do tempo nova.
-    const sorted = [...puzzles.items].sort((a, b) => a.number - b.number)
-    for (let i = 0; i + 15 <= sorted.length; i++) {
-      const ids = sorted.slice(i, i + 15).flatMap((p) => p.timelineEventIds)
-      expect(new Set(ids).size).toBe(ids.length)
-    }
-  })
-
-  it('cada Linha do tempo tem 4 eventos de anos diferentes e mistura décadas e categorias', async () => {
-    const { puzzles, events } = await run('2026-11-10')
-    const byId = new Map(events.items.map((e) => [e.id, e]))
-    for (const p of puzzles.items) {
-      const timeline = p.timelineEventIds.map((id) => byId.get(id)!)
-      expect(timeline).toHaveLength(4)
-      expect(new Set(timeline.map((e) => e.year)).size).toBe(4)
-      expect(new Set(timeline.map((e) => Math.floor(e.year / 10))).size).toBeGreaterThanOrEqual(3)
-      expect(new Set(timeline.map((e) => e.category)).size).toBeGreaterThanOrEqual(2)
-    }
   })
 
   it('não repete categoria em dias seguidos na palavra e na pergunta (quando há alternativa)', async () => {

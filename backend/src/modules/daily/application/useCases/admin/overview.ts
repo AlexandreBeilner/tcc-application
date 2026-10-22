@@ -5,12 +5,11 @@ import {
   consecutiveDaysFrom,
   emptyTally,
 } from '../../../domain/adminCoverage'
-import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../../domain/content'
+import type { DailyPuzzle, DailyQuestion, DailyWord } from '../../../domain/content'
 import { MIN_CONTENT_DAYS_AHEAD } from '../../../domain/launchSchedule'
 import { addDays, dailyDay, resolveStatus } from '../../../domain/gameDay'
 import type { AdminAgendaDay, AdminAlertCode, AdminOverview } from '../../adminViews'
 import type { AcceptedWordRepository } from '../../ports/acceptedWordRepository'
-import type { DailyEventRepository } from '../../ports/dailyEventRepository'
 import type { DailyPuzzleRepository } from '../../ports/dailyPuzzleRepository'
 import type { DailyQuestionRepository } from '../../ports/dailyQuestionRepository'
 import type { DailySettingsRepository } from '../../ports/dailySettingsRepository'
@@ -27,7 +26,6 @@ export class GetDailyAdminOverviewUseCase {
     private readonly puzzles: DailyPuzzleRepository,
     private readonly words: DailyWordRepository,
     private readonly questions: DailyQuestionRepository,
-    private readonly events: DailyEventRepository,
     private readonly accepted: AcceptedWordRepository,
     private readonly now: () => Date = () => new Date(),
   ) {}
@@ -43,17 +41,15 @@ export class GetDailyAdminOverviewUseCase {
     const agendaFrom = state.status === 'off' && found[0] ? found[0].gameDate : probeFrom
     const puzzles = found.filter((p) => p.gameDate >= agendaFrom)
 
-    const [allWords, allQuestions, allEvents, extra] = await Promise.all([
+    const [allWords, allQuestions, extra] = await Promise.all([
       this.words.listAll(),
       this.questions.listAll(),
-      this.events.listAll(),
       this.accepted.listExtra(),
     ])
     const wordById = new Map(allWords.map((w) => [w.id, w]))
     const questionById = new Map(allQuestions.map((q) => [q.id, q]))
-    const eventById = new Map(allEvents.map((e) => [e.id, e]))
 
-    const days = puzzles.map((p) => toDay(p, wordById, questionById, eventById))
+    const days = puzzles.map((p) => toDay(p, wordById, questionById))
     const readyDaysAhead = consecutiveDaysFrom(
       agendaFrom,
       puzzles.map((p) => ({ gameDate: p.gameDate, ok: true })),
@@ -88,11 +84,10 @@ export class GetDailyAdminOverviewUseCase {
       lowCoverThreshold: LOW_READY_COVER_DAYS,
       alerts,
       days,
-      coverage: tally(puzzles, agendaFrom, wordById, questionById, eventById),
+      coverage: tally(puzzles, agendaFrom, wordById, questionById),
       bank: {
         words: allWords.filter((w) => w.active).length,
         questions: allQuestions.filter((q) => q.active).length,
-        events: allEvents.filter((e) => e.active).length,
         acceptedExtra: extra.length,
       },
     }
@@ -103,7 +98,6 @@ function toDay(
   p: DailyPuzzle,
   wordById: Map<string, DailyWord>,
   questionById: Map<string, DailyQuestion>,
-  eventById: Map<string, DailyEvent>,
 ): AdminAgendaDay {
   const word = wordById.get(p.wordId)
   const question = questionById.get(p.questionId)
@@ -111,15 +105,11 @@ function toDay(
     number: p.number,
     date: p.gameDate,
     published: p.publishedAt !== null,
-    origins: { word: p.wordOrigin, question: p.questionOrigin, timeline: p.timelineOrigin },
+    origins: { word: p.wordOrigin, question: p.questionOrigin },
     word: word ? { display: word.display, category: word.category, scope: word.scope } : null,
     question: question
       ? { text: question.question, category: question.category, scope: question.scope }
       : null,
-    events: p.timelineEventIds.flatMap((id) => {
-      const e = eventById.get(id)
-      return e ? [{ label: e.label, year: e.year, category: e.category, scope: e.scope }] : []
-    }),
   }
 }
 
@@ -128,14 +118,12 @@ function tally(
   from: string,
   wordById: Map<string, DailyWord>,
   questionById: Map<string, DailyQuestion>,
-  eventById: Map<string, DailyEvent>,
 ): AdminOverview['coverage'] {
   const limit = addDays(from, COVERAGE_WINDOW_DAYS)
   const coverage = {
     windowDays: COVERAGE_WINDOW_DAYS,
     word: emptyTally(),
     trivia: emptyTally(),
-    timeline: emptyTally(),
   }
   for (const p of puzzles) {
     if (p.gameDate >= limit) continue
@@ -143,10 +131,6 @@ function tally(
     if (word) addToTally(coverage.word, word)
     const question = questionById.get(p.questionId)
     if (question) addToTally(coverage.trivia, question)
-    for (const id of p.timelineEventIds) {
-      const event = eventById.get(id)
-      if (event) addToTally(coverage.timeline, event)
-    }
   }
   return coverage
 }

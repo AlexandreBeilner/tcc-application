@@ -14,11 +14,9 @@ function histogram(values: Record<string, number>): string {
 function print(report: ContentReport): void {
   const pct = (share: number) => `${Math.round(share * 100)}% Brasil`
   console.log('== Estoque ==')
+  console.log(`palavras ${report.counts.words} · perguntas ${report.counts.questions}`)
   console.log(
-    `palavras ${report.counts.words} · perguntas ${report.counts.questions} · eventos ${report.counts.events}`,
-  )
-  console.log(
-    `dias sem repetir: palavras ${report.runwayDays.words} · perguntas ${report.runwayDays.questions} · eventos ${report.runwayDays.events}`,
+    `dias sem repetir: palavras ${report.runwayDays.words} · perguntas ${report.runwayDays.questions}`,
   )
   if (report.belowFloor.length > 0) console.log(`ABAIXO DO MÍNIMO: ${report.belowFloor.join('; ')}`)
 
@@ -27,17 +25,10 @@ function print(report: ContentReport): void {
   console.log('\n== Perguntas ==')
   console.log(pct(report.questions.brasilShare), '|', histogram(report.questions.byCategory))
   console.log('posição do gabarito:', histogram(report.questions.correctIndex))
-  console.log('\n== Eventos ==')
-  console.log(pct(report.events.brasilShare), '|', histogram(report.events.byCategory))
-  console.log(
-    `anos distintos ${report.events.distinctYears} | décadas:`,
-    histogram(report.events.byDecade),
-  )
 
   const gaps = [
     ['palavras', report.words.emptyCategories],
     ['perguntas', report.questions.emptyCategories],
-    ['eventos', report.events.emptyCategories],
   ] as const
   console.log('\n== Categorias sem nenhum item ==')
   for (const [bank, empty] of gaps)

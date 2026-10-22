@@ -79,7 +79,7 @@ export const MISSION_SEEDS: MissionSeed[] = [
   {
     key: PLAY_DAILY_MISSION_KEY,
     title: 'Jogue o Diário de hoje',
-    description: 'Termine os três cartões do Diário Selucra de hoje.',
+    description: 'Termine os dois cartões do Diário Selucra de hoje.',
     completionCriteria: 'Fechar hoje o Diário do dia, antes da virada (00:00 UTC)',
     xpReward: 20,
     requiresLessonCompletion: false,

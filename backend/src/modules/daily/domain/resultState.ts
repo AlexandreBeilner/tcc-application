@@ -14,8 +14,6 @@ export function newResult(userId: string, puzzleNumber: number, now: Date): Dail
     wordCorrect: null,
     questionChoice: null,
     questionCorrect: null,
-    timelineOrder: null,
-    timelineCorrect: null,
     xpAwarded: 0,
     startedAt: now,
     completedAt: null,
@@ -54,25 +52,12 @@ export function recordTrivia(current: DailyResult, choice: number, correct: bool
   return { ...current, questionChoice: choice, questionCorrect: correct }
 }
 
-export function recordTimeline(
-  current: DailyResult,
-  order: string[],
-  correct: boolean,
-): DailyResult {
-  if (current.timelineCorrect !== null) throw new CardAlreadyAnsweredError()
-  return { ...current, timelineOrder: order, timelineCorrect: correct }
-}
-
 export function isGameComplete(result: DailyResult): boolean {
-  return (
-    result.wordCorrect !== null &&
-    result.questionCorrect !== null &&
-    result.timelineCorrect !== null
-  )
+  return result.wordCorrect !== null && result.questionCorrect !== null
 }
 
 export function correctCardCount(result: DailyResult): number {
-  return [result.wordCorrect, result.questionCorrect, result.timelineCorrect].filter(Boolean).length
+  return [result.wordCorrect, result.questionCorrect].filter(Boolean).length
 }
 
 export interface Finalized {
@@ -81,7 +66,7 @@ export interface Finalized {
   justCompleted: boolean
 }
 
-// Fecha o jogo quando os três cartões foram respondidos. `awardsXp` vem do acesso (só o jogo do
+// Fecha o jogo quando os dois cartões foram respondidos. `awardsXp` vem do acesso (só o jogo do
 // dia, concluído antes da virada): dia anterior fecha com 0 XP e não conta para sequência alguma.
 export function finalizeResult(result: DailyResult, awardsXp: boolean, now: Date): Finalized {
   if (result.completedAt !== null || !isGameComplete(result)) {

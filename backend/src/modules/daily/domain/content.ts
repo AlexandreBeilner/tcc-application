@@ -43,22 +43,6 @@ export interface DailyQuestion {
   active: boolean
 }
 
-// Evento datado da Linha do tempo. Só o ano importa para ordenar; `label` é o nome curto mostrado
-// ("Plano Real") e `explanation` aparece depois da resposta, com o porquê de o evento importar.
-export interface DailyEvent {
-  id: string
-  stableKey: string
-  year: number
-  label: string
-  explanation: string
-  sourceRef: string
-  learnMore: LearnMore | null
-  category: string
-  scope: ContentScope
-  reviewedAt: Date | null
-  active: boolean
-}
-
 export type CardOrigin = 'generated' | 'manual'
 
 export interface DailyPuzzle {
@@ -67,11 +51,8 @@ export interface DailyPuzzle {
   gameDate: string
   wordId: string
   questionId: string
-  // Ordem de exibição da Linha do tempo (4 ids de `DailyEvent`).
-  timelineEventIds: string[]
   wordOrigin: CardOrigin
   questionOrigin: CardOrigin
-  timelineOrigin: CardOrigin
   reviewedBy: string | null
   reviewedAt: Date | null
   publishedAt: Date | null
@@ -85,8 +66,6 @@ export interface DailyResult {
   wordCorrect: boolean | null
   questionChoice: number | null
   questionCorrect: boolean | null
-  timelineOrder: string[] | null
-  timelineCorrect: boolean | null
   xpAwarded: number
   startedAt: Date
   completedAt: Date | null

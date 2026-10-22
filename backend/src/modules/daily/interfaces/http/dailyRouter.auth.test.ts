@@ -3,7 +3,7 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { createDailyRouter } from './dailyRouter'
 import { GetDailyQualityUseCase } from '../../application/useCases/getDailyQuality'
-import { CORRECT_ORDER, DISPLAY_ORDER, START, buildDailyWorld } from '../../test/dailyWorld'
+import { START, buildDailyWorld } from '../../test/dailyWorld'
 
 // Hoje = jogo #2 (UTC 2026-11-02). A virada para o #3 é 00:00 UTC (21h de Brasília).
 const DAY2 = new Date('2026-11-02T15:00:00.000Z')
@@ -33,23 +33,13 @@ const trivia = (ctx: Ctx, n: number, choice: number, user = 'u1') =>
     .post(`/daily/${n}/cards/trivia/answer`)
     .set(auth(ctx, user))
     .send({ choice })
-const timeline = (ctx: Ctx, n: number, order: string[], user = 'u1') =>
-  request(ctx.device())
-    .post(`/daily/${n}/cards/timeline/answer`)
-    .set(auth(ctx, user))
-    .send({ order })
-
-async function playAll(
-  ctx: Ctx,
-  n: number,
-  { wordRight = true, triviaRight = true, timelineRight = true } = {},
-) {
+// Joga os dois cartões (DI18); a Pergunta do dia é a última e fecha o jogo.
+async function playAll(ctx: Ctx, n: number, { wordRight = true, triviaRight = true } = {}) {
   await guess(ctx, n, wordRight ? 'acoes' : 'carro')
   if (!wordRight) {
     for (let i = 0; i < 5; i++) await guess(ctx, n, 'carro')
   }
-  await trivia(ctx, n, triviaRight ? 1 : 0)
-  return timeline(ctx, n, timelineRight ? CORRECT_ORDER : DISPLAY_ORDER)
+  return trivia(ctx, n, triviaRight ? 1 : 0)
 }
 
 describe('autenticação opcional', () => {
@@ -74,10 +64,7 @@ describe('autenticação opcional', () => {
     const ctx = setup()
     const app = ctx.device()
     await request(app).post('/daily/2/word/guess').send({ guess: 'acoes', attempt: 1 })
-    await request(app).post('/daily/2/cards/trivia/answer').send({ choice: 1 })
-    const last = await request(app)
-      .post('/daily/2/cards/timeline/answer')
-      .send({ order: CORRECT_ORDER })
+    const last = await request(app).post('/daily/2/cards/trivia/answer').send({ choice: 1 })
     expect(last.body.completion).toBeUndefined()
     expect(ctx.world.results.items).toHaveLength(0)
     expect(ctx.world.xpAwarder.awarded).toHaveLength(0)
@@ -133,21 +120,17 @@ describe('jogo logado: palpites', () => {
 })
 
 describe('jogo logado: um cartão por vez', () => {
-  it('trivia e Linha do tempo aceitam uma tentativa válida; a segunda é 409 e não altera a primeira', async () => {
+  it('a Pergunta do dia aceita uma tentativa válida; a segunda é 409 e não altera a primeira', async () => {
     const ctx = setup()
     expect((await trivia(ctx, 2, 0)).body.correct).toBe(false)
     const again = await trivia(ctx, 2, 1)
     expect(again.status).toBe(409)
     expect(ctx.world.results.items[0].questionChoice).toBe(0)
-
-    expect((await timeline(ctx, 2, CORRECT_ORDER)).body.correct).toBe(true)
-    expect((await timeline(ctx, 2, DISPLAY_ORDER)).status).toBe(409)
   })
 
   it('resposta inválida não gasta a tentativa do cartão', async () => {
     const ctx = setup()
     expect((await trivia(ctx, 2, 9)).status).toBe(422)
-    expect((await timeline(ctx, 2, ['x'])).status).toBe(422)
     expect(ctx.world.results.items).toHaveLength(0)
     expect((await trivia(ctx, 2, 1)).status).toBe(200)
   })
@@ -155,35 +138,30 @@ describe('jogo logado: um cartão por vez', () => {
 
 describe('XP e streak do jogo do dia', () => {
   it.each([
-    [true, true, true, 50],
-    [true, true, false, 40],
-    [true, false, false, 30],
-    [false, false, false, 20],
-  ])(
-    'palavra=%s pergunta=%s linha=%s concede %i XP uma vez, com nível e conquistas',
-    async (w, q, t, xp) => {
-      const ctx = setup()
-      const last = await playAll(ctx, 2, { wordRight: w, triviaRight: q, timelineRight: t })
-      expect(last.status).toBe(200)
-      expect(last.body.completion).toEqual({
-        correctCards: [w, q, t].filter(Boolean).length,
-        xpAwarded: xp,
-        level: 2,
-        leveledUp: true,
-        streakMilestone: null,
-        unlockedAchievements: [{ id: 'a1', name: 'Primeiro Diário', description: null }, ...[]],
-      })
-      expect(ctx.world.xpAwarder.awarded).toEqual([
-        { userId: 'u1', amount: xp, reason: 'diario:2' },
-      ])
-      expect(ctx.world.streakTracker.touchedUserIds).toEqual(['u1'])
-    },
-  )
+    [true, true, 50],
+    [true, false, 35],
+    [false, true, 35],
+    [false, false, 20],
+  ])('palavra=%s pergunta=%s concede %i XP uma vez, com nível e conquistas', async (w, q, xp) => {
+    const ctx = setup()
+    const last = await playAll(ctx, 2, { wordRight: w, triviaRight: q })
+    expect(last.status).toBe(200)
+    expect(last.body.completion).toEqual({
+      correctCards: [w, q].filter(Boolean).length,
+      xpAwarded: xp,
+      level: 2,
+      leveledUp: true,
+      streakMilestone: null,
+      unlockedAchievements: [{ id: 'a1', name: 'Primeiro Diário', description: null }, ...[]],
+    })
+    expect(ctx.world.xpAwarder.awarded).toEqual([{ userId: 'u1', amount: xp, reason: 'diario:2' }])
+    expect(ctx.world.streakTracker.touchedUserIds).toEqual(['u1'])
+  })
 
   it('avisa a conclusão uma vez, também no dia anterior sem XP (marco do painel de retenção)', async () => {
     const ctx = setup()
     await playAll(ctx, 2)
-    await timeline(ctx, 2, CORRECT_ORDER)
+    await trivia(ctx, 2, 1)
     await playAll(ctx, 1)
     expect(ctx.world.completedUserIds).toEqual(['u1', 'u1'])
   })
@@ -194,19 +172,17 @@ describe('XP e streak do jogo do dia', () => {
     expect(ctx.world.completedUserIds).toEqual([])
   })
 
-  it('os cartões que não fecham o jogo não trazem completion', async () => {
+  it('o cartão que não fecha o jogo não traz completion', async () => {
     const ctx = setup()
     const a = await guess(ctx, 2, 'acoes')
-    const b = await trivia(ctx, 2, 1)
     expect(a.body.completion).toBeUndefined()
-    expect(b.body.completion).toBeUndefined()
     expect(ctx.world.xpAwarder.awarded).toHaveLength(0)
   })
 
   it('reenviar o último cartão (outra aba) não concede de novo', async () => {
     const ctx = setup()
     await playAll(ctx, 2)
-    expect((await timeline(ctx, 2, CORRECT_ORDER)).status).toBe(409)
+    expect((await trivia(ctx, 2, 1)).status).toBe(409)
     expect(ctx.world.xpAwarder.awarded).toHaveLength(1)
     expect(ctx.world.streakTracker.touchedUserIds).toHaveLength(1)
   })
@@ -214,11 +190,7 @@ describe('XP e streak do jogo do dia', () => {
   it('duas abas enviando o último cartão ao mesmo tempo: um 200, um 409, um crédito', async () => {
     const ctx = setup()
     await guess(ctx, 2, 'acoes')
-    await trivia(ctx, 2, 1)
-    const [a, b] = await Promise.all([
-      timeline(ctx, 2, CORRECT_ORDER),
-      timeline(ctx, 2, CORRECT_ORDER),
-    ])
+    const [a, b] = await Promise.all([trivia(ctx, 2, 1), trivia(ctx, 2, 1)])
     expect([a.status, b.status].sort()).toEqual([200, 409])
     expect(ctx.world.xpAwarder.awarded).toHaveLength(1)
     expect(ctx.world.streakTracker.touchedUserIds).toHaveLength(1)
@@ -229,7 +201,6 @@ describe('XP e streak do jogo do dia', () => {
     await playAll(ctx, 2)
     await guess(ctx, 2, 'acoes', 'u2')
     await trivia(ctx, 2, 1, 'u2')
-    await timeline(ctx, 2, CORRECT_ORDER, 'u2')
     expect(ctx.world.xpAwarder.awarded.map((a) => a.userId).sort()).toEqual(['u1', 'u2'])
   })
 })
@@ -239,7 +210,7 @@ describe('sem XP: dia anterior e depois da virada', () => {
     const ctx = setup()
     const last = await playAll(ctx, 1)
     expect(last.status).toBe(200)
-    expect(last.body.completion).toEqual({ correctCards: 3, xpAwarded: 0 })
+    expect(last.body.completion).toEqual({ correctCards: 2, xpAwarded: 0 })
     expect(ctx.world.xpAwarder.awarded).toHaveLength(0)
     expect(ctx.world.streakTracker.touchedUserIds).toHaveLength(0)
     expect(ctx.world.results.items[0]).toMatchObject({ puzzleNumber: 1, xpAwarded: 0 })
@@ -249,11 +220,10 @@ describe('sem XP: dia anterior e depois da virada', () => {
   it('começado no dia e concluído depois da virada (21h de Brasília) não dá XP', async () => {
     const ctx = setup(DAY2_LAST_MINUTE)
     await guess(ctx, 2, 'acoes')
-    await trivia(ctx, 2, 1)
     ctx.clock.now = DAY3_FIRST_MINUTE
-    const last = await timeline(ctx, 2, CORRECT_ORDER)
+    const last = await trivia(ctx, 2, 1)
     expect(last.status).toBe(200)
-    expect(last.body.completion).toEqual({ correctCards: 3, xpAwarded: 0 })
+    expect(last.body.completion).toEqual({ correctCards: 2, xpAwarded: 0 })
     expect(ctx.world.xpAwarder.awarded).toHaveLength(0)
     expect(ctx.world.streakTracker.touchedUserIds).toHaveLength(0)
   })
@@ -271,14 +241,12 @@ describe('sem XP: dia anterior e depois da virada', () => {
     await playAll(ctx, 1)
     ctx.clock.now = DAY2_LAST_MINUTE
     await guess(ctx, 2, 'acoes')
-    await trivia(ctx, 2, 1)
     ctx.clock.now = DAY3_FIRST_MINUTE
-    await timeline(ctx, 2, CORRECT_ORDER)
+    await trivia(ctx, 2, 1)
     expect(ctx.world.results.items.every((r) => r.completedAt !== null)).toBe(true)
     expect(await quality.execute({ userId: 'u1' })).toEqual({
       wordFirstTryGames: 0,
       perfectDays: 0,
-      bestTimelineRun: 0,
     })
   })
 
@@ -288,7 +256,6 @@ describe('sem XP: dia anterior e depois da virada', () => {
     expect(await new GetDailyQualityUseCase(ctx.world.results).execute({ userId: 'u1' })).toEqual({
       wordFirstTryGames: 1,
       perfectDays: 1,
-      bestTimelineRun: 1,
     })
   })
 
@@ -313,7 +280,6 @@ describe('GET /daily/:number/me', () => {
       xpAwarded: 0,
       word: { guesses: [], finished: false, solved: false },
       trivia: { answered: false },
-      timeline: { answered: false },
     })
   })
 
@@ -333,7 +299,6 @@ describe('GET /daily/:number/me', () => {
       correct: false,
       correctIndex: 1,
     })
-    expect(res.body.timeline).toEqual({ answered: false })
     const raw = JSON.stringify(res.body.word)
     expect(raw).not.toContain('AÇÕES')
     expect(raw).not.toContain('Pedaços')
@@ -349,15 +314,7 @@ describe('GET /daily/:number/me', () => {
     expect(other.body.word.reveal.answer).toBe('AÇÕES')
     expect(other.body.word.solved).toBe(true)
     expect(other.body.trivia).toMatchObject({ answered: true, choice: 1, correct: true })
-    expect(other.body.timeline).toMatchObject({
-      answered: true,
-      order: CORRECT_ORDER,
-      correct: true,
-      positionHits: [true, true, true, true],
-    })
-    expect(other.body.timeline.events.map((e: { year: number }) => e.year)).toEqual([
-      1994, 1999, 2008, 2017,
-    ])
+    expect(other.body).not.toHaveProperty('timeline')
   })
 
   it('o estado de um usuário não vaza para outro', async () => {
@@ -377,14 +334,14 @@ describe('GET /daily/me/stats', () => {
   it('resume o que foi jogado logado', async () => {
     const ctx = setup()
     await playAll(ctx, 1)
-    await playAll(ctx, 2, { timelineRight: false })
+    await playAll(ctx, 2, { triviaRight: false })
     const res = await request(ctx.device()).get('/daily/me/stats').set(auth(ctx))
     expect(res.status).toBe(200)
+    expect(res.body).not.toHaveProperty('timeline')
     expect(res.body).toMatchObject({
       games: 2,
       word: { played: 2, correct: 2, accuracy: 100 },
-      trivia: { played: 2, correct: 2, accuracy: 100 },
-      timeline: { played: 2, correct: 1, accuracy: 50 },
+      trivia: { played: 2, correct: 1, accuracy: 50 },
       wordAttempts: { distribution: { '1': 2 }, failed: 0 },
       // Só o jogo #2 foi concluído no próprio dia; o #1 foi jogado depois e não conta.
       currentStreak: 1,

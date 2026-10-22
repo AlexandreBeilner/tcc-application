@@ -13,7 +13,6 @@ export interface DailyGame {
     cards: {
         word: { length: number; maxAttempts: number }
         trivia: { question: string; options: string[] }
-        timeline: { events: { id: string; label: string }[] }
     }
 }
 
@@ -53,22 +52,6 @@ export interface TriviaResponse {
     completion?: Completion
 }
 
-export interface TimelineEventReveal {
-    id: string
-    label: string
-    year: number
-    explanation: string
-    sourceRef: string
-    learnMore: LearnMore
-}
-
-export interface TimelineResponse {
-    correct: boolean
-    positionHits: boolean[]
-    events: TimelineEventReveal[]
-    completion?: Completion
-}
-
 export interface WordProgress {
     guesses: { guess: string; letters: LetterState[] }[]
     finished: boolean
@@ -88,15 +71,11 @@ export type TriviaProgress =
           learnMore: LearnMore
       }
 
-export type TimelineProgress =
-    { answered: false } | { answered: true; order: string[]; correct: boolean; positionHits: boolean[]; events: TimelineEventReveal[] }
-
 /** O que a tela precisa para redesenhar um jogo: o mesmo formato vale para o `localStorage` e para `GET /daily/:n/me`. */
 export interface GameProgress {
     number: number
     word: WordProgress
     trivia: TriviaProgress
-    timeline: TimelineProgress
     /** Só o guardador local preenche (momento em que o último cartão fechou). */
     finishedAt: string | null
     /** Só o guardador local usa: o jogo do dia fechou antes da virada (conta para a sequência local). */
@@ -107,7 +86,6 @@ export interface DailyStats {
     games: number
     word: { played: number; correct: number; accuracy: number }
     trivia: { played: number; correct: number; accuracy: number }
-    timeline: { played: number; correct: number; accuracy: number }
     wordAttempts: { distribution: Record<string, number>; failed: number }
     currentStreak: number
     longestStreak: number

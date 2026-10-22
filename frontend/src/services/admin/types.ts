@@ -138,6 +138,7 @@ export type AuditAction =
     | 'daily.word_update'
     | 'daily.question_create'
     | 'daily.question_update'
+    // Legado: a Linha do tempo saiu do Diário (DI18), mas as linhas antigas de auditoria seguem legíveis.
     | 'daily.event_create'
     | 'daily.event_update'
     | 'daily.accepted_word_add'
@@ -810,7 +811,6 @@ export type AchievementCriteriaType =
     | 'referrals_qualified'
     | 'daily_word_first_try'
     | 'daily_perfect_days'
-    | 'daily_timeline_streak'
 
 export interface AchievementCriterionOption {
     type: AchievementCriteriaType
@@ -1378,10 +1378,9 @@ export interface DailyAgendaDay {
     number: number
     date: string
     published: boolean
-    origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
+    origins: { word: DailyCardOrigin; question: DailyCardOrigin }
     word: { display: string; category: string; scope: DailyScope } | null
     question: { text: string; category: string; scope: DailyScope } | null
-    events: { label: string; year: number; category: string; scope: DailyScope }[]
 }
 
 export interface DailyTally {
@@ -1403,8 +1402,8 @@ export interface DailyOverview {
     low_cover_threshold: number
     alerts: DailyAlertCode[]
     days: DailyAgendaDay[]
-    coverage: { window_days: number; word: DailyTally; trivia: DailyTally; timeline: DailyTally }
-    bank: { words: number; questions: number; events: number; accepted_extra: number }
+    coverage: { window_days: number; word: DailyTally; trivia: DailyTally }
+    bank: { words: number; questions: number; accepted_extra: number }
 }
 
 export interface DailyWord {
@@ -1433,30 +1432,14 @@ export interface DailyQuestion {
     active: boolean
 }
 
-export interface DailyEvent {
-    id: string
-    stable_key: string
-    year: number
-    label: string
-    explanation: string
-    source_ref: string
-    learn_more: DailyLearnMore | null
-    category: string
-    scope: DailyScope
-    active: boolean
-}
-
 export interface DailyPuzzleDetail {
     number: number
     date: string
     is_today_or_past: boolean
     published_at: string | null
-    origins: { word: DailyCardOrigin; question: DailyCardOrigin; timeline: DailyCardOrigin }
+    origins: { word: DailyCardOrigin; question: DailyCardOrigin }
     word: DailyWord
     question: DailyQuestion
-    // Na ordem de exibição do jogador.
-    events: DailyEvent[]
-    correct_order: string[]
     warnings: string[]
 }
 
@@ -1473,9 +1456,7 @@ export interface DailyStartDateResult {
 }
 
 export type DailyReplaceCardInput =
-    | { card: 'word'; word_id: string; confirm_published?: boolean }
-    | { card: 'question'; question_id: string; confirm_published?: boolean }
-    | { card: 'timeline'; event_ids: string[]; confirm_published?: boolean }
+    { card: 'word'; word_id: string; confirm_published?: boolean } | { card: 'question'; question_id: string; confirm_published?: boolean }
 
 export interface DailyWordInput {
     display: string
@@ -1489,16 +1470,6 @@ export interface DailyQuestionInput {
     question: string
     options: string[]
     correct_index: number
-    explanation: string
-    source_ref: string
-    category: string
-    scope: DailyScope
-    learn_more: DailyLearnMore | null
-}
-
-export interface DailyEventInput {
-    year: number
-    label: string
     explanation: string
     source_ref: string
     category: string

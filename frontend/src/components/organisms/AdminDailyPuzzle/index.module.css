@@ -89,10 +89,10 @@
     align-items: start;
 }
 
-/* Desktop: três cartões lado a lado, como o jogo é dividido. */
-@media (min-width: 1280px) {
+/* Desktop: os dois cartões lado a lado, como o jogo é dividido. */
+@media (min-width: 1024px) {
     .cards {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -152,44 +152,6 @@
 
 .correct {
     color: var(--color-text-primary);
-}
-
-.events {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.event {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.eventHead {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
-}
-
-.rank {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: 1px solid var(--color-border-strong);
-    border-radius: var(--radius-full);
-    font-size: var(--font-size-xs);
-    font-weight: 600;
 }
 
 .back {

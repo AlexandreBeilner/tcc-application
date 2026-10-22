@@ -1,15 +1,12 @@
 import { MaterializeUpcomingPuzzlesUseCase } from '../application/useCases/materializeUpcomingPuzzles'
 import {
   AddAcceptedWordUseCase,
-  CreateAdminEventUseCase,
   CreateAdminQuestionUseCase,
   CreateAdminWordUseCase,
   ListAcceptedExtraUseCase,
-  ListAdminEventsUseCase,
   ListAdminQuestionsUseCase,
   ListAdminWordsUseCase,
   RemoveAcceptedWordUseCase,
-  UpdateAdminEventUseCase,
   UpdateAdminQuestionUseCase,
   UpdateAdminWordUseCase,
 } from '../application/useCases/admin/content'
@@ -24,10 +21,9 @@ import {
   PublishPuzzlesUseCase,
   ReplacePuzzleCardUseCase,
 } from '../application/useCases/admin/puzzles'
-import type { DailyEvent, DailyQuestion, DailyWord } from '../domain/content'
+import type { DailyQuestion, DailyWord } from '../domain/content'
 import {
   createFakeAcceptedWordRepository,
-  createFakeDailyEventRepository,
   createFakeDailyMetricsRepository,
   createFakeDailyPuzzleRepository,
   createFakeDailyQuestionRepository,
@@ -70,22 +66,6 @@ export function questionFixture(i: number): DailyQuestion {
   }
 }
 
-export function eventFixture(i: number): DailyEvent {
-  return {
-    id: `e${i}`,
-    stableKey: `e:k${i}`,
-    year: 1800 + i,
-    label: `Evento ${i}`,
-    explanation: 'Explicação curta.',
-    sourceRef: 'Banco Central do Brasil',
-    learnMore: null,
-    category: ['planos-e-moeda', 'crises-e-choques', 'instituicoes'][i % 3],
-    scope: i % 5 === 4 ? 'fora' : 'brasil',
-    reviewedAt: null,
-    active: true,
-  }
-}
-
 export const ADMIN = 'admin-1'
 
 // Mundo do painel com os repositórios falsos e um relógio que o teste move. Conteúdo suficiente
@@ -98,9 +78,6 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
   const questions = createFakeDailyQuestionRepository(
     Array.from({ length: 60 }, (_, i) => questionFixture(i)),
   )
-  const events = createFakeDailyEventRepository(
-    Array.from({ length: 200 }, (_, i) => eventFixture(i)),
-  )
   const puzzles = createFakeDailyPuzzleRepository()
   const accepted = createFakeAcceptedWordRepository(
     words.items.map((w) => w.answer),
@@ -111,7 +88,6 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
     settings,
     words,
     questions,
-    events,
     puzzles,
     now,
   )
@@ -121,22 +97,13 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
     settings,
     words,
     questions,
-    events,
     puzzles,
     accepted,
     materialize,
-    overview: new GetDailyAdminOverviewUseCase(
-      settings,
-      puzzles,
-      words,
-      questions,
-      events,
-      accepted,
-      now,
-    ),
-    getPuzzle: new GetAdminPuzzleUseCase(puzzles, words, questions, events, now),
+    overview: new GetDailyAdminOverviewUseCase(settings, puzzles, words, questions, accepted, now),
+    getPuzzle: new GetAdminPuzzleUseCase(puzzles, words, questions, now),
     publishPuzzles: new PublishPuzzlesUseCase(puzzles, now),
-    replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions, events),
+    replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions),
     prepareDraft: new PrepareLaunchDraftUseCase(settings, puzzles, materialize, now),
     setStartDate: new SetStartDateUseCase(settings, puzzles, materialize, now),
     listWords: new ListAdminWordsUseCase(words),
@@ -148,9 +115,6 @@ export function buildAdminWorld(options: { startDate: string | null; now: string
     listQuestions: new ListAdminQuestionsUseCase(questions),
     createQuestion: new CreateAdminQuestionUseCase(questions),
     updateQuestion: new UpdateAdminQuestionUseCase(questions, puzzles),
-    listEvents: new ListAdminEventsUseCase(events),
-    createEvent: new CreateAdminEventUseCase(events),
-    updateEvent: new UpdateAdminEventUseCase(events, puzzles),
     metrics: new GetDailyMetricsUseCase(metricsRepo, now),
   }
 }

@@ -23,12 +23,6 @@ const game = (number, date, over = {}) => ({
         sourceRef: 'IBGE',
         learnMore: null,
     },
-    timeline: {
-        events: [
-            { id: 'a', label: 'Plano Real', year: 1994, explanation: 'Nova moeda.', sourceRef: 'Lei 8.880', learnMore: null },
-            { id: 'b', label: 'Crise global', year: 2008, explanation: 'Lehman.', sourceRef: 'Fed', learnMore: null },
-        ],
-    },
     ...over,
 })
 
@@ -59,8 +53,9 @@ describe('arquivo do Diário: dados', () => {
         assert.equal(cleanArchive([g], new Date('2026-11-04T00:00:00Z')).length, 1)
     })
 
-    it('rejeita jogo sem fonte, sem explicação ou com poucos eventos', () => {
-        assert.equal(isArchivedGame(game(1, '2026-11-01', { timeline: { events: [] } })), false)
+    it('rejeita jogo sem fonte ou sem explicação; a Linha do tempo de um jogo antigo é ignorada (DI18)', () => {
+        assert.equal(isArchivedGame(game(1, '2026-11-01', { trivia: { ...game(1, 'x').trivia, explanation: 7 } })), false)
+        assert.equal(isArchivedGame(game(1, '2026-11-01', { timeline: { events: [] } })), true)
         assert.equal(isArchivedGame(game(1, '2026-11-01', { trivia: { ...game(1, 'x').trivia, sourceRef: '' } })), false)
         assert.equal(isArchivedGame(game(1, '2026-11-01')), true)
     })
@@ -132,7 +127,7 @@ describe('arquivo do Diário: páginas geradas', () => {
         assert.match(html, new RegExp(`<link rel="canonical" href="${SITE}/diario/arquivo/2/"`))
         assert.match(html, /<strong>AÇÕES<\/strong>/)
         assert.match(html, /<li class="arq-certa"><strong>IPCA<\/strong> \(resposta certa\)<\/li>/)
-        assert.match(html, /1994: Plano Real/)
+        assert.doesNotMatch(html, /Linha do tempo/i)
         assert.match(html, /Fonte: IBGE/)
         assert.match(html, /href="\/aprender\/o-que-e-etf\/"/)
         const idx = await read('diario/arquivo/index.html')

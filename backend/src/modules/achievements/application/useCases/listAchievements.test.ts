@@ -40,7 +40,6 @@ describe('ListAchievementsUseCase', () => {
         referralsQualified: 0,
         dailyWordFirstTry: 0,
         dailyPerfectDays: 0,
-        dailyTimelineStreak: 0,
       },
     })
     const useCase = new ListAchievementsUseCase(achievementRepository, progressSnapshotReader)

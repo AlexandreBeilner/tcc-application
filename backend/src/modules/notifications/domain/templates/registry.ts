@@ -348,7 +348,7 @@ export const EMAIL_TEMPLATES: Record<string, EmailTemplate> = {
       } else if (dailyPlayedDays === 0) {
         blocks.push({
           type: 'paragraph',
-          text: 'O Diário é um jogo de 3 minutos, igual para todos: uma palavra, uma pergunta e uma linha do tempo. Que tal conhecer?',
+          text: 'O Diário é um jogo de 3 minutos, igual para todos: uma palavra e uma pergunta. Que tal conhecer?',
         })
       }
       blocks.push({ type: 'button', label: 'Abrir a plataforma', url: `${appUrl}/trilha` })

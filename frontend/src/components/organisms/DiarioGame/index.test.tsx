@@ -20,12 +20,6 @@ const game = {
     cards: {
         word: { length: 5, maxAttempts: 6 },
         trivia: { question: 'Qual órgão decide a Selic?', options: ['Tesouro', 'Copom'] },
-        timeline: {
-            events: [
-                { id: 'a', label: 'Plano Real' },
-                { id: 'b', label: 'Plano Collor' },
-            ],
-        },
     },
 }
 
@@ -37,7 +31,7 @@ interface Call {
     auth: string | null
 }
 
-function stubFetch(timelineCompletion: object | undefined, missionStatus: 'pending' | 'completed' | null = null) {
+function stubFetch(completion: object | undefined, missionStatus: 'pending' | 'completed' | null = null) {
     const calls: Call[] = []
     const impl = async (input: string, init?: RequestInit) => {
         const headers = new Headers(init?.headers)
@@ -51,17 +45,15 @@ function stubFetch(timelineCompletion: object | undefined, missionStatus: 'pendi
                 finished: true,
                 reveal: { answer: 'JUROS', definition: 'Preço do dinheiro no tempo.', learnMore: null },
             })
+        // A Pergunta do dia é o último cartão (DI18): é a resposta dela que fecha o jogo.
         if (input.endsWith('/trivia/answer'))
-            return json({ correct: true, correctIndex: 1, explanation: 'O Copom.', sourceRef: 'bcb.gov.br', learnMore: null })
-        if (input.endsWith('/timeline/answer'))
             return json({
                 correct: true,
-                positionHits: [true, true],
-                events: [
-                    { id: 'b', label: 'Plano Collor', year: 1990, explanation: 'x', sourceRef: 's', learnMore: null },
-                    { id: 'a', label: 'Plano Real', year: 1994, explanation: 'y', sourceRef: 's', learnMore: null },
-                ],
-                ...(timelineCompletion ? { completion: timelineCompletion } : {}),
+                correctIndex: 1,
+                explanation: 'O Copom.',
+                sourceRef: 'bcb.gov.br',
+                learnMore: null,
+                ...(completion ? { completion } : {}),
             })
         if (input.endsWith('/missions'))
             return json({
@@ -99,8 +91,6 @@ async function playAll() {
     fireEvent.click(document.querySelectorAll('.dg-option')[1])
     fireEvent.click(screen.getByText('Confirmar resposta'))
     await waitFor(() => expect(document.querySelectorAll('.dg-tab')[1].textContent).toMatch(/certo/), { timeout: 4000 })
-    fireEvent.click(document.querySelectorAll('.dg-tab')[2])
-    fireEvent.click(screen.getByText('Conferir ordem'))
 }
 
 function renderGame() {
@@ -151,7 +141,7 @@ describe('DiarioGame (DI.4.1)', () => {
     })
 
     it('ao fechar o jogo do dia mostra o XP uma vez e atualiza a gamificação', async () => {
-        stubFetch({ correctCards: 3, xpAwarded: 50, level: 2, leveledUp: false, streakMilestone: null, unlockedAchievements: [] })
+        stubFetch({ correctCards: 2, xpAwarded: 50, level: 2, leveledUp: false, streakMilestone: null, unlockedAchievements: [] })
         const { invalidate } = renderGame()
         await playAll()
         expect(await screen.findByText('+50 XP', { selector: '[role="status"] *' }, { timeout: 4000 })).toBeTruthy()
@@ -160,7 +150,7 @@ describe('DiarioGame (DI.4.1)', () => {
     })
 
     it('conclui a missão "Jogue o Diário" ao fechar o jogo do dia e mostra o XP dela depois do do Diário', async () => {
-        const calls = stubFetch({ correctCards: 3, xpAwarded: 50, level: 2, leveledUp: false, unlockedAchievements: [] }, 'pending')
+        const calls = stubFetch({ correctCards: 2, xpAwarded: 50, level: 2, leveledUp: false, unlockedAchievements: [] }, 'pending')
         renderGame()
         await playAll()
         await waitFor(() => expect(calls.some((c) => c.url.endsWith('/missions/m5/complete'))).toBe(true), { timeout: 4000 })
@@ -169,7 +159,7 @@ describe('DiarioGame (DI.4.1)', () => {
     })
 
     it('missão do Diário já concluída hoje não é enviada de novo', async () => {
-        const calls = stubFetch({ correctCards: 3, xpAwarded: 50, level: 2, leveledUp: false, unlockedAchievements: [] }, 'completed')
+        const calls = stubFetch({ correctCards: 2, xpAwarded: 50, level: 2, leveledUp: false, unlockedAchievements: [] }, 'completed')
         renderGame()
         await playAll()
         await waitFor(() => expect(calls.some((c) => c.url.endsWith('/missions'))).toBe(true), { timeout: 4000 })
@@ -178,7 +168,7 @@ describe('DiarioGame (DI.4.1)', () => {
     })
 
     it('dia anterior (xpAwarded 0) nem consulta as missões', async () => {
-        const calls = stubFetch({ correctCards: 3, xpAwarded: 0 }, 'pending')
+        const calls = stubFetch({ correctCards: 2, xpAwarded: 0 }, 'pending')
         renderGame()
         await playAll()
         await waitFor(() => expect(document.querySelector('.dg-result')?.childElementCount).toBeGreaterThan(0), { timeout: 4000 })
@@ -188,7 +178,7 @@ describe('DiarioGame (DI.4.1)', () => {
 
     it('nível, conquista e marco de streak entram na fila de recompensa', async () => {
         stubFetch({
-            correctCards: 3,
+            correctCards: 2,
             xpAwarded: 50,
             level: 5,
             leveledUp: true,
@@ -201,7 +191,7 @@ describe('DiarioGame (DI.4.1)', () => {
     })
 
     it('dia anterior ou jogo fora da janela (xpAwarded 0) não dispara teatro de recompensa', async () => {
-        stubFetch({ correctCards: 3, xpAwarded: 0 })
+        stubFetch({ correctCards: 2, xpAwarded: 0 })
         const { invalidate } = renderGame()
         await playAll()
         await waitFor(() => expect(document.querySelector('.dg-result')?.childElementCount).toBeGreaterThan(0), { timeout: 4000 })
@@ -225,7 +215,7 @@ describe('DiarioGame (DI.4.1)', () => {
                 { id: 'l2', status: 'locked', currentStep: 0, title: 'Bloqueada', code: '1.3' },
             ]),
         )
-        stubFetch({ correctCards: 3, xpAwarded: 50 })
+        stubFetch({ correctCards: 2, xpAwarded: 50 })
         renderGame()
         expect(screen.queryByLabelText('Próximo passo')).toBeNull()
         await playAll()
@@ -235,7 +225,7 @@ describe('DiarioGame (DI.4.1)', () => {
     })
 
     it('próximo passo sem lição disponível leva ao mercado', async () => {
-        stubFetch({ correctCards: 3, xpAwarded: 50 })
+        stubFetch({ correctCards: 2, xpAwarded: 50 })
         renderGame()
         await playAll()
         const next = await screen.findByLabelText('Próximo passo', {}, { timeout: 4000 })
@@ -243,7 +233,7 @@ describe('DiarioGame (DI.4.1)', () => {
     })
 
     it('"Saiba mais" do glossário navega pelo roteador, sem recarregar a página', async () => {
-        stubFetch({ correctCards: 3, xpAwarded: 50 })
+        stubFetch({ correctCards: 2, xpAwarded: 50 })
         renderGame()
         await playAll()
         await waitFor(() => expect(document.querySelector('.dg-result')?.childElementCount).toBeGreaterThan(0), { timeout: 4000 })

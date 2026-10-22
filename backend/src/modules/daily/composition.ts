@@ -13,7 +13,6 @@ import { createInProcessStreakTracker } from './infrastructure/gamification/inPr
 import { createInProcessXpAwarder } from './infrastructure/gamification/inProcessXpAwarder'
 import { createDrizzleDailyResultRepository } from './infrastructure/persistence/drizzleDailyResultRepository'
 import { DailyGameLoader } from './application/dailyGameLoader'
-import { AnswerTimelineUseCase } from './application/useCases/answerTimeline'
 import { AnswerTriviaUseCase } from './application/useCases/answerTrivia'
 import { EvaluateWordGuessUseCase } from './application/useCases/evaluateWordGuess'
 import { GetDailyQualityUseCase } from './application/useCases/getDailyQuality'
@@ -24,15 +23,12 @@ import { GetTodayUseCase } from './application/useCases/getToday'
 import { MaterializeUpcomingPuzzlesUseCase } from './application/useCases/materializeUpcomingPuzzles'
 import {
   AddAcceptedWordUseCase,
-  CreateAdminEventUseCase,
   CreateAdminQuestionUseCase,
   CreateAdminWordUseCase,
   ListAcceptedExtraUseCase,
-  ListAdminEventsUseCase,
   ListAdminQuestionsUseCase,
   ListAdminWordsUseCase,
   RemoveAcceptedWordUseCase,
-  UpdateAdminEventUseCase,
   UpdateAdminQuestionUseCase,
   UpdateAdminWordUseCase,
 } from './application/useCases/admin/content'
@@ -45,7 +41,6 @@ import {
 } from './application/useCases/admin/puzzles'
 import { createDailyRouter } from './interfaces/http/dailyRouter'
 import { createDrizzleAcceptedWordRepository } from './infrastructure/persistence/drizzleAcceptedWordRepository'
-import { createDrizzleDailyEventRepository } from './infrastructure/persistence/drizzleDailyEventRepository'
 import { createDrizzleDailyPuzzleRepository } from './infrastructure/persistence/drizzleDailyPuzzleRepository'
 import { createDrizzleDailyQuestionRepository } from './infrastructure/persistence/drizzleDailyQuestionRepository'
 import { createDrizzleDailySettingsRepository } from './infrastructure/persistence/drizzleDailySettingsRepository'
@@ -59,7 +54,6 @@ export function createDailyAgendaComposition(db: Database) {
     createDrizzleDailySettingsRepository(db),
     createDrizzleDailyWordRepository(db),
     createDrizzleDailyQuestionRepository(db),
-    createDrizzleDailyEventRepository(db),
     createDrizzleDailyPuzzleRepository(db),
   )
   return { materializeUpcomingPuzzles }
@@ -70,29 +64,15 @@ export function createDailyAdminUseCases(db: Database) {
   const settings = createDrizzleDailySettingsRepository(db)
   const words = createDrizzleDailyWordRepository(db)
   const questions = createDrizzleDailyQuestionRepository(db)
-  const events = createDrizzleDailyEventRepository(db)
   const puzzles = createDrizzleDailyPuzzleRepository(db)
   const accepted = createDrizzleAcceptedWordRepository(db)
-  const materialize = new MaterializeUpcomingPuzzlesUseCase(
-    settings,
-    words,
-    questions,
-    events,
-    puzzles,
-  )
+  const materialize = new MaterializeUpcomingPuzzlesUseCase(settings, words, questions, puzzles)
 
   return {
-    overview: new GetDailyAdminOverviewUseCase(
-      settings,
-      puzzles,
-      words,
-      questions,
-      events,
-      accepted,
-    ),
-    getPuzzle: new GetAdminPuzzleUseCase(puzzles, words, questions, events),
+    overview: new GetDailyAdminOverviewUseCase(settings, puzzles, words, questions, accepted),
+    getPuzzle: new GetAdminPuzzleUseCase(puzzles, words, questions),
     publishPuzzles: new PublishPuzzlesUseCase(puzzles),
-    replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions, events),
+    replaceCard: new ReplacePuzzleCardUseCase(puzzles, words, questions),
     prepareDraft: new PrepareLaunchDraftUseCase(settings, puzzles, materialize),
     setStartDate: new SetStartDateUseCase(settings, puzzles, materialize),
     listWords: new ListAdminWordsUseCase(words),
@@ -104,9 +84,6 @@ export function createDailyAdminUseCases(db: Database) {
     listQuestions: new ListAdminQuestionsUseCase(questions),
     createQuestion: new CreateAdminQuestionUseCase(questions),
     updateQuestion: new UpdateAdminQuestionUseCase(questions, puzzles),
-    listEvents: new ListAdminEventsUseCase(events),
-    createEvent: new CreateAdminEventUseCase(events),
-    updateEvent: new UpdateAdminEventUseCase(events, puzzles),
     metrics: new GetDailyMetricsUseCase(createDrizzleDailyMetricsRepository(db)),
   }
 }
@@ -134,12 +111,11 @@ export function createDailyComposition(db: Database, deps: DailyRouterCompositio
   const settings = createDrizzleDailySettingsRepository(db)
   const words = createDrizzleDailyWordRepository(db)
   const questions = createDrizzleDailyQuestionRepository(db)
-  const events = createDrizzleDailyEventRepository(db)
   const puzzles = createDrizzleDailyPuzzleRepository(db)
   const results = createDrizzleDailyResultRepository(db)
   const acceptedWords = createDrizzleAcceptedWordRepository(db)
 
-  const loader = new DailyGameLoader(settings, puzzles, words, questions, events)
+  const loader = new DailyGameLoader(settings, puzzles, words, questions)
   const recorder = new DailyProgressRecorder(
     results,
     createInProcessXpAwarder(deps.awardXp),
@@ -152,7 +128,6 @@ export function createDailyComposition(db: Database, deps: DailyRouterCompositio
     getArchive: new GetArchiveUseCase(settings, loader),
     evaluateWordGuess: new EvaluateWordGuessUseCase(loader, acceptedWords, recorder),
     answerTrivia: new AnswerTriviaUseCase(loader, recorder),
-    answerTimeline: new AnswerTimelineUseCase(loader, recorder),
     getMyGameState: new GetMyGameStateUseCase(loader, results),
     getMyStats: new GetMyStatsUseCase(settings, results),
     recordMetric: new RecordDailyMetricUseCase(createDrizzleDailyMetricsRepository(db)),

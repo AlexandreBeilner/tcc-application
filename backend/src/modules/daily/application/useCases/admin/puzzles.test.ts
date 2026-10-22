@@ -12,15 +12,14 @@ async function drafted() {
 }
 
 describe('GetAdminPuzzleUseCase', () => {
-  it('mostra qualquer dia futuro com o gabarito e a ordem certa da Linha do tempo', async () => {
+  it('mostra qualquer dia futuro com o gabarito', async () => {
     const w = await drafted()
     const view = await w.getPuzzle.execute(20)
     expect(view.date).toBe('2026-11-29')
     expect(view.isTodayOrPast).toBe(false)
     expect(view.word.answer).toMatch(/^[A-Z]+$/)
     expect(view.question.correctIndex).toBeGreaterThanOrEqual(0)
-    const years = view.correctOrder.map((id) => view.events.find((e) => e.id === id)!.year)
-    expect(years).toEqual([...years].sort((a, b) => a - b))
+    expect(view.origins).toEqual({ word: 'generated', question: 'generated' })
     expect(view.warnings).toEqual([])
   })
 
@@ -64,30 +63,6 @@ describe('ReplacePuzzleCardUseCase', () => {
       questionOrigin: 'manual',
       wordOrigin: 'generated',
     })
-  })
-
-  it('a Linha do tempo exige 4 eventos de anos distintos e nunca fica na ordem certa', async () => {
-    const w = await drafted()
-    await expect(
-      w.replaceCard.execute(1, { card: 'timeline', eventIds: ['e1', 'e2', 'e3'] }, false),
-    ).rejects.toMatchObject({ problems: ['a Linha do tempo precisa de 4 eventos'] })
-
-    w.events.items.find((e) => e.id === 'e4')!.year = w.events.items.find(
-      (e) => e.id === 'e3',
-    )!.year
-    await expect(
-      w.replaceCard.execute(1, { card: 'timeline', eventIds: ['e1', 'e2', 'e3', 'e4'] }, false),
-    ).rejects.toMatchObject({ problems: ['os eventos precisam ter anos distintos'] })
-
-    await w.replaceCard.execute(
-      1,
-      { card: 'timeline', eventIds: ['e10', 'e11', 'e12', 'e13'] },
-      false,
-    )
-    const puzzle = w.puzzles.items.find((p) => p.number === 1)!
-    expect([...puzzle.timelineEventIds].sort()).toEqual(['e10', 'e11', 'e12', 'e13'])
-    expect(puzzle.timelineEventIds).not.toEqual(['e10', 'e11', 'e12', 'e13'])
-    expect(puzzle.timelineOrigin).toBe('manual')
   })
 
   it('recusa item desativado ou inexistente', async () => {

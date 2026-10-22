@@ -1,11 +1,10 @@
 import { createDb, type Database } from './client'
-import { dailyEvents, dailyQuestions, dailyWords } from './schema'
+import { dailyQuestions, dailyWords } from './schema'
 import { createDrizzleAcceptedWordRepository } from '../modules/daily/infrastructure/persistence/drizzleAcceptedWordRepository'
 import { readAcceptedWordsFile } from '../modules/daily/content/acceptedWordsFile'
 import { EXTRA_ACCEPTED_WORDS } from '../modules/daily/content/extraAcceptedWords'
 import {
   INITIAL_CONTENT,
-  toNewEvent,
   toNewQuestion,
   toNewWord,
   validateContent,
@@ -23,7 +22,6 @@ export interface SeedSummary {
   acceptedExtra: number
   words: number
   questions: number
-  events: number
 }
 
 // Importa só o que falta, por chave estável, e nunca sobrescreve: texto editado depois pelo painel
@@ -70,25 +68,11 @@ export async function seedDailyContent(
     .onConflictDoNothing({ target: dailyQuestions.stableKey })
     .returning({ id: dailyQuestions.id })
 
-  const events = await db
-    .insert(dailyEvents)
-    .values(
-      content.events.map(toNewEvent).map(({ learnMore, reviewedAt, sourceRef, ...event }) => ({
-        ...event,
-        sourceRef,
-        ...learnMoreColumns(learnMore),
-        reviewedAt,
-      })),
-    )
-    .onConflictDoNothing({ target: dailyEvents.stableKey })
-    .returning({ id: dailyEvents.id })
-
   return {
     acceptedVero,
     acceptedExtra,
     words: words.length,
     questions: questions.length,
-    events: events.length,
   }
 }
 
@@ -103,7 +87,7 @@ async function main() {
   const summary = await seedDailyContent(db)
   console.log(
     `Diário: ${summary.acceptedVero} palavras aceitas do VERO e ${summary.acceptedExtra} extras novas; ` +
-      `${summary.words} palavras-resposta, ${summary.questions} perguntas e ${summary.events} eventos novos`,
+      `${summary.words} palavras-resposta e ${summary.questions} perguntas novas`,
   )
   process.exit(0)
 }

@@ -1,5 +1,6 @@
-// Os três cartões do Diário (DI16). "Mais ou menos" foi descartado.
-export const CARD_TYPES = ['word', 'trivia', 'timeline'] as const
+// Os dois cartões do Diário (DI18). A Linha do tempo saiu e nenhum terceiro cartão entrou;
+// "Mais ou menos" já tinha sido descartado (DI16).
+export const CARD_TYPES = ['word', 'trivia'] as const
 
 export type CardType = (typeof CARD_TYPES)[number]
 

@@ -12,8 +12,6 @@ const result = (over: Partial<DailyResult> = {}): DailyResult => ({
   wordCorrect: true,
   questionChoice: 1,
   questionCorrect: true,
-  timelineOrder: ['a'],
-  timelineCorrect: true,
   xpAwarded: 50,
   startedAt: new Date('2026-11-02T14:00:00.000Z'),
   completedAt: new Date('2026-11-02T14:05:00.000Z'),

@@ -150,22 +150,16 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
   {
     seedKey: 'daily_perfect_day',
     name: 'Diário Perfeito',
-    description: 'Acerte os três cartões do Diário no mesmo dia.',
+    description: 'Acerte os dois cartões do Diário no mesmo dia.',
     criteriaType: 'daily_perfect_days',
     criteriaValue: '1',
   },
-  {
-    seedKey: 'daily_timeline_streak_7',
-    name: 'Cronologia em Dia',
-    description: 'Acerte a Linha do tempo do Diário 7 dias seguidos.',
-    criteriaType: 'daily_timeline_streak',
-    criteriaValue: '7',
-    isRare: true,
-  },
+  // `daily_timeline_streak_7` (Cronologia em Dia) saiu com a Linha do tempo (DI18). A migração 0061
+  // a desativou onde já existia; quem a ganhou continua com ela.
   {
     seedKey: 'daily_perfect_days_10',
     name: 'Mão Cheia',
-    description: 'Acerte os três cartões do Diário em 10 dias diferentes.',
+    description: 'Acerte os dois cartões do Diário em 10 dias diferentes.',
     criteriaType: 'daily_perfect_days',
     criteriaValue: '10',
     isRare: true,

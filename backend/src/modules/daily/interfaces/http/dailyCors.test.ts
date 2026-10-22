@@ -20,7 +20,6 @@ describe('isPublicDailyPath', () => {
     '/daily/12',
     '/daily/12/word/guess',
     '/daily/12/cards/trivia/answer',
-    '/daily/12/cards/timeline/answer',
   ])('%s é pública', (path) => expect(isPublicDailyPath(path)).toBe(true))
 
   it.each([

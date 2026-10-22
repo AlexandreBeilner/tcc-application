@@ -8,7 +8,6 @@ import {
   type ScheduledDay,
 } from '../../domain/agenda'
 import { addDays, dailyDay, gameNumberFor, resolveStatus } from '../../domain/gameDay'
-import type { DailyEventRepository } from '../ports/dailyEventRepository'
 import type { DailyPuzzleRepository } from '../ports/dailyPuzzleRepository'
 import type { DailyQuestionRepository } from '../ports/dailyQuestionRepository'
 import type { DailySettingsRepository } from '../ports/dailySettingsRepository'
@@ -48,7 +47,6 @@ export class MaterializeUpcomingPuzzlesUseCase {
     private readonly settings: DailySettingsRepository,
     private readonly words: DailyWordRepository,
     private readonly questions: DailyQuestionRepository,
-    private readonly events: DailyEventRepository,
     private readonly puzzles: DailyPuzzleRepository,
     private readonly now: () => Date = () => new Date(),
     private readonly options: MaterializeOptions = {},
@@ -82,10 +80,9 @@ export class MaterializeUpcomingPuzzlesUseCase {
     const existing = await this.puzzles.listFromDate(historyFrom, HISTORY_LIMIT)
     const kept = await this.realign(existing, state.startDate, result)
 
-    const [activeWords, activeQuestions, activeEvents] = await Promise.all([
+    const [activeWords, activeQuestions] = await Promise.all([
       this.words.listActive(),
       this.questions.listActive(),
-      this.events.listActive(),
     ])
     const history = await this.buildHistory(kept, activeWords, activeQuestions)
     const takenDates = new Set(kept.map((p) => p.gameDate))
@@ -102,7 +99,6 @@ export class MaterializeUpcomingPuzzlesUseCase {
         date,
         words: activeWords,
         questions: activeQuestions,
-        events: activeEvents,
         history,
         windows,
       })
@@ -116,7 +112,6 @@ export class MaterializeUpcomingPuzzlesUseCase {
         ...plan,
         wordOrigin: 'generated',
         questionOrigin: 'generated',
-        timelineOrigin: 'generated',
         reviewedBy: null,
         reviewedAt: null,
         // Sem etapa de revisão, o jogo nasce no ar. O rascunho de estreia é a exceção: só vai ao ar
@@ -134,7 +129,6 @@ export class MaterializeUpcomingPuzzlesUseCase {
         questionId: plan.questionId,
         questionCategory: question?.category ?? null,
         questionScope: question?.scope ?? null,
-        timelineEventIds: plan.timelineEventIds,
       })
     }
     // No ar, nenhum dia materializado de hoje em diante fica fora: o jogador veria "indisponível".
@@ -196,7 +190,6 @@ export class MaterializeUpcomingPuzzlesUseCase {
       questionId: p.questionId,
       questionCategory: questionById.get(p.questionId)?.category ?? null,
       questionScope: questionById.get(p.questionId)?.scope ?? null,
-      timelineEventIds: p.timelineEventIds,
     }))
   }
 }

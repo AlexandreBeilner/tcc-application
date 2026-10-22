@@ -1,10 +1,8 @@
 import { DailyGameNotFoundError, DailyGameUnavailableError } from '../../domain/errors'
 import { dailyDay, gameNumberFor, resolveStatus } from '../../domain/gameDay'
 import {
-  timelineAnswerView,
   triviaAnswerView,
   wordReveal,
-  type TimelineEventView,
   type TriviaAnswerView,
   type WordReveal,
 } from '../cardReveals'
@@ -23,8 +21,6 @@ export interface ArchivedGame {
     sourceRef: string
     learnMore: TriviaAnswerView['learnMore']
   }
-  // Eventos na ordem cronológica certa, já com o ano.
-  timeline: { events: TimelineEventView[] }
 }
 
 export interface ArchiveResult {
@@ -64,7 +60,6 @@ export class GetArchiveUseCase {
             sourceRef: trivia.sourceRef,
             learnMore: trivia.learnMore,
           },
-          timeline: { events: timelineAnswerView(game.events, true, []).events },
         })
       } catch (err) {
         if (err instanceof DailyGameNotFoundError || err instanceof DailyGameUnavailableError)

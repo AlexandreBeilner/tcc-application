@@ -3,15 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import {
-    getDailyEvents,
-    getDailyPuzzle,
-    getDailyQuestions,
-    getDailyWords,
-    publishDailyPuzzles,
-    replaceDailyCard,
-} from '../../services/admin'
-import type { DailyEvent, DailyPuzzleDetail, DailyQuestion, DailyWord } from '../../services/admin'
+import { getDailyPuzzle, getDailyQuestions, getDailyWords, publishDailyPuzzles, replaceDailyCard } from '../../services/admin'
+import type { DailyPuzzleDetail, DailyQuestion, DailyWord } from '../../services/admin'
 import { ApiError } from '../../services/client'
 import { AdminDiarioJogo } from '.'
 
@@ -22,7 +15,6 @@ vi.mock('../../services/admin', () => ({
     replaceDailyCard: vi.fn(),
     getDailyWords: vi.fn(),
     getDailyQuestions: vi.fn(),
-    getDailyEvents: vi.fn(),
 }))
 
 const word = (id: string, display: string): DailyWord => ({
@@ -51,37 +43,15 @@ const question: DailyQuestion = {
     active: true,
 }
 
-const event = (id: string, year: number, label: string): DailyEvent => ({
-    id,
-    stable_key: `e:${id}`,
-    year,
-    label,
-    explanation: `Explicação de ${label}`,
-    source_ref: 'Banco Central do Brasil',
-    learn_more: null,
-    category: 'planos-e-moeda',
-    scope: 'brasil',
-    active: true,
-})
-
-const events = [
-    event('e1', 2008, 'Crise global'),
-    event('e2', 1994, 'Plano Real'),
-    event('e3', 1999, 'Câmbio flutuante'),
-    event('e4', 2017, 'Greve dos caminhoneiros'),
-]
-
 const puzzle = (over: Partial<DailyPuzzleDetail> = {}): DailyPuzzleDetail => ({
     number: 12,
     date: '2026-11-21',
     is_today_or_past: false,
     published_at: null,
-    origins: { word: 'generated', question: 'generated', timeline: 'generated' },
+    origins: { word: 'generated', question: 'generated' },
     word: word('w1', 'Selic'),
     question,
-    events,
-    correct_order: ['e2', 'e3', 'e1', 'e4'],
-    warnings: ['há evento desativado na Linha do tempo'],
+    warnings: ['a pergunta do dia está desativada'],
     ...over,
 })
 
@@ -103,23 +73,20 @@ beforeEach(() => {
     vi.mocked(useAuth).mockReturnValue({ token: 'tok', user: null, login: vi.fn() } as unknown as ReturnType<typeof useAuth>)
     vi.mocked(getDailyWords).mockResolvedValue({ words: [word('w1', 'Selic'), word('w2', 'Copom')] })
     vi.mocked(getDailyQuestions).mockResolvedValue({ questions: [question] })
-    vi.mocked(getDailyEvents).mockResolvedValue({ events })
 })
 
 describe('AdminDiarioJogo', () => {
-    it('mostra o dia com o gabarito e a posição certa de cada evento', async () => {
+    it('mostra os dois cartões do dia com o gabarito', async () => {
         vi.mocked(getDailyPuzzle).mockResolvedValue(puzzle())
         renderPage()
 
         expect(await screen.findByRole('heading', { name: 'Jogo #12 · 21/11/2026' })).toBeInTheDocument()
         expect(getDailyPuzzle).toHaveBeenCalledWith('tok', 12)
         expect(screen.getByText(/CMN/)).toHaveTextContent('(correta)')
-        const timeline = within(screen.getByRole('region', { name: 'Linha do tempo' }))
-        const items = timeline.getAllByRole('listitem')
-        expect(items[0]).toHaveTextContent('Crise global')
-        expect(items[0]).toHaveTextContent('3')
-        expect(items[1]).toHaveTextContent('1')
-        expect(screen.getByRole('list', { name: 'Avisos do dia' })).toHaveTextContent('evento desativado')
+        expect(screen.getByRole('region', { name: 'Palavra do dia' })).toHaveTextContent('Selic')
+        expect(screen.getByRole('region', { name: 'Pergunta do dia' })).toBeInTheDocument()
+        expect(screen.queryByRole('region', { name: 'Linha do tempo' })).not.toBeInTheDocument()
+        expect(screen.getByRole('list', { name: 'Avisos do dia' })).toHaveTextContent('pergunta do dia está desativada')
         expect(screen.getByText('Fora do ar')).toBeInTheDocument()
     })
 
@@ -150,18 +117,6 @@ describe('AdminDiarioJogo', () => {
             expect(replaceDailyCard).toHaveBeenCalledWith('tok', 12, { card: 'word', word_id: 'w2', confirm_published: undefined }),
         )
         expect(await screen.findByRole('status')).toHaveTextContent('Cartão trocado')
-    })
-
-    it('troca a Linha do tempo só com quatro eventos', async () => {
-        vi.mocked(getDailyPuzzle).mockResolvedValue(puzzle())
-        renderPage()
-
-        fireEvent.click(await screen.findByRole('button', { name: 'Trocar eventos' }))
-        const list = await screen.findByRole('list', { name: 'Itens do banco' })
-        const boxes = await within(list).findAllByRole('checkbox')
-        expect(screen.getByRole('button', { name: 'Trocar cartão' })).toBeDisabled()
-        boxes.slice(0, 4).forEach((box) => fireEvent.click(box))
-        expect(screen.getByRole('button', { name: 'Trocar cartão' })).toBeEnabled()
     })
 
     it('jogo publicado exige a confirmação marcada para trocar', async () => {
