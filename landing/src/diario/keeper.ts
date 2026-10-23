@@ -24,7 +24,6 @@ interface LocalStats {
     games: number
     word: Tally
     trivia: Tally
-    timeline: Tally
     distribution: Record<string, number>
     failed: number
     streak: { current: number; longest: number; last: number }
@@ -40,7 +39,6 @@ function freshStats(): LocalStats {
         games: 0,
         word: { played: 0, correct: 0 },
         trivia: { played: 0, correct: 0 },
-        timeline: { played: 0, correct: 0 },
         distribution: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0 },
         failed: 0,
         streak: { current: 0, longest: 0, last: 0 },
@@ -57,8 +55,8 @@ function parseStats(raw: unknown, todayNumber: number): LocalStats | null {
     if (!isRecord(raw) || !count(raw.games) || !count(raw.failed) || !isRecord(raw.distribution) || !isRecord(raw.streak)) return null
     const word = parseTally(raw.word)
     const trivia = parseTally(raw.trivia)
-    const timeline = parseTally(raw.timeline)
-    if (!word || !trivia || !timeline) return null
+    // A contagem da Linha do tempo, de quem jogou com três cartões, fica de fora (DI18).
+    if (!word || !trivia) return null
     const stats = freshStats()
     for (const k of Object.keys(stats.distribution)) {
         const value = raw.distribution[k]
@@ -71,7 +69,6 @@ function parseStats(raw: unknown, todayNumber: number): LocalStats | null {
         games: raw.games,
         word,
         trivia,
-        timeline,
         distribution: stats.distribution,
         failed: raw.failed,
         streak: { current, longest, last },
@@ -180,7 +177,6 @@ export function createLocalKeeper({ getStorage = defaultStorage, now = () => Dat
                 } else stats.failed += 1
             }
             if (progress.trivia.answered && !(before?.trivia.answered ?? false)) tally(stats.trivia, progress.trivia.correct)
-            if (progress.timeline.answered && !(before?.timeline.answered ?? false)) tally(stats.timeline, progress.timeline.correct)
 
             const next: GameProgress = { ...progress, finishedAt: before?.finishedAt ?? null, onTime: before?.onTime ?? false }
             if (isComplete(progress) && !(before && isComplete(before))) {
@@ -208,7 +204,6 @@ export function createLocalKeeper({ getStorage = defaultStorage, now = () => Dat
                 games: stats.games,
                 word: view(stats.word),
                 trivia: view(stats.trivia),
-                timeline: view(stats.timeline),
                 wordAttempts: { distribution: { ...stats.distribution }, failed: stats.failed },
                 currentStreak: alive ? stats.streak.current : 0,
                 longestStreak: stats.streak.longest,

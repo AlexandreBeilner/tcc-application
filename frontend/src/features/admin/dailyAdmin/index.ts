@@ -106,7 +106,7 @@ export function formatNumbers(numbers: number[]): string {
     return numbers.map((n) => `#${n}`).join(', ')
 }
 
-// Campos que palavras, perguntas e eventos têm em comum no formulário: categoria, marcador Brasil/fora
+// Campos que palavras e perguntas têm em comum no formulário: categoria, marcador Brasil/fora
 // e a ligação opcional de "saiba mais".
 export interface ItemCommon {
     category: string

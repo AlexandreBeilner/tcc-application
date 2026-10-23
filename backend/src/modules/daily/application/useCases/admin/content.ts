@@ -1,15 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { DailyCategory } from '../../../content/categories'
 import { validateContent, wordStableKey, type ContentBundle } from '../../../content/dailyContent'
-import type { EventSeed } from '../../../content/events'
 import type { QuestionSeed } from '../../../content/questions'
-import type {
-  ContentScope,
-  DailyEvent,
-  DailyQuestion,
-  DailyWord,
-  LearnMore,
-} from '../../../domain/content'
+import type { ContentScope, DailyQuestion, DailyWord, LearnMore } from '../../../domain/content'
 import {
   DailyAdminConflictError,
   DailyAdminInvalidError,
@@ -18,15 +11,12 @@ import {
 import { MAX_WORD_LENGTH, MIN_WORD_LENGTH, normalizeWord } from '../../../domain/wordGuess'
 import type { ContentChangeResult } from '../../adminViews'
 import type { AcceptedWordRepository } from '../../ports/acceptedWordRepository'
-import type { DailyEventRepository } from '../../ports/dailyEventRepository'
 import type { DailyPuzzleRepository, PuzzleItemKind } from '../../ports/dailyPuzzleRepository'
 import type { DailyQuestionRepository } from '../../ports/dailyQuestionRepository'
 import type { DailyWordRepository } from '../../ports/dailyWordRepository'
 
 const OPTIONS_MIN = 2
 const OPTIONS_MAX = 6
-const EVENT_YEAR_MIN = 1500
-const EVENT_YEAR_MAX = 2200
 
 // O que editar um item faz com os jogos que o usam: avisa quais são (desativar não tira o item de
 // um jogo já montado) e pede confirmação se algum está publicado.
@@ -57,7 +47,7 @@ function present<T extends object>(patch: T): T {
 }
 
 function bundle(parts: Partial<ContentBundle>): ContentBundle {
-  return { words: [], questions: [], events: [], ...parts }
+  return { words: [], questions: [], ...parts }
 }
 
 function ensureValid(errors: string[]): void {
@@ -313,89 +303,6 @@ export class UpdateAdminQuestionUseCase {
     const shownChanged = changedFields.some((k) => QUESTION_SHOWN_FIELDS.includes(k))
     const using = await this.impact.check('question', id, shownChanged, confirmPublished)
     const item = (await this.questions.update(id, patch, actorId)) as DailyQuestion
-    return { item, affectedPuzzles: using.map((p) => p.number), changedFields }
-  }
-}
-
-// ---------- Eventos da Linha do tempo ----------
-
-export interface EventInput {
-  year: number
-  label: string
-  explanation: string
-  sourceRef: string
-  learnMore: LearnMore | null
-  category: string
-  scope: ContentScope
-}
-
-function eventProblems(key: string, e: EventInput): string[] {
-  const seed: EventSeed = {
-    key,
-    year: e.year,
-    label: e.label,
-    explanation: e.explanation,
-    source: e.sourceRef,
-    category: e.category as DailyCategory,
-    scope: e.scope,
-  }
-  const errors = validateContent(bundle({ events: [seed] }), new Set())
-  if (e.year < EVENT_YEAR_MIN || e.year > EVENT_YEAR_MAX) {
-    errors.push(`o ano precisa estar entre ${EVENT_YEAR_MIN} e ${EVENT_YEAR_MAX}`)
-  }
-  if (e.label.trim().length === 0) errors.push('o nome do evento está vazio')
-  return errors
-}
-
-export class ListAdminEventsUseCase {
-  constructor(private readonly events: DailyEventRepository) {}
-
-  execute(): Promise<DailyEvent[]> {
-    return this.events.listAll()
-  }
-}
-
-export class CreateAdminEventUseCase {
-  constructor(private readonly events: DailyEventRepository) {}
-
-  async execute(input: EventInput): Promise<DailyEvent> {
-    const key = `m-${randomUUID().slice(0, 8)}`
-    ensureValid(eventProblems(key, input))
-    return this.events.create({ ...input, stableKey: `e:${key}`, reviewedAt: null, active: true })
-  }
-}
-
-export type EventPatch = Partial<EventInput & { active: boolean }>
-
-const EVENT_SHOWN_FIELDS = ['year', 'label', 'explanation', 'sourceRef', 'learnMore']
-
-export class UpdateAdminEventUseCase {
-  private readonly impact: ContentImpact
-
-  constructor(
-    private readonly events: DailyEventRepository,
-    puzzles: DailyPuzzleRepository,
-  ) {
-    this.impact = new ContentImpact(puzzles)
-  }
-
-  async execute(
-    actorId: string,
-    id: string,
-    rawPatch: EventPatch,
-    confirmPublished: boolean,
-  ): Promise<ContentChangeResult<DailyEvent> & { changedFields: string[] }> {
-    const patch = present(rawPatch)
-    const current = await this.events.findById(id)
-    if (!current) throw new DailyAdminNotFoundError('evento não encontrado')
-    const merged: DailyEvent = { ...current, ...patch }
-    ensureValid(eventProblems(current.stableKey, merged))
-    const changedFields = (Object.keys(patch) as (keyof EventPatch)[]).filter(
-      (key) => JSON.stringify(patch[key]) !== JSON.stringify(current[key]),
-    )
-    const shownChanged = changedFields.some((k) => EVENT_SHOWN_FIELDS.includes(k))
-    const using = await this.impact.check('event', id, shownChanged, confirmPublished)
-    const item = (await this.events.update(id, patch, actorId)) as DailyEvent
     return { item, affectedPuzzles: using.map((p) => p.number), changedFields }
   }
 }

@@ -15,7 +15,6 @@ export type AchievementCriteriaType =
   // Qualidade no Diário (DI.6.1): só conta jogo concluído dentro do próprio dia.
   | 'daily_word_first_try'
   | 'daily_perfect_days'
-  | 'daily_timeline_streak'
 
 export interface Achievement {
   id: string
@@ -46,7 +45,6 @@ export interface ProgressSnapshot {
   referralsQualified: number
   dailyWordFirstTry: number
   dailyPerfectDays: number
-  dailyTimelineStreak: number
 }
 
 export function progressValueFor(
@@ -76,8 +74,11 @@ export function progressValueFor(
       return snapshot.dailyWordFirstTry
     case 'daily_perfect_days':
       return snapshot.dailyPerfectDays
-    case 'daily_timeline_streak':
-      return snapshot.dailyTimelineStreak
+    // Critério aposentado que ainda está no banco (ex.: `daily_timeline_streak`, que saiu com a
+    // Linha do tempo pela DI18): a conquista está desativada, então só aparece para quem já a
+    // ganhou, e não há progresso a medir.
+    default:
+      return 0
   }
 }
 

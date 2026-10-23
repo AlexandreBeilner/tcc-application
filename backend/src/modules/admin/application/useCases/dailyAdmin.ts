@@ -3,12 +3,9 @@ import type {
   AdminPuzzleView,
   DailyAdmin,
   DailyMetricsDay,
-  DailyEvent,
   DailyQuestion,
   DailyWord,
   DraftResult,
-  EventInput,
-  EventPatch,
   QuestionInput,
   QuestionPatch,
   ReplaceCardInput,
@@ -36,9 +33,6 @@ export class DailyAdminReadsUseCase {
   }
   questions(): Promise<DailyQuestion[]> {
     return this.daily.listQuestions()
-  }
-  events(): Promise<DailyEvent[]> {
-    return this.daily.listEvents()
   }
   acceptedExtra(): Promise<string[]> {
     return this.daily.listAcceptedExtra()
@@ -125,7 +119,7 @@ function snake(field: string): string {
   return field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 }
 
-// Conteúdo do Diário (DI.5.1): palavras, lista extra, perguntas e eventos. A auditoria leva a chave
+// Conteúdo do Diário (DI.5.1): palavras, lista extra e perguntas. A auditoria leva a chave
 // estável do item e os campos que mudaram, nunca o texto.
 export class DailyContentAdminUseCase {
   constructor(
@@ -203,34 +197,6 @@ export class DailyContentAdminUseCase {
         payload: { confirmed_published: confirm },
       },
       () => this.daily.updateQuestion(adminId, id, patch, confirm),
-      (result) => ({
-        payload: {
-          stable_key: result.item.stableKey,
-          changed_fields: result.changedFields.map(snake),
-          affected_puzzles: result.affectedPuzzles,
-        },
-      }),
-    )
-  }
-
-  createEvent(adminId: string, input: EventInput): Promise<DailyEvent> {
-    return this.recordAdminAction.run(
-      { adminId, action: 'daily.event_create', targetType: 'daily_event' },
-      () => this.daily.createEvent(input),
-      (e) => ({ targetId: e.id, payload: { stable_key: e.stableKey } }),
-    )
-  }
-
-  updateEvent(adminId: string, id: string, patch: EventPatch, confirm: boolean) {
-    return this.recordAdminAction.run(
-      {
-        adminId,
-        action: 'daily.event_update',
-        targetType: 'daily_event',
-        targetId: id,
-        payload: { confirmed_published: confirm },
-      },
-      () => this.daily.updateEvent(adminId, id, patch, confirm),
       (result) => ({
         payload: {
           stable_key: result.item.stableKey,

@@ -102,7 +102,7 @@ export function AdminDailyAgenda({ overview }: AdminDailyAgendaProps) {
                     <table className={styles.table}>
                         <thead>
                             <tr>
-                                {['Jogo', 'Palavra', 'Pergunta', 'Linha do tempo', 'Estado', ''].map((header, index) => (
+                                {['Jogo', 'Palavra', 'Pergunta', 'Estado', ''].map((header, index) => (
                                     <th key={index} className={styles.th}>
                                         {header}
                                     </th>
@@ -141,9 +141,6 @@ export function AdminDailyAgenda({ overview }: AdminDailyAgendaProps) {
                                             'sem pergunta'
                                         )}
                                     </td>
-                                    <td className={styles.td}>
-                                        <div className={styles.clamp}>{day.events.map((event) => event.label).join(', ')}</div>
-                                    </td>
                                     <td className={styles.td}>{stateBadges(day)}</td>
                                     <td className={styles.td}>
                                         <Link to={`/admin/diario/jogo/${day.number}`} className={styles.link}>
@@ -177,13 +174,10 @@ export function AdminDailyAgenda({ overview }: AdminDailyAgendaProps) {
 
             <div className={styles.coverage}>
                 <h2 className={styles.title}>Cobertura dos próximos {coverage.window_days} dias</h2>
-                <p className={styles.muted}>
-                    A maioria do conteúdo de cada semana deve ser sobre o Brasil. A Linha do tempo conta eventos, não dias.
-                </p>
+                <p className={styles.muted}>A maioria do conteúdo de cada semana deve ser sobre o Brasil.</p>
                 <div className={styles.coverageGrid}>
                     <CoverageCard title="Palavra do dia" tally={coverage.word} />
                     <CoverageCard title="Pergunta do dia" tally={coverage.trivia} />
-                    <CoverageCard title="Eventos da Linha do tempo" tally={coverage.timeline} />
                 </div>
             </div>
         </section>

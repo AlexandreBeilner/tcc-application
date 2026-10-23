@@ -1,12 +1,11 @@
 import { normalizeWord } from '../domain/wordGuess'
-import type { DailyEvent, DailyQuestion, DailyWord, LearnMore } from '../domain/content'
+import type { DailyQuestion, DailyWord, LearnMore } from '../domain/content'
 import { DAILY_CATEGORIES } from './categories'
 import { GLOSSARY_KEYS } from './glossaryRefs'
-import { EVENT_SEEDS, type EventSeed } from './events'
 import { QUESTION_SEEDS, type QuestionSeed } from './questions'
 import { WORD_SEEDS, type WordSeed } from './words'
 
-// Teto de texto da explicação de pergunta e de evento (checklist 3.3, item 5).
+// Teto de texto da explicação da pergunta (checklist 3.3, item 5).
 export const MAX_EXPLANATION_LENGTH = 280
 
 const GLOSSARY_BY_NORMALIZED = new Map(GLOSSARY_KEYS.map((key) => [normalizeWord(key), key]))
@@ -16,7 +15,7 @@ function learnMoreFor(display: string): LearnMore | null {
   return key ? { kind: 'glossary', ref: key } : null
 }
 
-// Chaves estáveis por banco: `w:` palavra, `q:` pergunta, `e:` evento. Atribuídas uma vez e nunca
+// Chaves estáveis por banco: `w:` palavra, `q:` pergunta. Atribuídas uma vez e nunca
 // mais alteradas (o seed importa por elas e nunca sobrescreve o que o painel editou).
 export function wordStableKey(seed: WordSeed): string {
   return `w:${normalizeWord(seed.display).toLowerCase()}`
@@ -24,7 +23,6 @@ export function wordStableKey(seed: WordSeed): string {
 
 type NewWord = Omit<DailyWord, 'id'>
 type NewQuestion = Omit<DailyQuestion, 'id'>
-type NewEvent = Omit<DailyEvent, 'id'>
 
 export function toNewWord(seed: WordSeed): NewWord {
   return {
@@ -56,31 +54,14 @@ export function toNewQuestion(seed: QuestionSeed): NewQuestion {
   }
 }
 
-export function toNewEvent(seed: EventSeed): NewEvent {
-  return {
-    stableKey: `e:${seed.key}`,
-    year: seed.year,
-    label: seed.label,
-    explanation: seed.explanation,
-    sourceRef: seed.source,
-    learnMore: null,
-    category: seed.category,
-    scope: seed.scope,
-    reviewedAt: null,
-    active: true,
-  }
-}
-
 export interface ContentBundle {
   words: readonly WordSeed[]
   questions: readonly QuestionSeed[]
-  events: readonly EventSeed[]
 }
 
 export const INITIAL_CONTENT: ContentBundle = {
   words: WORD_SEEDS,
   questions: QUESTION_SEEDS,
-  events: EVENT_SEEDS,
 }
 
 const categories: readonly string[] = DAILY_CATEGORIES
@@ -129,21 +110,5 @@ export function validateContent(content: ContentBundle, accepted: ReadonlySet<st
     }
   }
 
-  const checkEvent = seen('evento')
-  for (const e of content.events) {
-    checkEvent(e.key)
-    if (!categories.includes(e.category))
-      errors.push(`evento ${e.key}: categoria ${e.category} desconhecida`)
-    if (e.source.trim().length === 0) errors.push(`evento ${e.key}: sem fonte primária`)
-    if (e.explanation.length > MAX_EXPLANATION_LENGTH) {
-      errors.push(`evento ${e.key}: explicação com ${e.explanation.length} caracteres`)
-    }
-    if (e.label.length > 80) errors.push(`evento ${e.key}: nome curto com mais de 80 caracteres`)
-    // O nome mostrado antes de ordenar não pode entregar o ano.
-    if (e.label.includes(String(e.year))) errors.push(`evento ${e.key}: o nome entrega o ano`)
-    for (const text of [e.label, e.explanation]) {
-      if (dash.test(text)) errors.push(`evento ${e.key}: travessão no texto`)
-    }
-  }
   return errors
 }

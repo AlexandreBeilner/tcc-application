@@ -29,9 +29,8 @@ const scheduled: DailyOverview = {
         window_days: 30,
         word: { total: 0, brasil: 0, fora: 0, by_category: {} },
         trivia: { total: 0, brasil: 0, fora: 0, by_category: {} },
-        timeline: { total: 0, brasil: 0, fora: 0, by_category: {} },
     },
-    bank: { words: 1, questions: 1, events: 1, accepted_extra: 0 },
+    bank: { words: 1, questions: 1, accepted_extra: 0 },
 }
 
 function renderLaunch(overview: DailyOverview) {

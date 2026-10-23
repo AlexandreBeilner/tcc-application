@@ -11,7 +11,6 @@ const game: DailyGame = {
     cards: {
         word: { length: 5, maxAttempts: 6 },
         trivia: { question: 'Pergunta?', options: ['A', 'B'] },
-        timeline: { events: [{ id: 'a', label: 'Um' }] },
     },
 }
 

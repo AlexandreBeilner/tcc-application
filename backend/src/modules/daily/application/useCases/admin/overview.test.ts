@@ -16,7 +16,7 @@ describe('GetDailyAdminOverviewUseCase', () => {
       alerts: [],
       readyDaysAhead: 0,
     })
-    expect(o.bank).toMatchObject({ words: 60, questions: 60, events: 200, acceptedExtra: 1 })
+    expect(o.bank).toEqual({ words: 60, questions: 60, acceptedExtra: 1 })
   })
 
   it('rascunho: conta os dias prontos seguidos e a cobertura por categoria e marcador', async () => {
@@ -29,7 +29,6 @@ describe('GetDailyAdminOverviewUseCase', () => {
     expect(o.coverage.windowDays).toBe(30)
     expect(o.coverage.word.total).toBe(30)
     expect(o.coverage.word.brasil + o.coverage.word.fora).toBe(30)
-    expect(o.coverage.timeline.total).toBe(120)
     expect(Object.values(o.coverage.trivia.byCategory).reduce((a, b) => a + b, 0)).toBe(30)
   })
 

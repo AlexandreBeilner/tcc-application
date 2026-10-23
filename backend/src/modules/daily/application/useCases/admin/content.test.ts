@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADMIN, buildAdminWorld, eventFixture } from '../../../test/adminWorld'
+import { ADMIN, buildAdminWorld } from '../../../test/adminWorld'
 
 const TODAY = '2026-10-20T12:00:00Z'
 const START = '2026-11-10'
@@ -161,46 +161,5 @@ describe('perguntas', () => {
     )
     expect(result.item.question).toBe(q.question)
     expect(result.changedFields).toEqual(['explanation'])
-  })
-})
-
-const newEvent = {
-  year: 1994,
-  label: 'Lançamento da nova moeda',
-  explanation: 'O real entrou em circulação em julho.',
-  sourceRef: 'Lei 8.880/1994',
-  learnMore: null,
-  category: 'planos-e-moeda',
-  scope: 'brasil' as const,
-}
-
-describe('eventos', () => {
-  it('cria evento válido', async () => {
-    const w = buildAdminWorld({ startDate: null, now: TODAY })
-    const e = await w.createEvent.execute(newEvent)
-    expect(e).toMatchObject({ year: 1994, active: true, reviewedAt: null })
-  })
-
-  it('recusa sem fonte, nome que entrega o ano e ano fora do intervalo', async () => {
-    const w = buildAdminWorld({ startDate: null, now: TODAY })
-    await expect(w.createEvent.execute({ ...newEvent, sourceRef: '' })).rejects.toBeDefined()
-    await expect(
-      w.createEvent.execute({ ...newEvent, label: 'Real de 1994' }),
-    ).rejects.toMatchObject({
-      problems: expect.arrayContaining([expect.stringContaining('entrega o ano')]),
-    })
-    await expect(w.createEvent.execute({ ...newEvent, year: 1200 })).rejects.toBeDefined()
-    await expect(w.createEvent.execute({ ...newEvent, year: 3000 })).rejects.toBeDefined()
-  })
-
-  it('editar o ano de evento em jogo publicado pede confirmação', async () => {
-    const w = buildAdminWorld({ startDate: null, now: TODAY })
-    await w.prepareDraft.execute(START)
-    await w.publishPuzzles.execute()
-    const id = w.puzzles.items.find((p) => p.number === 1)!.timelineEventIds[0]
-    await expect(w.updateEvent.execute(ADMIN, id, { year: 1801 }, false)).rejects.toMatchObject({
-      code: 'confirmation_required',
-    })
-    expect(eventFixture(0).year).toBe(1800)
   })
 })

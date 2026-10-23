@@ -12,7 +12,6 @@ export interface DailyStats {
   games: number
   word: CardStats
   trivia: CardStats
-  timeline: CardStats
   // Termo: quantas vezes acertou em N tentativas (chaves "1" a "6") e quantas errou.
   wordAttempts: { distribution: Record<string, number>; failed: number }
   currentStreak: number
@@ -76,7 +75,6 @@ export function computeStats(
     games: results.filter((r) => r.completedAt !== null).length,
     word: cardStats(results.map((r) => r.wordCorrect)),
     trivia: cardStats(results.map((r) => r.questionCorrect)),
-    timeline: cardStats(results.map((r) => r.timelineCorrect)),
     wordAttempts: { distribution, failed },
     ...computeStreaks(results, todayNumber),
   }

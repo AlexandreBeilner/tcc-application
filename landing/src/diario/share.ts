@@ -9,9 +9,7 @@ export function buildShareText(game: DailyGame, progress: GameProgress, url = DE
     for (const g of progress.word.guesses) lines.push(g.letters.map((l) => SQUARE[l]).join(''))
     lines.push(progress.word.solved ? `palavra em ${progress.word.guesses.length}` : 'palavra não resolvida')
     const mark = (ok: boolean) => (ok ? '✅' : '❌')
-    lines.push(
-        `❓ ${mark(progress.trivia.answered && progress.trivia.correct)}  ⏳ ${mark(progress.timeline.answered && progress.timeline.correct)}`,
-    )
+    lines.push(`❓ ${mark(progress.trivia.answered && progress.trivia.correct)}`)
     lines.push(url)
     return lines.join('\n')
 }

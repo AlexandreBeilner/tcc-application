@@ -1,6 +1,6 @@
 import type { DailyReplaceCardInput } from '../../../services/admin'
 
-export type PickerCard = 'word' | 'question' | 'timeline'
+export type PickerCard = 'word' | 'question'
 
 export interface AdminDailyCardPickerProps {
     card: PickerCard

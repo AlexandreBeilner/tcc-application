@@ -1,10 +1,7 @@
 import { evaluateGuess, type LetterState } from '../../domain/wordGuess'
-import { evaluateTimelineOrder } from '../../domain/cardAnswers'
 import {
-  timelineAnswerView,
   triviaAnswerView,
   wordReveal,
-  type TimelineAnswerView,
   type TriviaAnswerView,
   type WordReveal,
 } from '../cardReveals'
@@ -23,7 +20,6 @@ export interface MyGameState {
     reveal?: WordReveal
   }
   trivia: { answered: false } | ({ answered: true; choice: number } & TriviaAnswerView)
-  timeline: { answered: false } | ({ answered: true; order: string[] } & TimelineAnswerView)
 }
 
 // `GET /daily/:number/me`: o estado salvo do usuário naquele jogo, para redesenhar a tela em
@@ -53,20 +49,6 @@ export class GetMyGameStateUseCase {
       }
     }
 
-    let timeline: MyGameState['timeline'] = { answered: false }
-    if (saved && saved.timelineCorrect !== null && saved.timelineOrder !== null) {
-      const evaluation = evaluateTimelineOrder(saved.timelineOrder, game.events)
-      timeline = {
-        answered: true,
-        order: saved.timelineOrder,
-        ...timelineAnswerView(
-          game.events,
-          saved.timelineCorrect,
-          evaluation.ok ? evaluation.positionHits : [],
-        ),
-      }
-    }
-
     return {
       number: game.number,
       completed: saved?.completedAt != null,
@@ -78,7 +60,6 @@ export class GetMyGameStateUseCase {
         ...(wordFinished ? { reveal: wordReveal(game.word) } : {}),
       },
       trivia,
-      timeline,
     }
   }
 }

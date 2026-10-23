@@ -1,7 +1,7 @@
 import { DiarioGame } from '../../components/organisms/DiarioGame'
 import styles from './index.module.css'
 
-// Diário Selucra (DI.4.1): três desafios por dia, iguais para todos. Logado, o jogo do dia rende XP e
+// Diário Selucra (DI.4.1): dois desafios por dia, iguais para todos. Logado, o jogo do dia rende XP e
 // conta para a sequência. Rota fora do `RequiresUnlock`: não é produto da trilha, está sempre aberta.
 export function Diario() {
     return (

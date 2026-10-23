@@ -6,6 +6,8 @@ O jogo existe em **dois lugares com a mesma API**: uma **página pública na lan
 
 Não há documento de proposta separado: o "porquê" está resumido na seção 1.
 
+> **Desde a DI18 (2026-10-22) o Diário tem dois cartões, Palavra do dia e Pergunta do dia.** A Linha do tempo saiu e nenhum terceiro cartão entrou. As tarefas das Fases A a G descrevem o que foi feito na época, com três cartões; o que mudou está na Fase H.
+
 **Como usar este arquivo**
 
 1. Siga a ordem da "Sequência sugerida" no final. Dependências reais estão em cada tarefa.
@@ -24,7 +26,7 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 - **Motivo para voltar todo dia.** O app tinha streak, missões e XP, mas nada que acontece *hoje* e não acontece amanhã. Jogos diários (Termo, Wordle) funcionam por três coisas: uma rodada por dia, a mesma para todos, e resultado compartilhável sem spoiler.
 - **Porta de entrada, não só retenção.** Diferente de uma pergunta sobre o mercado simulado (que só faz sentido para quem já tem carteira), um quiz de economia funciona para qualquer pessoa, até sem conta. Por isso a versão pública fica na landing, indexável, e o cartão compartilhado no WhatsApp traz gente nova.
 - **O erro vira porta para a trilha.** Toda resposta tem um "Saiba mais" que leva ao Glossário, a um guia da landing ou à lição que ensina aquilo.
-- **Ponte para o Modo História** (ideia registrada na seção 5, fora deste backlog): a Linha do tempo e a Pergunta do dia são a amostra grátis e diária dos episódios históricos.
+- **Ponte para o Modo História** (ideia registrada na seção 5, fora deste backlog): a Pergunta do dia (e, até a DI18, a Linha do tempo) é a amostra grátis e diária dos episódios históricos.
 - **Guarda-corpos:** vale só XP, nunca dinheiro do jogo nem prêmio (distância das bets, Lei 14.790/2023); nenhuma escassez artificial (não existe "pague para jogar mais", limite já fixado em `proposta-engajamento-licoes.md`); nada de patrimônio no cartão compartilhado (RNF09).
 
 ## 2. Decisões
@@ -38,7 +40,7 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 | DI3 | Sem IA em nenhuma parte (conteúdo, dica, correção). |
 | DI4 | **Jogar o Diário conta como atividade do dia para o streak principal.** |
 | DI5 | **O dia do Diário segue o mesmo fuso do streak** (hoje UTC, `todayUtc` em `gamification/domain/streak`). Consequência: o jogo novo aparece às **21h de Brasília**. O texto da tela diz isso ("novo Diário todo dia às 21h"), em vez de esconder. Se um dia o streak mudar de fuso, o Diário muda junto. |
-| DI6 | **XP: 50 se acertar todos os cartões, menos se errar algum.** Fórmula (decidida em 2026-10-17): **20 por concluir o Diário + 10 por cartão acertado, de 20 a 50** (3 cartões). No Termo, "acertou" = descobriu a palavra nas 6 tentativas. |
+| DI6 | **XP: 50 se acertar todos os cartões, menos se errar algum.** Fórmula (decidida em 2026-10-17): **20 por concluir o Diário + 10 por cartão acertado, de 20 a 50** (3 cartões). No Termo, "acertou" = descobriu a palavra nas 6 tentativas. **Revisto pela DI18 (2026-10-22):** com dois cartões, **20 por concluir + 15 por cartão acertado, de 20 a 50** (o teto não mudou). |
 | DI7 | **Página pública, sem login e com SEO**, junto da landing (`selucra.com.br/diario`). **E o mesmo jogo dentro do app**, onde ele vale XP e streak. |
 | DI8 | **Quem joga fora do app não ganha XP por aquele jogo.** Nada jogado sem login é importado (para ganhar o XP, joga de novo no app, DP6). |
 | DI9 | **Ao terminar o Diário fora do app, a pessoa é convidada a entrar no app** (criar conta ou fazer login). |
@@ -48,7 +50,7 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 | DI13 | **Conteúdo variado, centrado no mercado brasileiro**, ou em fatos de fora que afetaram o mercado brasileiro (seção 3.3). |
 | DI14 | **Só o dia atual e os anteriores são acessíveis.** Nenhuma rota entrega um jogo do futuro (seção 3.6). |
 | DI15 | **Quem volta no mesmo dia vê o que já respondeu**, como no Termo: o jogo não reinicia ao recarregar a página (seção 3.4). |
-| DI16 | **Três cartões por dia** (decidido em 2026-10-17): **Palavra do dia**, **Pergunta do dia** e **Linha do tempo** (a Pergunta do dia substituiu o "Neste dia na história" em 2026-10-17, ver DI17). O cartão "Mais ou menos" (pergunta de número sobre séries históricas) foi cogitado e ficou de fora: perguntas numéricas já tinham saído dos checkpoints das lições, e tirá-lo dispensa a importação de séries do Banco Central. |
+| DI16 | **Três cartões por dia** (decidido em 2026-10-17): **Palavra do dia**, **Pergunta do dia** e **Linha do tempo** (a Pergunta do dia substituiu o "Neste dia na história" em 2026-10-17, ver DI17). O cartão "Mais ou menos" (pergunta de número sobre séries históricas) foi cogitado e ficou de fora: perguntas numéricas já tinham saído dos checkpoints das lições, e tirá-lo dispensa a importação de séries do Banco Central. **Revisto pela DI18 (2026-10-22): dois cartões, a Linha do tempo saiu.** |
 
 ### Fechadas pelo autor na revisão das propostas (2026-10-17)
 
@@ -67,15 +69,22 @@ Não há documento de proposta separado: o "porquê" está resumido na seção 1
 |---|---|---|
 | DI17 | **O cartão "Neste dia na história" sai; entra a "Pergunta do dia" (`trivia`).** O cartão datado era difícil de manter: exigia um fato para cada dia e mês do calendário (ponto 057). A Pergunta do dia é de **conhecimentos gerais sobre economia, finanças e mercado**, sem data: história econômica do Brasil, eventos de fora que afetaram o Brasil, instituições, produtos financeiros, termos e conceitos. Múltipla escolha, mesma mecânica. O banco da Pergunta (`daily_questions`) é separado do banco de eventos da Linha do tempo (`daily_events`); a Linha do tempo deixa de depender de um banco de "fatos" com pergunta. | DI.1.1 a DI.1.4, DI.2.1, DI.3.1, DI.5.1 |
 
+### Revisão de 2026-10-22
+
+| # | Decisão | Onde pesa |
+|---|---|---|
+| DI18 | **Dois cartões: Palavra do dia e Pergunta do dia. A Linha do tempo sai e nenhum terceiro cartão entra.** Motivo: os eventos não eram conhecidos de quem joga, e ordenar dependia de saber anos de cor, então o cartão virava chute em vez de aprendizado. Uma troca pela "Empresa do dia" chegou a ser feita e foi descartada. XP revisto (DI6): 20 + 15 por cartão certo, de 20 a 50. Os jogos e resultados já gravados continuam valendo com dois cartões (nada é recalculado; quem fechou com três fica com o XP que ganhou). A conquista "Cronologia em Dia" é desativada (quem ganhou continua com ela). | DI.8.1 |
+
 Não há decisão em aberto neste backlog.
 
-## 3. Os três cartões e de onde vem o conteúdo
+## 3. Os dois cartões e de onde vem o conteúdo (revisto pela DI18)
 
 | Cartão | Exemplo (ilustrativo, conferir fonte antes de usar) | Fonte do conteúdo | Curadoria |
 |---|---|---|---|
 | **Palavra do dia** | `JUROS` em 6 tentativas, letras verde/amarelo/cinza. O tamanho muda por dia (`IPCA`, `SELIC`, `SPREAD`, `LIQUIDEZ`). Acento ignorado na digitação, mostrado na revelação (`ACOES` => `AÇÕES`). Ao acertar, mostra a definição. | Banco de palavras-resposta, cada uma com definição curta e link opcional para lição, glossário ou guia. Os 83 termos de `frontend/src/features/lessons/glossary/index.ts` são ponto de partida, mas o banco vive no backend. | Lista única, ~300 palavras (~10 meses) |
 | **Pergunta do dia** | "Qual índice é a referência da meta de inflação no Brasil?" ou "O que a crise de 2008 fez com o capital estrangeiro na bolsa brasileira?" 4 alternativas, com explicação curta depois. | Banco de perguntas de conhecimentos gerais (enunciado, alternativas, resposta, explicação, **fonte primária**, categoria, marcador Brasil/fora). Sem data: não precisa cobrir o calendário. | A parte manual. A agenda só se preocupa com variedade e não repetição. |
-| **Linha do tempo** | Ordenar: Plano Collor, Plano Real, crise de 2008, Joesley Day. | **Gerado** sorteando 4 eventos do banco de eventos (`daily_events`: ano, nome curto, explicação, fonte), com anos distintos. | Nenhuma |
+
+A **Linha do tempo** (ordenar 4 eventos sorteados de `daily_events`) existiu até a DI18 e saiu, com o banco de eventos.
 
 Gerador determinístico = função pura de (data, banco) com semente derivada da data: rodar duas vezes para o mesmo dia dá o mesmo jogo. Mesmo assim, o jogo do dia é **materializado** numa agenda (tabela) com antecedência, para o admin ver e corrigir antes de ir ao ar.
 
@@ -84,7 +93,7 @@ Cartão compartilhável (texto, sem spoiler, sem patrimônio):
 ```
 Diário Selucra #47
 🟩🟩🟨⬜⬜ palavra em 3
-❓ ✅  ⏳ ❌
+❓ ✅
 selucra.com.br/diario
 ```
 
@@ -109,7 +118,7 @@ O Termo recusa o que não é palavra (senão o jogo vira caça-letra). Para isso
 
 **Foco:** o mercado brasileiro (história, instituições, produtos, crises, planos econômicos) e fatos de fora **só quando afetaram o Brasil**, sempre com a ligação explicada ("a crise da Rússia de 1998 fez o capital fugir de emergentes e pressionou o real").
 
-**Temas para a pesquisa** (ponto de partida para a DI.1.4; nenhum entra sem a data, o número e o fato conferidos em fonte primária; vale para as perguntas e para os eventos da Linha do tempo):
+**Temas para a pesquisa** (ponto de partida para a DI.1.4; nenhum entra sem a data, o número e o fato conferidos em fonte primária; vale para as perguntas; até a DI18 valia também para os eventos da Linha do tempo):
 
 | Categoria | Exemplos de tema |
 |---|---|
@@ -120,7 +129,7 @@ O Termo recusa o que não é palavra (senão o jogo vira caça-letra). Para isso
 | Produtos e regras | Poupança, CDB, LCI/LCA, FII, ETF, tributação, Novo Mercado e governança |
 | Termos técnicos | Palavras do Glossário e do jargão do mercado (para a Palavra do dia) |
 
-**Variedade (regra da agenda, DI.1.3):** cada palavra, pergunta e evento tem uma **categoria** e um marcador **Brasil** ou **fora (com efeito no Brasil)**. A agenda evita a mesma categoria em dias seguidos no mesmo cartão, mistura década e tema na Linha do tempo, e mantém a maioria do conteúdo de cada semana sobre o Brasil.
+**Variedade (regra da agenda, DI.1.3):** cada palavra e pergunta tem uma **categoria** e um marcador **Brasil** ou **fora (com efeito no Brasil)**. A agenda evita a mesma categoria em dias seguidos no mesmo cartão e mantém a maioria do conteúdo de cada semana sobre o Brasil.
 
 **Checklist de cada item** (aplicado na revisão do autor):
 1. Fonte primária registrada (Banco Central, CVM, B3, Tesouro, IBGE, legislação, ou documento da época).
@@ -369,6 +378,23 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
   - **Testes:** backend (casos de uso, rotas pública e do painel com 400/403, CORS da rota nova, integração do adapter: incremento concorrente, CHECK recusando métrica fora da lista, contagem de `daily_results` com jogo fechado depois da virada), landing (`onStart` uma vez e sem repetir ao recarregar, `reportMetric`, link do convite), frontend (organismo, origem capturada e consumida uma vez, Login e AuthCallback avisando só com a origem).
   - **Validação:** lint, prettier, build e testes do backend (4651), landing (71) e frontend (2459, `tsc -b`, `vite build`). Ponta a ponta com o servidor real em Postgres 16 descartável (migrações pela subida, `db:seed:admin`, `db:seed:daily`, estreia 3 dias atrás): usuária jogou o jogo de hoje (30 XP), 5 avisos anônimos pela origem da landing (`Access-Control-Allow-Origin` certo), corpo com campo extra e evento inválido deram 400, e `GET /admin/daily/metrics` com token de admin devolveu `anon_started 3, anon_completed 1, logged_started 1, logged_completed 1, signups 1, logins 1`, igual ao `daily_results` (1 linha) e a `daily_metrics`; token de usuário comum deu 403; a tabela só tem as três colunas. **Não cobri:** a tela do painel e o fluxo `?origem=diario` no navegador real (só testes de componente), e a landing em produção (CSP: o `connect-src` já libera a origem da API, DI.3.3, e a rota nova é a mesma origem). Observação: no E2E o `POST /auth/register` respondeu 500 por falta do motor (a criação da conta no motor falha; a conta ficou criada) e não tem relação com esta tarefa; o motor não estava no ar.
 
+## Fase H, dois cartões (DI18)
+
+### DI.8.1 · Linha do tempo sai, o Diário fica com dois cartões ✅ (2026-10-22)
+- **Descrição:** tirar a Linha do tempo de tudo (backend, banco, landing, app, painel, conquistas, documentação e a skill `diario-conteudo`) e ajustar o XP (DI6 revista), sem passo manual no banco: a mudança chega a produção pela migração e pelo roteiro da seção 8 de `checklist-atualizar-producao.md`.
+- **Dependências:** DI18.
+- **Aceite:** `GET /daily/today` só com `word` e `trivia`; jogo completo deslogado e logado, com XP, dia perfeito com dois cartões e streak; arquivo sem a Linha do tempo, inclusive dos jogos antigos; "Cronologia em Dia" inativa e mantida por quem a tinha; migração aplicada num banco vazio e num banco com dados da versão anterior.
+- **Entregável:**
+  - **Backend:** `CARD_TYPES = ['word', 'trivia']`; XP `20 + 15` por cartão certo (`domain/xp.ts`); fim do gerador, do banco e do caso de uso da Linha do tempo (`timelineGenerator`, `content/events.ts`, `DailyEventRepository` e adapter, `AnswerTimelineUseCase`); agenda, jogo público, revelações, estado salvo, arquivo, estatísticas, qualidade (sai `bestTimelineRun`), painel (visão geral, prévia, troca de cartão, conteúdo) e `daily:report` sem eventos. `POST /daily/:number/cards/:card/answer` valida o cartão com Zod e responde `400 invalid_card` para qualquer coisa que não seja `trivia` (inclusive `timeline`). Rotas `/admin/daily/events` removidas (`404`). Critério `daily_timeline_streak` fora do catálogo e de `ProgressSnapshot`; `progressValueFor` devolve 0 para critério aposentado que ainda esteja no banco (a conquista desativada só aparece para quem a ganhou). As ações de auditoria `daily.event_*` ficam como legado, como a `daily.puzzle_review`, para as linhas antigas seguirem legíveis. Texto do e-mail semanal ajustado ("uma palavra e uma pergunta").
+  - **Migração `0061_remove_daily_timeline`** (`when` 1795400000000): `DROP TABLE daily_events`, CHECK `daily_puzzles_timeline_chk` fora e `daily_puzzles_origin_chk` refeito só com palavra e pergunta, colunas `timeline_event_ids`, `timeline_origin`, `timeline_order` e `timeline_correct` removidas; jogo com palavra e pergunta respondidas e ainda aberto é fechado sem XP; "Cronologia em Dia" desativada (`criteria_type::text`, por causa da transação única num banco novo); textos de "Diário Perfeito", "Mão Cheia" e da missão `play_daily` trocados só onde ainda estão como o seed deixou (os seeds só inserem, nunca atualizam). **Jogos e resultados ficam:** o autor autorizou apagar, mas apagar os jogos deixaria os números passados sem jogo para sempre (a agenda só monta de hoje em diante; o ensaio mostrou isso) e a lista "Jogar dias anteriores" com botões quebrados por 30 dias.
+  - **Seeds:** `seedDaily` sem eventos; `seedAchievements` sem a "Cronologia em Dia" e com "dois cartões"; `seedMissions` com "Termine os dois cartões".
+  - **Landing:** `timeline.ts` removido; jogo, tipos, API, progresso, estado salvo (estado de três cartões é lido ignorando a Linha do tempo, inclusive a contagem dela), cartão compartilhável (`❓ ✅`), CSS, página (`Dois desafios curtos por dia`, como jogar e perguntas frequentes) e arquivo público (página por jogo e índice sem a Linha do tempo; jogo antigo com o campo continua aceito).
+  - **App:** `DiarioTodayCard` ("Dois desafios novos"), painel (agenda e cobertura com dois cartões, prévia em duas colunas a partir de 1024 px, troca de cartão só por item único, aba e organismo de eventos removidos), serviços, hooks e `describeAchievementProgress`.
+  - **Documentação:** `.docs/backend/daily.md`, `admin.md`, `achievements.md`; esta decisão (DI18) com as notas na DI6, DI16 e seção 3; skill `diario-conteudo` sem eventos (o `grep` de evento, Linha do tempo e década só acha a categoria `eventos-globais`, que é das perguntas); roteiro de produção na seção 8 de `checklist-atualizar-producao.md`.
+  - **Correções de passagem:** `seedDaily.integration.test.ts` e o teste de ponta a ponta da agenda em `dailyRepositories.integration.test.ts` estavam desatualizados desde a saída da revisão manual (jogo materializado nasce publicado e nunca é realinhado; o teste passou a usar o rascunho de estreia); `npm run build` do backend agora apaga `dist/db/migrations` antes de copiar (com a pasta já existente, o `cp -r` aninhava a cópia e deixava migração velha no `dist/`; a imagem Docker não era afetada, porque o `dist/` nasce vazio).
+  - **Validação:** backend lint, build e 5047 testes; os 34 arquivos de integração passam, cada um num Postgres 16 vazio (todas as migrações numa transação só, a `0061` incluída); landing 86 testes e prettier; frontend `tsc -b`, oxlint, 2893 testes, `vite build` e prettier.
+  - **Ensaio de produção (Postgres 16, Redis e motor descartáveis):** `origin/main` no ar com `db:seed:daily`, estreia 3 dias atrás e 33 jogos materializados; usuária jogou logada o jogo de hoje com os três cartões (50 XP) e deixou o #3 com palavra e pergunta respondidas, e recebeu a "Cronologia em Dia". Backend novo pelo `dist/` (a `0061` rodou na subida): 33 jogos mantidos, resultado de três cartões com os 50 XP, o #3 fechado sem XP, tabela e colunas da Linha do tempo removidas, textos novos, conquista inativa e mantida. `seedDaily`, `seedAchievements` e `seedMissions` duas vezes: nada criado. `GET /daily/today` só com `word` e `trivia`; arquivo #1 a #3 sem a Linha do tempo; resposta de `timeline` deu `400 invalid_card`; jogo deslogado completo; logado, dia perfeito com dois cartões deu 50 XP, streak 1, "Palavra na Primeira" e "Diário Perfeito" (com o motor no ar; sem ele a checagem de conquistas falha antes, como já acontecia), segunda resposta `409`; dia anterior fechou com 0 XP. **Compatibilidade:** o módulo novo da landing contra o backend antigo jogou e fechou o jogo sem erro; o antigo contra o backend novo mostrou "Algo deu errado", e por isso o roteiro publica os clientes antes do backend. **Navegador (Chrome):** landing em 320, 390 e 768 px sem rolagem horizontal, jogo completo, resultado, cartão compartilhável, recarregar no mesmo dia, estado salvo de três cartões lido sem quebrar e dia anterior aberto; no app, `/diario` logado redesenhado pelo `/me` com dois cartões, `/admin/diario`, a prévia do jogo com dois cartões e a troca de pergunta, e o conteúdo sem a aba de eventos. **Não cobri:** aparelho real (toque) e a missão `play_daily` concluída pelo app (só pelos testes do organismo).
+
 ---
 
 ## Sequência sugerida
@@ -389,5 +415,5 @@ Igual ao Termo: quem já respondeu hoje e volta à página vê o jogo como deixo
 
 ## 5. Relacionado, fora deste backlog
 
-- **Modo História** (ideia de que o autor gostou na mesma sessão, sem backlog aberto): episódios solo de crises reais do mercado brasileiro (ex: Plano Collor, crise de 2008, Joesley Day, março de 2020), jogados no Sandbox determinístico (RF12), iguais para todos (ranking justo por episódio), com debrief do que aconteceu de verdade. Candidato a âncora PRO, com o primeiro episódio grátis. Quando existir, a Linha do tempo e a Pergunta do dia ganham a chamada "Quer viver esse dia? ▶ Modo História". Precisa de documento próprio antes de virar tarefa (conferir em fonte primária as datas e a sequência de cada episódio).
+- **Modo História** (ideia de que o autor gostou na mesma sessão, sem backlog aberto): episódios solo de crises reais do mercado brasileiro (ex: Plano Collor, crise de 2008, Joesley Day, março de 2020), jogados no Sandbox determinístico (RF12), iguais para todos (ranking justo por episódio), com debrief do que aconteceu de verdade. Candidato a âncora PRO, com o primeiro episódio grátis. Quando existir, a Pergunta do dia ganha a chamada "Quer viver esse dia? ▶ Modo História". Precisa de documento próprio antes de virar tarefa (conferir em fonte primária as datas e a sequência de cada episódio).
 - Outras ideias da mesma sessão, não escolhidas agora: tribos de investidor, streak em dupla e evento "Reacende", clubes de investimento com as regras da CVM, licença de aprendiz e prova de nivelamento, teses com reputação, torcida por empresa, modo turma.

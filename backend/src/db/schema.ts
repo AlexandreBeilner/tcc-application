@@ -48,6 +48,8 @@ export const achievementCriteriaType = pgEnum('achievement_criteria_type', [
   // Qualidade no Diário (DI.6.1): só conta jogo concluído dentro do próprio dia.
   'daily_word_first_try',
   'daily_perfect_days',
+  // Aposentado pela DI18 (a Linha do tempo saiu do Diário). Fica no enum porque o Postgres não
+  // remove valor de enum; a conquista que o usava foi desativada na migração 0061.
   'daily_timeline_streak',
 ])
 // Widget do passo Micro-decisão (spec 5.2, tarefa 7.0.2) — 'reflection' é o
@@ -1420,43 +1422,9 @@ export const dailyQuestions = pgTable(
   ],
 )
 
-// Evento datado da Linha do tempo. A Linha do tempo sorteia 4 eventos com anos distintos; só o ano
-// ordena. `label` é o nome curto mostrado ("Plano Real"). Mesma exigência de fonte primária.
-export const dailyEvents = pgTable(
-  'daily_events',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    stableKey: varchar('stable_key', { length: 80 }).notNull().unique(),
-    year: smallint('year').notNull(),
-    label: varchar('label', { length: 80 }).notNull(),
-    explanation: text('explanation').notNull(),
-    sourceRef: text('source_ref').notNull(),
-    learnMoreKind: text('learn_more_kind'),
-    learnMoreRef: text('learn_more_ref'),
-    category: varchar('category', { length: 40 }).notNull(),
-    scope: text('scope').notNull(),
-    reviewedBy: uuid('reviewed_by').references(() => users.id),
-    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
-    active: boolean('active').notNull().default(true),
-    updatedBy: uuid('updated_by').references(() => users.id),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    check('daily_events_year_chk', sql`${table.year} BETWEEN 1500 AND 2200`),
-    check('daily_events_scope_chk', sql`${table.scope} IN ('brasil', 'fora')`),
-    check('daily_events_source_chk', sql`length(btrim(${table.sourceRef})) > 0`),
-    check(
-      'daily_events_learn_more_chk',
-      sql`(${table.learnMoreKind} IS NULL) = (${table.learnMoreRef} IS NULL) AND (${table.learnMoreKind} IS NULL OR ${table.learnMoreKind} IN ('lesson', 'glossary', 'guide'))`,
-    ),
-  ],
-)
-
 // Jogo materializado de um dia (seção 3: a agenda). Referencia os itens dos bancos (corrigir um
 // texto no banco corrige o jogo), e guarda a origem de cada cartão: `generated` pela agenda,
-// `manual` quando o admin trocou. `timeline_event_ids` é a ordem de exibição (4 ids). Materializar
-// não é publicar: `reviewed_*` e `published_at` são passos do admin.
+// `manual` quando o admin trocou. Materializar não é publicar: `reviewed_*` e `published_at` são passos do admin.
 export const dailyPuzzles = pgTable(
   'daily_puzzles',
   {
@@ -1468,10 +1436,8 @@ export const dailyPuzzles = pgTable(
     questionId: uuid('question_id')
       .notNull()
       .references(() => dailyQuestions.id),
-    timelineEventIds: jsonb('timeline_event_ids').$type<string[]>().notNull(),
     wordOrigin: text('word_origin').notNull().default('generated'),
     questionOrigin: text('question_origin').notNull().default('generated'),
-    timelineOrigin: text('timeline_origin').notNull().default('generated'),
     reviewedBy: uuid('reviewed_by').references(() => users.id),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
@@ -1481,17 +1447,13 @@ export const dailyPuzzles = pgTable(
     check('daily_puzzles_number_chk', sql`${table.number} >= 1`),
     check(
       'daily_puzzles_origin_chk',
-      sql`${table.wordOrigin} IN ('generated', 'manual') AND ${table.questionOrigin} IN ('generated', 'manual') AND ${table.timelineOrigin} IN ('generated', 'manual')`,
-    ),
-    check(
-      'daily_puzzles_timeline_chk',
-      sql`jsonb_typeof(${table.timelineEventIds}) = 'array' AND jsonb_array_length(${table.timelineEventIds}) = 4`,
+      sql`${table.wordOrigin} IN ('generated', 'manual') AND ${table.questionOrigin} IN ('generated', 'manual')`,
     ),
   ],
 )
 
 // Resultado de uma pessoa num jogo (uma linha por usuário e jogo). Guarda o que foi dado (palpites
-// do Termo, alternativa, ordem) para redesenhar o jogo em qualquer aparelho (seção 3.4); o
+// do Termo, alternativa) para redesenhar o jogo em qualquer aparelho (seção 3.4); o
 // gabarito nunca fica aqui. Cada `*_correct` nulo = cartão ainda não respondido. `xp_awarded` 0 em
 // dia anterior ou concluído depois da virada.
 export const dailyResults = pgTable(
@@ -1511,8 +1473,6 @@ export const dailyResults = pgTable(
     wordCorrect: boolean('word_correct'),
     questionChoice: smallint('question_choice'),
     questionCorrect: boolean('question_correct'),
-    timelineOrder: jsonb('timeline_order').$type<string[]>(),
-    timelineCorrect: boolean('timeline_correct'),
     xpAwarded: integer('xp_awarded').notNull().default(0),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),

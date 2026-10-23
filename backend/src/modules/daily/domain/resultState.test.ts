@@ -5,7 +5,6 @@ import {
   finalizeResult,
   isGameComplete,
   newResult,
-  recordTimeline,
   recordTrivia,
   recordWordGuess,
 } from './resultState'
@@ -42,57 +41,54 @@ describe('recordWordGuess', () => {
   })
 })
 
-describe('trivia e Linha do tempo', () => {
-  it('uma tentativa válida por cartão', () => {
+describe('Pergunta do dia', () => {
+  it('uma tentativa válida', () => {
     const t = recordTrivia(base(), 1, true)
     expect(t.questionChoice).toBe(1)
     expect(() => recordTrivia(t, 2, false)).toThrow(CardAlreadyAnsweredError)
-    const l = recordTimeline(base(), ['a', 'b'], false)
-    expect(l.timelineCorrect).toBe(false)
-    expect(() => recordTimeline(l, ['b', 'a'], true)).toThrow(CardAlreadyAnsweredError)
   })
 })
 
 describe('finalizeResult', () => {
-  const done = (word: boolean, trivia: boolean, timeline: boolean) => ({
+  const done = (word: boolean, trivia: boolean) => ({
     ...base(),
     wordCorrect: word,
     questionCorrect: trivia,
-    timelineCorrect: timeline,
   })
 
   it.each([
-    [false, false, false, 20],
-    [true, false, false, 30],
-    [true, true, false, 40],
-    [true, true, true, 50],
-  ])('jogo do dia com palavra=%s, pergunta=%s, linha=%s dá %i XP', (w, q, t, xp) => {
-    const f = finalizeResult(done(w, q, t), true, NOW)
+    [false, false, 20],
+    [true, false, 35],
+    [false, true, 35],
+    [true, true, 50],
+  ])('jogo do dia com palavra=%s, pergunta=%s dá %i XP', (w, q, xp) => {
+    const f = finalizeResult(done(w, q), true, NOW)
     expect(f.justCompleted).toBe(true)
     expect(f.next.xpAwarded).toBe(xp)
     expect(f.next.completedAt).toEqual(NOW)
   })
 
   it('dia anterior ou depois da virada fecha com 0 XP', () => {
-    const f = finalizeResult(done(true, true, true), false, NOW)
+    const f = finalizeResult(done(true, true), false, NOW)
     expect(f.justCompleted).toBe(true)
     expect(f.next.xpAwarded).toBe(0)
   })
 
-  it('só fecha com os três cartões respondidos', () => {
-    const partial = { ...done(true, true, true), timelineCorrect: null }
+  it('só fecha com os dois cartões respondidos', () => {
+    const partial = { ...done(true, true), questionCorrect: null }
     expect(isGameComplete(partial)).toBe(false)
     expect(finalizeResult(partial, true, NOW).justCompleted).toBe(false)
   })
 
   it('é idempotente: jogo já fechado não fecha de novo', () => {
-    const closed = finalizeResult(done(true, true, true), true, NOW).next
+    const closed = finalizeResult(done(true, true), true, NOW).next
     const again = finalizeResult(closed, true, new Date('2026-11-03T00:00:00Z'))
     expect(again.justCompleted).toBe(false)
     expect(again.next).toBe(closed)
   })
 
   it('conta cartões certos', () => {
-    expect(correctCardCount(done(true, false, true))).toBe(2)
+    expect(correctCardCount(done(true, false))).toBe(1)
+    expect(correctCardCount(done(true, true))).toBe(2)
   })
 })

@@ -2,14 +2,16 @@ import { count, eq } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { achievements, userAchievements } from '../../../../db/schema'
 import type { AchievementRepository } from '../../application/ports/achievementRepository'
-import type { Achievement } from '../../domain/achievement'
+import type { Achievement, AchievementCriteriaType } from '../../domain/achievement'
 
 function toAchievement(row: typeof achievements.$inferSelect): Achievement {
   return {
     id: row.id,
     name: row.name,
     description: row.description,
-    criteriaType: row.criteriaType,
+    // O enum do banco ainda tem critério aposentado (`daily_timeline_streak`, DI18); a conquista
+    // está desativada e `progressValueFor` devolve 0 para ele.
+    criteriaType: row.criteriaType as AchievementCriteriaType,
     // Drizzle mapeia `numeric` pra string (evita perda de precisão) —
     // convertido aqui, único lugar que sabe do formato físico da coluna.
     criteriaValue: Number(row.criteriaValue),

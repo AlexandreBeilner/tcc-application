@@ -620,11 +620,6 @@ export const dailyReplaceCardBodySchema = z.discriminatedUnion('card', [
     question_id: z.guid(),
     confirm_published: z.boolean().default(false),
   }),
-  z.strictObject({
-    card: z.literal('timeline'),
-    event_ids: z.array(z.guid()).length(4),
-    confirm_published: z.boolean().default(false),
-  }),
 ])
 
 const dailyWordShape = {
@@ -663,26 +658,6 @@ export const dailyQuestionCreateBodySchema = z.strictObject(dailyQuestionShape)
 export const dailyQuestionUpdateBodySchema = z
   .strictObject({
     ...z.strictObject(dailyQuestionShape).partial().shape,
-    active: z.boolean().optional(),
-    confirm_published: z.boolean().default(false),
-  })
-  .refine((b) => Object.keys(b).some((k) => k !== 'confirm_published'), {
-    message: 'informe pelo menos um campo a alterar',
-  })
-
-const dailyEventShape = {
-  year: z.number().int(),
-  label: z.string().trim().min(1).max(80),
-  explanation: z.string().trim().min(1).max(400),
-  source_ref: z.string().trim().min(1).max(600),
-  ...dailyItemShape,
-}
-
-export const dailyEventCreateBodySchema = z.strictObject(dailyEventShape)
-
-export const dailyEventUpdateBodySchema = z
-  .strictObject({
-    ...z.strictObject(dailyEventShape).partial().shape,
     active: z.boolean().optional(),
     confirm_published: z.boolean().default(false),
   })

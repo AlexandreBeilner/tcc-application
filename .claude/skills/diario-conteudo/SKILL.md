@@ -1,11 +1,12 @@
 ---
 name: diario-conteudo
-description: Cria e confere conteúdo do Diário Selucra (palavras do Termo, perguntas do dia e eventos da Linha do tempo) com fonte primária verificada e validação mecânica, pronto para ir ao ar sem revisão manual no painel. Use quando o autor pedir mais conteúdo do Diário, "criar diários", reforçar o estoque, ou corrigir/trocar um item. Argumento opcional: quantos itens ou dias criar (ex: "30 dias").
+description: Cria e confere conteúdo do Diário Selucra (palavras do Termo e perguntas do dia) com fonte primária verificada e validação mecânica, pronto para ir ao ar sem revisão manual no painel. Use quando o autor pedir mais conteúdo do Diário, "criar diários", reforçar o estoque, ou corrigir/trocar um item. Argumento opcional: quantos itens ou dias criar (ex: "30 dias").
 ---
 
 # Skill: conteúdo do Diário Selucra
 
-O painel admin **não tem mais etapa de revisão** (decisão de 2026-10-18): tudo que está no banco já pode ir ao ar.
+O Diário tem dois cartões, a Palavra do dia e a Pergunta do dia (DI18, 2026-10-22). O painel admin **não tem mais etapa de
+revisão** (decisão de 2026-10-18): tudo que está no banco já pode ir ao ar.
 Por isso a garantia de qualidade mora **aqui**. Nada entra no código sem passar pelo roteiro abaixo, e o que não for
 confirmado em fonte primária é **descartado e relatado**, nunca "aproveitado do jeito que dá".
 
@@ -36,7 +37,6 @@ Documentos de apoio (leia só o que precisar): `.claude/backlog-diario.md` (seç
 |---|---|---|
 | `words.ts` | Palavras-resposta do Termo | Nova entrada `['EXIBIÇÃO', 'definição']` num bloco de `MAIS_TERMOS` (par categoria + lista). Palavra do Brasil é o padrão; as de fora entram no conjunto `FORA` no fim do arquivo |
 | `questions.ts` | Perguntas do cartão `trivia` | Novo objeto em `QUESTION_SEEDS` |
-| `events.ts` | Eventos da Linha do tempo | Novo objeto em `EVENT_SEEDS` |
 | `extraAcceptedWords.ts` | Siglas e termos que o dicionário VERO não tem | Só quando a palavra-resposta não estiver no VERO |
 | `categories.ts` | Lista fechada de categorias | Não mexa |
 
@@ -79,22 +79,9 @@ existente (a chave é a forma normalizada).
   scope: 'brasil',
 }
 ```
-Enunciado **não entrega a resposta**; as erradas são **plausíveis** (não absurdas); sem pegadinha de redação.
-
-**Evento** (`events.ts`):
-```ts
-{
-  key: 'plano-real-1994',                // kebab-case com o ano, único, para sempre
-  year: 1994,
-  label: 'Lançamento do Plano Real',     // até 80 caracteres e NÃO pode conter o ano
-  explanation: '...até 280 caracteres.',
-  source: 'Lei nº 8.880, de 27/05/1994 (planalto.gov.br).',
-  category: 'planos-e-moeda',
-  scope: 'brasil',
-}
-```
-O `label` aparece **antes** de o jogador ordenar, então não pode dar a pista do ano nem da ordem. O ano é o do **fato
-principal**, conferido na fonte (decreto/lei: data da publicação; crise: data do evento, não do fim).
+Enunciado **não entrega a resposta**; as erradas são **plausíveis** (não absurdas); sem pegadinha de redação. Quando a
+pergunta depende de uma data, o ano é o do **fato principal**, conferido na fonte (lei ou decreto: data da publicação;
+crise: data em que começou, não a do fim).
 
 ## Roteiro
 
@@ -103,15 +90,14 @@ principal**, conferido na fonte (decreto/lei: data da publicação; crise: data 
 ```
 cd backend && npm run daily:report
 ```
-Leia o estoque, os dias sem repetir, as categorias vazias, a posição dos gabaritos, as décadas dos eventos e as
-possíveis duplicatas. **Meta de cobertura:** pelo menos 30 dias seguidos sem repetir palavra e pergunta, e eventos
-suficientes para a janela de 14 dias sem repetir (56 no mínimo; mais que isso dá variedade de décadas). Se o autor
-passou uma quantidade, ela manda; senão, mire a maior lacuna do relatório.
+Leia o estoque, os dias sem repetir, as categorias vazias, a posição dos gabaritos e as possíveis duplicatas.
+**Meta de cobertura:** pelo menos 30 dias seguidos sem repetir palavra e pergunta. Se o autor passou uma quantidade, ela
+manda; senão, mire a maior lacuna do relatório.
 
 ### 2. Planejar o lote
 
 Antes de pesquisar, escreva (para o autor e para você) a **lista de temas** do lote: quantos itens de cada tipo, em quais
-categorias, quais décadas (eventos), quantos `fora`. Preencha as categorias vazias e as décadas ralas primeiro.
+categorias, quantos `fora`. Preencha as categorias vazias primeiro.
 Confira que cada tema **ainda não existe** no banco (busque no código por palavra-chave, não só pela chave).
 
 ### 3. Pesquisar e escrever
@@ -130,7 +116,7 @@ acrescente à lista extra. Para saber se está no VERO: `grep -x PALAVRA backend
 ### 4. Verificação independente
 
 Depois de escrever, **chame um subagente de contexto limpo** (Agent, tipo `general-purpose`) para auditar o lote. Ele
-recebe só: o texto de cada item (enunciado, alternativas **sem o gabarito**, explicação, ano, fonte) e a instrução de
+recebe só: o texto de cada item (enunciado, alternativas **sem o gabarito**, explicação, fonte) e a instrução de
 **refazer a pesquisa do zero** e dizer, por item, `CONFIRMADO` (fonte e valores batem), `DIVERGE` (o que difere) ou
 `NÃO ENCONTRADO`. Para perguntas, ele deve responder qual alternativa é a correta **sem saber a que está marcada**; se a
 resposta dele diverge do `correctIndex`, o item é suspeito.
@@ -148,7 +134,7 @@ npx prettier --check src/modules/daily
 ```
 Todos precisam passar. Os testes de `dailyContent.test.ts` exigem, entre outras coisas: respostas aceitas, fonte presente,
 explicação até 280, sem travessão, mais de 70% Brasil, 4 posições de gabarito usadas, 30 dias sem aviso e sem repetição
-de palavra/pergunta, e Linha do tempo com 4 anos distintos e 3 décadas ou mais. Se um teste falhar, **conserte o
+de palavra/pergunta. Se um teste falhar, **conserte o
 conteúdo**, não o teste.
 
 ### 6. Entregar
@@ -167,7 +153,7 @@ Como o conteúdo chega ao ar (para explicar, não para executar):
 1. Fonte primária registrada no campo `source`?
 2. Data e número conferidos na fonte, e confirmados por uma segunda busca?
 3. Se é fato de fora, a explicação diz o efeito no Brasil?
-4. O enunciado/nome não entrega a resposta (nem o ano, nos eventos)? As alternativas erradas são plausíveis?
+4. O enunciado não entrega a resposta? As alternativas erradas são plausíveis?
 5. Explicação com até ~280 caracteres, sem termo que ela mesma não explique?
 6. Sem `—`, sem opinião política, só fatos e efeitos?
 7. A palavra está no VERO ou na lista extra, e não é ofensiva?

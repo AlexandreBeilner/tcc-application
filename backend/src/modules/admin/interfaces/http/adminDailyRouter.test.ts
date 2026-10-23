@@ -82,9 +82,6 @@ describe('permissões', () => {
     ['get', '/admin/daily/questions'],
     ['post', '/admin/daily/questions'],
     ['patch', `/admin/daily/questions/${ID}`],
-    ['get', '/admin/daily/events'],
-    ['post', '/admin/daily/events'],
-    ['patch', `/admin/daily/events/${ID}`],
   ] as const)('%s %s exige token e papel admin', async (method, url) => {
     const { app, userToken, auth } = await buildApp()
     expect((await request(app)[method](url)).status).toBe(401)
@@ -102,7 +99,8 @@ describe('prévia de dia futuro', () => {
     expect(res.body).toMatchObject({ number: 20, date: '2026-11-29', is_today_or_past: false })
     expect(res.body.word.answer).toMatch(/^[A-Z]+$/)
     expect(res.body.question.correct_index).toBeTypeOf('number')
-    expect(res.body.correct_order).toHaveLength(4)
+    expect(res.body.origins).toEqual({ word: 'generated', question: 'generated' })
+    expect(res.body).not.toHaveProperty('events')
   })
 
   it('jogo inexistente ou número malformado é 404', async () => {
@@ -151,7 +149,7 @@ describe('estreia', () => {
       ready_days_ahead: 30,
       published_days_ahead: 30,
       alerts: [],
-      bank: { words: 60, questions: 60, events: 200, accepted_extra: 1 },
+      bank: { words: 60, questions: 60, accepted_extra: 1 },
     })
 
     const actions = auditLog.entries.map((e) => `${e.action}:${e.result}`)
@@ -228,6 +226,7 @@ describe('publicar e trocar cartão', () => {
       .put('/admin/daily/puzzles/1/card')
       .set(auth(adminToken))
       .send({ card: 'timeline', event_ids: [ID] })
+    // A Linha do tempo saiu (DI18): o cartão não existe mais.
     expect(res.status).toBe(400)
   })
 })
@@ -292,27 +291,32 @@ describe('conteúdo', () => {
     expect(outOfRange.status).toBe(422)
   })
 
-  it('edita evento, devolve os jogos afetados e mapeia 404 de item inexistente', async () => {
+  it('edita pergunta, devolve os jogos afetados e mapeia 404 de item inexistente', async () => {
     const { app, adminToken, auth, world } = await buildApp()
     await request(app).post('/admin/daily/draft').set(auth(adminToken)).send({ start_date: START })
-    const used = world.puzzles.items[0].timelineEventIds[0]
+    const used = world.puzzles.items[0].questionId
     const uuid = '22222222-2222-4222-8222-222222222222'
-    world.events.items.find((e) => e.id === used)!.id = uuid
-    world.puzzles.items[0].timelineEventIds[0] = uuid
+    world.questions.items.find((q) => q.id === used)!.id = uuid
+    for (const p of world.puzzles.items) if (p.questionId === used) p.questionId = uuid
 
     const res = await request(app)
-      .patch(`/admin/daily/events/${uuid}`)
+      .patch(`/admin/daily/questions/${uuid}`)
       .set(auth(adminToken))
       .send({ active: false })
     expect(res.status).toBe(200)
     expect(res.body.affected_puzzles).toContain(1)
-    expect(res.body.event.active).toBe(false)
+    expect(res.body.question.active).toBe(false)
 
     const missing = await request(app)
-      .patch(`/admin/daily/events/${ID}`)
+      .patch(`/admin/daily/questions/${ID}`)
       .set(auth(adminToken))
       .send({ active: false })
     expect(missing.status).toBe(404)
+  })
+
+  it('as rotas de eventos da Linha do tempo saíram (DI18)', async () => {
+    const { app, adminToken, auth } = await buildApp()
+    expect((await request(app).get('/admin/daily/events').set(auth(adminToken))).status).toBe(404)
   })
 
   it('PATCH sem nenhum campo é 400', async () => {

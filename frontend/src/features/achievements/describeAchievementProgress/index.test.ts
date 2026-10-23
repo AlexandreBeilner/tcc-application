@@ -50,8 +50,5 @@ describe('describeAchievementProgress', () => {
         expect(describeAchievementProgress({ criteriaType: 'daily_perfect_days', criteriaValue: 10, progress: 4 })).toBe(
             '4 de 10 dias perfeitos',
         )
-        expect(describeAchievementProgress({ criteriaType: 'daily_timeline_streak', criteriaValue: 7, progress: 3 })).toBe(
-            '3 de 7 dias seguidos',
-        )
     })
 })

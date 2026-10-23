@@ -2,7 +2,7 @@ import express from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { createDailyRouter } from './dailyRouter'
-import { CORRECT_ORDER, DISPLAY_ORDER, START, buildDailyWorld } from '../../test/dailyWorld'
+import { START, buildDailyWorld } from '../../test/dailyWorld'
 
 // Instantes em torno da virada do dia do Diário (00:00 UTC = 21h de Brasília).
 const AT = {
@@ -23,16 +23,7 @@ function appAt(now: Date, startDate: string | null = START) {
 }
 
 // Tudo que revelaria o gabarito de um cartão; nunca pode aparecer antes de o cartão terminar.
-const SECRETS = [
-  'ACOES',
-  'AÇÕES',
-  'correctIndex',
-  'Pedaços de uma empresa',
-  'meta de inflação',
-  '1994',
-  '2008',
-  'Explicação de',
-]
+const SECRETS = ['ACOES', 'AÇÕES', 'correctIndex', 'Pedaços de uma empresa', 'meta de inflação']
 
 describe('GET /daily/today', () => {
   it('responde off quando o Diário está desligado', async () => {
@@ -66,14 +57,6 @@ describe('GET /daily/today', () => {
         trivia: {
           question: 'Qual índice mede a inflação oficial?',
           options: ['IGP-M', 'IPCA', 'INPC', 'IPC-Fipe'],
-        },
-        timeline: {
-          events: [
-            { id: 'ev-crise', label: 'Crise financeira global' },
-            { id: 'ev-plano', label: 'Plano Real' },
-            { id: 'ev-joesley', label: 'Joesley Day' },
-            { id: 'ev-cambio', label: 'Câmbio flutuante' },
-          ],
         },
       },
     })
@@ -159,7 +142,6 @@ describe('GET /daily/:number e a regra de acesso (seção 3.6)', () => {
       request(app).get('/daily/3'),
       request(app).post('/daily/3/word/guess').send({ guess: 'juros', attempt: 1 }),
       request(app).post('/daily/3/cards/trivia/answer').send({ choice: 1 }),
-      request(app).post('/daily/3/cards/timeline/answer').send({ order: CORRECT_ORDER }),
     ])
     for (const res of responses) {
       expect(res.status).toBe(404)
@@ -190,7 +172,6 @@ describe('GET /daily/:number e a regra de acesso (seção 3.6)', () => {
       request(app).get('/daily/1'),
       request(app).post('/daily/1/word/guess').send({ guess: 'juros', attempt: 1 }),
       request(app).post('/daily/1/cards/trivia/answer').send({ choice: 1 }),
-      request(app).post('/daily/1/cards/timeline/answer').send({ order: CORRECT_ORDER }),
     ])
     for (const res of responses) {
       expect(res.status).toBe(409)
@@ -317,49 +298,14 @@ describe('POST /daily/:number/cards/trivia/answer', () => {
   })
 })
 
-describe('POST /daily/:number/cards/timeline/answer', () => {
-  const answer = (body: unknown) =>
-    request(appAt(AT.launchDay))
-      .post('/daily/1/cards/timeline/answer')
-      .send(body as object)
-
-  it('ordem certa acerta e revela anos e explicações na ordem cronológica', async () => {
-    const res = await answer({ order: CORRECT_ORDER })
-    expect(res.status).toBe(200)
-    expect(res.body.correct).toBe(true)
-    expect(res.body.positionHits).toEqual([true, true, true, true])
-    expect(res.body.events.map((e: { id: string; year: number }) => [e.id, e.year])).toEqual([
-      ['ev-plano', 1994],
-      ['ev-cambio', 1999],
-      ['ev-crise', 2008],
-      ['ev-joesley', 2017],
-    ])
-    expect(res.body.events[0].explanation).toBe('Explicação de Plano Real')
-  })
-
-  it('ordem errada marca as posições certas', async () => {
-    const res = await answer({ order: DISPLAY_ORDER })
-    expect(res.body.correct).toBe(false)
-    expect(res.body.positionHits).toEqual([false, false, false, false])
-  })
-
-  it('só a permutação exata vale (422)', async () => {
-    expect((await answer({ order: ['ev-plano', 'ev-cambio', 'ev-crise'] })).body).toEqual({
-      error: 'invalid_order',
-    })
-    expect(
-      (await answer({ order: ['ev-plano', 'ev-plano', 'ev-crise', 'ev-joesley'] })).status,
-    ).toBe(422)
-    expect((await answer({ order: ['ev-plano', 'ev-cambio', 'ev-crise', 'x'] })).status).toBe(422)
-    expect((await answer({ order: [] })).status).toBe(400)
-  })
-})
-
 describe('cartão desconhecido', () => {
-  it('word e qualquer outro nome não têm rota de resposta genérica', async () => {
+  it('só a Pergunta do dia responde pela rota genérica; a Linha do tempo saiu (DI18)', async () => {
     const app = appAt(AT.launchDay)
-    expect((await request(app).post('/daily/1/cards/word/answer').send({})).status).toBe(404)
-    expect((await request(app).post('/daily/1/cards/xpto/answer').send({})).status).toBe(404)
+    for (const card of ['timeline', 'word', 'xpto']) {
+      const res = await request(app).post(`/daily/1/cards/${card}/answer`).send({ order: [] })
+      expect(res.status).toBe(400)
+      expect(res.body).toEqual({ error: 'invalid_card' })
+    }
   })
 })
 
@@ -422,11 +368,7 @@ describe('GET /daily/archive', () => {
       word: { answer: 'AÇÕES', length: 5, definition: 'Pedaços de uma empresa.' },
       trivia: { correctIndex: 1, explanation: 'O IPCA é a referência da meta de inflação.' },
     })
-    // Linha do tempo na ordem cronológica certa, já com o ano.
-    expect(res.body.games[0].timeline.events.map((e: { id: string }) => e.id)).toEqual(
-      CORRECT_ORDER,
-    )
-    expect(res.body.games[0].timeline.events[0].year).toBe(1994)
+    expect(res.body.games[0]).not.toHaveProperty('timeline')
   })
 
   it('na virada (20h59 e 21h00 de Brasília) o jogo que encerrou passa a constar', async () => {

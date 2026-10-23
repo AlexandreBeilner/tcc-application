@@ -9,8 +9,7 @@ import type { DailyResultRepository } from '../../application/ports/dailyResultR
 import type { StreakTouchResult, StreakTracker } from '../../application/ports/streakTracker'
 import type { XpAwardResult, XpAwarder } from '../../application/ports/xpAwarder'
 import type { AcceptedWordRepository } from '../../application/ports/acceptedWordRepository'
-import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
-import type { DailyEventRepository } from '../../application/ports/dailyEventRepository'
+import type { DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
 import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
 import type { DailyQuestionRepository } from '../../application/ports/dailyQuestionRepository'
 import type { DailySettingsRepository } from '../../application/ports/dailySettingsRepository'
@@ -120,38 +119,6 @@ export function createFakeDailyQuestionRepository(
   }
 }
 
-export function createFakeDailyEventRepository(
-  initial: DailyEvent[] = [],
-): DailyEventRepository & { items: DailyEvent[] } {
-  const items = [...initial]
-  return {
-    items,
-    async create(item) {
-      const created = { ...item, id: `e${items.length + 1}` }
-      items.push(created)
-      return created
-    },
-    async findById(id) {
-      return items.find((x) => x.id === id) ?? null
-    },
-    async findManyByIds(ids) {
-      return items.filter((x) => ids.includes(x.id))
-    },
-    async listActive() {
-      return items.filter((x) => x.active)
-    },
-    async listAll() {
-      return [...items]
-    },
-    async update(id, fields) {
-      const x = items.find((i) => i.id === id)
-      if (!x) return null
-      Object.assign(x, fields)
-      return x
-    },
-  }
-}
-
 export interface FakeDailyPuzzleRepository extends DailyPuzzleRepository {
   items: DailyPuzzle[]
 }
@@ -182,22 +149,14 @@ export function createFakeDailyPuzzleRepository(
     },
     async listUsing(kind, itemId) {
       return sorted().filter((p) =>
-        kind === 'word'
-          ? p.wordId === itemId
-          : kind === 'question'
-            ? p.questionId === itemId
-            : p.timelineEventIds.includes(itemId),
+        kind === 'word' ? p.wordId === itemId : p.questionId === itemId,
       )
     },
     async updateCard(number, change) {
       const p = items.find((x) => x.number === number)
       if (!p) return
       if (change.card === 'word') Object.assign(p, { wordId: change.wordId, wordOrigin: 'manual' })
-      else if (change.card === 'question') {
-        Object.assign(p, { questionId: change.questionId, questionOrigin: 'manual' })
-      } else {
-        Object.assign(p, { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual' })
-      }
+      else Object.assign(p, { questionId: change.questionId, questionOrigin: 'manual' })
     },
     async publishPending(fromDate, now) {
       const done: number[] = []

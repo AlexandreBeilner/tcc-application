@@ -10,7 +10,6 @@ export type AchievementCriteriaKey =
   | 'referrals_qualified'
   | 'daily_word_first_try'
   | 'daily_perfect_days'
-  | 'daily_timeline_streak'
 
 export interface CriterionOption {
   type: AchievementCriteriaKey

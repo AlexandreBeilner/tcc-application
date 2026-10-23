@@ -1,14 +1,11 @@
 import type {
   AddAcceptedWordUseCase,
-  CreateAdminEventUseCase,
   CreateAdminQuestionUseCase,
   CreateAdminWordUseCase,
   ListAcceptedExtraUseCase,
-  ListAdminEventsUseCase,
   ListAdminQuestionsUseCase,
   ListAdminWordsUseCase,
   RemoveAcceptedWordUseCase,
-  UpdateAdminEventUseCase,
   UpdateAdminQuestionUseCase,
   UpdateAdminWordUseCase,
 } from '../../../daily/application/useCases/admin/content'
@@ -52,9 +49,6 @@ export interface InProcessDailyAdminDeps {
   listQuestions: ListAdminQuestionsUseCase
   createQuestion: CreateAdminQuestionUseCase
   updateQuestion: UpdateAdminQuestionUseCase
-  listEvents: ListAdminEventsUseCase
-  createEvent: CreateAdminEventUseCase
-  updateEvent: UpdateAdminEventUseCase
 }
 
 function translate(err: unknown): never {
@@ -96,9 +90,5 @@ export function createInProcessDailyAdmin(deps: InProcessDailyAdminDeps): DailyA
     createQuestion: (input) => guarded(() => deps.createQuestion.execute(input)),
     updateQuestion: (actorId, id, patch, confirm) =>
       guarded(() => deps.updateQuestion.execute(actorId, id, patch, confirm)),
-    listEvents: () => guarded(() => deps.listEvents.execute()),
-    createEvent: (input) => guarded(() => deps.createEvent.execute(input)),
-    updateEvent: (actorId, id, patch, confirm) =>
-      guarded(() => deps.updateEvent.execute(actorId, id, patch, confirm)),
   }
 }

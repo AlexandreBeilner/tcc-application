@@ -5,9 +5,6 @@ import type {
     GuessResponse,
     LearnMore,
     LetterState,
-    TimelineEventReveal,
-    TimelineProgress,
-    TimelineResponse,
     TriviaProgress,
     TriviaResponse,
     WordProgress,
@@ -20,7 +17,6 @@ export function emptyProgress(game: DailyGame): GameProgress {
         number: game.number,
         word: { guesses: [], finished: false, solved: false, reveal: null },
         trivia: { answered: false },
-        timeline: { answered: false },
         finishedAt: null,
         onTime: false,
     }
@@ -28,15 +24,15 @@ export function emptyProgress(game: DailyGame): GameProgress {
 
 /** Ninguém jogou nada neste jogo ainda (nem um palpite). */
 export function isUntouched(p: GameProgress): boolean {
-    return p.word.guesses.length === 0 && !p.word.finished && !p.trivia.answered && !p.timeline.answered
+    return p.word.guesses.length === 0 && !p.word.finished && !p.trivia.answered
 }
 
 export function isComplete(p: GameProgress): boolean {
-    return p.word.finished && p.trivia.answered && p.timeline.answered
+    return p.word.finished && p.trivia.answered
 }
 
 export function correctCards(p: GameProgress): number {
-    return (p.word.solved ? 1 : 0) + (p.trivia.answered && p.trivia.correct ? 1 : 0) + (p.timeline.answered && p.timeline.correct ? 1 : 0)
+    return (p.word.solved ? 1 : 0) + (p.trivia.answered && p.trivia.correct ? 1 : 0)
 }
 
 export function applyGuess(p: GameProgress, guess: string, res: GuessResponse): GameProgress {
@@ -62,10 +58,6 @@ export function applyTrivia(p: GameProgress, choice: number, res: TriviaResponse
             learnMore: res.learnMore ?? null,
         },
     }
-}
-
-export function applyTimeline(p: GameProgress, order: string[], res: TimelineResponse): GameProgress {
-    return { ...p, timeline: { answered: true, order, correct: res.correct, positionHits: res.positionHits, events: res.events } }
 }
 
 // ---- leitura defensiva (localStorage e GET /daily/:n/me): o que não bate com o formato é descartado, nunca quebra ----
@@ -114,47 +106,19 @@ function parseTrivia(raw: unknown): TriviaProgress | null {
     }
 }
 
-function parseEvent(raw: unknown): TimelineEventReveal | null {
-    if (!isRecord(raw) || !str(raw.id) || !str(raw.label) || !num(raw.year)) return null
-    return {
-        id: raw.id,
-        label: raw.label,
-        year: raw.year,
-        explanation: str(raw.explanation) ? raw.explanation : '',
-        sourceRef: str(raw.sourceRef) ? raw.sourceRef : '',
-        learnMore: parseLearnMore(raw.learnMore),
-    }
-}
-
-function parseTimeline(raw: unknown): TimelineProgress | null {
-    if (!isRecord(raw) || typeof raw.answered !== 'boolean') return null
-    if (!raw.answered) return { answered: false }
-    if (typeof raw.correct !== 'boolean' || !Array.isArray(raw.order) || !raw.order.every(str)) return null
-    if (!Array.isArray(raw.positionHits) || !raw.positionHits.every((h) => typeof h === 'boolean')) return null
-    if (!Array.isArray(raw.events)) return null
-    const events = raw.events.map(parseEvent)
-    if (events.some((e) => e === null)) return null
-    return {
-        answered: true,
-        order: raw.order as string[],
-        correct: raw.correct,
-        positionHits: raw.positionHits as boolean[],
-        events: events as TimelineEventReveal[],
-    }
-}
-
-/** `null` quando o formato não bate ou o número não é o esperado (o chamador começa um jogo novo). */
+/**
+ * `null` quando o formato não bate ou o número não é o esperado (o chamador começa um jogo novo). Jogo salvo na versão
+ * de três cartões traz também a Linha do tempo, que saiu (DI18): ela é ignorada e o jogo vale com os dois cartões.
+ */
 export function parseProgress(raw: unknown, expectedNumber: number): GameProgress | null {
     if (!isRecord(raw) || raw.number !== expectedNumber) return null
     const word = parseWord(raw.word)
     const trivia = parseTrivia(raw.trivia)
-    const timeline = parseTimeline(raw.timeline)
-    if (!word || !trivia || !timeline) return null
+    if (!word || !trivia) return null
     return {
         number: expectedNumber,
         word,
         trivia,
-        timeline,
         finishedAt: str(raw.finishedAt) ? raw.finishedAt : null,
         onTime: raw.onTime === true,
     }
@@ -162,5 +126,5 @@ export function parseProgress(raw: unknown, expectedNumber: number): GameProgres
 
 /** `/me` de um jogo sem nenhuma jogada vem tudo como não respondido: tratar como jogo novo. */
 export function hasAnyPlay(p: GameProgress): boolean {
-    return p.word.guesses.length > 0 || p.trivia.answered || p.timeline.answered
+    return p.word.guesses.length > 0 || p.trivia.answered
 }

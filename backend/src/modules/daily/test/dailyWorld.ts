@@ -3,9 +3,8 @@ import { createAuthMiddleware } from '../../../shared/http/authMiddleware'
 import { DailyProgressRecorder } from '../application/dailyProgressRecorder'
 import { GetMyGameStateUseCase } from '../application/useCases/getMyGameState'
 import { GetMyStatsUseCase } from '../application/useCases/getMyStats'
-import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../domain/content'
+import type { DailyPuzzle, DailyQuestion, DailyWord } from '../domain/content'
 import { addDays } from '../domain/gameDay'
-import { AnswerTimelineUseCase } from '../application/useCases/answerTimeline'
 import { AnswerTriviaUseCase } from '../application/useCases/answerTrivia'
 import { DailyGameLoader } from '../application/dailyGameLoader'
 import { EvaluateWordGuessUseCase } from '../application/useCases/evaluateWordGuess'
@@ -15,7 +14,6 @@ import { GetTodayUseCase } from '../application/useCases/getToday'
 import { RecordDailyMetricUseCase } from '../application/useCases/recordDailyMetric'
 import {
   createFakeAcceptedWordRepository,
-  createFakeDailyEventRepository,
   createFakeDailyMetricsRepository,
   createFakeDailyResultRepository,
   createFakeStreakTracker,
@@ -53,31 +51,6 @@ export const QUESTION: DailyQuestion = {
   active: true,
 }
 
-const event = (id: string, year: number, label: string): DailyEvent => ({
-  id,
-  stableKey: id,
-  year,
-  label,
-  explanation: `Explicação de ${label}`,
-  sourceRef: 'BCB',
-  learnMore: null,
-  category: 'planos-e-moeda',
-  scope: 'brasil',
-  reviewedAt: null,
-  active: true,
-})
-
-export const EVENTS: DailyEvent[] = [
-  event('ev-plano', 1994, 'Plano Real'),
-  event('ev-cambio', 1999, 'Câmbio flutuante'),
-  event('ev-crise', 2008, 'Crise financeira global'),
-  event('ev-joesley', 2017, 'Joesley Day'),
-]
-
-// Ordem de exibição embaralhada de propósito.
-export const DISPLAY_ORDER = ['ev-crise', 'ev-plano', 'ev-joesley', 'ev-cambio']
-export const CORRECT_ORDER = ['ev-plano', 'ev-cambio', 'ev-crise', 'ev-joesley']
-
 export const START = '2026-11-01'
 export const ACCEPTED = ['ACOES', 'JUROS', 'CARRO', 'MORAL', 'AMOR', 'AMORES']
 
@@ -93,7 +66,6 @@ export function buildDailyWorld(options: WorldOptions) {
   const settings = createFakeDailySettingsRepository(options.startDate)
   const words = createFakeDailyWordRepository([WORD])
   const questions = createFakeDailyQuestionRepository([QUESTION])
-  const events = createFakeDailyEventRepository(EVENTS)
   const acceptedWords = createFakeAcceptedWordRepository(ACCEPTED)
   const puzzles: DailyPuzzle[] = options.startDate
     ? Array.from({ length: options.puzzleCount ?? 5 }, (_, i) => ({
@@ -101,17 +73,15 @@ export function buildDailyWorld(options: WorldOptions) {
         gameDate: addDays(options.startDate as string, i),
         wordId: WORD.id,
         questionId: QUESTION.id,
-        timelineEventIds: DISPLAY_ORDER,
         wordOrigin: 'generated',
         questionOrigin: 'generated',
-        timelineOrigin: 'generated',
         reviewedBy: null,
         reviewedAt: null,
         publishedAt: new Date(0),
       }))
     : []
   const puzzleRepo = createFakeDailyPuzzleRepository(puzzles)
-  const loader = new DailyGameLoader(settings, puzzleRepo, words, questions, events)
+  const loader = new DailyGameLoader(settings, puzzleRepo, words, questions)
   const results = createFakeDailyResultRepository()
   const xpAwarder = createFakeXpAwarder({
     xp: 50,
@@ -146,7 +116,6 @@ export function buildDailyWorld(options: WorldOptions) {
     getArchive: new GetArchiveUseCase(settings, loader),
     evaluateWordGuess: new EvaluateWordGuessUseCase(loader, acceptedWords, recorder),
     answerTrivia: new AnswerTriviaUseCase(loader, recorder),
-    answerTimeline: new AnswerTimelineUseCase(loader, recorder),
     getMyGameState: new GetMyGameStateUseCase(loader, results),
     getMyStats: new GetMyStatsUseCase(settings, results),
     recordMetric: new RecordDailyMetricUseCase(metrics),

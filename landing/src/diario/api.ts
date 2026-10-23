@@ -1,5 +1,5 @@
 import { isRecord } from './dom.ts'
-import type { DailyGame, DailyStats, GuessResponse, TimelineResponse, TodayResponse, TriviaResponse } from './types.ts'
+import type { DailyGame, DailyStats, GuessResponse, TodayResponse, TriviaResponse } from './types.ts'
 
 /** Erro HTTP da API do Diário. `status` 0 = sem conexão. `code` é o `error` do corpo (`word_not_accepted`, `already_answered`...). */
 export class DailyApiError extends Error {
@@ -23,7 +23,6 @@ export interface DailyApi {
     game(number: number): Promise<DailyGame>
     guess(number: number, guess: string, attempt?: number): Promise<GuessResponse>
     trivia(number: number, choice: number): Promise<TriviaResponse>
-    timeline(number: number, order: string[]): Promise<TimelineResponse>
     /** Só logado (modo `app`). */
     me(number: number): Promise<unknown>
     stats(): Promise<DailyStats>
@@ -102,7 +101,6 @@ export function createDailyApi({ baseUrl, fetch: fetchImpl, getToken }: ApiOptio
         game: (n) => request('GET', `/daily/${n}`),
         guess: (n, guess, attempt) => request('POST', `/daily/${n}/word/guess`, attempt === undefined ? { guess } : { guess, attempt }),
         trivia: (n, choice) => request('POST', `/daily/${n}/cards/trivia/answer`, { choice }),
-        timeline: (n, order) => request('POST', `/daily/${n}/cards/timeline/answer`, { order }),
         me: (n) => request('GET', `/daily/${n}/me`),
         stats: () => request('GET', '/daily/me/stats'),
     }

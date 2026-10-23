@@ -29,7 +29,6 @@ describe.skipIf(!databaseUrl)('seed do conteúdo do Diário (banco real)', () =>
     await db.delete(schema.dailyPuzzles)
     await db.delete(schema.dailyWords)
     await db.delete(schema.dailyQuestions)
-    await db.delete(schema.dailyEvents)
     await db.delete(schema.dailyAcceptedWords)
   })
 
@@ -42,13 +41,12 @@ describe.skipIf(!databaseUrl)('seed do conteúdo do Diário (banco real)', () =>
     const first = await seedDailyContent(db)
     expect(first.words).toBe(INITIAL_CONTENT.words.length)
     expect(first.questions).toBe(INITIAL_CONTENT.questions.length)
-    expect(first.events).toBe(INITIAL_CONTENT.events.length)
     expect(first.acceptedVero).toBe(vero.length)
     const extrasOutsideVero = EXTRA_ACCEPTED_WORDS.filter((w) => !new Set(vero).has(w))
     expect(first.acceptedExtra).toBe(extrasOutsideVero.length)
 
     const second = await seedDailyContent(db)
-    expect(second).toEqual({ acceptedVero: 0, acceptedExtra: 0, words: 0, questions: 0, events: 0 })
+    expect(second).toEqual({ acceptedVero: 0, acceptedExtra: 0, words: 0, questions: 0 })
 
     const [{ n }] = (await pool.query('select count(*)::int as n from daily_accepted_words')).rows
     expect(n).toBe(vero.length + extrasOutsideVero.length)
@@ -61,10 +59,9 @@ describe.skipIf(!databaseUrl)('seed do conteúdo do Diário (banco real)', () =>
     expect(orphans.rows).toEqual([])
   })
 
-  it('grava fonte, categoria e marcador de cada pergunta e evento', async () => {
+  it('grava fonte, categoria e marcador de cada pergunta', async () => {
     const questions = await db.select().from(schema.dailyQuestions)
-    const events = await db.select().from(schema.dailyEvents)
-    for (const row of [...questions, ...events]) {
+    for (const row of questions) {
       expect(row.sourceRef.trim().length).toBeGreaterThan(0)
       expect(['brasil', 'fora']).toContain(row.scope)
       expect(row.category.length).toBeGreaterThan(0)
@@ -90,7 +87,6 @@ describe.skipIf(!databaseUrl)('seed do conteúdo do Diário (banco real)', () =>
       acceptedExtra: 0,
       words: 0,
       questions: 0,
-      events: 0,
     })
 
     const [after] = await db

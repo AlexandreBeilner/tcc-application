@@ -6,7 +6,6 @@ import { append, el, formatCountdown, formatDate } from './dom.ts'
 import type { StateKeeper } from './keeper.ts'
 import { correctCards, emptyProgress, isComplete, isUntouched } from './progress.ts'
 import { buildShareText, DEFAULT_SHARE_URL } from './share.ts'
-import { createTimelineCard } from './timeline.ts'
 import { createTriviaCard } from './trivia.ts'
 import type { Completion, DailyGame, DailyStats, GameProgress, LearnMore, Mode } from './types.ts'
 import { createWordCard } from './word.ts'
@@ -34,9 +33,9 @@ export interface DiarioController {
     destroy(): void
 }
 
-type TabId = 'word' | 'trivia' | 'timeline' | 'result'
-const TAB_LABEL: Record<TabId, string> = { word: 'Palavra', trivia: 'Pergunta', timeline: 'Linha do tempo', result: 'Resultado' }
-const CARD_IDS: Exclude<TabId, 'result'>[] = ['word', 'trivia', 'timeline']
+type TabId = 'word' | 'trivia' | 'result'
+const TAB_LABEL: Record<TabId, string> = { word: 'Palavra', trivia: 'Pergunta', result: 'Resultado' }
+const CARD_IDS: Exclude<TabId, 'result'>[] = ['word', 'trivia']
 const PAST_LIST = 30
 const WARN_MS = 10 * 60 * 1000
 
@@ -211,7 +210,6 @@ export function mountDiario(root: HTMLElement, options: MountOptions): DiarioCon
         const cards: Record<Exclude<TabId, 'result'>, CardView> = {
             word: createWordCard(env),
             trivia: createTriviaCard(env),
-            timeline: createTimelineCard(env),
         }
         const resultPanel = el(doc, 'div', { class: 'dg-result' })
 
@@ -219,7 +217,7 @@ export function mountDiario(root: HTMLElement, options: MountOptions): DiarioCon
         const tabEls = {} as Record<TabId, HTMLButtonElement>
         const panels = {} as Record<TabId, HTMLElement>
         const tablist = el(doc, 'div', { class: 'dg-tabs', role: 'tablist', 'aria-label': 'Cartões do dia' })
-        const ids: TabId[] = ['word', 'trivia', 'timeline', 'result']
+        const ids: TabId[] = ['word', 'trivia', 'result']
         for (const id of ids) {
             const btn = el(doc, 'button', {
                 type: 'button',
@@ -257,12 +255,7 @@ export function mountDiario(root: HTMLElement, options: MountOptions): DiarioCon
 
         function cardState(id: Exclude<TabId, 'result'>): { glyph: string; text: string } {
             if (!cardDone(progress, id)) return { glyph: '○', text: 'pendente' }
-            const ok =
-                id === 'word'
-                    ? progress.word.solved
-                    : id === 'trivia'
-                      ? progress.trivia.answered && progress.trivia.correct
-                      : progress.timeline.answered && progress.timeline.correct
+            const ok = id === 'word' ? progress.word.solved : progress.trivia.answered && progress.trivia.correct
             return ok ? { glyph: '✓', text: 'certo' } : { glyph: '✗', text: 'errado' }
         }
 
@@ -368,7 +361,7 @@ export function mountDiario(root: HTMLElement, options: MountOptions): DiarioCon
                     doc,
                     'h3',
                     { class: 'dg-res-title' },
-                    practice ? `Diário #${game.number} concluído` : `Diário de hoje concluído: ${total} de 3 certos`,
+                    practice ? `Diário #${game.number} concluído` : `Diário de hoje concluído: ${total} de ${CARD_IDS.length} certos`,
                 ),
                 el(
                     doc,
@@ -376,7 +369,6 @@ export function mountDiario(root: HTMLElement, options: MountOptions): DiarioCon
                     { class: 'dg-res-list' },
                     line('Palavra', w.solved, w.solved ? `em ${w.guesses.length} de ${game.cards.word.maxAttempts}` : 'não resolvida'),
                     line('Pergunta', progress.trivia.answered && progress.trivia.correct, ''),
-                    line('Linha do tempo', progress.timeline.answered && progress.timeline.correct, ''),
                 ),
                 completion && completion.xpAwarded > 0 ? el(doc, 'p', { class: 'dg-xp' }, `+${completion.xpAwarded} XP`) : null,
                 practice ? el(doc, 'p', { class: 'dg-hint' }, 'Dia anterior: não vale XP nem sequência.') : null,
@@ -456,7 +448,7 @@ export function mountDiario(root: HTMLElement, options: MountOptions): DiarioCon
     }
 
     function cardDone(p: GameProgress, id: Exclude<TabId, 'result'>): boolean {
-        return id === 'word' ? p.word.finished : id === 'trivia' ? p.trivia.answered : p.timeline.answered
+        return id === 'word' ? p.word.finished : p.trivia.answered
     }
 
     // ---- estatísticas e dias anteriores ----

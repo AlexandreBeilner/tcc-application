@@ -1,11 +1,5 @@
 import type { CoverageTally } from '../domain/adminCoverage'
-import type {
-  CardOrigin,
-  ContentScope,
-  DailyEvent,
-  DailyQuestion,
-  DailyWord,
-} from '../domain/content'
+import type { CardOrigin, ContentScope, DailyQuestion, DailyWord } from '../domain/content'
 import type { DailyStatus } from '../domain/gameDay'
 
 // Visões do painel (DI.5.1). Diferente das rotas públicas, o painel vê o gabarito: é para conferir.
@@ -14,10 +8,9 @@ export interface AdminAgendaDay {
   number: number
   date: string
   published: boolean
-  origins: { word: CardOrigin; question: CardOrigin; timeline: CardOrigin }
+  origins: { word: CardOrigin; question: CardOrigin }
   word: { display: string; category: string; scope: ContentScope } | null
   question: { text: string; category: string; scope: ContentScope } | null
-  events: { label: string; year: number; category: string; scope: ContentScope }[]
 }
 
 export type AdminAlertCode =
@@ -46,9 +39,8 @@ export interface AdminOverview {
     windowDays: number
     word: CoverageTally
     trivia: CoverageTally
-    timeline: CoverageTally
   }
-  bank: { words: number; questions: number; events: number; acceptedExtra: number }
+  bank: { words: number; questions: number; acceptedExtra: number }
 }
 
 export interface AdminPuzzleView {
@@ -56,13 +48,9 @@ export interface AdminPuzzleView {
   date: string
   isTodayOrPast: boolean
   publishedAt: Date | null
-  origins: { word: CardOrigin; question: CardOrigin; timeline: CardOrigin }
+  origins: { word: CardOrigin; question: CardOrigin }
   word: DailyWord
   question: DailyQuestion
-  // Ordem em que o jogador vê.
-  events: DailyEvent[]
-  // Ids na ordem certa (por ano), o gabarito da Linha do tempo.
-  correctOrder: string[]
   warnings: string[]
 }
 

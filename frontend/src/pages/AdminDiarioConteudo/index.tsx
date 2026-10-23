@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AdminDailyAccepted } from '../../components/organisms/AdminDailyAccepted'
-import { AdminDailyEvents } from '../../components/organisms/AdminDailyEvents'
 import { AdminDailyQuestions } from '../../components/organisms/AdminDailyQuestions'
 import { AdminDailyWords } from '../../components/organisms/AdminDailyWords'
 import styles from './index.module.css'
 
-type Tab = 'words' | 'questions' | 'events' | 'accepted'
+type Tab = 'words' | 'questions' | 'accepted'
 
 const TABS: { key: Tab; label: string }[] = [
     { key: 'words', label: 'Palavras' },
     { key: 'questions', label: 'Perguntas' },
-    { key: 'events', label: 'Eventos' },
     { key: 'accepted', label: 'Palavras aceitas' },
 ]
 
@@ -27,9 +25,7 @@ export function AdminDiarioConteudo() {
             </Link>
             <header>
                 <h1 className={styles.title}>Conteúdo do Diário</h1>
-                <p className={styles.subtitle}>
-                    Palavras, perguntas e eventos da Linha do tempo. Item em jogo já publicado só muda com confirmação.
-                </p>
+                <p className={styles.subtitle}>Palavras e perguntas. Item em jogo já publicado só muda com confirmação.</p>
             </header>
 
             <div role="tablist" aria-label="Bancos de conteúdo" className={styles.tabs}>
@@ -52,7 +48,6 @@ export function AdminDiarioConteudo() {
             <div role="tabpanel" id="diario-tabpanel" aria-labelledby={`diario-tab-${tab}`}>
                 {tab === 'words' && <AdminDailyWords />}
                 {tab === 'questions' && <AdminDailyQuestions />}
-                {tab === 'events' && <AdminDailyEvents />}
                 {tab === 'accepted' && <AdminDailyAccepted />}
             </div>
         </main>

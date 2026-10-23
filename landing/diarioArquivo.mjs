@@ -35,17 +35,7 @@ export function isArchivedGame(g) {
         g.trivia.correctIndex < g.trivia.options.length &&
         isString(g.trivia?.explanation) &&
         isString(g.trivia?.sourceRef) &&
-        isLearnMore(g.trivia?.learnMore ?? null) &&
-        Array.isArray(g.timeline?.events) &&
-        g.timeline.events.length >= 2 &&
-        g.timeline.events.every(
-            (e) =>
-                isString(e?.label) &&
-                Number.isInteger(e?.year) &&
-                isString(e?.explanation) &&
-                isString(e?.sourceRef) &&
-                isLearnMore(e?.learnMore ?? null),
-        ),
+        isLearnMore(g.trivia?.learnMore ?? null),
     )
 }
 
@@ -98,7 +88,7 @@ export function gamePath(n) {
 export function gameMeta(g, siteUrl) {
     return {
         title: `Diário Selucra nº ${g.number}: ${g.word.answer} e as respostas do dia`,
-        description: `Respostas e explicações do Diário Selucra nº ${g.number}, de ${fmtDate(g.date)}: a palavra ${g.word.answer}, a pergunta do dia e a linha do tempo.`,
+        description: `Respostas e explicações do Diário Selucra nº ${g.number}, de ${fmtDate(g.date)}: a palavra ${g.word.answer} e a pergunta do dia.`,
         url: `${siteUrl}${gamePath(g.number)}`,
     }
 }
@@ -113,12 +103,6 @@ export function renderGame(g, { guideSlugs, appUrl, prev, next }) {
             i === g.trivia.correctIndex ? `<li class="arq-certa"><strong>${esc(o)}</strong> (resposta certa)</li>` : `<li>${esc(o)}</li>`,
         )
         .join('')
-    const events = g.timeline.events
-        .map(
-            (e) =>
-                `<li><strong>${e.year}: ${esc(e.label)}</strong><br />${esc(e.explanation)}${more(e.learnMore)} <small class="arq-fonte">Fonte: ${esc(e.sourceRef)}</small></li>`,
-        )
-        .join('')
     const nav = [
         prev ? `<a href="${gamePath(prev.number)}">Nº ${prev.number}: dia anterior</a>` : '',
         next ? `<a href="${gamePath(next.number)}">Nº ${next.number}: dia seguinte</a>` : '',
@@ -128,7 +112,7 @@ export function renderGame(g, { guideSlugs, appUrl, prev, next }) {
     return `<article class="art wrap diario-arquivo">
     <nav class="crumbs" aria-label="Você está em"><a href="/">Início</a><span aria-hidden="true">/</span><a href="/diario/">Diário Selucra</a><span aria-hidden="true">/</span><a href="/diario/arquivo/">Arquivo</a><span aria-hidden="true">/</span><span aria-current="page">Nº ${g.number}</span></nav>
     <header class="art-head"><span class="eyebrow">Jogo encerrado</span><h1>Diário Selucra nº ${g.number}, de ${fmtDate(g.date)}</h1>
-    <p class="lead">As respostas e as explicações do jogo daquele dia: a palavra do mercado, a pergunta de economia e a linha do tempo.</p></header>
+    <p class="lead">As respostas e as explicações do jogo daquele dia: a palavra do mercado e a pergunta de economia.</p></header>
     <section class="art-sec"><h2>Palavra do dia</h2>
     <p>A palavra tinha ${wordText(g)}: <strong>${esc(g.word.answer)}</strong>.</p>
     <p>${esc(g.word.definition)}${more(g.word.learnMore)}</p></section>
@@ -137,9 +121,6 @@ export function renderGame(g, { guideSlugs, appUrl, prev, next }) {
     <ul class="arq-opcoes">${options}</ul>
     <p>${esc(g.trivia.explanation)}${more(g.trivia.learnMore)}</p>
     <p><small class="arq-fonte">Fonte: ${esc(g.trivia.sourceRef)}</small></p></section>
-    <section class="art-sec"><h2>Linha do tempo</h2>
-    <p>Os quatro eventos, do mais antigo ao mais recente:</p>
-    <ol class="arq-linha">${events}</ol></section>
     <aside class="art-cta"><h2>Jogue o Diário de hoje</h2><p>Um jogo novo sai todo dia às 21h, no horário de Brasília. No app, cada Diário rende XP e conta para a sua sequência.</p>
     <p class="diario-invite-actions"><a class="btn btn-primary" href="/diario/">Jogar agora</a><a class="btn btn-ghost" href="${appUrl}/login?modo=cadastro&amp;origem=diario">Criar conta</a></p></aside>
     <nav class="arq-nav" aria-label="Outros dias">${nav}<a href="/diario/arquivo/">Todos os dias</a></nav>
@@ -155,7 +136,7 @@ export function renderIndex(games) {
         .join('')
     return `<section class="art wrap diario-arquivo">
     <nav class="crumbs" aria-label="Você está em"><a href="/">Início</a><span aria-hidden="true">/</span><a href="/diario/">Diário Selucra</a><span aria-hidden="true">/</span><span aria-current="page">Arquivo</span></nav>
-    <header class="art-head"><span class="eyebrow">Arquivo</span><h1>Arquivo do Diário Selucra</h1><p class="lead">Os jogos já encerrados, com a palavra, a resposta da pergunta e a linha do tempo explicadas. O jogo de hoje só aparece aqui depois de acabar.</p></header>
+    <header class="art-head"><span class="eyebrow">Arquivo</span><h1>Arquivo do Diário Selucra</h1><p class="lead">Os jogos já encerrados, com a palavra e a resposta da pergunta explicadas. O jogo de hoje só aparece aqui depois de acabar.</p></header>
     <ul class="guides">${items}</ul>
 </section>`
 }
@@ -242,5 +223,5 @@ export function indexJsonLd(games, { siteUrl }) {
 export function archiveTeaser(games) {
     if (games.length === 0) return ''
     const last = games[0]
-    return `<section class="art-sec" id="arquivo"><h2>Dias anteriores</h2><p>Perdeu um dia? O <a href="/diario/arquivo/">arquivo do Diário</a> traz a palavra, a resposta da pergunta e a linha do tempo de cada jogo encerrado, a partir do nº ${games[games.length - 1].number} até o nº ${last.number}.</p></section>`
+    return `<section class="art-sec" id="arquivo"><h2>Dias anteriores</h2><p>Perdeu um dia? O <a href="/diario/arquivo/">arquivo do Diário</a> traz a palavra e a resposta da pergunta de cada jogo encerrado, a partir do nº ${games[games.length - 1].number} até o nº ${last.number}.</p></section>`
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { planDay, type ScheduledDay } from './agenda'
-import type { DailyEvent, DailyQuestion, DailyWord } from './content'
+import type { DailyQuestion, DailyWord } from './content'
 
 const word = (
   id: string,
@@ -39,24 +39,6 @@ const question = (
   active,
 })
 
-const event = (id: string, year: number, category = 'moeda', active = true): DailyEvent => ({
-  id,
-  stableKey: id,
-  year,
-  label: id,
-  explanation: 'e',
-  sourceRef: 'BCB',
-  learnMore: null,
-  category,
-  scope: 'brasil',
-  reviewedAt: null,
-  active,
-})
-
-// 40 eventos em 40 anos distintos, categorias alternadas: a Linha do tempo sempre tem de onde sortear.
-const events = Array.from({ length: 40 }, (_, i) =>
-  event(`e${String(i).padStart(2, '0')}`, 1960 + i, `cat${i % 4}`),
-)
 const words = Array.from({ length: 10 }, (_, i) => word(`w${i}`, `cat${i % 3}`))
 const questions = Array.from({ length: 10 }, (_, i) => question(`q${i}`, `cat${i % 3}`))
 
@@ -68,12 +50,11 @@ const day = (date: string, over: Partial<ScheduledDay> = {}): ScheduledDay => ({
   questionId: 'y',
   questionCategory: null,
   questionScope: null,
-  timelineEventIds: [],
   ...over,
 })
 
 const plan = (date: string, over: Partial<Parameters<typeof planDay>[0]> = {}) =>
-  planDay({ date, words, questions, events, history: [], ...over })
+  planDay({ date, words, questions, history: [], ...over })
 
 describe('planDay', () => {
   it('mesma entrada => mesmo plano; datas diferentes => planos diferentes', () => {
@@ -131,33 +112,6 @@ describe('planDay', () => {
     expect(old.plan?.questionId).toBe('q1')
   })
 
-  it('eventos da Linha do tempo têm janela menor que a da pergunta', () => {
-    const ids = events.map((e) => e.id)
-    const recent = plan('2026-11-10', { history: [day('2026-11-09', { timelineEventIds: ids })] })
-    expect(recent.plan).toBeNull()
-    expect(recent.warnings).toContain('no_timeline_available')
-    const old = plan('2026-11-30', { history: [day('2026-11-09', { timelineEventIds: ids })] })
-    expect(old.plan).not.toBeNull()
-  })
-
-  it('a Linha do tempo sempre tem 4 eventos de anos distintos, nunca já em ordem', () => {
-    for (let d = 1; d <= 28; d++) {
-      const result = plan(`2026-02-${String(d).padStart(2, '0')}`)
-      const years = result.plan!.timelineEventIds.map((id) => events.find((e) => e.id === id)!.year)
-      expect(new Set(years).size).toBe(4)
-      expect(years).not.toEqual([...years].sort((a, b) => a - b))
-    }
-  })
-
-  it('mistura décadas e categorias quando o banco permite', () => {
-    for (let d = 1; d <= 28; d++) {
-      const result = plan(`2026-02-${String(d).padStart(2, '0')}`)
-      const picked = result.plan!.timelineEventIds.map((id) => events.find((e) => e.id === id)!)
-      expect(new Set(picked.map((e) => Math.floor(e.year / 10))).size).toBeGreaterThanOrEqual(3)
-      expect(new Set(picked.map((e) => e.category)).size).toBeGreaterThanOrEqual(2)
-    }
-  })
-
   it('variedade: evita a categoria do dia anterior e do seguinte quando há alternativa', () => {
     const cats = [word('a1', 'juros'), word('b1', 'juros'), word('c1', 'crise')]
     const qs = [question('q1', 'juros'), question('q2', 'juros'), question('q3', 'crise')]
@@ -210,22 +164,15 @@ describe('planDay', () => {
   })
 
   it('banco vazio gera aviso por cartão, nunca um plano', () => {
-    const empty = plan('2026-11-03', { words: [], questions: [], events: [] })
+    const empty = plan('2026-11-03', { words: [], questions: [] })
     expect(empty.plan).toBeNull()
-    expect(empty.warnings).toEqual([
-      'no_word_available',
-      'no_question_available',
-      'no_timeline_available',
-    ])
+    expect(empty.warnings).toEqual(['no_word_available', 'no_question_available'])
   })
 
   it('itens inativos nunca entram', () => {
     expect(plan('2026-11-03', { words: [word('a1', 'x', 'brasil', false)] }).plan).toBeNull()
     expect(
       plan('2026-11-03', { questions: [question('q1', 'x', 'brasil', false)] }).plan,
-    ).toBeNull()
-    expect(
-      plan('2026-11-03', { events: events.map((e) => ({ ...e, active: false })) }).plan,
     ).toBeNull()
   })
 })

@@ -1,11 +1,9 @@
 import type { DailyPuzzle } from '../../domain/content'
 
-export type PuzzleItemKind = 'word' | 'question' | 'event'
+export type PuzzleItemKind = 'word' | 'question'
 
 export type PuzzleCardChange =
-  | { card: 'word'; wordId: string }
-  | { card: 'question'; questionId: string }
-  | { card: 'timeline'; timelineEventIds: string[] }
+  { card: 'word'; wordId: string } | { card: 'question'; questionId: string }
 
 export interface DailyPuzzleRepository {
   // Falha se o número ou a data já têm jogo.
@@ -14,8 +12,7 @@ export interface DailyPuzzleRepository {
   findByDate(gameDate: string): Promise<DailyPuzzle | null>
   // Jogos com data >= `fromDate`, em ordem de data (a agenda e a regra dos 30 dias).
   listFromDate(fromDate: string, limit: number): Promise<DailyPuzzle[]>
-  // Jogos que usam o item (palavra, pergunta ou evento da Linha do tempo), para avisar quando o
-  // item é editado ou desativado.
+  // Jogos que usam o item (palavra ou pergunta), para avisar quando o item é editado ou desativado.
   listUsing(kind: PuzzleItemKind, itemId: string): Promise<DailyPuzzle[]>
   // Troca um cartão do jogo e marca a origem como manual. Não toca `publishedAt`: quem decide se
   // pode é o caso de uso.

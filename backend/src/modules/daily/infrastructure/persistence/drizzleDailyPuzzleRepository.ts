@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNotNull, isNull } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { dailyPuzzles } from '../../../../db/schema'
 import type { DailyPuzzleRepository } from '../../application/ports/dailyPuzzleRepository'
@@ -10,10 +10,8 @@ function toPuzzle(row: typeof dailyPuzzles.$inferSelect): DailyPuzzle {
     gameDate: row.gameDate,
     wordId: row.wordId,
     questionId: row.questionId,
-    timelineEventIds: row.timelineEventIds,
     wordOrigin: row.wordOrigin as CardOrigin,
     questionOrigin: row.questionOrigin as CardOrigin,
-    timelineOrigin: row.timelineOrigin as CardOrigin,
     reviewedBy: row.reviewedBy,
     reviewedAt: row.reviewedAt,
     publishedAt: row.publishedAt,
@@ -28,10 +26,8 @@ export function createDrizzleDailyPuzzleRepository(db: Database): DailyPuzzleRep
         gameDate: puzzle.gameDate,
         wordId: puzzle.wordId,
         questionId: puzzle.questionId,
-        timelineEventIds: puzzle.timelineEventIds,
         wordOrigin: puzzle.wordOrigin,
         questionOrigin: puzzle.questionOrigin,
-        timelineOrigin: puzzle.timelineOrigin,
         reviewedBy: puzzle.reviewedBy,
         reviewedAt: puzzle.reviewedAt,
         publishedAt: puzzle.publishedAt,
@@ -68,11 +64,7 @@ export function createDrizzleDailyPuzzleRepository(db: Database): DailyPuzzleRep
 
     async listUsing(kind, itemId) {
       const where =
-        kind === 'word'
-          ? eq(dailyPuzzles.wordId, itemId)
-          : kind === 'question'
-            ? eq(dailyPuzzles.questionId, itemId)
-            : sql`${dailyPuzzles.timelineEventIds} @> ${JSON.stringify([itemId])}::jsonb`
+        kind === 'word' ? eq(dailyPuzzles.wordId, itemId) : eq(dailyPuzzles.questionId, itemId)
       const rows = await db
         .select()
         .from(dailyPuzzles)
@@ -85,9 +77,7 @@ export function createDrizzleDailyPuzzleRepository(db: Database): DailyPuzzleRep
       const set =
         change.card === 'word'
           ? { wordId: change.wordId, wordOrigin: 'manual' }
-          : change.card === 'question'
-            ? { questionId: change.questionId, questionOrigin: 'manual' }
-            : { timelineEventIds: change.timelineEventIds, timelineOrigin: 'manual' }
+          : { questionId: change.questionId, questionOrigin: 'manual' }
       await db.update(dailyPuzzles).set(set).where(eq(dailyPuzzles.number, number))
     },
 

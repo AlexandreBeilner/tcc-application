@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { DailyEvent, DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
+import type { DailyPuzzle, DailyQuestion, DailyWord } from '../../domain/content'
 import {
-  createFakeDailyEventRepository,
   createFakeDailyPuzzleRepository,
   createFakeDailyQuestionRepository,
   createFakeDailySettingsRepository,
@@ -36,50 +35,32 @@ const questionItem = (i: number): DailyQuestion => ({
   active: true,
 })
 
-const eventItem = (i: number): DailyEvent => ({
-  id: `e${i}`,
-  stableKey: `e${i}`,
-  year: 1900 + i,
-  label: `evento ${i}`,
-  explanation: 'e',
-  sourceRef: 'BCB',
-  learnMore: null,
-  category: `cat${i % 4}`,
-  scope: 'brasil',
-  reviewedAt: null,
-  active: true,
-})
-
 const manyWords = (n: number) => Array.from({ length: n }, (_, i) => word(i))
 const manyQuestions = (n: number) => Array.from({ length: n }, (_, i) => questionItem(i))
-const manyEvents = (n: number) => Array.from({ length: n }, (_, i) => eventItem(i))
 
 function setup(opts: {
   start: string | null
   now: string
   words?: DailyWord[]
   questions?: DailyQuestion[]
-  events?: DailyEvent[]
   puzzles?: DailyPuzzle[]
   horizon?: number
 }) {
   const settings = createFakeDailySettingsRepository(opts.start)
   const words = createFakeDailyWordRepository(opts.words ?? manyWords(60))
   const questions = createFakeDailyQuestionRepository(opts.questions ?? manyQuestions(60))
-  const events = createFakeDailyEventRepository(opts.events ?? manyEvents(200))
   const puzzles = createFakeDailyPuzzleRepository(opts.puzzles)
   const useCase = new MaterializeUpcomingPuzzlesUseCase(
     settings,
     words,
     questions,
-    events,
     puzzles,
     () => new Date(opts.now),
     {
       horizonDays: opts.horizon ?? 30,
     },
   )
-  return { settings, words, questions, events, puzzles, useCase }
+  return { settings, words, questions, puzzles, useCase }
 }
 
 const puzzleAt = (
@@ -91,10 +72,8 @@ const puzzleAt = (
   gameDate,
   wordId: `w${number + 100}`,
   questionId: `q${number + 100}`,
-  timelineEventIds: ['e1', 'e2', 'e3', 'e4'],
   wordOrigin: 'generated',
   questionOrigin: 'generated',
-  timelineOrigin: 'generated',
   reviewedBy: null,
   reviewedAt: null,
   publishedAt: null,
@@ -204,7 +183,6 @@ describe('MaterializeUpcomingPuzzlesUseCase', () => {
       now: '2026-11-01T12:00:00Z',
       words: [],
       questions: [],
-      events: [],
       horizon: 2,
     })
     const result = await useCase.execute()
@@ -212,10 +190,8 @@ describe('MaterializeUpcomingPuzzlesUseCase', () => {
     expect(result.warnings.map((w) => w.code)).toEqual([
       'no_word_available',
       'no_question_available',
-      'no_timeline_available',
       'no_word_available',
       'no_question_available',
-      'no_timeline_available',
     ])
   })
 

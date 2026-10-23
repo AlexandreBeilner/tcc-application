@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { createLocalKeeper, createServerKeeper, mountDiario, STORAGE_KEY } from '../../src/diario/index.ts'
 import type { DiarioController, MountOptions } from '../../src/diario/index.ts'
-import { EVENTS, makeApi, makeDom, makeGame, memoryStorage } from './fixtures.ts'
+import { makeApi, makeDom, makeGame, memoryStorage } from './fixtures.ts'
 import type { FakeApi } from './fixtures.ts'
 
 const live: DiarioController[] = []
@@ -141,7 +141,7 @@ describe('Palavra do dia', () => {
     })
 })
 
-async function playAll(t: ReturnType<typeof setup>, { timelineRight = true } = {}) {
+async function playAll(t: ReturnType<typeof setup>) {
     await t.flush()
     t.type('acoes')
     t.key('Enter')
@@ -150,18 +150,18 @@ async function playAll(t: ReturnType<typeof setup>, { timelineRight = true } = {
     t.click(t.$$('.dg-option')[1])
     t.click(t.button('Confirmar resposta')!)
     await t.flush()
-    t.click(t.button('Próximo: Linha do tempo')!)
-    if (timelineRight) {
-        // ordem inicial: e3, e1, e4, e2  ->  e3, e1, e2, e4 (desce e2? sobe e2 uma vez)
-        const up = t.$$('.dg-tl-up')
-        t.click(up[3])
-    }
-    t.click(t.button('Conferir ordem')!)
-    await t.flush()
     t.click(t.button('Ver o resultado')!)
 }
 
-describe('Pergunta e Linha do tempo', () => {
+describe('Pergunta do dia', () => {
+    it('são dois cartões e o resultado; a Linha do tempo saiu (DI18)', async () => {
+        const t = setup()
+        await t.flush()
+        const tabs = t.$$('.dg-tab').map((b) => b.textContent!.replace(/ \(.*\)$/, '').replace(/^[○✓✗]/, ''))
+        assert.deepEqual(tabs, ['Palavra', 'Pergunta', 'Resultado'])
+        assert.equal(t.$('.dg-tl'), null)
+    })
+
     it('pergunta: escolhe, confirma e mostra gabarito, explicação e fonte', async () => {
         const t = setup()
         await t.flush()
@@ -175,26 +175,6 @@ describe('Pergunta e Linha do tempo', () => {
         assert.match(t.$('.dg-trivia .dg-after')!.textContent!, /IPCA/)
         assert.match(t.$('.dg-trivia .dg-after')!.textContent!, /Fonte: Banco Central/)
     })
-
-    it('linha do tempo: ordena por botões e por teclado na alça, e mostra anos e acertos por posição', async () => {
-        const t = setup()
-        await t.flush()
-        t.click(t.$$('.dg-tab')[2])
-        const labels = () => t.$$('.dg-tl-label').map((n) => n.textContent)
-        assert.deepEqual(labels(), ['Plano Collor', 'Plano Real', 'Selic a 2%', 'Crise de 2008'])
-        t.click(t.$$('.dg-tl-up')[3])
-        assert.deepEqual(labels(), ['Plano Collor', 'Plano Real', 'Crise de 2008', 'Selic a 2%'])
-        t.$$('.dg-tl-grip')[1].dispatchEvent(new t.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
-        assert.deepEqual(labels(), ['Plano Real', 'Plano Collor', 'Crise de 2008', 'Selic a 2%'])
-        t.click(t.button('Conferir ordem')!)
-        await t.flush()
-        assert.deepEqual(t.api.calls.timeline[0], ['e1', 'e3', 'e2', 'e4'])
-        assert.deepEqual(
-            t.$$('.dg-tl-item').map((n) => n.dataset.hit),
-            ['false', 'false', 'true', 'true'],
-        )
-        assert.match(t.$('.dg-timeline .dg-truth')!.textContent!, /1990: Plano Collor/)
-    })
 })
 
 describe('Resultado', () => {
@@ -204,8 +184,8 @@ describe('Resultado', () => {
         await playAll(t)
         const share = t.$('.dg-share')!.textContent!
         assert.match(share, /^Diário Selucra #47\n/)
-        assert.match(share, /🟩🟩🟩🟩🟩\npalavra em 1\n❓ ✅  ⏳ ✅\nselucra\.com\.br\/diario$/)
-        assert.doesNotMatch(share, /AÇÕES|ACOES|R\$|IPCA|1994/i)
+        assert.match(share, /🟩🟩🟩🟩🟩\npalavra em 1\n❓ ✅\nselucra\.com\.br\/diario$/)
+        assert.doesNotMatch(share, /AÇÕES|ACOES|R\$|IPCA/i)
         assert.equal(t.button('Compartilhar'), null)
         t.click(t.button('Copiar resultado')!)
         await t.flush()
@@ -296,7 +276,7 @@ describe('estado salvo no navegador', () => {
         assert.equal(again.api.calls.trivia.length, 0)
         assert.equal(again.rowText(0), 'CARRO')
         assert.notEqual(again.rowStates(0)[0], 'empty')
-        // abre direto no cartão que falta (linha do tempo) ou no que está em andamento (palavra)
+        // abre direto no cartão que está em andamento (palavra)
         assert.equal(again.$$('.dg-tab')[1].dataset.state, 'errado')
         again.click(again.$$('.dg-tab')[1])
         assert.equal(again.$$('.dg-option')[2].dataset.state, 'wrong')
@@ -472,8 +452,8 @@ describe('modo app (servidor é a fonte)', () => {
 
     it('mostra o aviso de XP nos últimos minutos antes da virada e o XP ganho no resultado', async () => {
         const api = makeApi(makeGame(), { logged: true })
-        const orig = api.timeline
-        api.timeline = async (n, o) => ({ ...(await orig(n, o)), completion: { correctCards: 3, xpAwarded: 50 } })
+        const orig = api.trivia
+        api.trivia = async (n, c) => ({ ...(await orig(n, c)), completion: { correctCards: 2, xpAwarded: 50 } })
         const t = setup({ api, mode: 'app', now: () => Date.parse('2026-12-17T23:55:00Z') })
         await t.flush()
         t.window.document.dispatchEvent(new t.window.Event('visibilitychange'))
@@ -502,6 +482,5 @@ describe('erros de rede', () => {
         t.click(t.button('Tentar de novo')!)
         await t.flush()
         assert.equal(t.$$('.dg-row').length, 6)
-        assert.ok(EVENTS.length)
     })
 })

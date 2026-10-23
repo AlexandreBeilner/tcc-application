@@ -4,7 +4,6 @@ import { z } from 'zod'
 import type {
   AdminOverview,
   AdminPuzzleView,
-  DailyEvent,
   DailyQuestion,
   DailyWord,
 } from '../../application/ports/dailyAdmin'
@@ -25,8 +24,6 @@ import {
   dailyAcceptedWordBodySchema,
   dailyDraftBodySchema,
   dailyMetricsQuerySchema,
-  dailyEventCreateBodySchema,
-  dailyEventUpdateBodySchema,
   dailyPublishBodySchema,
   dailyQuestionCreateBodySchema,
   dailyQuestionUpdateBodySchema,
@@ -78,21 +75,6 @@ function serializeQuestion(q: DailyQuestion) {
   }
 }
 
-function serializeEvent(e: DailyEvent) {
-  return {
-    id: e.id,
-    stable_key: e.stableKey,
-    year: e.year,
-    label: e.label,
-    explanation: e.explanation,
-    source_ref: e.sourceRef,
-    learn_more: serializeLearnMore(e.learnMore),
-    category: e.category,
-    scope: e.scope,
-    active: e.active,
-  }
-}
-
 function serializeTally(t: AdminOverview['coverage']['word']) {
   return { total: t.total, brasil: t.brasil, fora: t.fora, by_category: t.byCategory }
 }
@@ -116,18 +98,15 @@ function serializeOverview(o: AdminOverview) {
       origins: d.origins,
       word: d.word,
       question: d.question,
-      events: d.events,
     })),
     coverage: {
       window_days: o.coverage.windowDays,
       word: serializeTally(o.coverage.word),
       trivia: serializeTally(o.coverage.trivia),
-      timeline: serializeTally(o.coverage.timeline),
     },
     bank: {
       words: o.bank.words,
       questions: o.bank.questions,
-      events: o.bank.events,
       accepted_extra: o.bank.acceptedExtra,
     },
   }
@@ -142,8 +121,6 @@ function serializePuzzle(p: AdminPuzzleView) {
     origins: p.origins,
     word: serializeWord(p.word),
     question: serializeQuestion(p.question),
-    events: p.events.map(serializeEvent),
-    correct_order: p.correctOrder,
     warnings: p.warnings,
   }
 }
@@ -281,9 +258,7 @@ export function createAdminDailyRouter(deps: AdminDailyRouterDeps): Router {
     const input =
       body.card === 'word'
         ? ({ card: 'word', wordId: body.word_id } as const)
-        : body.card === 'question'
-          ? ({ card: 'question', questionId: body.question_id } as const)
-          : ({ card: 'timeline', eventIds: body.event_ids } as const)
+        : ({ card: 'question', questionId: body.question_id } as const)
     try {
       res
         .status(200)
@@ -420,61 +395,6 @@ export function createAdminDailyRouter(deps: AdminDailyRouterDeps): Router {
       )
       res.status(200).json({
         question: serializeQuestion(result.item),
-        affected_puzzles: result.affectedPuzzles,
-      })
-    } catch (err) {
-      sendDailyError(err, res)
-    }
-  })
-
-  // ----- Eventos -----
-
-  router.get('/admin/daily/events', ...adminOnly, async (_req, res) => {
-    res.status(200).json({ events: (await deps.reads.events()).map(serializeEvent) })
-  })
-
-  router.post('/admin/daily/events', ...adminOnly, async (req, res) => {
-    const parsed = dailyEventCreateBodySchema.safeParse(req.body)
-    if (!parsed.success) return badRequest(res, 'evento inválido', parsed.error)
-    const body = parsed.data
-    try {
-      const event = await deps.content.createEvent(req.auth!.userId, {
-        year: body.year,
-        label: body.label,
-        explanation: body.explanation,
-        sourceRef: body.source_ref,
-        learnMore: body.learn_more,
-        category: body.category,
-        scope: body.scope,
-      })
-      res.status(201).json({ event: serializeEvent(event) })
-    } catch (err) {
-      sendDailyError(err, res)
-    }
-  })
-
-  router.patch('/admin/daily/events/:id', ...adminOnly, async (req, res) => {
-    const parsed = dailyEventUpdateBodySchema.safeParse(req.body)
-    if (!parsed.success) return badRequest(res, 'evento inválido', parsed.error)
-    const { confirm_published, ...body } = parsed.data
-    try {
-      const result = await deps.content.updateEvent(
-        req.auth!.userId,
-        String(req.params.id),
-        {
-          year: body.year,
-          label: body.label,
-          explanation: body.explanation,
-          sourceRef: body.source_ref,
-          category: body.category,
-          scope: body.scope,
-          active: body.active,
-          ...learnMoreOf(body),
-        },
-        confirm_published,
-      )
-      res.status(200).json({
-        event: serializeEvent(result.item),
         affected_puzzles: result.affectedPuzzles,
       })
     } catch (err) {

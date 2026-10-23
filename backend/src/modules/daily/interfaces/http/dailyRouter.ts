@@ -2,7 +2,6 @@ import { Router, type RequestHandler, type Response } from 'express'
 import { z } from 'zod'
 import type { AuthMiddleware } from '../../../../shared/http/authMiddleware'
 import { noStore } from '../../../../shared/http/noStore'
-import type { AnswerTimelineUseCase } from '../../application/useCases/answerTimeline'
 import type { AnswerTriviaUseCase } from '../../application/useCases/answerTrivia'
 import type { EvaluateWordGuessUseCase } from '../../application/useCases/evaluateWordGuess'
 import type { GetMyGameStateUseCase } from '../../application/useCases/getMyGameState'
@@ -19,12 +18,11 @@ import {
   DailyNotStartedError,
   InvalidChoiceError,
   InvalidGuessError,
-  InvalidOrderError,
   WordNotAcceptedError,
 } from '../../domain/errors'
 import {
   metricBodySchema,
-  timelineAnswerBodySchema,
+  answerCardParamSchema,
   triviaAnswerBodySchema,
   wordGuessBodySchema,
 } from './schemas'
@@ -35,7 +33,6 @@ export interface DailyRouterDeps {
   getArchive: GetArchiveUseCase
   evaluateWordGuess: EvaluateWordGuessUseCase
   answerTrivia: AnswerTriviaUseCase
-  answerTimeline: AnswerTimelineUseCase
   getMyGameState: GetMyGameStateUseCase
   getMyStats: GetMyStatsUseCase
   recordMetric: RecordDailyMetricUseCase
@@ -73,8 +70,6 @@ function handleError(err: unknown, res: Response): boolean {
     res.status(409).json({ error: 'already_answered' })
   } else if (err instanceof AttemptRequiredError) {
     res.status(400).json({ error: 'attempt_required' })
-  } else if (err instanceof InvalidOrderError) {
-    res.status(422).json({ error: 'invalid_order' })
   } else {
     return false
   }
@@ -185,38 +180,26 @@ export function createDailyRouter(deps: DailyRouterDeps): Router {
       return
     }
     try {
-      if (req.params.card === 'trivia') {
-        const parsed = triviaAnswerBodySchema.safeParse(req.body)
-        if (!parsed.success) {
-          res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
-          return
-        }
-        res.status(200).json(
-          await deps.answerTrivia.execute({
-            number,
-            ...parsed.data,
-            userId: req.auth?.userId,
-            now: clock(),
-          }),
-        )
-      } else if (req.params.card === 'timeline') {
-        const parsed = timelineAnswerBodySchema.safeParse(req.body)
-        if (!parsed.success) {
-          res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
-          return
-        }
-        res.status(200).json(
-          await deps.answerTimeline.execute({
-            number,
-            ...parsed.data,
-            userId: req.auth?.userId,
-            now: clock(),
-          }),
-        )
-      } else {
-        // `word` tem rota própria; qualquer outro nome não é cartão.
-        res.status(404).json({ error: 'not_found' })
+      // Só a Pergunta do dia responde por aqui: `word` tem rota própria, e qualquer outro nome
+      // (inclusive `timeline`, que saiu pela DI18) é entrada inválida.
+      const card = answerCardParamSchema.safeParse(req.params.card)
+      if (!card.success) {
+        res.status(400).json({ error: 'invalid_card' })
+        return
       }
+      const parsed = triviaAnswerBodySchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: 'payload inválido', details: z.flattenError(parsed.error) })
+        return
+      }
+      res.status(200).json(
+        await deps.answerTrivia.execute({
+          number,
+          ...parsed.data,
+          userId: req.auth?.userId,
+          now: clock(),
+        }),
+      )
     } catch (err) {
       if (!handleError(err, res)) throw err
     }

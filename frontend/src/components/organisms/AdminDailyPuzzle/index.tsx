@@ -27,9 +27,7 @@ function OriginMark({ origin }: { origin: 'generated' | 'manual' }) {
 }
 
 function currentIdsOf(card: PickerCard, puzzle: DailyPuzzleDetail): string[] {
-    if (card === 'word') return [puzzle.word.id]
-    if (card === 'question') return [puzzle.question.id]
-    return puzzle.events.map((event) => event.id)
+    return card === 'word' ? [puzzle.word.id] : [puzzle.question.id]
 }
 
 // Um dia do Diário como o jogador vai ver, mais o gabarito (só o painel mostra), com as ações de
@@ -88,7 +86,6 @@ export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
 
     const published = puzzle.published_at !== null
     const busy = publish.isPending || replace.isPending
-    const rank = new Map(puzzle.correct_order.map((id, index) => [id, index + 1]))
 
     return (
         <div className={styles.root}>
@@ -170,34 +167,6 @@ export function AdminDailyPuzzle({ number }: AdminDailyPuzzleProps) {
                     </p>
                     <Button variant="secondary" disabled={busy} onClick={() => setPicker(picker === 'question' ? null : 'question')}>
                         Trocar pergunta
-                    </Button>
-                </section>
-
-                <section className={styles.card} aria-label="Linha do tempo">
-                    <div className={styles.cardHead}>
-                        <h2 className={styles.cardTitle}>Linha do tempo</h2>
-                        <OriginMark origin={puzzle.origins.timeline} />
-                    </div>
-                    <p className={styles.meta}>Na ordem em que o jogador vê. O número é a posição certa.</p>
-                    <ol className={styles.events}>
-                        {puzzle.events.map((event) => (
-                            <li key={event.id} className={styles.event}>
-                                <div className={styles.eventHead}>
-                                    <span className={styles.rank}>{rank.get(event.id)}</span>
-                                    <strong>{event.label}</strong>
-                                    <span className={styles.muted}>{event.year}</span>
-                                </div>
-                                <p className={styles.text}>{event.explanation}</p>
-                                <Source text={event.source_ref} />
-                                <p className={styles.meta}>
-                                    {categoryLabel(event.category)} · {DAILY_SCOPE_LABELS[event.scope]}
-                                    {!event.active && ' · desativado'}
-                                </p>
-                            </li>
-                        ))}
-                    </ol>
-                    <Button variant="secondary" disabled={busy} onClick={() => setPicker(picker === 'timeline' ? null : 'timeline')}>
-                        Trocar eventos
                     </Button>
                 </section>
             </div>

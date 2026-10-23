@@ -2,11 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query'
 import {
     addDailyAcceptedWord,
-    createDailyEvent,
     createDailyQuestion,
     createDailyWord,
     getDailyAcceptedWords,
-    getDailyEvents,
     getDailyMetrics,
     getDailyOverview,
     getDailyPuzzle,
@@ -17,15 +15,12 @@ import {
     removeDailyAcceptedWord,
     replaceDailyCard,
     setDailyStartDate,
-    updateDailyEvent,
     updateDailyQuestion,
     updateDailyWord,
 } from '../../../services/admin'
 import type {
     DailyChangeImpact,
     DailyDraftResult,
-    DailyEvent,
-    DailyEventInput,
     DailyMetricsDay,
     DailyOverview,
     DailyPatch,
@@ -46,7 +41,6 @@ const OVERVIEW_KEY = [...ADMIN_DAILY_QUERY_KEY, 'overview'] as const
 const puzzleKey = (number: number) => [...ADMIN_DAILY_QUERY_KEY, 'puzzle', number] as const
 const WORDS_KEY = [...ADMIN_DAILY_QUERY_KEY, 'words'] as const
 const QUESTIONS_KEY = [...ADMIN_DAILY_QUERY_KEY, 'questions'] as const
-const EVENTS_KEY = [...ADMIN_DAILY_QUERY_KEY, 'events'] as const
 const ACCEPTED_KEY = [...ADMIN_DAILY_QUERY_KEY, 'accepted'] as const
 
 // Tudo do painel do Diário depende de tudo (editar um item muda a agenda, a revisão e a cobertura),
@@ -79,7 +73,6 @@ export const useDailyPuzzleQuery = (number: number) =>
 export const useDailyWordsQuery = () => useDailyQuery<DailyWord[]>(WORDS_KEY, async (token) => (await getDailyWords(token)).words)
 export const useDailyQuestionsQuery = () =>
     useDailyQuery<DailyQuestion[]>(QUESTIONS_KEY, async (token) => (await getDailyQuestions(token)).questions)
-export const useDailyEventsQuery = () => useDailyQuery<DailyEvent[]>(EVENTS_KEY, async (token) => (await getDailyEvents(token)).events)
 export const useDailyAcceptedWordsQuery = () =>
     useDailyQuery<string[]>(ACCEPTED_KEY, async (token) => (await getDailyAcceptedWords(token)).words)
 
@@ -135,15 +128,6 @@ export const useUpdateDailyQuestionMutation = (): UseMutationResult<
     unknown,
     UpdateVariables<DailyQuestionInput>
 > => useDailyMutation((token, { id, patch }: UpdateVariables<DailyQuestionInput>) => updateDailyQuestion(token, id, patch))
-
-export const useCreateDailyEventMutation = (): UseMutationResult<{ event: DailyEvent }, unknown, DailyEventInput> =>
-    useDailyMutation((token, input: DailyEventInput) => createDailyEvent(token, input))
-
-export const useUpdateDailyEventMutation = (): UseMutationResult<
-    { event: DailyEvent } & DailyChangeImpact,
-    unknown,
-    UpdateVariables<DailyEventInput>
-> => useDailyMutation((token, { id, patch }: UpdateVariables<DailyEventInput>) => updateDailyEvent(token, id, patch))
 
 export const useAddDailyAcceptedWordMutation = (): UseMutationResult<{ word: string }, unknown, string> =>
     useDailyMutation((token, word: string) => addDailyAcceptedWord(token, word))

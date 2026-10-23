@@ -69,6 +69,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'daily.word_update',
   'daily.question_create',
   'daily.question_update',
+  // Legado: a Linha do tempo saiu do Diário (DI18), mas as linhas antigas de auditoria seguem legíveis.
   'daily.event_create',
   'daily.event_update',
   'daily.accepted_word_add',
