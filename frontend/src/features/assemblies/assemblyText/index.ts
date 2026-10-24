@@ -4,7 +4,6 @@ import type {
     AssemblyOption,
     AssemblySummary,
     DividendPolicyValue,
-    VoteDenialReason,
 } from '../../../services/assemblies'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -74,11 +73,6 @@ export function outcomeBadge(assembly: Pick<AssemblySummary, 'status' | 'outcome
     if (assembly.status === 'open') return 'Votação aberta'
     if (assembly.outcome === 'approved') return 'Aprovada'
     return assembly.outcomeReason === 'quorum' ? 'Sem votantes suficientes' : 'Empate'
-}
-
-// Convite ao PRO só para quem ficou sem como votar por falta de crédito (nunca no lugar do voto).
-export function isCreditShortage(reason: VoteDenialReason | null): boolean {
-    return reason === 'no_credit'
 }
 
 const dayFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' })

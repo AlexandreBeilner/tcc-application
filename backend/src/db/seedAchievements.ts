@@ -114,8 +114,8 @@ export const ACHIEVEMENT_SEEDS: AchievementSeed[] = [
     criteriaType: 'assemblies_participated',
     criteriaValue: '3',
   },
-  // Indicação (MO.7.2): amigos que concluíram a primeira lição. Os marcos 5, 20 e 50 espelham a
-  // escada de `referral_milestones`.
+  // Indicação (MO.7.2): amigos que concluíram a primeira lição. Os marcos 5, 20 e 50 são os
+  // mesmos dos títulos liberados por indicação (`cosmetic_items.unlock_referrals`).
   {
     seedKey: 'referrals_qualified_5',
     name: 'Convidou os Primeiros',

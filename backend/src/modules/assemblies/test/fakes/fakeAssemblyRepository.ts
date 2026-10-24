@@ -8,7 +8,6 @@ import type { Vote } from '../../domain/assembly'
 export interface FakeAssemblyRepository extends AssemblyRepository {
   items: Map<string, AssemblyWithOptions>
   votes: Vote[]
-  credits: Array<{ userId: string; assemblyId: string; monthKey: string }>
 }
 
 export function createFakeAssemblyRepository(): FakeAssemblyRepository {
@@ -17,7 +16,6 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
   const fake: FakeAssemblyRepository = {
     items: new Map(),
     votes: [],
-    credits: [],
     async create(input, now) {
       const existing = [...fake.items.values()].find(
         (i) => i.assembly.dedupeKey === input.dedupeKey,
@@ -179,13 +177,6 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
       const current = fake.votes.find(
         (v) => v.assemblyId === input.assemblyId && v.userId === input.userId,
       )
-      const needsCredit = !current && input.credit !== undefined
-      if (needsCredit && input.credit) {
-        const used = fake.credits.filter(
-          (c) => c.userId === input.userId && c.monthKey === input.credit?.monthKey,
-        ).length
-        if (used >= input.credit.monthlyFreeCredits) return { status: 'no_credit' }
-      }
       if (current) {
         current.optionId = input.optionId
         current.updatedAt = now
@@ -198,24 +189,7 @@ export function createFakeAssemblyRepository(): FakeAssemblyRepository {
           updatedAt: now,
         })
       }
-      if (needsCredit && input.credit) {
-        fake.credits.push({
-          userId: input.userId,
-          assemblyId: input.assemblyId,
-          monthKey: input.credit.monthKey,
-        })
-      }
-      return { status: 'cast', changed: Boolean(current), creditConsumed: needsCredit }
-    },
-    async countCreditsUsed(userId, monthKey) {
-      return fake.credits.filter((c) => c.userId === userId && c.monthKey === monthKey).length
-    },
-    async consumeCredit(input) {
-      if (
-        !fake.credits.some((c) => c.userId === input.userId && c.assemblyId === input.assemblyId)
-      ) {
-        fake.credits.push(input)
-      }
+      return { status: 'cast', changed: Boolean(current) }
     },
   }
   return fake

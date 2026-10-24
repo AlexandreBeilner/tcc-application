@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AssemblyDetail } from '../../../services/assemblies'
-import { closesLabel, describeEffect, describeEffects, isCreditShortage, outcomeBadge, percentLabel, resultHeadline } from '.'
+import { closesLabel, describeEffect, describeEffects, outcomeBadge, percentLabel, resultHeadline } from '.'
 
 const detail = (over: Partial<AssemblyDetail>): AssemblyDetail => ({
     assembly: {} as AssemblyDetail['assembly'],
@@ -83,8 +83,6 @@ describe('assemblyText', () => {
         expect(outcomeBadge({ status: 'open', outcome: null, outcomeReason: null })).toBe('Votação aberta')
         expect(outcomeBadge({ status: 'closed', outcome: 'approved', outcomeReason: 'decided' })).toBe('Aprovada')
         expect(outcomeBadge({ status: 'closed', outcome: 'not_approved', outcomeReason: 'quorum' })).toBe('Sem votantes suficientes')
-        expect(isCreditShortage('no_credit')).toBe(true)
-        expect(isCreditShortage('not_shareholder')).toBe(false)
         expect(percentLabel(33.3)).toBe('33,3%')
     })
 })

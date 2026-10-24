@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { RetrospectiveNotAvailableError } from '../../domain/errors'
-import {
-  createFakeActivity,
-  createFakeMembership,
-  createFakeRepository,
-  createFakeReturns,
-} from '../../test/fakes/fakes'
+import { createFakeActivity, createFakeRepository, createFakeReturns } from '../../test/fakes/fakes'
 import { GenerateMonthlyRetrospectivesUseCase } from './generateMonthlyRetrospectives'
 import {
   GenerateRetrospectiveUseCase,
@@ -15,7 +10,7 @@ import {
 
 const NOW = new Date('2026-10-10T12:00:00Z')
 
-function build(proIds: string[] = []) {
+function build() {
   const activity = createFakeActivity({
     ana: new Date('2026-07-15T00:00:00Z'),
     bia: new Date('2026-10-02T00:00:00Z'),
@@ -24,27 +19,24 @@ function build(proIds: string[] = []) {
   const repository = createFakeRepository()
   const generate = new GenerateRetrospectiveUseCase(activity, returns, repository)
   const list = new ListRetrospectiveMonthsUseCase(activity, () => NOW)
-  const membership = createFakeMembership(proIds)
   return {
     activity,
     returns,
     repository,
     generate,
     list,
-    get: new GetRetrospectiveUseCase(generate, list, membership),
+    get: new GetRetrospectiveUseCase(generate, list),
     monthly: new GenerateMonthlyRetrospectivesUseCase(activity, repository, generate, () => NOW),
-    membership,
   }
 }
 
 describe('GetRetrospectiveUseCase', () => {
-  it('PRO recebe o conteúdo completo: maior sequência, rentabilidade, duelos e ligas', async () => {
-    const ctx = build(['ana'])
+  it('devolve o mês completo: maior sequência, rentabilidade, duelos e ligas', async () => {
+    const ctx = build()
     const view = await ctx.get.execute('ana', '2026-09')
 
-    expect(view.full).toBe(true)
     expect(view).toMatchObject({ lessonsCompleted: 6, achievementsUnlocked: 2, level: 5 })
-    expect(view.premium).toMatchObject({
+    expect(view).toMatchObject({
       activeDays: [1, 2, 3, 9],
       daysInMonth: 30,
       longestStreak: 3,
@@ -55,13 +47,6 @@ describe('GetRetrospectiveUseCase', () => {
     })
   })
 
-  it('quem não é PRO recebe só as 3 métricas simples, sem o conteúdo premium', async () => {
-    const view = await build().get.execute('ana', '2026-09')
-    expect(view.full).toBe(false)
-    expect(view.premium).toBeNull()
-    expect(JSON.stringify(view)).not.toContain('4.2')
-  })
-
   it('mede a rentabilidade do mês inteiro (primeiro instante até o primeiro do mês seguinte)', async () => {
     const ctx = build()
     await ctx.get.execute('ana', '2026-09')
@@ -69,24 +54,14 @@ describe('GetRetrospectiveUseCase', () => {
     expect(ctx.returns.calls[0].to.toISOString()).toBe('2026-10-01T00:00:00.000Z')
   })
 
-  it('arquiva: ler de novo não recalcula, e assinar depois libera o arquivo completo', async () => {
+  it('arquiva: ler de novo não recalcula', async () => {
     const ctx = build()
     await ctx.get.execute('ana', '2026-09')
     expect(ctx.activity.reads).toBe(1)
 
-    ctx.membership.ids.add('ana')
-    const upgraded = await ctx.get.execute('ana', '2026-09')
+    const again = await ctx.get.execute('ana', '2026-09')
     expect(ctx.activity.reads).toBe(1)
-    expect(upgraded.premium?.bestReturnPct).toBe(4.2)
-  })
-
-  it('cancelar o PRO não apaga: o arquivo segue, só volta à versão simples', async () => {
-    const ctx = build(['ana'])
-    await ctx.get.execute('ana', '2026-09')
-    ctx.membership.ids.delete('ana')
-    const view = await ctx.get.execute('ana', '2026-09')
-    expect(view.full).toBe(false)
-    expect(ctx.repository.rows.size).toBe(1)
+    expect(again.bestReturnPct).toBe(4.2)
   })
 
   it('mês inválido, anterior à conta ou ainda aberto não existe', async () => {

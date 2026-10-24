@@ -125,12 +125,6 @@ import { createAdminUsersRouter } from './modules/admin/interfaces/http/adminUse
 import { createAdminUserCorrectionsRouter } from './modules/admin/interfaces/http/adminUserCorrectionsRouter'
 import { CreditUserCashUseCase } from './modules/admin/application/useCases/creditUserCash'
 import {
-  GetUserProStatusUseCase,
-  GrantUserProUseCase,
-} from './modules/admin/application/useCases/userProGrants'
-import { createInProcessUserProGrants } from './modules/admin/infrastructure/billing/inProcessUserProGrants'
-import { createAdminUserProRouter } from './modules/admin/interfaces/http/adminUserProRouter'
-import {
   AdjustUserXpUseCase,
   CompleteUserLessonUseCase,
   GetUserCorrectionContextUseCase,
@@ -403,7 +397,6 @@ import { createEngineOrderExecutor } from './modules/market/infrastructure/engin
 import { createInProcessProductUnlockReader } from './modules/market/infrastructure/lessons/inProcessProductUnlockReader'
 import { createMarketRouter } from './modules/market/interfaces/http/marketRouter'
 import { createAuthMiddleware } from './shared/http/authMiddleware'
-import { createBillingModule } from './modules/billing/composition'
 import { createReferralsCore, createReferralsModule } from './modules/referrals/composition'
 import { createCosmeticsModule } from './modules/cosmetics/composition'
 import { createDuelsModule } from './modules/duels/composition'
@@ -414,10 +407,6 @@ import { RecordDuelResultUseCase } from './modules/socialfeed/application/useCas
 import { RankingScorer } from './modules/ranking/application/rankingScorer'
 import { RankUsersByProfitabilityUseCase } from './modules/ranking/application/useCases/rankUsersByProfitability'
 import { createInProcessCosmeticsReader } from './shared/publicCosmetics'
-import {
-  loadBillingConfig,
-  loadBillingPrices,
-} from './modules/billing/infrastructure/config/billingConfig'
 import { UserSessionGuard } from './modules/auth/application/services/userSessionGuard'
 import { noStore } from './shared/http/noStore'
 import { createRateLimiter } from './shared/http/rateLimit'
@@ -602,24 +591,14 @@ export function createApp(deps: AppDeps = {}): Express {
   )
   const emailLinks = loadEmailLinksConfig(process.env)
   const enqueueEmail = deps.enqueueEmail ?? createEnqueueEmailUseCase(db, emailLinks)
-  const billing = createBillingModule({
-    db,
-    redis: redisClient,
-    config: loadBillingConfig(process.env),
-    prices: loadBillingPrices(process.env),
-    authMiddleware,
-    enqueueEmail,
-  })
   // Indicação (MO.7.2): leitura do contador e atribuição no cadastro; o módulo completo (recompensa
   // e rota) nasce depois, quando as conquistas existem.
   const referralsCore = createReferralsCore(db)
-  // Identidade visível do PRO (MO.5.1): selo, moldura e título que os outros veem no ranking, no
-  // feed, na busca/lista de amigos e no perfil público.
+  // Identidade visível (MO.5.1): moldura e título que os outros veem no ranking, no feed, na
+  // busca/lista de amigos e no perfil público.
   const cosmetics = createCosmeticsModule({
     db,
     authMiddleware,
-    proAccess: billing.proAccessGuard,
-    listActiveProUserIds: billing.listActiveProUserIds,
     referralUnlocks: { qualifiedCount: referralsCore.countQualified },
   })
   const cosmeticsReader = createInProcessCosmeticsReader(cosmetics.getCosmeticDisplays)
@@ -895,11 +874,10 @@ export function createApp(deps: AppDeps = {}): Express {
   const getLesson = new GetLessonUseCase(lessonRepository, lessonPollRepository)
   const answerMicroDecision = new AnswerMicroDecisionUseCase(lessonRepository)
   const answerCheckpoint = new AnswerCheckpointUseCase(lessonRepository)
-  // Indicação (MO.7.2): recompensa do indicador quando a pessoa indicada conclui a primeira lição.
+  // Indicação (MO.7.2): a indicação vale quando a pessoa indicada conclui a primeira lição.
   const referrals = createReferralsModule({
     db,
     authMiddleware,
-    grantPromotionalPro: billing.grantPromotionalPro,
     checkAndUnlockAchievements,
   })
   const advanceLesson = new AdvanceLessonUseCase(
@@ -994,7 +972,7 @@ export function createApp(deps: AppDeps = {}): Express {
     cosmeticsReader,
   )
 
-  // Ligas privadas do PRO (MO.5.2): pontuam pelo mesmo snapshot e janela do ranking oficial,
+  // Ligas privadas (MO.5.2): pontuam pelo mesmo snapshot e janela do ranking oficial,
   // só com os membros da liga. O ranking Global/Amigos não é tocado.
   const rankUsersByProfitability = new RankUsersByProfitabilityUseCase(
     userDirectory,
@@ -1009,8 +987,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const leagues = createLeaguesModule({
     db,
     authMiddleware,
-    proAccess: billing.proAccessGuard,
-    listActiveProUserIds: billing.listActiveProUserIds,
     friendshipRepository,
     rankUsers: rankUsersByProfitability,
     cosmeticsReader,
@@ -1021,7 +997,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const duels = createDuelsModule({
     db,
     authMiddleware,
-    proAccess: billing.proAccessGuard,
     friendshipRepository,
     measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
     awardXp,
@@ -1046,9 +1021,6 @@ export function createApp(deps: AppDeps = {}): Express {
         config: assemblyConfig,
         authMiddleware,
         redis: redisClient,
-        proAccess: billing.proAccessGuard,
-        getProgression,
-        userRepository,
         awardXp,
         recordAssemblyParticipation: new RecordAssemblyParticipationUseCase(
           socialFeedEventRepository,
@@ -1061,7 +1033,6 @@ export function createApp(deps: AppDeps = {}): Express {
   const retrospectives = createRetrospectivesModule({
     db,
     authMiddleware,
-    listActiveProUserIds: billing.listActiveProUserIds,
     measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
   })
 
@@ -1296,18 +1267,6 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createAdminAuditLogRouter({ listAuditLog, authMiddleware }))
-  // Plano PRO de uma pessoa e concessão promocional (MO.2.5), pelo módulo `billing`.
-  const userProGrants = createInProcessUserProGrants({
-    getSubscriptionStatus: billing.getSubscriptionStatus,
-    grantPromotionalPro: billing.grantPromotionalPro,
-  })
-  app.use(
-    createAdminUserProRouter({
-      getUserProStatus: new GetUserProStatusUseCase(userRepository, userProGrants),
-      grantUserPro: new GrantUserProUseCase(userRepository, userProGrants, recordAdminAction),
-      authMiddleware,
-    }),
-  )
   // Correções manuais de conta (N.17): crédito de caixa vai ao motor; XP, streak,
   // conquistas e lições passam pelos casos de uso dos módulos donos do dado.
   const userCorrections = createInProcessUserCorrections({
@@ -1482,9 +1441,6 @@ export function createApp(deps: AppDeps = {}): Express {
     }),
   )
   app.use(createRankingRouter({ getRanking, authMiddleware }))
-  // Cobrança (MO.2.3): plano do usuário e webhook do RevenueCat. Desligada por padrão
-  // (`BILLING_PROVIDER`), caso em que ninguém é PRO e o webhook responde 503.
-  app.use(billing.router)
   app.use(cosmetics.router)
   app.use(referrals.router)
   app.use(leagues.router)

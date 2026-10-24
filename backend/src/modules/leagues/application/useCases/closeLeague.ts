@@ -1,7 +1,7 @@
 import { loadLeagueForOwner } from '../leagueAccess'
 import type { LeagueRepository } from '../ports/leagueRepository'
 
-// Encerrar a própria liga libera a vaga das 3. Não exige PRO e não apaga nada: a liga só deixa de
+// Encerrar a própria liga libera a vaga das 3 e não apaga nada: a liga só deixa de
 // aparecer nas listagens.
 export class CloseLeagueUseCase {
   constructor(

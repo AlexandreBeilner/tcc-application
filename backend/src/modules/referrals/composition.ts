@@ -2,17 +2,11 @@ import { randomInt } from 'node:crypto'
 import type { Database } from '../../db/client'
 import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import type { CheckAndUnlockAchievementsUseCase } from '../achievements/application/useCases/checkAndUnlockAchievements'
-import type { GrantPromotionalProUseCase } from '../billing/application/useCases/grantPromotionalPro'
 import { AttributeReferralUseCase } from './application/useCases/attributeReferral'
 import { GetMyReferralUseCase } from './application/useCases/getMyReferral'
 import { QualifyReferralUseCase } from './application/useCases/qualifyReferral'
 import { createInProcessAchievementUnlocker } from './infrastructure/achievements/inProcessAchievementUnlocker'
-import { createInProcessPromotionalPro } from './infrastructure/billing/inProcessPromotionalPro'
-import {
-  createDrizzleReferralRepository,
-  createDrizzleReferrerLock,
-} from './infrastructure/persistence/drizzleReferralRepository'
-import { createDrizzleReferralRewardRepository } from './infrastructure/persistence/drizzleReferralRewardRepository'
+import { createDrizzleReferralRepository } from './infrastructure/persistence/drizzleReferralRepository'
 import { createReferralsRouter } from './interfaces/http/referralsRouter'
 
 // Peças sem dependência de outros módulos, montadas cedo em `app.ts` (cadastro e vitrine de
@@ -29,7 +23,6 @@ export function createReferralsCore(db: Database) {
 export interface ReferralsDeps {
   db: Database
   authMiddleware: AuthMiddleware
-  grantPromotionalPro: Pick<GrantPromotionalProUseCase, 'currentAccessEnd' | 'grantUntil'>
   checkAndUnlockAchievements: Pick<CheckAndUnlockAchievementsUseCase, 'execute'>
 }
 
@@ -38,15 +31,11 @@ export interface ReferralsDeps {
 // lição concluída), mais `countQualified` pro critério de conquista e pro título liberado.
 export function createReferralsModule(deps: ReferralsDeps) {
   const { referrals, attribute, countQualified } = createReferralsCore(deps.db)
-  const rewards = createDrizzleReferralRewardRepository(deps.db)
   const qualify = new QualifyReferralUseCase(
     referrals,
-    rewards,
-    createDrizzleReferrerLock(deps.db),
-    createInProcessPromotionalPro(deps.grantPromotionalPro),
     createInProcessAchievementUnlocker(deps.checkAndUnlockAchievements),
   )
-  const getMyReferral = new GetMyReferralUseCase(referrals, rewards, (max) => randomInt(max))
+  const getMyReferral = new GetMyReferralUseCase(referrals, (max) => randomInt(max))
   return {
     router: createReferralsRouter({ getMyReferral, authMiddleware: deps.authMiddleware }),
     attribute,

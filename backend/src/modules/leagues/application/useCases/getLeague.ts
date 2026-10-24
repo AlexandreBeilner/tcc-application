@@ -1,11 +1,9 @@
 import type { CosmeticsReader, PublicCosmetics } from '../../../../shared/publicCosmetics'
 import { NO_COSMETICS } from '../../../../shared/publicCosmetics'
-import { isLeagueArchived } from '../../domain/league'
 import { loadLeagueForMember } from '../leagueAccess'
 import type { LeagueRepository } from '../ports/leagueRepository'
 import type { LeagueScoreReader } from '../ports/leagueScoreReader'
 import type { LeagueUserDirectory } from '../ports/leagueUserDirectory'
-import type { ProMembershipReader } from '../ports/proMembershipReader'
 import type { LeagueSummary } from './listMyLeagues'
 
 export interface StandingRow {
@@ -37,13 +35,11 @@ export interface LeagueDetail {
 }
 
 // Detalhe e classificação de uma liga. A pontuação é a rentabilidade percentual da janela do
-// ranking oficial entre os membros ativos; nunca patrimônio absoluto (RNF09). Liga arquivada
-// continua visível: cancelar o PRO nunca esconde o que já existe.
+// ranking oficial entre os membros ativos; nunca patrimônio absoluto (RNF09).
 export class GetLeagueUseCase {
   constructor(
     private readonly leagues: LeagueRepository,
     private readonly scores: LeagueScoreReader,
-    private readonly membership: ProMembershipReader,
     private readonly users: LeagueUserDirectory,
     private readonly cosmeticsReader?: CosmeticsReader,
   ) {}
@@ -59,10 +55,7 @@ export class GetLeagueUseCase {
     const invited = members.filter((m) => m.status === 'invited')
     const isOwner = league.ownerId === input.userId
 
-    const [proOwners, people] = await Promise.all([
-      this.membership.listProUserIds([league.ownerId]),
-      this.users.findByIds(members.map((m) => m.userId)),
-    ])
+    const people = await this.users.findByIds(members.map((m) => m.userId))
     const person = new Map(people.map((p) => [p.id, p]))
 
     const summary: LeagueSummary = {
@@ -73,7 +66,6 @@ export class GetLeagueUseCase {
       ownerUsername: person.get(league.ownerId)?.username ?? '',
       isOwner,
       status: membership.status,
-      archived: isLeagueArchived(proOwners.has(league.ownerId)),
       memberCount: active.length,
     }
 

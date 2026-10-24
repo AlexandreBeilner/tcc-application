@@ -20,13 +20,6 @@ const COMPANY = '44444444-4444-4444-8444-444444444444'
 
 function buildApp(cooldownDaysLeft = 0) {
   const repository = createFakeProposalRepository()
-  const pros = new Set([ANA, BIA])
-  const gate = {
-    assertPro: async (userId: string) => {
-      if (!pros.has(userId))
-        throw Object.assign(new Error('requer plano PRO'), { code: 'PRO_REQUIRED' })
-    },
-  }
   const standings = {
     get: async (companyId: string, userId: string) =>
       companyId === COMPANY
@@ -60,15 +53,9 @@ function buildApp(cooldownDaysLeft = 0) {
   app.use(express.json())
   app.use(
     createProposalsRouter({
-      listCompanyProposals: new ListCompanyProposalsUseCase(
-        standings,
-        catalog,
-        repository,
-        { isPro: async (id) => pros.has(id) },
-        params,
-      ),
-      proposeAgenda: new ProposeAgendaUseCase(gate, standings, catalog, repository, params),
-      supportProposal: new SupportProposalUseCase(gate, standings, repository, params),
+      listCompanyProposals: new ListCompanyProposalsUseCase(standings, catalog, repository, params),
+      proposeAgenda: new ProposeAgendaUseCase(standings, catalog, repository, params),
+      supportProposal: new SupportProposalUseCase(standings, repository, params),
       withdrawSupport: new WithdrawProposalSupportUseCase(repository),
       authMiddleware: createAuthMiddleware(tokenIssuer),
     }),
@@ -100,7 +87,7 @@ describe('rotas de propostas de pauta', () => {
     expect(bad.body.error).toBe('corpo inválido')
   })
 
-  it('PRO propõe (201), outro PRO propõe a mesma pauta e vira apoio (200), sem revelar quem', async () => {
+  it('acionista propõe (201), outro propõe a mesma pauta e vira apoio (200), sem revelar quem', async () => {
     const { app, as } = buildApp()
     const first = await request(app)
       .post(url)
@@ -123,9 +110,9 @@ describe('rotas de propostas de pauta', () => {
     })
   })
 
-  it('403 requer plano PRO para propor e apoiar sem plano (mas ler é livre)', async () => {
+  it('403 com o motivo para propor e apoiar sem ações (mas ler é livre)', async () => {
     const { app, as } = buildApp()
-    const pro = await request(app)
+    const made = await request(app)
       .post(url)
       .set('Authorization', as(ANA))
       .send({ templateKey: 'geral' })
@@ -134,9 +121,9 @@ describe('rotas de propostas de pauta', () => {
       .set('Authorization', as(ZECA))
       .send({ templateKey: 'geral' })
     expect(denied.status).toBe(403)
-    expect(denied.body).toEqual({ error: 'requer plano PRO' })
+    expect(denied.body.reason).toBe('not_shareholder')
     const support = await request(app)
-      .put(`/assemblies/proposals/${pro.body.proposal.id}/support`)
+      .put(`/assemblies/proposals/${made.body.proposal.id}/support`)
       .set('Authorization', as(ZECA))
     expect(support.status).toBe(403)
     expect((await request(app).get(url).set('Authorization', as(ZECA))).status).toBe(200)

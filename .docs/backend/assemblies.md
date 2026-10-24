@@ -16,14 +16,13 @@ Cada tarefa documenta as suas rotas neste arquivo, no mesmo commit.
 | `assembly_votes` | Um voto por pessoa e assembleia (PK composta); trocar o voto atualiza a mesma linha. O peso **não** é gravado: sai do snapshot na apuração. |
 | `agenda_proposals` | (MO.6.5) Proposta de pauta: `kind`, `subject_ref` (empresa), `template_key` (FK do catálogo; **sem texto livre**), `proposed_by`, `status` (`active` → `consumed` quando vira a pauta de uma assembleia, ou `expired`), `expires_at`, `consumed_assembly_id`. Índice único parcial `(kind, subject_ref, template_key) WHERE status = 'active'`: uma proposta ativa por pauta e empresa. |
 | `agenda_proposal_supports` | (MO.6.5) Um apoio por pessoa e proposta (PK composta); o proponente entra como primeiro apoio. Nunca exposto por pessoa. |
-| `assembly_vote_credits` | Consumo do crédito mensal gratuito (PK pessoa + assembleia); `month_key` = mês de calendário de Brasília (`2026-10`). |
 
 ## Regras de domínio (`domain/assembly.ts`)
 
 - **Apuração** (`tallyVotes`): peso e elegibilidade vêm da política do kind sobre o snapshot da data de corte; voto de quem não é elegível, de peso zero ou em opção fora da pauta é descartado e não conta para o mínimo. Menos votantes distintos que `minVoters` → `not_approved / quorum`; empate no topo → `not_approved / tie`; ambos mantêm o status quo.
 - **Janela de voto** (`isOpenForVoting`): `status = open` e `opens_at <= agora < closes_at`. Vale também para trocar o voto. O repositório trava a linha da assembleia ao gravar, então voto e fechamento se serializam.
-- **Crédito**: `creditMonthKey` (Brasília, UTC-3) e `hasFreeCredit(usado, monthlyFreeCredits)`. O consumo no primeiro voto é do caso de uso da MO.6.4.
-- **Parâmetros** (`AssemblyParams`: `minVoters`, `monthlyFreeCredits`, `freeCreditMinLevel`) entram por função; `DEFAULT_ASSEMBLY_PARAMS` é o valor inicial, que o painel sobrepõe pela tabela `assembly_settings` (MO.6.8, ver abaixo). **O quórum é congelado na assembleia** (`assemblies.min_voters`, gravado ao abrir): a apuração e o detalhe usam o da abertura, e só uma assembleia anterior ao parâmetro (`null`) usa o de agora.
+- **Mês de Brasília**: `brtMonthKey` (UTC-3), usado pelo teto mensal de propostas.
+- **Parâmetros** (`AssemblyParams`: `minVoters`) entram por função; `DEFAULT_ASSEMBLY_PARAMS` é o valor inicial, que o painel sobrepõe pela tabela `assembly_settings` (MO.6.8, ver abaixo). **O quórum é congelado na assembleia** (`assemblies.min_voters`, gravado ao abrir): a apuração e o detalhe usam o da abertura, e só uma assembleia anterior ao parâmetro (`null`) usa o de agora.
 
 ## Extensão por kind
 
@@ -60,37 +59,30 @@ Autenticação: Bearer token, `userId` sempre do token. `:id` precisa ser UUID (
 ### `POST /assemblies/:id/vote`
 
 - **Payload:** `{ "optionId": uuid }` (Zod). A opção precisa ser da pauta desta assembleia.
-- **Sucesso:** `201` no primeiro voto, `200` ao trocar o voto. Corpo: `{ optionId, changed, creditConsumed }` (`creditConsumed` é `true` só no primeiro voto de quem usou o crédito gratuito; PRO e troca de voto nunca consomem).
+- **Sucesso:** `201` no primeiro voto, `200` ao trocar o voto. Corpo: `{ optionId, changed }`.
 - **Erros:** `400` corpo inválido ou opção de outra assembleia · `401` · `404` assembleia inexistente · `409 { error, reason: "not_open" }` fora da janela de votação · `403 { error, reason }` com um dos motivos abaixo.
 - **Regra** (`CastVoteUseCase` + `VoteAccessService` + `resolveVoteAccess`, nesta ordem):
   1. janela aberta (`status = open` e `opens_at <= agora < closes_at`);
-  2. **posição na data de corte** (snapshot do motor, que já exclui bots): sem ela `403 not_shareholder`, **mesmo para PRO**;
-  3. quem **já votou** troca o voto até o fechamento sem PRO, crédito, nível ou e-mail (cancelar o plano nunca desfaz o que a pessoa já fez; o peso continua o do snapshot);
-  4. **PRO** vota sem gastar crédito e sem exigência de nível ou e-mail (consulta ao `ProAccessGuard`, nunca claim de JWT);
-  5. quem não é PRO usa o **crédito mensal**: `403 email_not_verified` (verifique seu e-mail), `403 level_too_low` (a partir do nível `ASSEMBLY_FREE_CREDIT_MIN_LEVEL`, padrão 3) e `403 no_credit` com o texto `requer plano PRO ou crédito de voto`.
+  2. **posição na data de corte** (snapshot do motor, que já exclui bots): sem ela `403 not_shareholder`. Com ela, a pessoa vota em toda assembleia aberta da empresa, sem limite mensal (o plano PRO e o crédito mensal gratuito saíram do produto em 2026-10-24, migração `0062`);
+  3. quem **já votou** troca o voto até o fechamento; o peso continua o do snapshot.
 - **Recompensa (MO.6.7):** o **primeiro** voto da pessoa na assembleia concede `ASSEMBLY_PARTICIPATION_XP` (10) pelo `AwardXpUseCase` (motivo `assembly_vote:<assembleia>`); trocar o voto nunca concede de novo, e o valor **não depende de quem vence**. Best-effort: se o XP falhar, o voto já gravado continua valendo (só logado). O desbloqueio da conquista "Acionista Ativo" (critério `assemblies_participated`, ver `achievements.md`) é checado pelo próprio `AwardXpUseCase`.
-- **Atomicidade:** `AssemblyRepository.castVote` faz numa transação só: trava a assembleia (voto e fechamento se serializam, nenhum voto entra depois da apuração), trava a pessoa no mês (advisory lock, então dois votos simultâneos em assembleias diferentes gastam um crédito só), confere o saldo, grava o voto e consome o crédito. Voto recusado nunca gasta crédito.
-- **Crédito:** `ASSEMBLY_MONTHLY_FREE_CREDITS` por **mês de calendário de Brasília, o do primeiro voto** (`assembly_vote_credits.month_key`).
+- **Atomicidade:** `AssemblyRepository.castVote` faz numa transação só: trava a assembleia (voto e fechamento se serializam, nenhum voto entra depois da apuração), e grava o voto (ou troca o já gravado).
 
 ### `GET /assemblies/:id/me`
 
-- **Sucesso:** `200` → `{ assemblyId, isPro, canVote, reason, message, myVote: { optionId } | null, myShares, credit: { monthKey, limit, used, available, minLevel } }`. `reason` é um de `not_open`, `not_shareholder`, `email_not_verified`, `level_too_low`, `no_credit` (ou `null`); `message` é o texto pronto, sem culpa. `myShares` são as ações **da própria pessoa** na data de corte (nunca valor em reais nem dado de outra pessoa; `null` fora da janela).
+- **Sucesso:** `200` → `{ assemblyId, canVote, reason, message, myVote: { optionId } | null, myShares }`. `reason` é `not_open`, `not_shareholder` ou `null`; `message` é o texto pronto, sem culpa. `myShares` são as ações **da própria pessoa** na data de corte (nunca valor em reais nem dado de outra pessoa; `null` fora da janela).
 - **Erros:** `400` · `401` · `404`.
-- **Regra:** `GetMyVotingStatusUseCase` usa o mesmo `VoteAccessService` do voto, então a tela (MO.6.6) mostra o botão, o saldo e o convite ao PRO sem repetir regra no frontend.
-
-### Parâmetros novos
-
-`ASSEMBLY_MONTHLY_FREE_CREDITS` (1) e `ASSEMBLY_FREE_CREDIT_MIN_LEVEL` (3), junto dos demais `ASSEMBLY_*`, até a tabela editável da MO.6.8.
+- **Regra:** `GetMyVotingStatusUseCase` usa o mesmo `VoteAccessService` do voto, então a tela (MO.6.6) mostra o botão e o motivo sem repetir regra no frontend.
 
 ## Propostas de pauta e apoio (MO.6.5)
 
-PRO propõe uma pauta **do catálogo** para uma empresa que possui e PRO acionista apoia; a mais apoiada entra na próxima assembleia da empresa. Sem texto livre: o único dado da proposta é `templateKey`. Existem por padrão (somem só com `ASSEMBLIES_ENABLED=off`). Autenticação Bearer; `:companyId` e `:proposalId` precisam ser UUID (`400`). Gating de PRO só pelo `ProAccessGuard` (porta `ProGate`), nunca claim de JWT: sem plano, `403 { error: "requer plano PRO" }` (o handler compartilhado).
+Quem tem ações propõe uma pauta **do catálogo** para a empresa e os outros acionistas apoiam; a mais apoiada entra na próxima assembleia da empresa. Sem texto livre: o único dado da proposta é `templateKey`. Existem por padrão (somem só com `ASSEMBLIES_ENABLED=off`). Autenticação Bearer; `:companyId` e `:proposalId` precisam ser UUID (`400`).
 
 ### `GET /assemblies/companies/:companyId/proposals`
 
-- **Quem:** qualquer pessoa autenticada (a fila é pública, ler não exige PRO nem ações).
-- **Sucesso:** `200` → `{ company: { id, name, sector }, isPro, holdsShares, cooldownDaysLeft, blockedReason, limits: { monthlyCap, usedThisMonth, minSupport, ttlDays }, proposals: [{ id, templateKey, title, description, options: [{ label, gain, loss }], supportCount, supportedByMe, proposedByMe, expiresAt, queuePosition }], availableTemplates: [{ key, title, description, hasActiveProposal }] }`.
-  - `blockedReason` é `not_shareholder`, `company_in_cooldown` ou `null`: o motivo de a pessoa não poder propor nem apoiar agora (o plano PRO é à parte, em `isPro`).
+- **Quem:** qualquer pessoa autenticada (a fila é pública, ler não exige ações).
+- **Sucesso:** `200` → `{ company: { id, name, sector }, holdsShares, cooldownDaysLeft, blockedReason, limits: { monthlyCap, usedThisMonth, minSupport, ttlDays }, proposals: [{ id, templateKey, title, description, options: [{ label, gain, loss }], supportCount, supportedByMe, proposedByMe, expiresAt, queuePosition }], availableTemplates: [{ key, title, description, hasActiveProposal }] }`.
+  - `blockedReason` é `not_shareholder`, `company_in_cooldown` ou `null`: o motivo de a pessoa não poder propor nem apoiar agora.
   - `proposals` vem na ordem da fila (mais apoios primeiro, empate pela mais antiga). `queuePosition` é 1 para a próxima a ser escolhida e `null` enquanto não tem `minSupport` apoios.
   - `availableTemplates` são as pautas gerais e as do setor da empresa, para a tela de propor.
   - **Nunca** revela quem propôs ou apoiou: só a contagem e os campos `...ByMe` da própria pessoa.
@@ -100,20 +92,20 @@ PRO propõe uma pauta **do catálogo** para uma empresa que possui e PRO acionis
 
 - **Payload:** `{ "templateKey": string }` (Zod, 1 a 80 caracteres).
 - **Sucesso:** `201` → `{ proposal: { id, templateKey, supportCount, supportedByMe, proposedByMe, expiresAt }, joinedExisting: false }`. Se a pauta **já tem proposta ativa** nesta empresa, o pedido vira apoio a ela: `200` com `joinedExisting: true`, sem gastar o teto.
-- **Erros:** `400` corpo inválido · `400 { reason: "template_unavailable" }` pauta fora do catálogo ativo ou de outro setor · `401` · `403 { error: "requer plano PRO" }` · `403 { error, reason }` com `not_shareholder`, `company_in_cooldown` (o texto traz os dias do mercado que faltam) ou `monthly_cap_reached` · `404` empresa inexistente.
-- **Regra** (`ProposeAgendaUseCase`, nesta ordem): plano PRO; empresa (ações **de agora** e período de espera, via motor `GET /governance/companies/{id}/standing`); pauta do catálogo ativo que vale para o setor; teto do mês. O repositório faz o resto numa transação que serializa a pauta da empresa (duplicado) e depois a pessoa (teto), então duas propostas simultâneas nunca passam do limite nem duplicam a pauta. O teto conta propostas **criadas** no mês de calendário de Brasília, de qualquer estado; retirar apoio ou ver a proposta expirar não o devolve.
+- **Erros:** `400` corpo inválido · `400 { reason: "template_unavailable" }` pauta fora do catálogo ativo ou de outro setor · `401` · `403 { error, reason }` com `not_shareholder`, `company_in_cooldown` (o texto traz os dias do mercado que faltam) ou `monthly_cap_reached` · `404` empresa inexistente.
+- **Regra** (`ProposeAgendaUseCase`, nesta ordem): empresa (ações **de agora** e período de espera, via motor `GET /governance/companies/{id}/standing`); pauta do catálogo ativo que vale para o setor; teto do mês. O repositório faz o resto numa transação que serializa a pauta da empresa (duplicado) e depois a pessoa (teto), então duas propostas simultâneas nunca passam do limite nem duplicam a pauta. O teto conta propostas **criadas** no mês de calendário de Brasília, de qualquer estado; retirar apoio ou ver a proposta expirar não o devolve.
 
 ### `PUT /assemblies/proposals/:proposalId/support`
 
 - **Sucesso:** `201` → `{ proposal, alreadySupported: false }`; `200` com `alreadySupported: true` se já apoiava (não duplica).
-- **Erros:** `400` · `401` · `403 requer plano PRO` · `403 { reason }` `not_shareholder` ou `company_in_cooldown` · `404` proposta inexistente · `409 { reason: "proposal_not_active" }` já usada ou vencida.
-- **Regra** (`SupportProposalUseCase`): PRO, ações da empresa de agora e empresa fora do período de espera. Um apoio por pessoa.
+- **Erros:** `400` · `401` · `403 { reason }` `not_shareholder` ou `company_in_cooldown` · `404` proposta inexistente · `409 { reason: "proposal_not_active" }` já usada ou vencida.
+- **Regra** (`SupportProposalUseCase`): ações da empresa de agora e empresa fora do período de espera. Um apoio por pessoa.
 
 ### `DELETE /assemblies/proposals/:proposalId/support`
 
 - **Sucesso:** `200` → `{ proposal, withdrawn }` (`withdrawn: false` se a pessoa não apoiava).
 - **Erros:** `400` · `401` · `404`.
-- **Regra** (`WithdrawProposalSupportUseCase`): **não exige PRO** (quem cancelou o plano ainda desfaz o que apoiou). A proposta nunca some por isso: só perde a contagem; propostas não são retiradas, só expiram ou são usadas.
+- **Regra** (`WithdrawProposalSupportUseCase`): não exige ações de agora (quem vendeu ainda desfaz o que apoiou). A proposta nunca some por isso: só perde a contagem; propostas não são retiradas, só expiram ou são usadas.
 
 ### Como a fila escolhe a pauta (`OpenDueAssembliesUseCase`)
 
@@ -125,11 +117,11 @@ Só o do motor (`governance_cooldown_days`, 90 dias simulados): não há segundo
 
 ### Parâmetros novos
 
-`ASSEMBLY_PROPOSAL_MONTHLY_CAP` (3 propostas novas por PRO por mês), `ASSEMBLY_PROPOSAL_MIN_SUPPORT` (2, contando o proponente) e `ASSEMBLY_PROPOSAL_TTL_DAYS` (30, dias reais na fila), até a tabela editável da MO.6.8. Valor inválido cai no padrão.
+`ASSEMBLY_PROPOSAL_MONTHLY_CAP` (3 propostas novas por pessoa por mês, freio contra spam), `ASSEMBLY_PROPOSAL_MIN_SUPPORT` (2, contando o proponente) e `ASSEMBLY_PROPOSAL_TTL_DAYS` (30, dias reais na fila), até a tabela editável da MO.6.8. Valor inválido cai no padrão.
 
 ## Leitura pública: lista, detalhe e placar (MO.6.6)
 
-Qualquer pessoa autenticada lê (Bearer; sem PRO, sem ações). Existem por padrão (somem só com `ASSEMBLIES_ENABLED=off`). Assembleia ainda `scheduled` nunca é pública (`404`). **Nunca** devolve quem votou em quê, ações absolutas nem valor em reais.
+Qualquer pessoa autenticada lê (Bearer; sem exigir ações). Existem por padrão (somem só com `ASSEMBLIES_ENABLED=off`). Assembleia ainda `scheduled` nunca é pública (`404`). **Nunca** devolve quem votou em quê, ações absolutas nem valor em reais.
 
 ### `GET /assemblies`
 
@@ -163,7 +155,7 @@ Quando o motor retém a declaração de dividendo de uma empresa (`governance_ho
 Por declaração retida, a cada rodada (`OpenDueAssembliesUseCase`):
 
 - **Esperando:** menos de `openDelayDays` dias simulados retida (o mesmo atraso da assembleia comum).
-- **Abre:** dentro da janela (`openDelayDays` a `openDelayDays + catchUpDays`) cria a assembleia com a pauta de destinação do lucro, tira o snapshot e a abre. **Não consulta o período de espera de fundamentos** (o motor só retém quando o payout está livre, e cada efeito respeita o próprio período de espera). Propostas de PRO continuam só nas pautas gerais.
+- **Abre:** dentro da janela (`openDelayDays` a `openDelayDays + catchUpDays`) cria a assembleia com a pauta de destinação do lucro, tira o snapshot e a abre. **Não consulta o período de espera de fundamentos** (o motor só retém quando o payout está livre, e cada efeito respeita o próprio período de espera). Propostas de acionistas continuam só nas pautas gerais.
 - **Libera o dividendo** (`POST /governance/pending-declarations/{id}/release`, motivo `no_decision`, com o payout vigente) quando a assembleia não vai decidir: empresa ou mercado **pausado** pelo painel; **catálogo sem pauta de destinação** para a empresa; balanço que **passou da janela de abertura** sem assembleia; ou já existe assembleia comum para o balanço (aberta antes de a retenção ligar). Uma falha ao liberar conta uma falha na rodada e a próxima tenta de novo.
 - **Já resolvida** (decisão ligada ou liberação pedida): fica com o motor.
 

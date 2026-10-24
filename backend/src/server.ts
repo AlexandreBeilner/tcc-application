@@ -14,14 +14,6 @@ import { createHtmlEmailRenderer } from './modules/notifications/infrastructure/
 import { createDrizzleUserRepository } from './modules/auth/infrastructure/persistence/drizzleUserRepository'
 import { createRankingSnapshotComposition } from './modules/ranking/composition'
 import { startRankingSnapshotScheduler } from './modules/ranking/infrastructure/scheduler/rankingSnapshotScheduler'
-import {
-  createBillingReconciliation,
-  createFunnelRetentionPurge,
-} from './modules/billing/composition'
-import { startFunnelRetentionScheduler } from './modules/billing/infrastructure/scheduler/funnelRetentionScheduler'
-import { loadBillingConfig } from './modules/billing/infrastructure/config/billingConfig'
-import { startBillingReconciliationScheduler } from './modules/billing/infrastructure/scheduler/billingReconciliationScheduler'
-import { createRedisClient } from './infra/redisClient'
 import { assertProductionConfig } from './infra/productionConfigGuard'
 import { createGracefulShutdown } from './infra/gracefulShutdown'
 import { installJsonConsole } from './shared/logging/jsonConsole'
@@ -52,10 +44,6 @@ const DEFAULT_RANKING_SNAPSHOT_INTERVAL_MS = 3 * 60 * 60 * 1000
 const DEFAULT_DUEL_SETTLE_INTERVAL_MS = 60 * 60 * 1000
 // Cadência do job das retrospectivas mensais (MO.5.4): idempotente, então checar de hora em hora é barato.
 const DEFAULT_RETROSPECTIVE_INTERVAL_MS = 60 * 60 * 1000
-// Cadência da reconciliação de assinaturas (MO.2.5): rede de segurança do webhook, não precisa ser fina.
-const DEFAULT_BILLING_RECONCILE_INTERVAL_MS = 6 * 60 * 60 * 1000
-// Retenção do funil de conversão (ponto 048): uma limpeza por dia basta.
-const FUNNEL_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 // Cadência do ciclo das assembleias (MO.6.3): abrir, fechar e aplicar. Os prazos são de dias, então
 // checar de hora em hora basta; tudo é idempotente.
@@ -206,29 +194,6 @@ async function main() {
     console.log('assembleias: ciclo ligado')
   } else {
     console.log('assembleias: ciclo desligado (ASSEMBLIES_ENABLED=off)')
-  }
-
-  timers.push(
-    startFunnelRetentionScheduler(createFunnelRetentionPurge(db), FUNNEL_RETENTION_INTERVAL_MS),
-  )
-
-  // Cobrança (MO.2.5): só reconcilia com o provedor ligado; desligado, não há nada pra reconsultar.
-  const billingConfig = loadBillingConfig(process.env)
-  console.log(`cobrança: provedor "${billingConfig.provider}" configurado`)
-  if (billingConfig.provider === 'revenuecat') {
-    const reconcileSubscriptions = createBillingReconciliation({
-      db,
-      redis: createRedisClient(process.env.REDIS_URL ?? 'redis://localhost:6379'),
-      config: billingConfig,
-      enqueueEmail,
-    })
-    timers.push(
-      startBillingReconciliationScheduler(
-        reconcileSubscriptions,
-        Number(process.env.BILLING_RECONCILE_INTERVAL_MS || Number.NaN) ||
-          DEFAULT_BILLING_RECONCILE_INTERVAL_MS,
-      ),
-    )
   }
 }
 

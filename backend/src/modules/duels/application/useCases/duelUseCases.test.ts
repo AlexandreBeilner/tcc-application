@@ -15,7 +15,6 @@ import {
   createFakeFeed,
   createFakeFriendships,
   createFakePerformance,
-  createFakeProAccess,
   createFakeUsers,
   createFakeXp,
 } from '../../test/fakes/fakes'
@@ -29,13 +28,10 @@ import { SettleDueDuelsUseCase } from './settleDueDuels'
 const T0 = new Date('2026-10-10T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
 
-function build(
-  options: { pro?: string[]; perf?: Record<string, { returnPct: number; operated: boolean }> } = {},
-) {
+function build(options: { perf?: Record<string, { returnPct: number; operated: boolean }> } = {}) {
   let clock = T0
   const now = () => clock
   const duels = createFakeDuelRepository()
-  const access = createFakeProAccess(options.pro ?? ['ana'])
   const friendships = createFakeFriendships([
     ['ana', 'bia'],
     ['ana', 'caio'],
@@ -55,18 +51,17 @@ function build(
     advance: (ms: number) => {
       clock = new Date(clock.getTime() + ms)
     },
-    create: new CreateDuelUseCase(access, duels, friendships, now),
+    create: new CreateDuelUseCase(duels, friendships, now),
     respond: new RespondToDuelUseCase(duels, now),
     cancel: new CancelDuelUseCase(duels, now),
     list: new ListMyDuelsUseCase(duels, users),
     get: new GetDuelUseCase(duels, performance, users, undefined, now),
     settle: new SettleDueDuelsUseCase(duels, performance, users, xp, feed, now),
-    access,
   }
 }
 
 describe('criar e responder', () => {
-  it('PRO desafia um amigo; o desafiado (sem PRO) aceita e o duelo dura 7 dias a partir do aceite', async () => {
+  it('desafia um amigo; o desafiado aceita e o duelo dura 7 dias a partir do aceite', async () => {
     const ctx = build()
     const duel = await ctx.create.execute({ userId: 'ana', opponentId: 'bia' })
     expect(duel.status).toBe('pending')
@@ -77,14 +72,6 @@ describe('criar e responder', () => {
     expect(active.status).toBe('active')
     expect(active.startsAt).toEqual(new Date(T0.getTime() + DAY))
     expect(active.endsAt).toEqual(new Date(T0.getTime() + 8 * DAY))
-  })
-
-  it('desafiar sem PRO responde requer plano PRO e não grava nada', async () => {
-    const ctx = build({ pro: [] })
-    await expect(ctx.create.execute({ userId: 'ana', opponentId: 'bia' })).rejects.toMatchObject({
-      code: 'PRO_REQUIRED',
-    })
-    expect(ctx.duels.duels.size).toBe(0)
   })
 
   it('só amigo, nunca a si mesmo, e nunca dois em aberto com a mesma pessoa', async () => {
@@ -114,7 +101,7 @@ describe('criar e responder', () => {
   })
 
   it('o desafiado também não passa de 3 em andamento ao aceitar', async () => {
-    const ctx = build({ pro: ['ana', 'bia', 'caio', 'dani', 'edu'] })
+    const ctx = build()
     // bia (desafiada por 4 pessoas) só consegue ter 3 ativos
     const friendships = createFakeFriendships([
       ['bia', 'ana'],
@@ -122,7 +109,7 @@ describe('criar e responder', () => {
       ['bia', 'dani'],
       ['bia', 'edu'],
     ])
-    const create = new CreateDuelUseCase(ctx.access, ctx.duels, friendships, () => T0)
+    const create = new CreateDuelUseCase(ctx.duels, friendships, () => T0)
     const ids: string[] = []
     for (const challenger of ['ana', 'caio', 'dani', 'edu']) {
       ids.push((await create.execute({ userId: challenger, opponentId: 'bia' })).id)
@@ -248,20 +235,6 @@ describe('encerramento', () => {
     expect(ctx.xp.grants).toEqual([])
     expect(ctx.feed.items).toEqual([])
     expect((await ctx.duels.findById(duel.id))?.xpAwardedAt).not.toBeNull()
-  })
-
-  it('quem cancelou o PRO no meio do duelo termina o duelo normalmente', async () => {
-    const ctx = build({
-      perf: { ana: { returnPct: 5, operated: true }, bia: { returnPct: 1, operated: true } },
-    })
-    const duel = await startedDuel(ctx)
-    ctx.access.ids.delete('ana')
-    ctx.advance(8 * DAY)
-    await ctx.settle.execute()
-    expect(await ctx.duels.findById(duel.id)).toMatchObject({
-      status: 'finished',
-      outcome: 'challenger',
-    })
   })
 
   it('é idempotente: rodar de novo não repete resultado, XP nem feed', async () => {

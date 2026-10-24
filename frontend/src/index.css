@@ -107,7 +107,7 @@
     --chart-series-5: #d55181;
     --chart-series-6: #008300;
 
-    /* Molduras de avatar do PRO (MO.5.1, tokens doc seção 2.7): dois tons por moldura, só
+    /* Molduras de avatar (MO.5.1, tokens doc seção 2.7): dois tons por moldura, só
      decorativos. De propósito fora dos hues semânticos (verde de ganho, vermelho de perda,
      dourado de conquista), pra cosmético nunca parecer resultado nem conquista. Mesmos valores
      nos dois temas: o anel tem contraste próprio contra fundo claro e escuro. */

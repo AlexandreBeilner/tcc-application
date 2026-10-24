@@ -5,13 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
 import { castVote, getAssembly, getMyVotingStatus } from '../../services/assemblies'
 import type { AssemblyDetail, MyVotingStatus } from '../../services/assemblies'
-import { getBillingStatus } from '../../services/billing'
 import { ApiError } from '../../services/client'
 import { AssembleiaDetalhe } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/assemblies', () => ({ getAssembly: vi.fn(), getMyVotingStatus: vi.fn(), castVote: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 
 const detail = (over: Partial<AssemblyDetail> = {}): AssemblyDetail => ({
     assembly: {
@@ -67,13 +65,11 @@ const detail = (over: Partial<AssemblyDetail> = {}): AssemblyDetail => ({
 
 const status = (over: Partial<MyVotingStatus> = {}): MyVotingStatus => ({
     assemblyId: 'a1',
-    isPro: false,
     canVote: true,
     reason: null,
     message: null,
     myVote: null,
     myShares: 12,
-    credit: { monthKey: '2026-10', limit: 1, used: 0, available: 1, minLevel: 3 },
     ...over,
 })
 
@@ -93,20 +89,10 @@ function renderPage() {
 describe('AssembleiaDetalhe (MO.6.6)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
-        vi.mocked(getBillingStatus).mockResolvedValue({
-            isPro: false,
-            state: 'none',
-            plan: null,
-            store: null,
-            expiresAt: null,
-            willRenew: false,
-            managementUrl: null,
-            billingEnabled: true,
-        })
     })
     afterEach(() => vi.clearAllMocks())
 
-    it('mostra a ficha com ganho e perda dos dois lados, o placar e o saldo do voto gratuito', async () => {
+    it('mostra a ficha com ganho e perda dos dois lados, o placar e o peso do voto', async () => {
         vi.mocked(getAssembly).mockResolvedValue(detail())
         vi.mocked(getMyVotingStatus).mockResolvedValue(status())
         renderPage()
@@ -116,14 +102,13 @@ describe('AssembleiaDetalhe (MO.6.6)', () => {
         expect(screen.getByText('Menos crescimento')).toBeInTheDocument()
         expect(screen.getByText(/Empurra para cima o ritmo de crescimento da empresa/)).toBeInTheDocument()
         expect(screen.getByText(/66,7% das ações · 2 votantes/)).toBeInTheDocument()
-        expect(await screen.findByText(/Seu voto gratuito do mês: 1 de 1 disponível/)).toBeInTheDocument()
-        expect(screen.getByText(/Você tinha 12 ações/)).toBeInTheDocument()
+        expect(await screen.findByText(/Você tinha 12 ações/)).toBeInTheDocument()
     })
 
     it('vota na opção escolhida', async () => {
         vi.mocked(getAssembly).mockResolvedValue(detail())
         vi.mocked(getMyVotingStatus).mockResolvedValue(status())
-        vi.mocked(castVote).mockResolvedValue({ optionId: 'o2', changed: false, creditConsumed: true })
+        vi.mocked(castVote).mockResolvedValue({ optionId: 'o2', changed: false })
         renderPage()
 
         const buttons = await screen.findAllByRole('button', { name: 'Votar nesta opção' })
@@ -142,22 +127,7 @@ describe('AssembleiaDetalhe (MO.6.6)', () => {
         expect(screen.getByText(/Dá para trocar até a votação fechar/)).toBeInTheDocument()
     })
 
-    it('sem crédito mostra o motivo e o convite ao PRO; sem ações não convida', async () => {
-        vi.mocked(getAssembly).mockResolvedValue(detail())
-        vi.mocked(getMyVotingStatus).mockResolvedValue(
-            status({ canVote: false, reason: 'no_credit', message: 'requer plano PRO ou crédito de voto' }),
-        )
-        renderPage()
-
-        expect(await screen.findByText('requer plano PRO ou crédito de voto')).toBeInTheDocument()
-        expect(await screen.findByRole('link', { name: 'Conhecer o PRO' })).toBeInTheDocument()
-        expect(await screen.findByRole('heading', { name: 'Como o PRO participa' })).toBeInTheDocument()
-        // O convite contextual já está na tela: o bloco não repete o link.
-        expect(screen.queryByRole('link', { name: 'Ver o que o PRO inclui' })).toBeNull()
-        expect(screen.queryByRole('button', { name: 'Votar nesta opção' })).toBeNull()
-    })
-
-    it('quem não tem ações vê o motivo e nenhum convite', async () => {
+    it('quem não tem ações vê o motivo e não vota', async () => {
         vi.mocked(getAssembly).mockResolvedValue(detail())
         vi.mocked(getMyVotingStatus).mockResolvedValue(
             status({ canVote: false, reason: 'not_shareholder', message: 'Só quem tinha ações da empresa na abertura vota.', myShares: 0 }),
@@ -165,8 +135,7 @@ describe('AssembleiaDetalhe (MO.6.6)', () => {
         renderPage()
 
         expect(await screen.findByText(/Só quem tinha ações da empresa na abertura vota/)).toBeInTheDocument()
-        expect(screen.queryByRole('link', { name: 'Conhecer o PRO' })).toBeNull()
-        expect(await screen.findByRole('link', { name: 'Ver o que o PRO inclui' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Votar nesta opção' })).toBeNull()
     })
 
     it('encerrada aprovada destaca o resultado e não oferece voto', async () => {

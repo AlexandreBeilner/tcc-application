@@ -38,7 +38,6 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
   }
 
   async function clean() {
-    await db.delete(schema.assemblyVoteCredits)
     await db.delete(schema.assemblyVotes)
     await db.delete(schema.assemblyOptions)
     await db.delete(schema.assemblies)
@@ -168,18 +167,6 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
       ),
     ).toBe(false)
     expect(await repo.listByStatus('closed', 10)).toHaveLength(1)
-  })
-
-  it('crédito mensal: conta por mês e consumir de novo na mesma assembleia é idempotente', async () => {
-    const repo = createDrizzleAssemblyRepository(db)
-    const { assembly } = await repo.create(input, now)
-    const credit = { userId: ids[1], assemblyId: assembly.id, monthKey: '2026-10' }
-    expect(await repo.countCreditsUsed(ids[1], '2026-10')).toBe(0)
-    await repo.consumeCredit(credit, now)
-    await repo.consumeCredit(credit, now)
-    expect(await repo.countCreditsUsed(ids[1], '2026-10')).toBe(1)
-    expect(await repo.countCreditsUsed(ids[1], '2026-11')).toBe(0)
-    expect(await repo.countCreditsUsed(ids[2], '2026-10')).toBe(0)
   })
 
   it('lista as abertas vencidas e as aprovadas com efeito devido, e marca o efeito uma vez só', async () => {
@@ -351,79 +338,53 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
   })
 
   describe('castVote (MO.6.4)', () => {
-    const credit = { monthKey: '2026-10', monthlyFreeCredits: 1 }
     const open = async (repo: ReturnType<typeof createDrizzleAssemblyRepository>, key: string) => {
       const created = await repo.create({ ...input, dedupeKey: key }, now)
       await repo.markOpen(created.assembly.id)
       return { id: created.assembly.id, a: created.options[0].id, b: created.options[1].id }
     }
 
-    it('voto novo com crédito grava o voto e o crédito; trocar não consome outro', async () => {
+    it('voto novo grava o voto; trocar mantém uma linha', async () => {
       const repo = createDrizzleAssemblyRepository(db)
       const a = await open(repo, 'cv-1')
-      expect(
-        await repo.castVote({ assemblyId: a.id, userId: ids[0], optionId: a.a, credit }, now),
-      ).toEqual({
-        status: 'cast',
-        changed: false,
-        creditConsumed: true,
-      })
-      expect(
-        await repo.castVote({ assemblyId: a.id, userId: ids[0], optionId: a.b, credit }, now),
-      ).toEqual({
-        status: 'cast',
-        changed: true,
-        creditConsumed: false,
-      })
-      expect(await repo.countCreditsUsed(ids[0], '2026-10')).toBe(1)
+      expect(await repo.castVote({ assemblyId: a.id, userId: ids[0], optionId: a.a }, now)).toEqual(
+        { status: 'cast', changed: false },
+      )
+      expect(await repo.castVote({ assemblyId: a.id, userId: ids[0], optionId: a.b }, now)).toEqual(
+        { status: 'cast', changed: true },
+      )
+      expect(await repo.listVotes(a.id)).toHaveLength(1)
       expect((await repo.findVote(a.id, ids[0]))?.optionId).toBe(a.b)
     })
 
-    it('sem crédito do mês recusa e não grava nada; sem `credit` (PRO) vota sem gastar', async () => {
+    it('a mesma pessoa vota em várias assembleias', async () => {
       const repo = createDrizzleAssemblyRepository(db)
       const a = await open(repo, 'cv-2')
       const b = await open(repo, 'cv-3')
-      await repo.castVote({ assemblyId: a.id, userId: ids[0], optionId: a.a, credit }, now)
-      expect(
-        await repo.castVote({ assemblyId: b.id, userId: ids[0], optionId: b.a, credit }, now),
-      ).toEqual({ status: 'no_credit' })
-      expect(await repo.findVote(b.id, ids[0])).toBeNull()
-      expect(
-        await repo.castVote({ assemblyId: b.id, userId: ids[0], optionId: b.a }, now),
-      ).toMatchObject({ status: 'cast', creditConsumed: false })
-      expect(await repo.countCreditsUsed(ids[0], '2026-10')).toBe(1)
+      const results = await Promise.all([
+        repo.castVote({ assemblyId: a.id, userId: ids[1], optionId: a.a }, now),
+        repo.castVote({ assemblyId: b.id, userId: ids[1], optionId: b.a }, now),
+      ])
+      expect(results.map((r) => r.status)).toEqual(['cast', 'cast'])
     })
 
-    it('fora da janela recusa sem gastar o crédito', async () => {
+    it('fora da janela recusa e não grava', async () => {
       const repo = createDrizzleAssemblyRepository(db)
       const a = await open(repo, 'cv-4')
       expect(
         await repo.castVote(
-          { assemblyId: a.id, userId: ids[0], optionId: a.a, credit },
+          { assemblyId: a.id, userId: ids[0], optionId: a.a },
           new Date('2026-10-17T12:00:00Z'),
         ),
       ).toEqual({ status: 'closed' })
-      expect(await repo.countCreditsUsed(ids[0], '2026-10')).toBe(0)
       expect(await repo.findVote(a.id, ids[0])).toBeNull()
-    })
-
-    it('dois votos simultâneos da mesma pessoa em assembleias diferentes gastam um crédito só', async () => {
-      const repo = createDrizzleAssemblyRepository(db)
-      const a = await open(repo, 'cv-5')
-      const b = await open(repo, 'cv-6')
-      const results = await Promise.all([
-        repo.castVote({ assemblyId: a.id, userId: ids[1], optionId: a.a, credit }, now),
-        repo.castVote({ assemblyId: b.id, userId: ids[1], optionId: b.a, credit }, now),
-      ])
-      expect(results.map((r) => r.status).sort()).toEqual(['cast', 'no_credit'])
-      expect(await repo.countCreditsUsed(ids[1], '2026-10')).toBe(1)
     })
 
     it('voto simultâneo ao fechamento: ou entra antes da apuração ou é recusado', async () => {
       const repo = createDrizzleAssemblyRepository(db)
       const a = await open(repo, 'cv-7')
       const [vote] = await Promise.all([
-        repo.castVote({ assemblyId: a.id, userId: ids[2], optionId: a.a, credit }, now),
+        repo.castVote({ assemblyId: a.id, userId: ids[2], optionId: a.a }, now),
         repo.close(a.id, {
           outcome: 'not_approved',
           reason: 'quorum',
@@ -434,7 +395,6 @@ describe.skipIf(!databaseUrl)('repositório de assembleias (banco real)', () => 
       ])
       const votes = await repo.listVotes(a.id)
       expect(votes).toHaveLength(vote.status === 'cast' ? 1 : 0)
-      if (vote.status !== 'cast') expect(await repo.countCreditsUsed(ids[2], '2026-10')).toBe(0)
     })
   })
 

@@ -59,7 +59,7 @@ describe('PerfilPublico (tela 8.4)', () => {
                 window: 'week',
                 completedTracks: [],
                 completedLessonCodes: [],
-                cosmetics: { isPro: false, frame: null, title: null },
+                cosmetics: { frame: null, title: null },
             },
         })
 

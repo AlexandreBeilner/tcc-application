@@ -9,15 +9,10 @@ import {
   GetRetrospectiveUseCase,
   ListRetrospectiveMonthsUseCase,
 } from '../../application/useCases/getRetrospective'
-import {
-  createFakeActivity,
-  createFakeMembership,
-  createFakeRepository,
-  createFakeReturns,
-} from '../../test/fakes/fakes'
+import { createFakeActivity, createFakeRepository, createFakeReturns } from '../../test/fakes/fakes'
 import { createRetrospectivesRouter } from './retrospectivesRouter'
 
-function buildApp(proIds: string[]) {
+function buildApp() {
   const activity = createFakeActivity({ ana: new Date('2026-07-15T00:00:00Z') })
   const generate = new GenerateRetrospectiveUseCase(
     activity,
@@ -31,7 +26,7 @@ function buildApp(proIds: string[]) {
   app.use(
     createRetrospectivesRouter({
       listMonths: list,
-      getRetrospective: new GetRetrospectiveUseCase(generate, list, createFakeMembership(proIds)),
+      getRetrospective: new GetRetrospectiveUseCase(generate, list),
       authMiddleware: createAuthMiddleware(tokenIssuer),
     }),
   )
@@ -45,40 +40,32 @@ describe('rotas /retrospectives', () => {
   })
 
   it('401 sem token', async () => {
-    const { app } = buildApp([])
+    const { app } = buildApp()
     expect((await request(app).get('/retrospectives')).status).toBe(401)
     expect((await request(app).get('/retrospectives/2026-09')).status).toBe(401)
   })
 
   it('lista os meses disponíveis, mais recentes primeiro', async () => {
-    const { app, auth } = buildApp([])
+    const { app, auth } = buildApp()
     const res = await request(app).get('/retrospectives').set('Authorization', auth)
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ months: ['2026-09', '2026-08', '2026-07'] })
   })
 
-  it('PRO recebe a versão completa', async () => {
-    const { app, auth } = buildApp(['ana'])
-    const res = await request(app).get('/retrospectives/2026-09').set('Authorization', auth)
-    expect(res.status).toBe(200)
-    expect(res.body.retrospective.full).toBe(true)
-    expect(res.body.retrospective.premium).toMatchObject({ longestStreak: 3, bestReturnPct: 4.2 })
-  })
-
-  it('quem não é PRO recebe a versão simples e a resposta nem contém o conteúdo premium', async () => {
-    const { app, auth } = buildApp([])
+  it('devolve a retrospectiva completa do mês, sem patrimônio', async () => {
+    const { app, auth } = buildApp()
     const res = await request(app).get('/retrospectives/2026-09').set('Authorization', auth)
     expect(res.status).toBe(200)
     expect(res.body.retrospective).toMatchObject({
-      full: false,
-      premium: null,
       lessonsCompleted: 6,
+      longestStreak: 3,
+      bestReturnPct: 4.2,
     })
-    expect(JSON.stringify(res.body)).not.toMatch(/4\.2|longestStreak|patrim/)
+    expect(JSON.stringify(res.body)).not.toMatch(/patrim/)
   })
 
   it('mês inexistente, aberto ou mal formado responde 404 (nunca vaza dado)', async () => {
-    const { app, auth } = buildApp(['ana'])
+    const { app, auth } = buildApp()
     for (const month of ['2026-10', '2026-06', 'abc', '2026-13']) {
       expect(
         (await request(app).get(`/retrospectives/${month}`).set('Authorization', auth)).status,

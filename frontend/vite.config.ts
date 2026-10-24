@@ -36,8 +36,6 @@ const BACKEND_ROUTE_NAMESPACES = [
     'news',
     // EM.6.1 — `POST /email/unsubscribe` (cancelar inscrição); a página é `/cancelar-inscricao`, sem colisão.
     'email',
-    // MO.2.3 — `GET /billing/status` e o webhook do RevenueCat; a página é `/planos`, sem colisão.
-    'billing',
     // MO.5.2 — API das ligas privadas (`/leagues`); as páginas são `/ligas`, sem colisão.
     'leagues',
     // MO.5.3 — API dos duelos (`/duels`); as páginas são `/duelos`, sem colisão.

@@ -58,6 +58,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   'assembly.template_update',
   'assembly.template_activate',
   'assembly.template_deactivate',
+  // Legado: o plano PRO saiu do produto, mas as linhas antigas de auditoria seguem legíveis.
   'billing.grant_promotional',
   'daily.start_date',
   'daily.draft',

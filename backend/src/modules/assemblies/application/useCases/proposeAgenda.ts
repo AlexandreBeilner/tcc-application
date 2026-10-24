@@ -11,7 +11,6 @@ import {
 import { SHAREHOLDER_KIND } from '../../domain/shareholderPolicies'
 import type { AgendaCatalog } from '../ports/agendaCatalog'
 import type { CompanyStandingReader } from '../ports/companyStandingReader'
-import type { ProGate } from '../ports/proGate'
 import type { ProposalRepository } from '../ports/proposalRepository'
 
 export interface ProposeAgendaInput {
@@ -26,12 +25,11 @@ export interface ProposeAgendaOutcome {
   joinedExisting: boolean
 }
 
-// PRO propõe uma pauta do catálogo para uma empresa que possui. Sem texto livre: só a chave da
-// pauta. Ordem das recusas: plano, empresa (ações e período de espera), pauta, teto do mês. Propor
+// Quem tem ações propõe uma pauta do catálogo para a empresa. Sem texto livre: só a chave da
+// pauta. Ordem das recusas: empresa (ações e período de espera), pauta, teto do mês. Propor
 // uma pauta que já está na fila apoia a existente (o duplicado não divide a contagem).
 export class ProposeAgendaUseCase {
   constructor(
-    private readonly pro: ProGate,
     private readonly standings: CompanyStandingReader,
     private readonly catalog: AgendaCatalog,
     private readonly repository: ProposalRepository,
@@ -40,7 +38,6 @@ export class ProposeAgendaUseCase {
   ) {}
 
   async execute(input: ProposeAgendaInput): Promise<ProposeAgendaOutcome> {
-    await this.pro.assertPro(input.userId)
     const params = this.params()
     const now = this.now()
 

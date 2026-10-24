@@ -1144,12 +1144,12 @@ describe('GetRankingUseCase', () => {
     })
   })
 
-  describe('cosméticos do PRO (MO.5.1)', () => {
+  describe('cosméticos (MO.5.1)', () => {
     const users = [
       { id: 'u1', username: 'u1', createdAt: new Date('2026-01-01T00:00:00Z') },
       { id: 'u2', username: 'u2', createdAt: new Date('2026-01-01T00:00:00Z') },
     ]
-    const display = { isPro: true, frame: 'frame_aurora', title: 'Estrategista' }
+    const display = { frame: 'frame_aurora', title: 'Estrategista' }
 
     function run(cosmeticsReader?: {
       findDisplays(ids: string[]): Promise<Map<string, typeof display>>
@@ -1173,11 +1173,11 @@ describe('GetRankingUseCase', () => {
       ).execute({ scope: 'global', criterion: 'level', page: 1, requestingUserId: 'u1' })
     }
 
-    it('mostra selo, moldura e título de quem é PRO e nada para os demais', async () => {
+    it('mostra moldura e título de quem escolheu e nada para os demais', async () => {
       const result = await run({ findDisplays: async () => new Map([['u2', display]]) })
       const byId = new Map(result.entries.map((e) => [e.userId, e.cosmetics]))
       expect(byId.get('u2')).toEqual(display)
-      expect(byId.get('u1')).toEqual({ isPro: false, frame: null, title: null })
+      expect(byId.get('u1')).toEqual({ frame: null, title: null })
     })
 
     it('nunca muda a ordem do ranking', async () => {

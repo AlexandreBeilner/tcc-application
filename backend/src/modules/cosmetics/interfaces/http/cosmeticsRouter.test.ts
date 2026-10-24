@@ -7,26 +7,19 @@ import { createFakeTokenIssuer } from '../../../auth/test/fakes/fakeTokenIssuer'
 import { EquipCosmeticUseCase } from '../../application/useCases/equipCosmetic'
 import { ListMyCosmeticsUseCase } from '../../application/useCases/listMyCosmetics'
 import { UnequipCosmeticUseCase } from '../../application/useCases/unequipCosmetic'
-import {
-  createFakeCatalog,
-  createFakeMembership,
-  createFakeProAccess,
-  createFakeSelections,
-} from '../../test/fakes/fakes'
+import { createFakeCatalog, createFakeSelections } from '../../test/fakes/fakes'
 import { createCosmeticsRouter } from './cosmeticsRouter'
 
 function buildApp() {
   const selections = createFakeSelections()
-  const membership = createFakeMembership(['pro'])
-  const access = createFakeProAccess(['pro'])
   const catalog = createFakeCatalog()
   const tokenIssuer = createFakeTokenIssuer()
   const app = express()
   app.use(express.json())
   app.use(
     createCosmeticsRouter({
-      listMyCosmetics: new ListMyCosmeticsUseCase(catalog, selections, membership),
-      equipCosmetic: new EquipCosmeticUseCase(access, catalog, selections),
+      listMyCosmetics: new ListMyCosmeticsUseCase(catalog, selections),
+      equipCosmetic: new EquipCosmeticUseCase(catalog, selections),
       unequipCosmetic: new UnequipCosmeticUseCase(selections),
       authMiddleware: createAuthMiddleware(tokenIssuer),
     }),
@@ -48,11 +41,10 @@ describe('rotas /me/cosmetics', () => {
     expect((await request(app).delete('/me/cosmetics?kind=frame')).status).toBe(401)
   })
 
-  it('GET mostra catálogo e escolha, sem exigir PRO', async () => {
+  it('GET mostra catálogo e escolha', async () => {
     const { app, auth } = buildApp()
-    const res = await request(app).get('/me/cosmetics').set('Authorization', auth('free'))
+    const res = await request(app).get('/me/cosmetics').set('Authorization', auth('bia'))
     expect(res.status).toBe(200)
-    expect(res.body.isPro).toBe(false)
     expect(res.body.catalog).toHaveLength(3)
   })
 
@@ -60,48 +52,37 @@ describe('rotas /me/cosmetics', () => {
     const { app, auth } = buildApp()
     const res = await request(app)
       .put('/me/cosmetics')
-      .set('Authorization', auth('pro'))
+      .set('Authorization', auth('ana'))
       .send({ kind: 'frame', itemKey: 'frame_aurora' })
     expect(res.status).toBe(200)
     expect(res.body.selection.frame).toBe('frame_aurora')
-    expect(res.body.display).toEqual({ isPro: true, frame: 'frame_aurora', title: null })
-  })
-
-  it('PUT sem PRO responde 403 requer plano PRO (nunca 404)', async () => {
-    const { app, auth, selections } = buildApp()
-    const res = await request(app)
-      .put('/me/cosmetics')
-      .set('Authorization', auth('free'))
-      .send({ kind: 'frame', itemKey: 'frame_aurora' })
-    expect(res.status).toBe(403)
-    expect(res.body).toEqual({ error: 'requer plano PRO' })
-    expect(selections.rows.size).toBe(0)
+    expect(res.body.display).toEqual({ frame: 'frame_aurora', title: null })
   })
 
   it('PUT valida o corpo (400) e item desconhecido (404)', async () => {
     const { app, auth } = buildApp()
     const bad = await request(app)
       .put('/me/cosmetics')
-      .set('Authorization', auth('pro'))
+      .set('Authorization', auth('ana'))
       .send({ kind: 'tema', itemKey: 'x' })
     expect(bad.status).toBe(400)
     const missing = await request(app)
       .put('/me/cosmetics')
-      .set('Authorization', auth('pro'))
+      .set('Authorization', auth('ana'))
       .send({ kind: 'frame', itemKey: 'nao_existe' })
     expect(missing.status).toBe(404)
   })
 
-  it('DELETE tira o item mesmo de quem não é PRO', async () => {
+  it('DELETE tira o item', async () => {
     const { app, auth, selections } = buildApp()
-    selections.rows.set('free', { frame: 'frame_aurora', title: null })
+    selections.rows.set('bia', { frame: 'frame_aurora', title: null })
     const res = await request(app)
       .delete('/me/cosmetics?kind=frame')
-      .set('Authorization', auth('free'))
+      .set('Authorization', auth('bia'))
     expect(res.status).toBe(200)
     expect(res.body.selection.frame).toBeNull()
     expect(
-      (await request(app).delete('/me/cosmetics?kind=x').set('Authorization', auth('free'))).status,
+      (await request(app).delete('/me/cosmetics?kind=x').set('Authorization', auth('bia'))).status,
     ).toBe(400)
   })
 })

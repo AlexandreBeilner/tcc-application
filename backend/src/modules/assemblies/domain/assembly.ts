@@ -86,16 +86,10 @@ export interface KindPolicies {
 export interface AssemblyParams {
   // Votantes distintos mínimos para a pauta valer; abaixo disso nada muda.
   minVoters: number
-  // Quantos votos gratuitos por mês de calendário quem não é PRO tem.
-  monthlyFreeCredits: number
-  // Nível mínimo para usar o crédito gratuito (decisão do autor: 3).
-  freeCreditMinLevel: number
 }
 
 export const DEFAULT_ASSEMBLY_PARAMS: AssemblyParams = {
   minVoters: 3,
-  monthlyFreeCredits: 1,
-  freeCreditMinLevel: 3,
 }
 
 export interface OptionTotal {
@@ -217,16 +211,9 @@ export function tallyVotes(
 
 const BRT_OFFSET_HOURS = 3
 
-// Mês de calendário em Brasília ('2026-10'), chave do crédito mensal. Brasília é UTC-3 o ano todo
-// (sem horário de verão desde 2019).
-export function creditMonthKey(at: Date): string {
+// Mês de calendário em Brasília ('2026-10'), base do teto mensal de propostas. Brasília é UTC-3 o
+// ano todo (sem horário de verão desde 2019).
+export function brtMonthKey(at: Date): string {
   const brt = new Date(at.getTime() - BRT_OFFSET_HOURS * 60 * 60 * 1000)
   return `${brt.getUTCFullYear()}-${String(brt.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-export function hasFreeCredit(
-  usedThisMonth: number,
-  params: Pick<AssemblyParams, 'monthlyFreeCredits'>,
-): boolean {
-  return usedThisMonth < params.monthlyFreeCredits
 }

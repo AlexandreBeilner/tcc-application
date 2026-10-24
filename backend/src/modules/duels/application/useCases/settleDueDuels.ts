@@ -20,8 +20,7 @@ const XP_CATCH_UP_BATCH = 100
 // (motor fora do ar) fica como está e é tentado de novo na próxima rodada.
 //
 // O resultado é medido nos instantes de início e fim do duelo (replay do log), então é o mesmo
-// seja qual for a hora em que o job rode. Cancelar o PRO nunca interrompe um duelo: ele
-// termina normalmente.
+// seja qual for a hora em que o job rode.
 export class SettleDueDuelsUseCase {
   constructor(
     private readonly duels: DuelRepository,

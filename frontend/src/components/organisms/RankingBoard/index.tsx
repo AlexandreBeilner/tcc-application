@@ -4,7 +4,6 @@ import { computePodiumSparkline, PODIUM_SPARKLINE_HEIGHT, PODIUM_SPARKLINE_WIDTH
 import { useValueFlash } from '../../../features/ranking/useValueFlash'
 import { AvatarFrame } from '../../atoms/AvatarFrame'
 import { Button } from '../../atoms/Button'
-import { ProSeal } from '../../atoms/ProSeal'
 import { UserTitle } from '../../atoms/UserTitle'
 import { Pagination } from '../../molecules/Pagination'
 import type { RankingCriterion, RankingEntry } from '../../../services/ranking'
@@ -157,7 +156,6 @@ export function RankingBoard({
                                     <span className={styles.avatar}>{initials(entry.username)}</span>
                                 </AvatarFrame>
                                 <span className={styles.podiumName}>{entry.username}</span>
-                                {entry.cosmetics.isPro && <ProSeal />}
                                 {entry.cosmetics.title && <UserTitle title={entry.cosmetics.title} />}
                                 <span className={styles.podiumLevel}>Nível {entry.level}</span>
                                 {criterion !== 'level' && (
@@ -187,7 +185,6 @@ export function RankingBoard({
                                     {entry.username}
                                     {entry.cosmetics.title && <UserTitle title={entry.cosmetics.title} />}
                                 </span>
-                                {entry.cosmetics.isPro && <ProSeal />}
                                 <span className={styles.rowLevel}>Nível {entry.level}</span>
                                 {valueBlock(entry, styles.rowPct)}
                             </button>

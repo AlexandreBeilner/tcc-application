@@ -26,22 +26,19 @@ function plural(count: number, one: string, many: string): string {
 }
 
 // Texto curto que acompanha a imagem (só números de atividade, nunca valor em reais, RNF09). O
-// destaque é a sequência (PRO) ou as lições (todos), como os apps de hábito costumam fazer.
+// destaque é a sequência (quando houve) e as lições, como os apps de hábito costumam fazer.
 export function buildShareText(retro: Retrospective): string {
     const parts: string[] = []
-    if (retro.premium && retro.premium.longestStreak > 0) {
-        parts.push(plural(retro.premium.longestStreak, 'dia seguido', 'dias seguidos'))
-    }
+    if (retro.longestStreak > 0) parts.push(plural(retro.longestStreak, 'dia seguido', 'dias seguidos'))
     if (retro.lessonsCompleted > 0) parts.push(plural(retro.lessonsCompleted, 'lição', 'lições'))
     parts.push(`nível ${retro.level}`)
     return `Meu ${monthLabel(retro.month).split(' de ')[0]} no Selucra: ${parts.join(', ')}.`
 }
 
-// Dados do selo/identidade que a imagem personalizada (PRO) mostra.
+// Identidade que a imagem personalizada mostra.
 export interface ShareIdentity {
     username: string
-    isPro: boolean
-    // Chave da moldura (`frame_aurora`...) e título, só para PRO.
+    // Chave da moldura (`frame_aurora`...) e título escolhidos.
     frame: string | null
     title: string | null
 }
@@ -81,9 +78,9 @@ export interface CanvasLike {
     getContext(type: '2d'): CanvasRenderingContext2D | null
 }
 
-// Desenha o cartão compartilhável no canvas. Versão simples (todos): lições, conquistas e nível.
-// Versão PRO: destaque da sequência, calendário de dias, rentabilidade do mês como marco em
-// percentual, e a identidade (moldura, título e selo). Nunca desenha valor em reais.
+// Desenha o cartão compartilhável no canvas: destaque da sequência (ou das lições), calendário de
+// dias, lições, conquistas, nível, rentabilidade do mês como marco em percentual e a identidade
+// (moldura e título). Nunca desenha valor em reais.
 export function drawShareCard(canvas: CanvasLike, retro: Retrospective, identity: ShareIdentity): void {
     canvas.width = CARD.width
     canvas.height = CARD.height
@@ -98,10 +95,10 @@ export function drawShareCard(canvas: CanvasLike, retro: Retrospective, identity
     ctx.fillStyle = glow
     ctx.fillRect(0, 0, CARD.width, 520)
 
-    // Identidade: avatar com moldura (PRO), nome, título e selo.
+    // Identidade: avatar com moldura, nome e título.
     const cx = 140
     const cy = 150
-    const frameColors = identity.isPro && identity.frame ? FRAME_COLORS[identity.frame] : undefined
+    const frameColors = identity.frame ? FRAME_COLORS[identity.frame] : undefined
     if (frameColors) {
         const ring = ctx.createLinearGradient(cx - 70, cy - 70, cx + 70, cy + 70)
         ring.addColorStop(0, frameColors[0])
@@ -126,22 +123,10 @@ export function drawShareCard(canvas: CanvasLike, retro: Retrospective, identity
     ctx.fillStyle = COLOR.text
     ctx.font = '700 44px sans-serif'
     ctx.fillText(`@${identity.username}`, 250, 140)
-    if (identity.isPro) {
-        ctx.fillStyle = COLOR.brandBg
-        ctx.strokeStyle = COLOR.brand
-        ctx.lineWidth = 3
-        ctx.beginPath()
-        ctx.roundRect(250, 160, 84, 40, 20)
-        ctx.fill()
-        ctx.stroke()
-        ctx.fillStyle = COLOR.brandSoft
-        ctx.font = '700 24px sans-serif'
-        ctx.fillText('PRO', 276, 189)
-        if (identity.title) {
-            ctx.fillStyle = COLOR.muted
-            ctx.font = 'italic 28px sans-serif'
-            ctx.fillText(identity.title, 350, 190)
-        }
+    if (identity.title) {
+        ctx.fillStyle = COLOR.muted
+        ctx.font = 'italic 28px sans-serif'
+        ctx.fillText(identity.title, 250, 190)
     }
 
     // Título do mês.
@@ -149,17 +134,16 @@ export function drawShareCard(canvas: CanvasLike, retro: Retrospective, identity
     ctx.font = '600 34px sans-serif'
     ctx.fillText(`Meu ${monthLabel(retro.month)}`, 80, 330)
 
-    // Destaque: sequência (PRO) ou lições (todos).
-    const premium = retro.premium
-    const headline = premium && premium.longestStreak > 0 ? premium.longestStreak : retro.lessonsCompleted
-    const headlineLabel =
-        premium && premium.longestStreak > 0
-            ? headline === 1
-                ? 'dia seguido'
-                : 'dias seguidos'
-            : headline === 1
-              ? 'lição concluída'
-              : 'lições concluídas'
+    // Destaque: a sequência, quando houve; senão as lições.
+    const streakHeadline = retro.longestStreak > 0
+    const headline = streakHeadline ? retro.longestStreak : retro.lessonsCompleted
+    const headlineLabel = streakHeadline
+        ? headline === 1
+            ? 'dia seguido'
+            : 'dias seguidos'
+        : headline === 1
+          ? 'lição concluída'
+          : 'lições concluídas'
     ctx.fillStyle = COLOR.text
     ctx.font = '800 220px sans-serif'
     ctx.fillText(String(headline), 80, 560)
@@ -167,27 +151,25 @@ export function drawShareCard(canvas: CanvasLike, retro: Retrospective, identity
     ctx.font = '700 52px sans-serif'
     ctx.fillText(headlineLabel, 80, 630)
 
-    // Calendário de dias (PRO): ponto cheio = manteve a sequência, vazado = dia off.
-    if (premium) {
-        const active = new Set(premium.activeDays)
-        const cols = 10
-        const size = 64
-        const gap = 14
-        for (let day = 1; day <= premium.daysInMonth; day++) {
-            const col = (day - 1) % cols
-            const row = Math.floor((day - 1) / cols)
-            const x = 80 + col * (size + gap) + size / 2
-            const y = 740 + row * (size + gap) + size / 2
-            ctx.beginPath()
-            ctx.arc(x, y, size / 2 - 4, 0, Math.PI * 2)
-            if (active.has(day)) {
-                ctx.fillStyle = COLOR.brand
-                ctx.fill()
-            } else {
-                ctx.strokeStyle = COLOR.border
-                ctx.lineWidth = 4
-                ctx.stroke()
-            }
+    // Calendário de dias: ponto cheio = manteve a sequência, vazado = dia off.
+    const active = new Set(retro.activeDays)
+    const cols = 10
+    const size = 64
+    const gap = 14
+    for (let day = 1; day <= retro.daysInMonth; day++) {
+        const col = (day - 1) % cols
+        const row = Math.floor((day - 1) / cols)
+        const dotX = 80 + col * (size + gap) + size / 2
+        const dotY = 740 + row * (size + gap) + size / 2
+        ctx.beginPath()
+        ctx.arc(dotX, dotY, size / 2 - 4, 0, Math.PI * 2)
+        if (active.has(day)) {
+            ctx.fillStyle = COLOR.brand
+            ctx.fill()
+        } else {
+            ctx.strokeStyle = COLOR.border
+            ctx.lineWidth = 4
+            ctx.stroke()
         }
     }
 
@@ -196,19 +178,19 @@ export function drawShareCard(canvas: CanvasLike, retro: Retrospective, identity
         { label: `Nível ${retro.level}`, color: COLOR.text },
         { label: retro.achievementsUnlocked === 1 ? '1 conquista' : `${retro.achievementsUnlocked} conquistas`, color: COLOR.text },
     ]
-    if (!premium) {
+    if (streakHeadline) {
         chips.unshift({ label: retro.lessonsCompleted === 1 ? '1 lição' : `${retro.lessonsCompleted} lições`, color: COLOR.text })
     }
-    if (premium?.bestReturnPct != null) {
-        const pct = premium.bestReturnPct
+    if (retro.bestReturnPct !== null) {
+        const pct = retro.bestReturnPct
         const sign = pct > 0 ? '+' : pct < 0 ? '−' : ''
         chips.push({
             label: `${sign}${Math.abs(pct).toFixed(1).replace('.', ',')}% no mês`,
             color: pct > 0 ? COLOR.gain : pct < 0 ? COLOR.loss : COLOR.muted,
         })
     }
-    if (premium && premium.duelsWon > 0) {
-        chips.push({ label: premium.duelsWon === 1 ? '1 duelo vencido' : `${premium.duelsWon} duelos vencidos`, color: COLOR.text })
+    if (retro.duelsWon > 0) {
+        chips.push({ label: retro.duelsWon === 1 ? '1 duelo vencido' : `${retro.duelsWon} duelos vencidos`, color: COLOR.text })
     }
     ctx.font = '700 36px sans-serif'
     let x = 80

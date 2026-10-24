@@ -4,13 +4,11 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { listAssemblies, listCompanyProposals } from '../../../services/assemblies'
-import { getBillingStatus } from '../../../services/billing'
 import { ApiError } from '../../../services/client'
 import { CompanyAssemblies } from '.'
 
 vi.mock('../../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../../services/assemblies', () => ({ listAssemblies: vi.fn(), listCompanyProposals: vi.fn() }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 
 function renderIt() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -26,19 +24,8 @@ function renderIt() {
 describe('CompanyAssemblies (MO.6.6)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
-        vi.mocked(getBillingStatus).mockResolvedValue({
-            isPro: true,
-            state: 'active',
-            plan: 'monthly',
-            store: 'stripe',
-            expiresAt: null,
-            willRenew: true,
-            managementUrl: null,
-            billingEnabled: true,
-        })
         vi.mocked(listCompanyProposals).mockResolvedValue({
             company: { id: 'c1', name: 'Acme', sector: 'Varejo' },
-            isPro: true,
             holdsShares: true,
             cooldownDaysLeft: 0,
             blockedReason: null,

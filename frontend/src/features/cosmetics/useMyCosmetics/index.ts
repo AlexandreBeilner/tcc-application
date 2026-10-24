@@ -24,7 +24,7 @@ export interface CosmeticChange {
     itemKey: string | null
 }
 
-// Equipar (exige PRO, `403` sem plano) ou tirar um item. A resposta já traz o estado novo, que
+// Equipar ou tirar um item. A resposta já traz o estado novo, que
 // vai direto ao cache; o resto das telas (ranking, perfil, amigos) refaz a leitura na próxima vez.
 export function useCosmeticChangeMutation(): UseMutationResult<MyCosmetics, unknown, CosmeticChange> {
     const { token } = useAuth()

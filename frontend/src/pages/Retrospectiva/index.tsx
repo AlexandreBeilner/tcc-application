@@ -9,8 +9,7 @@ import { monthLabel } from '../../features/retrospective/shareCard'
 import styles from './index.module.css'
 
 // Retrospectiva mensal (MO.5.4): o mês que acabou, em cartões para ver e compartilhar. Só meses
-// fechados, do mês de cadastro em diante. Quem cancelou o PRO volta à versão simples; nada é
-// apagado e o arquivo completo volta ao reativar.
+// fechados, do mês de cadastro em diante.
 export function Retrospectiva() {
     const { user } = useAuth()
     const monthsQuery = useRetrospectiveMonthsQuery()
@@ -70,7 +69,6 @@ export function Retrospectiva() {
                     retrospective={query.data}
                     identity={{
                         username: user.username,
-                        isPro: query.data.full && (mine?.display.isPro ?? false),
                         frame: mine?.display.frame ?? null,
                         title: mine?.display.title ?? null,
                     }}

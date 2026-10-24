@@ -27,7 +27,7 @@ export function getMyVotingStatus(token: string, id: string): Promise<MyVotingSt
     return apiRequest<MyVotingStatus>(`/assemblies/${id}/me`, { token })
 }
 
-// Votar e trocar o voto nunca exigem PRO: a regra (posição, crédito mensal) é do servidor.
+// Votar e trocar o voto: a regra (posição na data de corte) é do servidor.
 export function castVote(token: string, id: string, optionId: string): Promise<CastVoteResult> {
     return apiRequest<CastVoteResult>(`/assemblies/${id}/vote`, { method: 'POST', body: { optionId }, token })
 }
@@ -36,7 +36,6 @@ export function listCompanyProposals(token: string, companyId: string): Promise<
     return apiRequest<CompanyProposals>(`/assemblies/companies/${companyId}/proposals`, { token })
 }
 
-// Propor e apoiar são capacidades PRO: sem plano a resposta é `403 requer plano PRO`.
 export function proposeAgenda(
     token: string,
     companyId: string,
@@ -49,7 +48,6 @@ export function supportProposal(token: string, proposalId: string): Promise<{ pr
     return apiRequest(`/assemblies/proposals/${proposalId}/support`, { method: 'PUT', token })
 }
 
-// Retirar o apoio nunca exige PRO.
 export function withdrawProposalSupport(token: string, proposalId: string): Promise<{ proposal: ProposalSummary; withdrawn: boolean }> {
     return apiRequest(`/assemblies/proposals/${proposalId}/support`, { method: 'DELETE', token })
 }

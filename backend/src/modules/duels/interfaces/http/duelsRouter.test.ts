@@ -13,7 +13,6 @@ import { createFakeDuelRepository } from '../../test/fakes/fakeDuelRepository'
 import {
   createFakeFriendships,
   createFakePerformance,
-  createFakeProAccess,
   createFakeUsers,
 } from '../../test/fakes/fakes'
 import { createDuelsRouter } from './duelsRouter'
@@ -22,9 +21,8 @@ const ANA = '11111111-1111-4111-8111-111111111111'
 const BIA = '22222222-2222-4222-8222-222222222222'
 const ZECA = '33333333-3333-4333-8333-333333333333'
 
-function buildApp(proIds = [ANA]) {
+function buildApp() {
   const duels = createFakeDuelRepository()
-  const access = createFakeProAccess(proIds)
   const users = createFakeUsers([ANA, BIA, ZECA])
   const performance = createFakePerformance({
     [ANA]: { returnPct: 3, operated: true },
@@ -35,7 +33,7 @@ function buildApp(proIds = [ANA]) {
   app.use(express.json())
   app.use(
     createDuelsRouter({
-      createDuel: new CreateDuelUseCase(access, duels, createFakeFriendships([[ANA, BIA]])),
+      createDuel: new CreateDuelUseCase(duels, createFakeFriendships([[ANA, BIA]])),
       respondToDuel: new RespondToDuelUseCase(duels),
       cancelDuel: new CancelDuelUseCase(duels),
       listMyDuels: new ListMyDuelsUseCase(duels, users),
@@ -59,7 +57,7 @@ describe('rotas /duels', () => {
     expect((await request(app).post('/duels').send({})).status).toBe(401)
   })
 
-  it('fluxo: PRO desafia, amigo gratuito aceita, ambos veem o placar parcial só em percentual', async () => {
+  it('fluxo: desafia, o amigo aceita, ambos veem o placar parcial só em percentual', async () => {
     const { app, as } = buildApp()
     const created = await request(app)
       .post('/duels')
@@ -91,17 +89,7 @@ describe('rotas /duels', () => {
     expect(JSON.stringify(detail.body)).not.toMatch(/patrim|netWorth|balance/i)
   })
 
-  it('desafiar sem PRO responde 403 requer plano PRO (nunca 404)', async () => {
-    const { app, as } = buildApp([])
-    const res = await request(app)
-      .post('/duels')
-      .set('Authorization', as(ANA))
-      .send({ opponentId: BIA })
-    expect(res.status).toBe(403)
-    expect(res.body).toEqual({ error: 'requer plano PRO' })
-  })
-
-  it('aceitar nunca exige PRO, mesmo sem plano nenhum', async () => {
+  it('o desafiado pode recusar', async () => {
     const { app, as } = buildApp()
     const id = (
       await request(app).post('/duels').set('Authorization', as(ANA)).send({ opponentId: BIA })

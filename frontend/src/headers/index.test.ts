@@ -47,18 +47,10 @@ describe('public/_headers', () => {
         expect(directive('worker-src')).toEqual(["'self'"])
     })
 
-    it('libera só o necessário: API própria, RevenueCat e Stripe', () => {
-        expect(directive('connect-src')).toEqual(
-            expect.arrayContaining([
-                'https://api.selucra.com.br',
-                'https://api-staging.selucra.com.br',
-                'https://api.revenuecat.com',
-                'https://e.revenue.cat',
-                'https://api.stripe.com',
-            ]),
-        )
-        expect(directive('script-src')).toEqual(expect.arrayContaining(['https://js.stripe.com', 'https://*.js.stripe.com']))
-        expect(directive('frame-src')).toEqual(expect.arrayContaining(['https://js.stripe.com', 'https://hooks.stripe.com']))
+    it('libera só o necessário: a API própria, sem origem de terceiro', () => {
+        expect(directive('connect-src')).toEqual(["'self'", 'https://api.selucra.com.br', 'https://api-staging.selucra.com.br'])
+        expect(directive('script-src')).toEqual(["'self'"])
+        expect(directive('frame-src')).toEqual(["'none'"])
         for (const name of ['script-src', 'connect-src', 'frame-src', 'img-src']) {
             expect(directive(name)).not.toContain('*')
             expect(directive(name)).not.toContain('https:')

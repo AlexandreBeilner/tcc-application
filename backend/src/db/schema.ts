@@ -759,50 +759,8 @@ export const authEmailTokens = pgTable(
   ],
 )
 
-// Projeção local do direito ao PRO (MO.2.1), uma linha por usuário. A verdade é o RevenueCat:
-// esta tabela só guarda o que a última consulta devolveu (fatos, não um "status" gravado, porque
-// ativo/vencido depende da hora de agora). Sem linha = nunca assinou. Nunca guarda dado de cartão.
-export const subscriptions = pgTable(
-  'subscriptions',
-  {
-    userId: uuid('user_id')
-      .primaryKey()
-      .references(() => users.id),
-    store: text('store').notNull(),
-    productId: varchar('product_id', { length: 200 }).notNull(),
-    period: text('period').notNull().default('unknown'),
-    purchasedAt: timestamp('purchased_at', { withTimezone: true }),
-    // Nulo = sem vencimento (concessão promocional vitalícia).
-    expiresAt: timestamp('expires_at', { withTimezone: true }),
-    graceExpiresAt: timestamp('grace_expires_at', { withTimezone: true }),
-    billingIssueDetectedAt: timestamp('billing_issue_detected_at', { withTimezone: true }),
-    unsubscribeDetectedAt: timestamp('unsubscribe_detected_at', { withTimezone: true }),
-    refundedAt: timestamp('refunded_at', { withTimezone: true }),
-    isSandbox: boolean('is_sandbox').notNull().default(false),
-    managementUrl: text('management_url'),
-    lastEventAt: timestamp('last_event_at', { withTimezone: true }),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    check(
-      'subscriptions_store_chk',
-      sql`${table.store} IN ('app_store', 'play_store', 'stripe', 'rc_billing', 'promotional', 'other')`,
-    ),
-    check('subscriptions_period_chk', sql`${table.period} IN ('monthly', 'annual', 'unknown')`),
-  ],
-)
-
-// Eventos do webhook do RevenueCat já tratados (MO.2.1). A chave é o id do próprio evento, não um
-// id nosso. O efeito do webhook é reconsultar o estado e regravar a projeção (convergente), então
-// isto é auditoria e atalho contra reprocessar repetição, não o que garante a correção.
-export const billingWebhookEvents = pgTable('billing_webhook_events', {
-  id: varchar('id', { length: 200 }).primaryKey(),
-  eventType: varchar('event_type', { length: 60 }).notNull(),
-  processedAt: timestamp('processed_at', { withTimezone: true }).notNull().defaultNow(),
-})
-
-// Catálogo de cosméticos do PRO (MO.5.1): moldura de avatar e título. Tabela própria, nunca o
-// catálogo de conquistas (`achievements`): emblema de conquista real continua grátis. A chave é
+// Catálogo de cosméticos (MO.5.1): moldura de avatar e título. Tabela própria, nunca o catálogo
+// de conquistas (`achievements`). A chave é
 // estável e legível (o frontend mapeia a moldura pelo visual, o texto vem daqui). Os itens são
 // dado, inseridos na própria migração.
 export const cosmeticItems = pgTable(
@@ -815,15 +773,13 @@ export const cosmeticItems = pgTable(
     sortOrder: integer('sort_order').notNull().default(0),
     active: boolean('active').notNull().default(true),
     // Título liberado por indicações (MO.7.2): só quem tem pelo menos N indicações válidas equipa.
-    // Nulo = livre pra todo PRO (o catálogo da MO.5.1).
+    // Nulo = livre pra todos.
     unlockReferrals: integer('unlock_referrals'),
   },
   (table) => [check('cosmetic_items_kind_chk', sql`${table.kind} IN ('frame', 'title')`)],
 )
 
-// O que cada pessoa equipou: no máximo um item por tipo. Cancelar o PRO não apaga estas linhas
-// (arquivar, nunca apagar): a leitura pública só mostra o item de quem é PRO agora, então
-// reativar restaura o visual sem escrever nada.
+// O que cada pessoa equipou: no máximo um item por tipo.
 export const userCosmetics = pgTable(
   'user_cosmetics',
   {
@@ -842,11 +798,10 @@ export const userCosmetics = pgTable(
   ],
 )
 
-// Ligas privadas do PRO (MO.5.2). Só quem é PRO cria (até 3 abertas por pessoa); qualquer amigo
-// convidado entra sem plano. A pontuação não é coluna: é sempre a rentabilidade percentual da
-// janela do ranking (`window_kind`), nunca patrimônio absoluto (RNF09). "Arquivada" quando o
-// dono cancela o PRO não é estado gravado, é derivado do plano do dono a cada leitura (volta
-// sozinha na reativação). `closed_at` é o encerramento voluntário pelo dono (libera a vaga das 3).
+// Ligas privadas (MO.5.2). Qualquer pessoa cria (até 3 abertas por pessoa) e convida amigos. A
+// pontuação não é coluna: é sempre a rentabilidade percentual da janela do ranking
+// (`window_kind`), nunca patrimônio absoluto (RNF09). `closed_at` é o encerramento voluntário pelo
+// dono (libera a vaga das 3).
 export const leagues = pgTable(
   'leagues',
   {
@@ -891,7 +846,7 @@ export const leagueMembers = pgTable(
 )
 
 // Duelos entre amigos (MO.5.3): desafio 1 contra 1 de 7 dias, vence a maior rentabilidade
-// percentual do período. Criar é PRO, aceitar nunca. O resultado é gravado uma única vez, no
+// percentual do período. O resultado é gravado uma única vez, no
 // encerramento, e depois nunca muda (arquivar, nunca apagar). `status`: pending (aguardando
 // aceite), active, finished, declined, cancelled (o desafiante desistiu) e expired (ninguém
 // respondeu a tempo).
@@ -1057,27 +1012,7 @@ export const assemblyVotes = pgTable(
   ],
 )
 
-// Crédito mensal de voto de quem não é PRO: a linha existe quando o crédito foi consumido numa
-// assembleia (no primeiro voto). `month_key` é o mês de calendário de Brasília ('2026-10').
-export const assemblyVoteCredits = pgTable(
-  'assembly_vote_credits',
-  {
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id),
-    assemblyId: uuid('assembly_id')
-      .notNull()
-      .references(() => assemblies.id, { onDelete: 'cascade' }),
-    monthKey: varchar('month_key', { length: 7 }).notNull(),
-    consumedAt: timestamp('consumed_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.assemblyId] }),
-    index('assembly_vote_credits_user_month_idx').on(table.userId, table.monthKey),
-  ],
-)
-
-// Proposta de pauta (MO.6.5): uma pessoa PRO escolhe uma pauta do catálogo para uma empresa que
+// Proposta de pauta (MO.6.5): quem tem ações escolhe uma pauta do catálogo para uma empresa que
 // possui e as demais apoiam. Sem texto livre: só `template_key`. `status`: active | consumed
 // (virou a pauta de uma assembleia) | expired (passou `expires_at` sem ser escolhida). Uma
 // proposta ativa por (kind, empresa, pauta): propor de novo vira apoio à existente.
@@ -1229,41 +1164,6 @@ export const retrospectives = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.month] })],
 )
 
-// Funil de conversão do PRO (MO.1.3/MO.7.1): eventos próprios, sem terceiro. Guarda só quem fez o
-// quê e onde (ponto de convite), nunca valor em reais nem patrimônio (RNF09). `dedupe_key` torna a
-// gravação idempotente: o cliente reporta no máximo um evento por pessoa, nome, origem e dia, e os
-// eventos de servidor (assinou, cancelou) usam a chave do próprio fato.
-export const funnelEvents = pgTable(
-  'funnel_events',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id),
-    name: text('name').notNull(),
-    source: text('source'),
-    plan: text('plan'),
-    dedupeKey: varchar('dedupe_key', { length: 200 }).notNull().unique(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    check(
-      'funnel_events_name_chk',
-      sql`${table.name} IN ('invite_viewed', 'plans_opened', 'purchase_started', 'subscribed', 'cancelled')`,
-    ),
-    check(
-      'funnel_events_source_chk',
-      sql`${table.source} IS NULL OR ${table.source} IN ('league', 'duel', 'cosmetics', 'retrospective', 'assembly', 'portfolio', 'menu', 'header', 'direct')`,
-    ),
-    check(
-      'funnel_events_plan_chk',
-      sql`${table.plan} IS NULL OR ${table.plan} IN ('monthly', 'annual', 'unknown')`,
-    ),
-    index('funnel_events_name_created_idx').on(table.name, table.createdAt),
-    index('funnel_events_user_idx').on(table.userId),
-  ],
-)
-
 // Indicação entre amigos (MO.7.2). O código é do dono, gerado na primeira leitura. Uma conta
 // indicada só existe uma vez em `referrals` (`referred_id` único), então cada conta conta uma vez
 // para um único indicador. `qualified` = a pessoa indicada concluiu a primeira lição (ponto 052).
@@ -1294,34 +1194,6 @@ export const referrals = pgTable(
     check('referrals_status_chk', sql`${table.status} IN ('pending', 'qualified')`),
     check('referrals_not_self_chk', sql`${table.referrerId} <> ${table.referredId}`),
     index('referrals_referrer_status_idx').on(table.referrerId, table.status),
-  ],
-)
-
-// Escada de marcos: dado, não código. Acima do último marco a regra continua no domínio
-// (`+1 semana a cada 50`). Cada marco só é concedido uma vez por pessoa (`referral_rewards`).
-export const referralMilestones = pgTable('referral_milestones', {
-  threshold: integer('threshold').primaryKey(),
-  rewardDays: integer('reward_days').notNull(),
-})
-
-export const referralRewards = pgTable(
-  'referral_rewards',
-  {
-    referrerId: uuid('referrer_id')
-      .notNull()
-      .references(() => users.id),
-    threshold: integer('threshold').notNull(),
-    rewardDays: integer('reward_days').notNull(),
-    status: text('status').notNull().default('pending'),
-    // Fim do PRO promocional, calculado e gravado ANTES de chamar o provedor: repetir a chamada
-    // com o mesmo fim é tratado como duplicata (não concede duas vezes).
-    promoEndsAt: timestamp('promo_ends_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    grantedAt: timestamp('granted_at', { withTimezone: true }),
-  },
-  (table) => [
-    primaryKey({ columns: [table.referrerId, table.threshold] }),
-    check('referral_rewards_status_chk', sql`${table.status} IN ('pending', 'granted')`),
   ],
 )
 

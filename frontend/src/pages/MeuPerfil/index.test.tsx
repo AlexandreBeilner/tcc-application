@@ -52,7 +52,7 @@ describe('MeuPerfil (tela 9.1)', () => {
                 window: 'week',
                 completedTracks: [],
                 completedLessonCodes: [],
-                cosmetics: { isPro: false, frame: null, title: null },
+                cosmetics: { frame: null, title: null },
             },
         })
 

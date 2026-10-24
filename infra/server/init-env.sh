@@ -6,9 +6,9 @@
 #
 # O que faz: copia `infra/env/<ambiente>.env.example` para `/opt/selucra/<ambiente>.env` (modo 600) e troca
 # por valores aleatórios as senhas do Postgres e do Redis, JWT_SECRET, EMAIL_UNSUBSCRIBE_SECRET e
-# SIMULATION_SEED, e grava o IMAGE_TAG. O que depende de uma conta externa (Resend, Google, RevenueCat,
+# SIMULATION_SEED, e grava o IMAGE_TAG. O que depende de uma conta externa (Resend, Google,
 # R2, monitores) continua como `<...>` no modelo: a linha vira comentário, para o arquivo carregar sem
-# erro. Cobrança sem chave real vira `BILLING_PROVIDER=disabled`.
+# erro.
 #
 # Produção só sobe com `EMAIL_PROVIDER=resend` (a guarda de configuração recusa o resto): este script avisa
 # o que falta. O staging aceita `EMAIL_PROVIDER=log`.
@@ -78,11 +78,6 @@ while IFS= read -r line || [ -n "$line" ]; do
   fi
   printf '%s\n' "$line" >>"$tmp"
 done <"$example"
-
-# Sem chave real de cobrança, o servidor sobe com a cobrança desligada (a tela de planos mostra "ainda não disponível").
-if printf '%s\n' "${pending[@]:-}" | grep -qx 'REVENUECAT_SECRET_KEY'; then
-  sed -i 's/^BILLING_PROVIDER=.*/BILLING_PROVIDER=disabled/' "$tmp"
-fi
 
 if [ "$target" = prod ] && printf '%s\n' "${pending[@]:-}" | grep -qE '^(EMAIL_FROM_TRANSACTIONAL|RESEND_API_KEY_TRANSACTIONAL)$'; then
   log "ATENÇÃO: produção exige EMAIL_PROVIDER=resend com as chaves do Resend. Sem elas o backend recusa subir."

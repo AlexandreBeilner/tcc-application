@@ -13,7 +13,6 @@ function validEnv(overrides: Record<string, string | undefined> = {}): NodeJS.Pr
     DEPLOY_ENV: 'production',
     JWT_SECRET: STRONG_SECRET,
     EMAIL_PROVIDER: 'resend',
-    BILLING_PROVIDER: 'revenuecat',
     FRONTEND_URL: 'https://app.selucra.com.br',
     PUBLIC_API_URL: 'https://api.selucra.com.br',
     DATABASE_URL: 'postgres://gamification_app:SenhaLongaDoBanco123@postgres:5432/gamification',
@@ -62,11 +61,6 @@ describe('findProductionConfigProblems', () => {
     ])
   })
 
-  it('aceita BILLING_PROVIDER ausente ou disabled (cobrança ainda não ligada)', () => {
-    expect(findProductionConfigProblems(validEnv({ BILLING_PROVIDER: undefined }))).toEqual([])
-    expect(findProductionConfigProblems(validEnv({ BILLING_PROVIDER: 'disabled' }))).toEqual([])
-  })
-
   it('recusa JWT_SECRET ausente, de desenvolvimento ou curto', () => {
     expect(findProductionConfigProblems(validEnv({ JWT_SECRET: undefined }))).toEqual([
       'JWT_SECRET é obrigatório em produção',
@@ -96,12 +90,6 @@ describe('findProductionConfigProblems', () => {
   it('recusa e-mail que não seja resend', () => {
     expect(findProductionConfigProblems(validEnv({ EMAIL_PROVIDER: 'log' }))).toHaveLength(1)
     expect(findProductionConfigProblems(validEnv({ EMAIL_PROVIDER: undefined }))).toHaveLength(1)
-  })
-
-  it('recusa cobrança em modo dev', () => {
-    expect(findProductionConfigProblems(validEnv({ BILLING_PROVIDER: 'dev' }))).toEqual([
-      'BILLING_PROVIDER=dev grava assinatura de mentira, não vale em produção',
-    ])
   })
 
   it('recusa AUTH_RATE_LIMIT=off em produção e no staging', () => {
@@ -206,7 +194,6 @@ describe('findProductionConfigProblems', () => {
     const problems = findProductionConfigProblems({
       DEPLOY_ENV: 'production',
       EMAIL_PROVIDER: 'log',
-      BILLING_PROVIDER: 'dev',
       DATABASE_URL: 'postgres://tcc:tcc@postgres:5432/gamification',
     })
     expect(problems.length).toBeGreaterThanOrEqual(7)
@@ -252,11 +239,8 @@ describe('staging', () => {
     )
   })
 
-  it('mantém as exigências de segredo, URL, banco e cobrança', () => {
+  it('mantém as exigências de segredo, URL e banco', () => {
     expect(() => assertProductionConfig(stagingEnv({ JWT_SECRET: 'curto' }))).toThrow(/JWT_SECRET/)
-    expect(() => assertProductionConfig(stagingEnv({ BILLING_PROVIDER: 'dev' }))).toThrow(
-      /BILLING_PROVIDER/,
-    )
     expect(() =>
       assertProductionConfig(stagingEnv({ FRONTEND_URL: 'http://localhost:5173' })),
     ).toThrow(/FRONTEND_URL/)

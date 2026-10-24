@@ -37,7 +37,7 @@ export interface PublicProfile {
   // Códigos das lições concluídas (LJ.5.9): o cliente cruza com o glossário pra mostrar as cartas de termo ganhas.
   // Só progresso de estudo, nunca patrimônio (RNF09).
   completedLessonCodes: string[]
-  // Selo PRO, moldura e título (MO.5.1), só apresentação.
+  // Moldura e título (MO.5.1), só apresentação.
   cosmetics: PublicCosmetics
 }
 

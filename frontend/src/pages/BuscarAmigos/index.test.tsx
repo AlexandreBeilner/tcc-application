@@ -55,9 +55,7 @@ describe('BuscarAmigos (tela 8.2)', () => {
 
     it('digitar busca (debounced) e mostra os resultados', async () => {
         vi.mocked(searchUsers).mockResolvedValue({
-            users: [
-                { id: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, cosmetics: { isPro: false, frame: null, title: null } },
-            ],
+            users: [{ id: 'u2', username: 'bia', name: 'Bia Souza', avatarUrl: null, cosmetics: { frame: null, title: null } }],
         })
 
         renderPage()

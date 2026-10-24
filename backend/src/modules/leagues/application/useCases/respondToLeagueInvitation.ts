@@ -3,7 +3,7 @@ import { MAX_JOINED_LEAGUES_PER_USER } from '../../domain/league'
 import { loadLeagueForMember } from '../leagueAccess'
 import type { LeagueRepository } from '../ports/leagueRepository'
 
-// Aceitar ou recusar convite. Nunca exige PRO: o membro gratuito entra na liga de um amigo.
+// Aceitar ou recusar convite para a liga de um amigo.
 export class RespondToLeagueInvitationUseCase {
   constructor(
     private readonly leagues: LeagueRepository,

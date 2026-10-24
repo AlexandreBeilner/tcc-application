@@ -8,7 +8,6 @@ import { InstallInvite } from '../../components/molecules/InstallInvite'
 import { LessonFeedbackSection } from '../../components/organisms/LessonFeedbackSection'
 import { EmailPreferencesSection } from '../../components/organisms/EmailPreferencesSection'
 import { CosmeticsPicker } from '../../components/organisms/CosmeticsPicker'
-import { PlanSection } from '../../components/organisms/PlanSection'
 import { useAuth } from '../../features/auth/AuthContext'
 import { useIdentitiesQuery } from '../../features/auth/useIdentitiesQuery'
 import { useTheme } from '../../features/theme/ThemeContext'
@@ -310,7 +309,6 @@ export function Configuracoes() {
                         </form>
                     </section>
 
-                    <PlanSection />
                     <CosmeticsPicker username={user.username} avatarUrl={user.avatarUrl} />
                     <EmailPreferencesSection />
                     <LessonFeedbackSection />

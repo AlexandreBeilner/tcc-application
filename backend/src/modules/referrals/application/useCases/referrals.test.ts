@@ -1,41 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createFakePromotionalPro,
-  createFakeReferralRepository,
-  createFakeRewardRepository,
-  passThroughLock,
-  type FakePromotionalPro,
-  type FakeReferralRepository,
-  type FakeRewardRepository,
-} from '../../test/fakes/fakes'
+import { createFakeReferralRepository, type FakeReferralRepository } from '../../test/fakes/fakes'
 import { AttributeReferralUseCase } from './attributeReferral'
 import { GetMyReferralUseCase } from './getMyReferral'
 import { QualifyReferralUseCase } from './qualifyReferral'
 
-const LADDER = [
-  { threshold: 5, rewardDays: 7 },
-  { threshold: 20, rewardDays: 7 },
-  { threshold: 50, rewardDays: 7 },
-]
 const NOW = new Date('2026-10-11T00:00:00Z')
 
 let referrals: FakeReferralRepository
-let rewards: FakeRewardRepository
-let pro: FakePromotionalPro
 let checks: string[]
 let qualify: QualifyReferralUseCase
 let attribute: AttributeReferralUseCase
 
 beforeEach(() => {
   referrals = createFakeReferralRepository()
-  rewards = createFakeRewardRepository(LADDER)
-  pro = createFakePromotionalPro()
   checks = []
   qualify = new QualifyReferralUseCase(
     referrals,
-    rewards,
-    passThroughLock,
-    pro,
     { check: async (id) => void checks.push(id) },
     () => NOW,
   )
@@ -80,7 +60,7 @@ describe('QualifyReferralUseCase', () => {
   it('só vale depois da primeira lição: pendente não conta', async () => {
     await attribute.execute('f1', 'ABCD2345')
     expect(await referrals.countQualified('owner')).toBe(0)
-    expect(pro.grants).toEqual([])
+    expect(checks).toEqual([])
   })
 
   it('qualificar a mesma conta duas vezes conta uma vez', async () => {
@@ -96,57 +76,16 @@ describe('QualifyReferralUseCase', () => {
     expect(checks).toEqual([])
   })
 
-  it('o quinto marco concede 1 semana de PRO, uma única vez', async () => {
-    await invite(4)
-    expect(pro.grants).toEqual([])
-    await invite(1, 4)
-    expect(pro.grants).toEqual([{ userId: 'owner', endsAt: new Date('2026-10-18T00:00:00Z') }])
-    await invite(3, 5)
-    expect(pro.grants).toHaveLength(1)
-  })
-
-  it('os marcos seguintes empilham depois do acesso atual', async () => {
-    await invite(20)
-    expect(pro.grants.map((g) => g.endsAt.toISOString())).toEqual([
-      '2026-10-18T00:00:00.000Z',
-      '2026-10-25T00:00:00.000Z',
-    ])
-  })
-
-  it('acima de 50 concede +1 semana a cada 50, sem teto', async () => {
-    await invite(100)
-    expect(pro.grants).toHaveLength(4)
-    expect([...rewards.rows.values()].map((r) => r.threshold)).toEqual([5, 20, 50, 100])
-  })
-
-  it('falha do provedor deixa o marco pendente e a próxima indicação repete sem duplicar', async () => {
-    pro.failNext = 1
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await invite(5)
-    expect(rewards.rows.get('owner:5')?.status).toBe('pending')
-    const persistedEnd = rewards.rows.get('owner:5')?.promoEndsAt
-    expect(persistedEnd).toEqual(new Date('2026-10-18T00:00:00Z'))
-
-    await invite(1, 5)
-    expect(rewards.rows.get('owner:5')?.status).toBe('granted')
-    expect(pro.grants).toEqual([{ userId: 'owner', endsAt: persistedEnd }])
-    spy.mockRestore()
-  })
-
-  it('reexecutar o ajuste de marcos não concede de novo', async () => {
-    await invite(5)
-    await qualify.settleRewards('owner')
-    await qualify.settleRewards('owner')
-    expect(pro.grants).toHaveLength(1)
+  it('cada indicação válida reavalia as conquistas do indicador', async () => {
+    await invite(3)
+    expect(await referrals.countQualified('owner')).toBe(3)
+    expect(checks).toEqual(['owner', 'owner', 'owner'])
   })
 
   it('falha ao reavaliar conquistas não desfaz a indicação', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const failing = new QualifyReferralUseCase(
       referrals,
-      rewards,
-      passThroughLock,
-      pro,
       {
         check: async () => {
           throw new Error('x')
@@ -162,7 +101,7 @@ describe('QualifyReferralUseCase', () => {
 })
 
 describe('GetMyReferralUseCase', () => {
-  const get = () => new GetMyReferralUseCase(referrals, rewards, () => 0)
+  const get = () => new GetMyReferralUseCase(referrals, () => 0)
 
   it('cria o código na primeira leitura e devolve o mesmo depois', async () => {
     const first = await get().execute('newbie')
@@ -170,26 +109,13 @@ describe('GetMyReferralUseCase', () => {
     expect((await get().execute('newbie')).code).toBe(first.code)
   })
 
-  it('mostra progresso, próximo marco e a escada', async () => {
+  it('mostra convites válidos e pendentes', async () => {
     await attribute.execute('p1', 'ABCD2345')
     await invite(5, 10)
-    const view = await get().execute('owner')
-    expect(view.qualifiedCount).toBe(5)
-    expect(view.pendingCount).toBe(1)
-    expect(view.next).toEqual({ threshold: 20, rewardDays: 7, remaining: 15 })
-    expect(view.milestones).toEqual([
-      { threshold: 5, rewardDays: 7, reached: true, granted: true },
-      { threshold: 20, rewardDays: 7, reached: false, granted: false },
-      { threshold: 50, rewardDays: 7, reached: false, granted: false },
-    ])
-  })
-
-  it('marco alcançado e ainda não concedido aparece como alcançado, não concedido', async () => {
-    pro.failNext = 1
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await invite(5, 10)
-    const view = await get().execute('owner')
-    expect(view.milestones[0]).toMatchObject({ threshold: 5, reached: true, granted: false })
-    spy.mockRestore()
+    expect(await get().execute('owner')).toEqual({
+      code: 'ABCD2345',
+      qualifiedCount: 5,
+      pendingCount: 1,
+    })
   })
 })

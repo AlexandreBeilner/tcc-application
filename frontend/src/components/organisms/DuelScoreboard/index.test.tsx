@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Duel } from '../../../services/duels'
 import { DuelScoreboard } from '.'
 
-const NO_COSMETICS = { isPro: false, frame: null, title: null }
+const NO_COSMETICS = { frame: null, title: null }
 
 function duel(overrides: Partial<Duel>): Duel {
     return {
@@ -15,7 +15,7 @@ function duel(overrides: Partial<Duel>): Duel {
             username: 'bia',
             name: 'Bia',
             avatarUrl: null,
-            cosmetics: { isPro: true, frame: 'frame_aurora', title: 'Estrategista' },
+            cosmetics: { frame: 'frame_aurora', title: 'Estrategista' },
         },
         createdAt: '2026-10-01T00:00:00Z',
         expiresAt: '2026-10-08T00:00:00Z',
@@ -33,13 +33,12 @@ function duel(overrides: Partial<Duel>): Duel {
 const YOU = { username: 'ana', avatarUrl: null, frame: null }
 
 describe('DuelScoreboard (MO.5.3)', () => {
-    it('encerrado mostra os dois percentuais, o motivo e o selo do adversário', () => {
+    it('encerrado mostra os dois percentuais, o motivo e o título do adversário', () => {
         render(<DuelScoreboard duel={duel({})} you={YOU} />)
 
         expect(screen.getByText('+5,5%')).toBeInTheDocument()
         expect(screen.getByText('−1,2%')).toBeInTheDocument()
         expect(screen.getByText('Venceu quem teve a maior rentabilidade no período.')).toBeInTheDocument()
-        expect(screen.getByLabelText('Assinante PRO')).toBeInTheDocument()
         expect(screen.getByText('Estrategista')).toBeInTheDocument()
     })
 

@@ -4,7 +4,6 @@ import { DiarioBell } from '../../molecules/DiarioBell'
 import { FriendsBell } from '../../molecules/FriendsBell'
 import { MarketClockChip } from '../../molecules/MarketClockChip'
 import { NewsBell } from '../../molecules/NewsBell'
-import { ProHeaderLink } from '../../molecules/ProHeaderLink'
 import { AvatarMenu } from '../AvatarMenu'
 import { MARKET_CALENDAR_PANEL_ID } from '../MarketCalendarPanel'
 import styles from './index.module.css'
@@ -15,8 +14,7 @@ import styles from './index.module.css'
 // autor foi "não só" dentro do menu, não a remoção do item de lá.
 // Chip do relógio do mercado (S.12) entre o logo e as ações: único ponto de
 // abertura do Calendário (`calendarOpen` vive no `AppShell`).
-// MO.9.8: no mobile a logo vira só o ícone; quem assina leva a marca dourada "PRO" no canto do
-// avatar (`AvatarMenu`), e quem não assina vê "Conhecer o PRO" de tablet em diante.
+// MO.9.8: no mobile a logo vira só o ícone.
 interface TopBarProps {
     calendarOpen: boolean
     onToggleCalendar: () => void
@@ -30,7 +28,6 @@ export function TopBar({ calendarOpen, onToggleCalendar }: TopBarProps) {
             </Link>
             <MarketClockChip open={calendarOpen} onToggle={onToggleCalendar} panelId={MARKET_CALENDAR_PANEL_ID} />
             <div className={styles.actions}>
-                <ProHeaderLink />
                 <DiarioBell />
                 <FriendsBell />
                 <NewsBell />

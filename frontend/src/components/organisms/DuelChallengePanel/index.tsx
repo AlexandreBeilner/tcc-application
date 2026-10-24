@@ -1,40 +1,21 @@
-import { useBillingStatusQuery } from '../../../features/billing/useBillingStatus'
 import { useCreateDuelMutation } from '../../../features/duels/useDuels'
 import { useAllFriendsQuery } from '../../../features/friendships/useAllFriendsQuery'
-import { isProRequiredError } from '../../../services/client'
 import { formatApiError } from '../../../utils/formatApiError'
 import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
-import { ProInvite } from '../../molecules/ProInvite'
 import type { DuelChallengePanelProps } from './types'
 import styles from './index.module.css'
 
 export type { DuelChallengePanelProps } from './types'
 
-// Desafiar um amigo (MO.5.3). Desafiar é do plano PRO; aceitar um desafio é sempre de graça. Quem
-// não é PRO vê o convite para conhecer o plano, nunca um bloqueio nem contador; cobrança
-// desligada esconde o painel.
+// Desafiar um amigo (MO.5.3): lista os amigos que ainda não têm duelo aberto com a pessoa.
 export function DuelChallengePanel({ busyUserIds, onCreated }: DuelChallengePanelProps) {
-    const billing = useBillingStatusQuery().data
     const friendsQuery = useAllFriendsQuery()
     const create = useCreateDuelMutation()
 
-    if (billing && !billing.isPro) {
-        if (!billing.billingEnabled) return null
-        return (
-            <ProInvite context="duel" title="Desafiar um amigo">
-                Lançar desafios faz parte do plano PRO. Aceitar o desafio de um amigo é sempre de graça.
-            </ProInvite>
-        )
-    }
-
     const busy = new Set(busyUserIds)
     const candidates = (friendsQuery.data ?? []).filter((friend) => !busy.has(friend.userId))
-    const errorMessage = create.isError
-        ? isProRequiredError(create.error)
-            ? 'Seu plano PRO não está ativo agora. Veja a situação em Configurações.'
-            : formatApiError(create.error, 'Não foi possível lançar o desafio. Tente de novo.')
-        : null
+    const errorMessage = create.isError ? formatApiError(create.error, 'Não foi possível lançar o desafio. Tente de novo.') : null
 
     return (
         <section className={styles.section} aria-labelledby="duel-challenge-title">

@@ -13,8 +13,6 @@ export interface LeagueSummary {
     isOwner: boolean
     // `invited` = convite pendente para a pessoa; `active` = participa.
     status: LeagueMemberStatus
-    // Dono sem PRO agora: a liga fica só para ver e volta sozinha quando ele reativar.
-    archived: boolean
     memberCount: number
 }
 

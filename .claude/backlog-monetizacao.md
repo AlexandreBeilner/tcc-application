@@ -1,5 +1,17 @@
 # Backlog — Monetização (assinatura PRO, B2C, multiplataforma)
 
+> **⛔ ABANDONADO em 2026-10-24 (decisão do autor).** A aplicação não tem mais plano pago: tudo que
+> era PRO ficou livre para todas as contas (ligas, duelos, cosméticos, retrospectiva completa,
+> propor, apoiar e votar nas Assembleias sem crédito mensal). O módulo `billing` do backend, as
+> telas `/planos`, `/reembolso` e `/admin/assinaturas`, o selo PRO, os convites ao PRO, a escada de
+> semanas de PRO da indicação e as integrações com Stripe e RevenueCat foram removidos; a migração
+> `0062_remove_pro_plan` apaga `subscriptions`, `billing_webhook_events`, `funnel_events`,
+> `assembly_vote_credits`, `referral_milestones` e `referral_rewards`. Os limites que não eram de
+> plano ficaram (3 ligas abertas com até 20 pessoas, 3 duelos em andamento, 3 propostas por mês,
+> títulos por indicação). O código do app em `mobile/` (congelado) ainda tem a ponte de compra da
+> loja, inerte. Freios contra conta falsa que saíram junto: ponto 064 de
+> `pontos-em-aberto-decisao-produto.md`. O resto deste arquivo é histórico; não abrir tarefa.
+
 Backlog executável derivado de `.claude/estrategia-monetizacao.md` (produto) e
 `.claude/analise-tecnica-monetizacao.md` (técnica), com as decisões fechadas pelo autor em
 **2026-10-10**. Mesma relação que `backlog-app-mobile.md` tem com o documento de arquitetura dele:

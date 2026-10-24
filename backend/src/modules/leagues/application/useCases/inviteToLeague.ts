@@ -3,19 +3,16 @@ import { AlreadyInLeagueError, LeagueFullError, NotFriendsError } from '../../do
 import { loadLeagueForOwner } from '../leagueAccess'
 import type { FriendshipChecker } from '../ports/friendshipChecker'
 import type { LeagueRepository } from '../ports/leagueRepository'
-import type { ProAccess } from '../ports/proAccess'
 
-// O dono (com PRO ativo) convida um amigo aceito. Quem recebe não precisa de plano pra aceitar.
+// O dono convida um amigo aceito.
 export class InviteToLeagueUseCase {
   constructor(
-    private readonly access: ProAccess,
     private readonly leagues: LeagueRepository,
     private readonly friendships: FriendshipChecker,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
   async execute(input: { userId: string; leagueId: string; targetUserId: string }): Promise<void> {
-    await this.access.assertPro(input.userId)
     const league = await loadLeagueForOwner(this.leagues, input.leagueId, input.userId)
 
     if (!(await this.friendships.areFriends(input.userId, input.targetUserId))) {

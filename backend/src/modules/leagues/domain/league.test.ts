@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { InvalidLeagueNameError } from './errors'
-import { isLeagueArchived, isOpen, normalizeLeagueName, type League } from './league'
+import { isOpen, normalizeLeagueName, type League } from './league'
 
 describe('normalizeLeagueName', () => {
   it.each([
@@ -13,13 +13,6 @@ describe('normalizeLeagueName', () => {
 
   it.each([['ab'], ['   a  '], [''], ['a'.repeat(41)]])('recusa %j', (raw) => {
     expect(() => normalizeLeagueName(raw)).toThrow(InvalidLeagueNameError)
-  })
-})
-
-describe('isLeagueArchived', () => {
-  it('arquivada só quando o dono não é PRO agora', () => {
-    expect(isLeagueArchived(false)).toBe(true)
-    expect(isLeagueArchived(true)).toBe(false)
   })
 })
 
