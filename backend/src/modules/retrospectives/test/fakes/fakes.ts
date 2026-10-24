@@ -3,7 +3,6 @@ import type {
   MonthActivityReader,
 } from '../../application/ports/monthActivityReader'
 import type { MonthReturnReader } from '../../application/ports/monthReturnReader'
-import type { ProMembershipReader } from '../../application/ports/proMembershipReader'
 import type { RetrospectiveRepository } from '../../application/ports/retrospectiveRepository'
 import type { RetrospectiveData } from '../../domain/retrospective'
 
@@ -70,16 +69,6 @@ export function createFakeRepository(): RetrospectiveRepository & {
       return new Set(
         [...rows.keys()].filter((k) => k.endsWith(`|${month}`)).map((k) => k.split('|')[0]),
       )
-    },
-  }
-}
-
-export function createFakeMembership(proIds: string[]): ProMembershipReader & { ids: Set<string> } {
-  const ids = new Set(proIds)
-  return {
-    ids,
-    async listProUserIds(userIds) {
-      return new Set(userIds.filter((id) => ids.has(id)))
     },
   }
 }

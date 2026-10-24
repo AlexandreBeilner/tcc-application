@@ -1,5 +1,7 @@
 # Proposta — estratégia de monetização
 
+> **⛔ ABANDONADO em 2026-10-24:** o autor removeu o plano pago e tudo ficou gratuito. Detalhe em `backlog-monetizacao.md`. Este arquivo é só histórico.
+
 > **Atualização 2026-10-10 — decisões fechadas pelo autor** (backlog em
 > `backlog-monetizacao.md`): **B2C puro**; assinatura em **web, Android e iOS** via **RevenueCat** (na web, Stripe conectado a ele, sem Pix);
 > **mensal R$ 9,90 e anual R$ 89,90, sem trial** (revisado em 2026-10-11; antes 19,97/199,97) (sujeito às faixas de BRL das lojas). O PRO é

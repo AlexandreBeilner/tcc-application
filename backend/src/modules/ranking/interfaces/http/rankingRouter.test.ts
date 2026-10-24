@@ -117,7 +117,7 @@ describe('ranking routes', () => {
           level: 2,
           xp: 250,
           profitabilityPct: 10,
-          cosmetics: { isPro: false, frame: null, title: null },
+          cosmetics: { frame: null, title: null },
         },
       ],
       requestingUserPosition: 1,
@@ -147,7 +147,7 @@ describe('ranking routes', () => {
         level: 2,
         xp: 250,
         profitabilityPct: 10,
-        cosmetics: { isPro: false, frame: null, title: null },
+        cosmetics: { frame: null, title: null },
       },
     ])
   })
@@ -169,7 +169,7 @@ describe('ranking routes', () => {
         level: 2,
         xp: 250,
         profitabilityPct: null,
-        cosmetics: { isPro: false, frame: null, title: null },
+        cosmetics: { frame: null, title: null },
       },
     ])
   })

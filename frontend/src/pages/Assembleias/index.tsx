@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
 import { AssemblyCard } from '../../components/molecules/AssemblyCard'
-import { AssemblyProBlock } from '../../components/molecules/AssemblyProBlock'
 import { isFeatureOff, useAssembliesQuery } from '../../features/assemblies/useAssemblies'
 import styles from './index.module.css'
 
@@ -89,8 +88,8 @@ export function Assembleias() {
                         <li>Vota quem tinha ações da empresa na abertura. O peso do voto é a quantidade de ações.</li>
                         <li>Dá para trocar o voto até a votação fechar.</li>
                         <li>Com poucos votantes ou empate, nada muda.</li>
+                        <li>Quem tem ações também propõe pautas do catálogo e apoia as dos outros acionistas.</li>
                     </ul>
-                    <AssemblyProBlock />
                 </aside>
             </div>
         </main>

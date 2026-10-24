@@ -49,13 +49,6 @@ export function isTokenUsedError(err: unknown): boolean {
     return err instanceof ApiError && err.status === 410 && err.message === 'token_used'
 }
 
-// `403 { error: 'requer plano PRO' }`: a funcionalidade existe, mas exige assinatura ativa.
-export const PRO_REQUIRED = 'requer plano PRO'
-
-export function isProRequiredError(err: unknown): boolean {
-    return err instanceof ApiError && err.status === 403 && err.message === PRO_REQUIRED
-}
-
 export class ApiError extends Error {
     readonly status: number
     readonly details?: unknown

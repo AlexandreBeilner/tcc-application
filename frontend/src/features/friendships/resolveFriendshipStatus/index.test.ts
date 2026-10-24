@@ -9,7 +9,7 @@ function friend(overrides: Partial<Friend> = {}): Friend {
         username: 'bia',
         name: 'Bia',
         avatarUrl: null,
-        cosmetics: { isPro: false, frame: null, title: null },
+        cosmetics: { frame: null, title: null },
         friendsSince: '2026-01-01T00:00:00.000Z',
         ...overrides,
     }
@@ -22,7 +22,7 @@ function request(overrides: Partial<FriendRequest> = {}): FriendRequest {
         username: 'bia',
         name: 'Bia',
         avatarUrl: null,
-        cosmetics: { isPro: false, frame: null, title: null },
+        cosmetics: { frame: null, title: null },
         createdAt: '2026-01-01T00:00:00.000Z',
         ...overrides,
     }

@@ -39,14 +39,6 @@ export function loadAssemblyConfig(env: NodeJS.ProcessEnv): AssemblyConfig {
     },
     params: {
       minVoters: positiveInt(env.ASSEMBLY_MIN_VOTERS, DEFAULT_ASSEMBLY_PARAMS.minVoters),
-      monthlyFreeCredits: positiveInt(
-        env.ASSEMBLY_MONTHLY_FREE_CREDITS,
-        DEFAULT_ASSEMBLY_PARAMS.monthlyFreeCredits,
-      ),
-      freeCreditMinLevel: positiveInt(
-        env.ASSEMBLY_FREE_CREDIT_MIN_LEVEL,
-        DEFAULT_ASSEMBLY_PARAMS.freeCreditMinLevel,
-      ),
     },
     participationXp: positiveInt(env.ASSEMBLY_PARTICIPATION_XP, DEFAULT_PARTICIPATION_XP),
     proposals: {

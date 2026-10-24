@@ -2,8 +2,7 @@ import { InvitationNotFoundError, OwnerCannotLeaveError } from '../../domain/err
 import { loadLeagueForOwner } from '../leagueAccess'
 import type { LeagueRepository } from '../ports/leagueRepository'
 
-// O dono tira um membro ou cancela um convite pendente. Moderar a própria liga não exige PRO
-// ativo (quem cancelou ainda consegue limpar a lista).
+// O dono tira um membro ou cancela um convite pendente.
 export class RemoveLeagueMemberUseCase {
   constructor(private readonly leagues: LeagueRepository) {}
 

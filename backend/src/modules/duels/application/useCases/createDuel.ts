@@ -8,19 +8,16 @@ import {
 } from '../../domain/errors'
 import type { DuelRepository } from '../ports/duelRepository'
 import type { FriendshipChecker } from '../ports/friendshipChecker'
-import type { ProAccess } from '../ports/proAccess'
 
-// Desafiar um amigo é capacidade PRO (403 sem plano ativo); aceitar nunca exige.
+// Desafiar um amigo aceito, até o teto de duelos simultâneos.
 export class CreateDuelUseCase {
   constructor(
-    private readonly access: ProAccess,
     private readonly duels: DuelRepository,
     private readonly friendships: FriendshipChecker,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
   async execute(input: { userId: string; opponentId: string }): Promise<Duel> {
-    await this.access.assertPro(input.userId)
     if (input.userId === input.opponentId) {
       throw new SelfDuelError('você não pode desafiar a si mesmo')
     }

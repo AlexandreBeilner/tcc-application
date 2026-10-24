@@ -16,7 +16,6 @@ export async function listLeagues(token: string): Promise<LeagueSummary[]> {
     return result.leagues
 }
 
-// Criar liga é capacidade PRO: sem plano ativo a resposta é `403 requer plano PRO`.
 export async function createLeague(token: string, params: CreateLeagueParams): Promise<{ id: string }> {
     const result = await apiRequest<{ league: { id: string } }>('/leagues', { method: 'POST', body: params, token })
     return result.league

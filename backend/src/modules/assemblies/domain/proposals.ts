@@ -1,11 +1,11 @@
-// Propostas de pauta e apoio (MO.6.5): regras puras. PRO propõe uma pauta do catálogo para uma
-// empresa que possui; PRO acionista apoia; a mais apoiada entra na próxima assembleia da empresa.
+// Propostas de pauta e apoio (MO.6.5): regras puras. Quem tem ações propõe uma pauta do catálogo
+// para a empresa; outro acionista apoia; a mais apoiada entra na próxima assembleia da empresa.
 // Os valores abaixo são o ponto de partida até a tabela editável do painel (MO.6.8).
-import { creditMonthKey } from './assembly'
+import { brtMonthKey } from './assembly'
 import type { AgendaTemplate } from './lifecycle'
 
 export interface ProposalParams {
-  // Propostas novas que cada pessoa PRO pode criar por mês de calendário (apoiar não gasta).
+  // Propostas novas que cada pessoa pode criar por mês de calendário (apoiar não gasta).
   monthlyCap: number
   // Apoios mínimos (o proponente conta como o primeiro) para uma proposta poder ser escolhida.
   minSupport: number
@@ -50,7 +50,7 @@ export function proposalExpiry(now: Date, params: Pick<ProposalParams, 'ttlDays'
 
 // Intervalo [from, to) do mês de calendário de Brasília (o mesmo da chave do crédito de voto).
 export function proposalMonthRange(at: Date): { monthKey: string; from: Date; to: Date } {
-  const monthKey = creditMonthKey(at)
+  const monthKey = brtMonthKey(at)
   const [year, month] = monthKey.split('-').map(Number)
   // Brasília é UTC-3: a meia-noite local é 03:00 UTC.
   return {

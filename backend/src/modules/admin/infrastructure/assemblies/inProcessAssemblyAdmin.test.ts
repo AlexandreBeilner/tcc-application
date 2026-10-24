@@ -430,13 +430,13 @@ describe('painel admin das assembleias (MO.6.8)', () => {
   })
 
   describe('parâmetros', () => {
-    it('lista os 11 com padrão, faixa e se foi alterado', async () => {
+    it('lista os 9 com padrão, faixa e se foi alterado', async () => {
       const { app, adminToken } = await buildApp()
       const res = await request(app)
         .get('/admin/assemblies/settings')
         .set('Authorization', adminToken())
       expect(res.status).toBe(200)
-      expect(res.body.settings).toHaveLength(11)
+      expect(res.body.settings).toHaveLength(9)
       expect(res.body.settings.find((s: { key: string }) => s.key === 'min_voters')).toMatchObject({
         value: 3,
         default: 3,

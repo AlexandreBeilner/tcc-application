@@ -1,11 +1,6 @@
 import { and, asc, between, desc, eq, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
-import {
-  assemblies,
-  assemblyOptions,
-  assemblyVoteCredits,
-  assemblyVotes,
-} from '../../../../db/schema'
+import { assemblies, assemblyOptions, assemblyVotes } from '../../../../db/schema'
 import type {
   AssemblyRepository,
   AssemblyWithOptions,
@@ -300,32 +295,6 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
               eq(assemblyVotes.userId, input.userId),
             ),
           )
-        const needsCredit = !current && input.credit !== undefined
-        if (needsCredit && input.credit) {
-          // Serializa os votos da mesma pessoa no mês: o saldo é lido e gasto sem corrida.
-          await tx.execute(
-            sql`SELECT pg_advisory_xact_lock(hashtext(${`assembly-credit:${input.userId}:${input.credit.monthKey}`}))`,
-          )
-          const [{ total }] = await tx
-            .select({ total: sql<number>`count(*)::int` })
-            .from(assemblyVoteCredits)
-            .where(
-              and(
-                eq(assemblyVoteCredits.userId, input.userId),
-                eq(assemblyVoteCredits.monthKey, input.credit.monthKey),
-              ),
-            )
-          if (total >= input.credit.monthlyFreeCredits) return { status: 'no_credit' as const }
-          await tx
-            .insert(assemblyVoteCredits)
-            .values({
-              userId: input.userId,
-              assemblyId: input.assemblyId,
-              monthKey: input.credit.monthKey,
-              consumedAt: now,
-            })
-            .onConflictDoNothing()
-        }
         await tx
           .insert(assemblyVotes)
           .values({
@@ -339,23 +308,8 @@ export function createDrizzleAssemblyRepository(db: Database): AssemblyRepositor
             target: [assemblyVotes.assemblyId, assemblyVotes.userId],
             set: { optionId: input.optionId, updatedAt: now },
           })
-        return { status: 'cast' as const, changed: Boolean(current), creditConsumed: needsCredit }
+        return { status: 'cast' as const, changed: Boolean(current) }
       })
-    },
-    async countCreditsUsed(userId, monthKey) {
-      const [{ total }] = await db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(assemblyVoteCredits)
-        .where(
-          and(eq(assemblyVoteCredits.userId, userId), eq(assemblyVoteCredits.monthKey, monthKey)),
-        )
-      return total
-    },
-    async consumeCredit(input, now) {
-      await db
-        .insert(assemblyVoteCredits)
-        .values({ ...input, consumedAt: now })
-        .onConflictDoNothing()
     },
   }
 }

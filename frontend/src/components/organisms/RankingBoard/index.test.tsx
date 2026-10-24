@@ -11,7 +11,7 @@ function entry(overrides: Partial<RankingEntry>): RankingEntry {
         level: 3,
         xp: 300,
         profitabilityPct: 5,
-        cosmetics: { isPro: false, frame: null, title: null },
+        cosmetics: { frame: null, title: null },
         ...overrides,
     }
 }

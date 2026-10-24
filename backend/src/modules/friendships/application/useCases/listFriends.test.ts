@@ -84,14 +84,14 @@ describe('ListFriendsUseCase', () => {
     expect(clamped.items).toHaveLength(5)
   })
 
-  it('amigo PRO vem com o cosmético que os outros veem (MO.5.1)', async () => {
+  it('amigo vem com o cosmético que os outros veem (MO.5.1)', async () => {
     const friendshipRepository = createFakeFriendshipRepository()
     const useCase = new ListFriendsUseCase(
       friendshipRepository,
       createFakeUserDirectory([alice, bob]),
       {
         findDisplays: async () =>
-          new Map([[bob.id, { isPro: true, frame: 'frame_grafite', title: 'Sangue Frio' }]]),
+          new Map([[bob.id, { frame: 'frame_grafite', title: 'Sangue Frio' }]]),
       },
     )
     const accepted = await friendshipRepository.create(alice.id, bob.id)
@@ -100,7 +100,6 @@ describe('ListFriendsUseCase', () => {
     const result = await useCase.execute({ userId: alice.id, page: 1, sort: 'desc' })
 
     expect(result.items[0].cosmetics).toEqual({
-      isPro: true,
       frame: 'frame_grafite',
       title: 'Sangue Frio',
     })

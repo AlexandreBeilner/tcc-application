@@ -25,8 +25,8 @@ const globalResult: RankingResult = {
     scope: 'global',
     criterion: 'overall',
     entries: [
-        { userId: '1', username: 'ana', level: 4, xp: 900, profitabilityPct: 9.2, cosmetics: { isPro: false, frame: null, title: null } },
-        { userId: 'me', username: 'eu', level: 2, xp: 250, profitabilityPct: 1.1, cosmetics: { isPro: false, frame: null, title: null } },
+        { userId: '1', username: 'ana', level: 4, xp: 900, profitabilityPct: 9.2, cosmetics: { frame: null, title: null } },
+        { userId: 'me', username: 'eu', level: 2, xp: 250, profitabilityPct: 1.1, cosmetics: { frame: null, title: null } },
     ],
     requestingUserPosition: 2,
     page: 1,

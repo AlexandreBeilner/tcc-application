@@ -13,13 +13,7 @@ import {
 } from '../../domain/errors'
 import { MAX_JOINED_LEAGUES_PER_USER } from '../../domain/league'
 import { createFakeLeagueRepository } from '../../test/fakes/fakeLeagueRepository'
-import {
-  createFakeFriendships,
-  createFakeMembership,
-  createFakeProAccess,
-  createFakeScores,
-  createFakeUsers,
-} from '../../test/fakes/fakes'
+import { createFakeFriendships, createFakeScores, createFakeUsers } from '../../test/fakes/fakes'
 import { CloseLeagueUseCase } from './closeLeague'
 import { CreateLeagueUseCase } from './createLeague'
 import { GetLeagueUseCase } from './getLeague'
@@ -32,30 +26,27 @@ import { RespondToLeagueInvitationUseCase } from './respondToLeagueInvitation'
 
 const NOW = new Date('2026-10-10T12:00:00Z')
 
-function build(proIds = ['dono']) {
+function build() {
   const repo = createFakeLeagueRepository()
-  const access = createFakeProAccess(proIds)
   const friendships = createFakeFriendships([
     ['dono', 'amigo1'],
     ['dono', 'amigo2'],
   ])
   const scores = createFakeScores({ dono: 5, amigo1: 12, amigo2: -3 })
   const users = createFakeUsers(['dono', 'amigo1', 'amigo2', 'estranho'])
-  const membership = createFakeMembership(access)
   const now = () => NOW
   return {
     repo,
-    access,
     scores,
-    create: new CreateLeagueUseCase(access, repo, now),
-    invite: new InviteToLeagueUseCase(access, repo, friendships, now),
+    create: new CreateLeagueUseCase(repo, now),
+    invite: new InviteToLeagueUseCase(repo, friendships, now),
     respond: new RespondToLeagueInvitationUseCase(repo, now),
     leave: new LeaveLeagueUseCase(repo),
     remove: new RemoveLeagueMemberUseCase(repo),
-    rename: new RenameLeagueUseCase(access, repo),
+    rename: new RenameLeagueUseCase(repo),
     close: new CloseLeagueUseCase(repo, now),
-    list: new ListMyLeaguesUseCase(repo, membership, users),
-    get: new GetLeagueUseCase(repo, scores, membership, users),
+    list: new ListMyLeaguesUseCase(repo, users),
+    get: new GetLeagueUseCase(repo, scores, users),
   }
 }
 
@@ -69,7 +60,7 @@ async function leagueWithTwoFriends(ctx: ReturnType<typeof build>) {
 }
 
 describe('criar liga', () => {
-  it('PRO cria e vira membro ativo; nome é normalizado', async () => {
+  it('qualquer pessoa cria e vira membro ativo; nome é normalizado', async () => {
     const ctx = build()
     const league = await ctx.create.execute({
       userId: 'dono',
@@ -78,14 +69,6 @@ describe('criar liga', () => {
     })
     expect(league.name).toBe('Turma TCC')
     expect((await ctx.repo.findMember(league.id, 'dono'))?.status).toBe('active')
-  })
-
-  it('sem PRO responde requer plano PRO e não grava', async () => {
-    const ctx = build([])
-    await expect(
-      ctx.create.execute({ userId: 'dono', name: 'Turma', window: 'week' }),
-    ).rejects.toMatchObject({ code: 'PRO_REQUIRED' })
-    expect(ctx.repo.leagues.size).toBe(0)
   })
 
   it('nome inválido é recusado', async () => {
@@ -120,17 +103,12 @@ describe('convites', () => {
     ).rejects.toBeInstanceOf(NotFriendsError)
   })
 
-  it('só o dono, e com PRO ativo, convida', async () => {
-    const ctx = build(['dono', 'amigo1'])
+  it('só o dono convida', async () => {
+    const ctx = build()
     const league = await ctx.create.execute({ userId: 'dono', name: 'Turma', window: 'week' })
     await expect(
       ctx.invite.execute({ userId: 'amigo1', leagueId: league.id, targetUserId: 'dono' }),
     ).rejects.toBeInstanceOf(LeagueNotFoundError)
-
-    ctx.access.ids.delete('dono')
-    await expect(
-      ctx.invite.execute({ userId: 'dono', leagueId: league.id, targetUserId: 'amigo1' }),
-    ).rejects.toMatchObject({ code: 'PRO_REQUIRED' })
   })
 
   it('convidar de novo ou quem já está na liga é recusado', async () => {
@@ -156,7 +134,7 @@ describe('convites', () => {
     ).rejects.toBeInstanceOf(LeagueFullError)
   })
 
-  it('membro gratuito aceita sem PRO e passa a participar', async () => {
+  it('o amigo aceita e passa a participar', async () => {
     const ctx = build()
     const league = await ctx.create.execute({ userId: 'dono', name: 'Turma', window: 'week' })
     await ctx.invite.execute({ userId: 'dono', leagueId: league.id, targetUserId: 'amigo1' })
@@ -223,28 +201,26 @@ describe('sair, remover, renomear e encerrar', () => {
     )
   })
 
-  it('dono remove membro mesmo depois de cancelar o PRO; outro membro não pode', async () => {
+  it('dono remove membro; outro membro não pode', async () => {
     const ctx = build()
     const league = await leagueWithTwoFriends(ctx)
     await expect(
       ctx.remove.execute({ userId: 'amigo1', leagueId: league.id, targetUserId: 'amigo2' }),
     ).rejects.toBeInstanceOf(NotLeagueOwnerError)
 
-    ctx.access.ids.delete('dono')
     await ctx.remove.execute({ userId: 'dono', leagueId: league.id, targetUserId: 'amigo2' })
     expect(await ctx.repo.findMember(league.id, 'amigo2')).toBeNull()
   })
 
-  it('renomear exige PRO do dono', async () => {
+  it('o dono renomeia; outro membro não pode', async () => {
     const ctx = build()
     const league = await ctx.create.execute({ userId: 'dono', name: 'Turma', window: 'week' })
     await ctx.rename.execute({ userId: 'dono', leagueId: league.id, name: 'Nova Turma' })
     expect((await ctx.repo.findById(league.id))?.name).toBe('Nova Turma')
 
-    ctx.access.ids.delete('dono')
     await expect(
-      ctx.rename.execute({ userId: 'dono', leagueId: league.id, name: 'Outra' }),
-    ).rejects.toMatchObject({ code: 'PRO_REQUIRED' })
+      ctx.rename.execute({ userId: 'amigo1', leagueId: league.id, name: 'Outra' }),
+    ).rejects.toBeInstanceOf(LeagueNotFoundError)
   })
 
   it('liga encerrada some para todos e vira não encontrada, sem apagar dados', async () => {
@@ -260,7 +236,7 @@ describe('sair, remover, renomear e encerrar', () => {
 })
 
 describe('listar e detalhar', () => {
-  it('lista com papel, status, contagem e arquivamento derivado do plano do dono', async () => {
+  it('lista com papel, status e contagem', async () => {
     const ctx = build()
     const league = await leagueWithTwoFriends(ctx)
     await ctx.invite
@@ -273,14 +249,8 @@ describe('listar e detalhar', () => {
       isOwner: false,
       status: 'active',
       memberCount: 3,
-      archived: false,
       ownerUsername: 'dono',
     })
-
-    ctx.access.ids.delete('dono')
-    expect((await ctx.list.execute('amigo1'))[0].archived).toBe(true)
-    ctx.access.ids.add('dono')
-    expect((await ctx.list.execute('amigo1'))[0].archived).toBe(false)
   })
 
   it('classificação ordena por rentabilidade percentual, só com percentual', async () => {
@@ -317,7 +287,6 @@ describe('listar e detalhar', () => {
     const get = new GetLeagueUseCase(
       ctx.repo,
       scores,
-      createFakeMembership(ctx.access),
       createFakeUsers(['dono', 'amigo1', 'amigo2']),
     )
     const detail = await get.execute({ userId: 'dono', leagueId: league.id })
@@ -345,14 +314,5 @@ describe('listar e detalhar', () => {
     await expect(
       ctx.get.execute({ userId: 'estranho', leagueId: league.id }),
     ).rejects.toBeInstanceOf(LeagueNotFoundError)
-  })
-
-  it('liga arquivada continua visível com a classificação', async () => {
-    const ctx = build()
-    const league = await leagueWithTwoFriends(ctx)
-    ctx.access.ids.delete('dono')
-    const detail = await ctx.get.execute({ userId: 'amigo1', leagueId: league.id })
-    expect(detail.league.archived).toBe(true)
-    expect(detail.standings).toHaveLength(3)
   })
 })

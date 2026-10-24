@@ -21,11 +21,9 @@ import { RunAssemblyLifecycleUseCase } from './application/useCases/runAssemblyL
 import { TallyAssemblyUseCase } from './application/useCases/tallyAssembly'
 import { SHAREHOLDER_KIND, shareholderPolicies } from './domain/shareholderPolicies'
 import type { AssemblyConfig } from './infrastructure/config/assemblyConfig'
-import { createInProcessProStatus } from './infrastructure/billing/inProcessProStatus'
 import { createInProcessParticipationRewards } from './infrastructure/gamification/inProcessParticipationRewards'
 import { createNotificationsResultMailer } from './infrastructure/notifications/notificationsResultMailer'
 import { createInProcessResultFeed } from './infrastructure/socialfeed/inProcessResultFeed'
-import { createInProcessVoterProfileReader } from './infrastructure/profile/inProcessVoterProfileReader'
 import { createAssembliesRouter } from './interfaces/http/assembliesRouter'
 import { createAssemblyReadsRouter } from './interfaces/http/assemblyReadsRouter'
 import { createRedisScoreboardCache } from './infrastructure/cache/redisScoreboardCache'
@@ -125,11 +123,6 @@ export interface AssembliesCompositionDeps {
   authMiddleware: AuthMiddleware
   // Cache curto do placar de assembleia aberta.
   redis: Redis
-  // Do módulo `billing`: único jeito de gatear PRO (`ProAccessGuard`).
-  proAccess: { assertPro(userId: string): Promise<void> }
-  // Do módulo `gamification` e do `auth`: nível e e-mail verificado do crédito gratuito.
-  getProgression: Parameters<typeof createInProcessVoterProfileReader>[0]['getProgression']
-  userRepository: Parameters<typeof createInProcessVoterProfileReader>[0]['userRepository']
   // Do módulo `gamification`: XP de participação (e, por ele, a conquista "Acionista ativo").
   awardXp: Parameters<typeof createInProcessParticipationRewards>[0]
   // Do módulo `socialfeed`: linha de participação no feed dos amigos, no fechamento.
@@ -146,7 +139,6 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
   const proposals = createDrizzleProposalRepository(deps.db)
   const standings = createEngineCompanyStandingReader(deps.engineUrl)
   const declarations = createEngineDeclarationSource(deps.engineUrl)
-  const proStatus = createInProcessProStatus(deps.proAccess)
   const proposalParams = () => deps.config.proposals
 
   const create = new CreateAssemblyUseCase(kinds, repository)
@@ -180,25 +172,17 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
     ),
     () => deps.core.settings.refresh(),
   )
-  const access = new VoteAccessService(
-    kinds,
-    repository,
-    snapshots,
-    proStatus,
-    createInProcessVoterProfileReader(deps),
-    () => deps.config.params,
-  )
+  const access = new VoteAccessService(kinds, repository, snapshots)
   const router = Router()
   router.use(
     createAssembliesRouter({
       castVote: new CastVoteUseCase(
         access,
         repository,
-        () => deps.config.params,
         undefined,
         createInProcessParticipationRewards(deps.awardXp, () => deps.config.participationXp),
       ),
-      getMyVotingStatus: new GetMyVotingStatusUseCase(access, () => deps.config.params),
+      getMyVotingStatus: new GetMyVotingStatusUseCase(access),
       authMiddleware: deps.authMiddleware,
     }),
   )
@@ -222,22 +206,10 @@ export function createAssembliesModule(deps: AssembliesCompositionDeps) {
         standings,
         agendaCatalog,
         proposals,
-        proStatus,
         proposalParams,
       ),
-      proposeAgenda: new ProposeAgendaUseCase(
-        deps.proAccess,
-        standings,
-        agendaCatalog,
-        proposals,
-        proposalParams,
-      ),
-      supportProposal: new SupportProposalUseCase(
-        deps.proAccess,
-        standings,
-        proposals,
-        proposalParams,
-      ),
+      proposeAgenda: new ProposeAgendaUseCase(standings, agendaCatalog, proposals, proposalParams),
+      supportProposal: new SupportProposalUseCase(standings, proposals, proposalParams),
       withdrawSupport: new WithdrawProposalSupportUseCase(proposals),
       authMiddleware: deps.authMiddleware,
     }),

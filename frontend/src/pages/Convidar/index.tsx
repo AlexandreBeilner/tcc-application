@@ -2,23 +2,20 @@ import { useState } from 'react'
 import { Button } from '../../components/atoms/Button'
 import { buildInviteLink } from '../../features/referral/referralCode'
 import { useMyReferralQuery } from '../../features/referral/useMyReferral'
-import type { ReferralMilestone } from '../../services/referral'
 import styles from './index.module.css'
 
-function weeks(days: number): string {
-    const count = Math.max(1, Math.round(days / 7))
-    return count === 1 ? '1 semana de PRO' : `${count} semanas de PRO`
-}
-
-function milestoneStatus(milestone: ReferralMilestone): string {
-    if (milestone.granted) return 'Concedido'
-    if (milestone.reached) return 'A caminho'
-    return 'Em andamento'
-}
+// Marcos de indicação: espelham as conquistas `referrals_qualified_*` (seedAchievements) e os
+// títulos com `unlock_referrals` (migração 0049). Mudou lá, muda aqui.
+const MILESTONES = [
+    { threshold: 5, achievement: 'Convidou os Primeiros', title: 'Mensageiro' },
+    { threshold: 20, achievement: 'Comunidade em Crescimento', title: 'Embaixador' },
+    { threshold: 50, achievement: 'Fundador de Turma', title: 'Patrono' },
+] as const
 
 // Indicação entre amigos (MO.7.2). Qualquer pessoa convida por um link; o convite vale quando o
-// amigo conclui a primeira lição. A recompensa é só de quem convida e não tem teto. Composição
-// própria no desktop: o link e as regras à esquerda, a escada de marcos numa coluna fixa à direita.
+// amigo conclui a primeira lição. Cada marco libera uma conquista e um título para o perfil.
+// Composição própria no desktop: o link e as regras à esquerda, a escada de marcos numa coluna
+// fixa à direita.
 export function Convidar() {
     const referralQuery = useMyReferralQuery()
     const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -48,15 +45,16 @@ export function Convidar() {
         }
     }
 
-    const progressPercent =
-        referral && referral.next.threshold > 0 ? Math.min(100, Math.round((referral.qualifiedCount / referral.next.threshold) * 100)) : 0
+    const next = referral ? MILESTONES.find((milestone) => milestone.threshold > referral.qualifiedCount) : undefined
+    const progressPercent = referral && next ? Math.min(100, Math.round((referral.qualifiedCount / next.threshold) * 100)) : 100
+    const remaining = referral && next ? next.threshold - referral.qualifiedCount : 0
 
     return (
         <main className={styles.page}>
             <h1 className={styles.title}>Convidar amigos</h1>
             <p className={styles.lead}>
                 Chame amigos para aprender junto. Quando um amigo que entrou pelo seu link conclui a primeira lição, o convite passa a valer
-                e você avança na escada de recompensas.
+                e você avança na escada de marcos.
             </p>
 
             {referralQuery.isError && (
@@ -123,16 +121,18 @@ export function Convidar() {
                                     className={styles.progressTrack}
                                     role="progressbar"
                                     aria-valuemin={0}
-                                    aria-valuemax={referral.next.threshold}
+                                    aria-valuemax={next?.threshold ?? referral.qualifiedCount}
                                     aria-valuenow={referral.qualifiedCount}
                                     aria-label="Progresso até o próximo marco"
                                 >
                                     <div className={styles.progressFill} style={{ width: `${progressPercent}%` }} />
                                 </div>
                                 <p className={styles.muted}>
-                                    {referral.next.remaining === 1
-                                        ? `Falta 1 convite válido para ganhar ${weeks(referral.next.rewardDays)}.`
-                                        : `Faltam ${referral.next.remaining} convites válidos para ganhar ${weeks(referral.next.rewardDays)}.`}
+                                    {!next
+                                        ? 'Você passou por todos os marcos. Obrigado por trazer tanta gente.'
+                                        : remaining === 1
+                                          ? `Falta 1 convite válido para o título ${next.title}.`
+                                          : `Faltam ${remaining} convites válidos para o título ${next.title}.`}
                                 </p>
                             </div>
                         </section>
@@ -143,9 +143,8 @@ export function Convidar() {
                             </h2>
                             <ul className={styles.rules}>
                                 <li>O convite vale quando o amigo conclui a primeira lição, não só ao criar a conta.</li>
-                                <li>Quem entra pelo link não precisa pagar nada, e a recompensa é sua.</li>
-                                <li>Não há limite de convites. Depois de 50, cada 50 convites válidos dão mais 1 semana de PRO.</li>
-                                <li>Cada marco também libera uma conquista e um título para o seu perfil.</li>
+                                <li>Não há limite de convites.</li>
+                                <li>Cada marco libera uma conquista e um título para o seu perfil, que você escolhe em Configurações.</li>
                             </ul>
                         </section>
                     </div>
@@ -155,13 +154,18 @@ export function Convidar() {
                             Escada de marcos
                         </h2>
                         <ol className={styles.ladder}>
-                            {referral.milestones.map((milestone) => (
-                                <li key={milestone.threshold} className={`${styles.step} ${milestone.reached ? styles.stepReached : ''}`}>
-                                    <span className={styles.stepThreshold}>{milestone.threshold} convites</span>
-                                    <span className={styles.stepReward}>{weeks(milestone.rewardDays)}</span>
-                                    <span className={styles.stepStatus}>{milestoneStatus(milestone)}</span>
-                                </li>
-                            ))}
+                            {MILESTONES.map((milestone) => {
+                                const reached = referral.qualifiedCount >= milestone.threshold
+                                return (
+                                    <li key={milestone.threshold} className={`${styles.step} ${reached ? styles.stepReached : ''}`}>
+                                        <span className={styles.stepThreshold}>{milestone.threshold} convites</span>
+                                        <span className={styles.stepReward}>
+                                            Título {milestone.title} e a conquista {milestone.achievement}
+                                        </span>
+                                        <span className={styles.stepStatus}>{reached ? 'Liberado' : 'Em andamento'}</span>
+                                    </li>
+                                )
+                            })}
                         </ol>
                     </aside>
                 </div>

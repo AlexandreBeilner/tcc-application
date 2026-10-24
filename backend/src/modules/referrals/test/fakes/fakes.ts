@@ -1,11 +1,4 @@
-import type { Milestone } from '../../domain/referral'
 import type { ReferralRepository } from '../../application/ports/referralRepository'
-import type {
-  ReferralReward,
-  ReferralRewardRepository,
-  ReferrerLock,
-} from '../../application/ports/referralRewardRepository'
-import type { PromotionalPro } from '../../application/ports/promotionalPro'
 
 export interface FakeReferralRepository extends ReferralRepository {
   codes: Map<string, string>
@@ -49,76 +42,4 @@ export function createFakeReferralRepository(): FakeReferralRepository {
       return countBy(referrerId, 'pending')
     },
   }
-}
-
-export interface FakeRewardRepository extends ReferralRewardRepository {
-  rows: Map<string, ReferralReward>
-}
-
-export function createFakeRewardRepository(ladder: Milestone[]): FakeRewardRepository {
-  const rows = new Map<string, ReferralReward>()
-  const key = (u: string, t: number) => `${u}:${t}`
-  return {
-    rows,
-    async listMilestones() {
-      return ladder
-    },
-    async ensureRewards(referrerId, milestones) {
-      for (const m of milestones) {
-        if (!rows.has(key(referrerId, m.threshold))) {
-          rows.set(key(referrerId, m.threshold), {
-            threshold: m.threshold,
-            rewardDays: m.rewardDays,
-            status: 'pending',
-            promoEndsAt: null,
-            grantedAt: null,
-          })
-        }
-      }
-    },
-    async listRewards(referrerId) {
-      return [...rows.entries()]
-        .filter(([k]) => k.startsWith(`${referrerId}:`))
-        .map(([, v]) => ({ ...v }))
-    },
-    async setPromoEnd(referrerId, threshold, endsAt) {
-      const row = rows.get(key(referrerId, threshold))
-      if (row) row.promoEndsAt = endsAt
-    },
-    async markGranted(referrerId, threshold, at) {
-      const row = rows.get(key(referrerId, threshold))
-      if (row) {
-        row.status = 'granted'
-        row.grantedAt = at
-      }
-    },
-  }
-}
-
-export const passThroughLock: ReferrerLock = { run: (_id, fn) => fn() }
-
-export interface FakePromotionalPro extends PromotionalPro {
-  accessEnd: Map<string, Date>
-  grants: Array<{ userId: string; endsAt: Date }>
-  failNext: number
-}
-
-export function createFakePromotionalPro(): FakePromotionalPro {
-  const fake: FakePromotionalPro = {
-    accessEnd: new Map(),
-    grants: [],
-    failNext: 0,
-    async currentAccessEnd(userId) {
-      return fake.accessEnd.get(userId) ?? null
-    },
-    async grantUntil(userId, endsAt) {
-      if (fake.failNext > 0) {
-        fake.failNext--
-        throw new Error('provedor fora do ar')
-      }
-      fake.grants.push({ userId, endsAt })
-      fake.accessEnd.set(userId, endsAt)
-    },
-  }
-  return fake
 }

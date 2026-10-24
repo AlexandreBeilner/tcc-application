@@ -37,16 +37,9 @@ function setup(over: { params?: Partial<ProposalParams> } = {}) {
   const now = () => clock
   const params = { ...DEFAULT_PROPOSAL_PARAMS, ...over.params }
   const repository = createFakeProposalRepository()
-  const pros = new Set(['ana', 'bia', 'caio', 'dani'])
   const standings = new Map<string, Partial<CompanyStanding>>()
   const holders = new Set(['ana', 'bia', 'caio', 'dani', 'edu'])
   let cooldownDaysLeft = 0
-  const gate = {
-    assertPro: async (userId: string) => {
-      if (!pros.has(userId))
-        throw Object.assign(new Error('requer plano PRO'), { code: 'PRO_REQUIRED' })
-    },
-  }
   const reader = {
     get: async (companyId: string, userId: string) =>
       companyId === 'desconhecida'
@@ -71,18 +64,10 @@ function setup(over: { params?: Partial<ProposalParams> } = {}) {
   return {
     repository,
     holders,
-    pros,
-    propose: new ProposeAgendaUseCase(gate, reader, catalog, repository, getParams, now),
-    support: new SupportProposalUseCase(gate, reader, repository, getParams, now),
+    propose: new ProposeAgendaUseCase(reader, catalog, repository, getParams, now),
+    support: new SupportProposalUseCase(reader, repository, getParams, now),
     withdraw: new WithdrawProposalSupportUseCase(repository),
-    list: new ListCompanyProposalsUseCase(
-      reader,
-      catalog,
-      repository,
-      { isPro: async (id) => pros.has(id) },
-      getParams,
-      now,
-    ),
+    list: new ListCompanyProposalsUseCase(reader, catalog, repository, getParams, now),
     setCooldown: (days: number) => (cooldownDaysLeft = days),
     advance: (ms: number) => (clock = new Date(clock.getTime() + ms)),
   }
@@ -101,7 +86,7 @@ async function denied(promise: Promise<unknown>) {
 }
 
 describe('ProposeAgendaUseCase', () => {
-  it('PRO acionista propõe pauta do catálogo e entra como primeiro apoio', async () => {
+  it('acionista propõe pauta do catálogo e entra como primeiro apoio', async () => {
     const ctx = setup()
     const { proposal, joinedExisting } = await propose(ctx, 'ana')
     expect(joinedExisting).toBe(false)
@@ -112,12 +97,6 @@ describe('ProposeAgendaUseCase', () => {
       status: 'active',
     })
     expect(proposal.expiresAt.getTime() - NOW.getTime()).toBe(30 * DAY)
-  })
-
-  it('quem não é PRO recebe o erro do guard (403 requer plano PRO pelo handler)', async () => {
-    const ctx = setup()
-    await expect(propose(ctx, 'edu')).rejects.toMatchObject({ code: 'PRO_REQUIRED' })
-    expect(ctx.repository.proposals).toHaveLength(0)
   })
 
   it('exige ações da empresa e que ela não esteja em período de espera', async () => {
@@ -153,7 +132,7 @@ describe('ProposeAgendaUseCase', () => {
     expect(ctx.repository.proposals).toHaveLength(2)
   })
 
-  it('o teto é por pessoa: outra pessoa PRO ainda pode propor', async () => {
+  it('o teto é por pessoa: outra pessoa ainda pode propor', async () => {
     const ctx = setup({ params: { monthlyCap: 1 } })
     await propose(ctx, 'ana', 'geral')
     await expect(propose(ctx, 'bia', 'varejo')).resolves.toBeTruthy()
@@ -189,7 +168,7 @@ describe('ProposeAgendaUseCase', () => {
 })
 
 describe('SupportProposalUseCase', () => {
-  it('PRO acionista apoia; apoiar de novo não duplica', async () => {
+  it('acionista apoia; apoiar de novo não duplica', async () => {
     const ctx = setup()
     const { proposal } = await propose(ctx, 'ana')
     const first = await ctx.support.execute({ proposalId: proposal.id, userId: 'bia' })
@@ -201,14 +180,9 @@ describe('SupportProposalUseCase', () => {
     expect(again).toMatchObject({ alreadySupported: true, proposal: { supportCount: 2 } })
   })
 
-  it('exige PRO, ações da empresa e empresa fora do período de espera', async () => {
+  it('exige ações da empresa e empresa fora do período de espera', async () => {
     const ctx = setup()
     const { proposal } = await propose(ctx, 'ana')
-    await expect(
-      ctx.support.execute({ proposalId: proposal.id, userId: 'edu' }),
-    ).rejects.toMatchObject({
-      code: 'PRO_REQUIRED',
-    })
     ctx.holders.delete('bia')
     expect(await denied(ctx.support.execute({ proposalId: proposal.id, userId: 'bia' }))).toBe(
       'not_shareholder',
@@ -233,12 +207,10 @@ describe('SupportProposalUseCase', () => {
 })
 
 describe('WithdrawProposalSupportUseCase', () => {
-  it('retira o apoio sem apagar a proposta e sem devolver o teto, e não exige PRO', async () => {
+  it('retira o apoio sem apagar a proposta e sem devolver o teto', async () => {
     const ctx = setup({ params: { monthlyCap: 1 } })
     const { proposal } = await propose(ctx, 'ana')
     await ctx.support.execute({ proposalId: proposal.id, userId: 'bia' })
-    // Quem cancelou o plano ainda desfaz o apoio.
-    ctx.pros.delete('bia')
     const out = await ctx.withdraw.execute({ proposalId: proposal.id, userId: 'bia' })
     expect(out).toMatchObject({
       withdrawn: true,
@@ -282,7 +254,6 @@ describe('ListCompanyProposalsUseCase', () => {
     expect(JSON.stringify(view)).not.toContain('"proposedBy"')
     expect(view).toMatchObject({
       company: { id: COMPANY, name: 'Acme', sector: 'Varejo' },
-      isPro: true,
       holdsShares: true,
       blockedReason: null,
       limits: { monthlyCap: 3, usedThisMonth: 0, minSupport: 2, ttlDays: 30 },
@@ -295,7 +266,7 @@ describe('ListCompanyProposalsUseCase', () => {
     ])
   })
 
-  it('mostra o uso do teto e o motivo de bloqueio sem exigir PRO para ler', async () => {
+  it('mostra o uso do teto e o motivo de bloqueio', async () => {
     const ctx = setup()
     await propose(ctx, 'ana')
     ctx.setCooldown(7)
@@ -304,7 +275,6 @@ describe('ListCompanyProposalsUseCase', () => {
     expect(own.proposals[0].proposedByMe).toBe(true)
     const outsider = await ctx.list.execute({ companyId: COMPANY, userId: 'edu' })
     expect(outsider).toMatchObject({
-      isPro: false,
       blockedReason: 'company_in_cooldown',
       cooldownDaysLeft: 7,
     })

@@ -52,16 +52,6 @@ export const ASSEMBLY_SETTING_TEXT: Record<AssemblySettingKey, SettingText> = {
         unit: 'dias reais',
         effect: 'Quanto tempo depois de fechar o resultado vira efeito nos fundamentos da empresa. Vale para as próximas assembleias.',
     },
-    monthly_free_credits: {
-        title: 'Votos gratuitos por mês',
-        unit: 'votos',
-        effect: 'Quantas assembleias por mês quem não é PRO pode votar, de empresas que possui.',
-    },
-    free_credit_min_level: {
-        title: 'Nível mínimo do voto gratuito',
-        unit: 'nível',
-        effect: 'Nível mínimo para usar o voto gratuito (o e-mail verificado também é exigido).',
-    },
     participation_xp: {
         title: 'XP por participar',
         unit: 'XP',
@@ -70,7 +60,7 @@ export const ASSEMBLY_SETTING_TEXT: Record<AssemblySettingKey, SettingText> = {
     proposal_monthly_cap: {
         title: 'Propostas por mês',
         unit: 'propostas',
-        effect: 'Quantas pautas novas cada pessoa PRO pode propor por mês. Apoiar não gasta.',
+        effect: 'Quantas pautas novas cada acionista pode propor por mês. Apoiar não gasta.',
     },
     proposal_min_support: {
         title: 'Apoios mínimos',

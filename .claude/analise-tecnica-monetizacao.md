@@ -1,5 +1,7 @@
 # Análise técnica — implementação da estratégia de monetização
 
+> **⛔ ABANDONADO em 2026-10-24:** o autor removeu o plano pago e tudo ficou gratuito. Detalhe em `backlog-monetizacao.md`. Este arquivo é só histórico.
+
 > **Status: análise técnica, não decisão fechada.** Depende de `.claude/estrategia-monetizacao.md`
 > (proposta de produto) continuar como está até a seção 7 daquele documento ser resolvida — preço,
 > nome do plano e "se a TCC comporta esse escopo" não são decididas aqui. Este documento responde

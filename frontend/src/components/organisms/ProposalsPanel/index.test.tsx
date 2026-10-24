@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../features/auth/AuthContext'
 import { listCompanyProposals, proposeAgenda, supportProposal, withdrawProposalSupport } from '../../../services/assemblies'
 import type { CompanyProposals, ProposalView } from '../../../services/assemblies'
-import { getBillingStatus } from '../../../services/billing'
 import { ApiError } from '../../../services/client'
 import { ProposalsPanel } from '.'
 
@@ -16,7 +15,6 @@ vi.mock('../../../services/assemblies', () => ({
     supportProposal: vi.fn(),
     withdrawProposalSupport: vi.fn(),
 }))
-vi.mock('../../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 
 const proposal = (over: Partial<ProposalView> = {}): ProposalView => ({
     id: 'p1',
@@ -37,7 +35,6 @@ const proposal = (over: Partial<ProposalView> = {}): ProposalView => ({
 
 const base = (over: Partial<CompanyProposals> = {}): CompanyProposals => ({
     company: { id: 'c1', name: 'Acme', sector: 'Varejo' },
-    isPro: true,
     holdsShares: true,
     cooldownDaysLeft: 0,
     blockedReason: null,
@@ -64,20 +61,10 @@ function renderPanel() {
 describe('ProposalsPanel (MO.6.6)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
-        vi.mocked(getBillingStatus).mockResolvedValue({
-            isPro: true,
-            state: 'active',
-            plan: 'monthly',
-            store: 'stripe',
-            expiresAt: null,
-            willRenew: true,
-            managementUrl: null,
-            billingEnabled: true,
-        })
     })
     afterEach(() => vi.clearAllMocks())
 
-    it('PRO acionista apoia, retira apoio e propõe pauta que ainda não está na fila', async () => {
+    it('acionista apoia, retira apoio e propõe pauta que ainda não está na fila', async () => {
         vi.mocked(listCompanyProposals).mockResolvedValue(base())
         vi.mocked(supportProposal).mockResolvedValue({ proposal: {} as never, alreadySupported: false })
         vi.mocked(proposeAgenda).mockResolvedValue({ proposal: {} as never, joinedExisting: false })
@@ -93,7 +80,7 @@ describe('ProposalsPanel (MO.6.6)', () => {
         await waitFor(() => expect(proposeAgenda).toHaveBeenCalledWith('token', 'c1', 'capital_budget'))
     })
 
-    it('quem já apoia só vê Retirar meu apoio, que não exige PRO', async () => {
+    it('quem já apoia só vê Retirar meu apoio', async () => {
         vi.mocked(listCompanyProposals).mockResolvedValue(
             base({ proposals: [proposal({ supportedByMe: true, queuePosition: 1, supportCount: 2 })] }),
         )
@@ -126,26 +113,6 @@ describe('ProposalsPanel (MO.6.6)', () => {
         renderPanel()
         expect(await screen.findByText(/Elas voltam no mês que vem/)).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Propor esta pauta' })).toBeDisabled()
-    })
-
-    it('quem não é PRO lê a fila e recebe o convite, sem botão de propor ou apoiar', async () => {
-        vi.mocked(getBillingStatus).mockResolvedValue({
-            isPro: false,
-            state: 'none',
-            plan: null,
-            store: null,
-            expiresAt: null,
-            willRenew: false,
-            managementUrl: null,
-            billingEnabled: true,
-        })
-        vi.mocked(listCompanyProposals).mockResolvedValue(base({ isPro: false }))
-        renderPanel()
-
-        expect(await screen.findByText('Política de endividamento')).toBeInTheDocument()
-        expect(await screen.findByRole('link', { name: 'Conhecer o PRO' })).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: 'Apoiar' })).toBeNull()
-        expect(screen.queryByRole('button', { name: 'Propor esta pauta' })).toBeNull()
     })
 
     it('mostra a recusa do servidor em texto', async () => {

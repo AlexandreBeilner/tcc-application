@@ -81,33 +81,22 @@ const data: RetrospectiveData = {
 }
 
 describe('toView', () => {
-  it('PRO recebe o conteúdo completo', () => {
-    const view = toView(data, true)
-    expect(view.full).toBe(true)
-    expect(view.premium).toMatchObject({ longestStreak: 3, bestReturnPct: 4.2, duelsWon: 1 })
-  })
-
-  it('quem não é PRO recebe só a versão simples: o conteúdo premium nem sai do servidor', () => {
-    const view = toView(data, false)
-    expect(view.full).toBe(false)
-    expect(view.premium).toBeNull()
-    expect(JSON.stringify(view)).not.toContain('4.2')
+  it('devolve o mês inteiro: contagens, sequência, rentabilidade, duelos e ligas', () => {
+    const view = toView(data)
     expect(view).toMatchObject({ lessonsCompleted: 6, achievementsUnlocked: 2, level: 5 })
+    expect(view).toMatchObject({ longestStreak: 3, bestReturnPct: 4.2, duelsWon: 1 })
   })
 
   it('mês sem nada fica marcado como vazio', () => {
-    const empty = toView(
-      {
-        ...data,
-        lessonsCompleted: 0,
-        achievementsUnlocked: 0,
-        achievementNames: [],
-        activeDays: [],
-        duelsPlayed: 0,
-      },
-      true,
-    )
+    const empty = toView({
+      ...data,
+      lessonsCompleted: 0,
+      achievementsUnlocked: 0,
+      achievementNames: [],
+      activeDays: [],
+      duelsPlayed: 0,
+    })
     expect(empty.empty).toBe(true)
-    expect(toView(data, true).empty).toBe(false)
+    expect(toView(data).empty).toBe(false)
   })
 })

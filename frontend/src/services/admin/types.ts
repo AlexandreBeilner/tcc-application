@@ -762,25 +762,6 @@ export interface UserCorrectionContext {
     lessons: CorrectionLesson[]
 }
 
-export interface UserProStatus {
-    is_pro: boolean
-    state: string
-    plan: string | null
-    store: string | null
-    expires_at: string | null
-}
-
-export interface GrantUserProInput {
-    days: number
-    reason: string
-}
-
-export interface GrantUserProResult {
-    user_id: string
-    ends_at: string
-    previous_access_end: string | null
-}
-
 export interface CreditUserInput {
     amount: number
     reason?: string
@@ -1308,8 +1289,6 @@ export type AssemblySettingKey =
     | 'open_delay_days'
     | 'catch_up_days'
     | 'effect_delay_days'
-    | 'monthly_free_credits'
-    | 'free_credit_min_level'
     | 'participation_xp'
     | 'proposal_monthly_cap'
     | 'proposal_min_support'

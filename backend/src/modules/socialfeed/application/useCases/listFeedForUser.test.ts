@@ -78,7 +78,7 @@ describe('ListFeedForUserUseCase', () => {
     )
   })
 
-  it('amigo PRO aparece com selo, moldura e título', async () => {
+  it('amigo aparece com moldura e título', async () => {
     const repository = createFakeSocialFeedEventRepository()
     await repository.record('friend-1', 'track_completed', 1)
     const useCase = new ListFeedForUserUseCase(
@@ -89,13 +89,13 @@ describe('ListFeedForUserUseCase', () => {
       ]),
       {
         findDisplays: async () =>
-          new Map([['friend-1', { isPro: true, frame: 'frame_oceano', title: 'Mente Curiosa' }]]),
+          new Map([['friend-1', { frame: 'frame_oceano', title: 'Mente Curiosa' }]]),
       },
     )
 
     const [item] = await useCase.execute({ userId: 'user-1' })
 
-    expect(item.cosmetics).toEqual({ isPro: true, frame: 'frame_oceano', title: 'Mente Curiosa' })
+    expect(item.cosmetics).toEqual({ frame: 'frame_oceano', title: 'Mente Curiosa' })
   })
 
   it('resultado de duelo aparece como item do feed, só com nomes e desfecho', async () => {

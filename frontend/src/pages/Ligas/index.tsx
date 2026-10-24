@@ -5,8 +5,8 @@ import { LeagueCreateForm } from '../../components/organisms/LeagueCreateForm'
 import { useLeaguesQuery, useRespondToLeagueInvitationMutation } from '../../features/leagues/useLeagues'
 import styles from './index.module.css'
 
-// Ligas privadas (MO.5.2c): as ligas em que a pessoa participa, os convites pendentes e, no PRO, a
-// criação. Participar nunca exige plano. Composição própria no desktop: lista à esquerda, criação
+// Ligas privadas (MO.5.2c): as ligas em que a pessoa participa, os convites pendentes e a
+// criação. Composição própria no desktop: lista à esquerda, criação
 // numa coluna fixa à direita (identidade-visual-padroes.md §7).
 export function Ligas() {
     const navigate = useNavigate()

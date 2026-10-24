@@ -9,7 +9,6 @@ import { formatApiError } from '../../../utils/formatApiError'
 import type { CompanyProposals, ProposalView } from '../../../services/assemblies'
 import { Button } from '../../atoms/Button'
 import { Select } from '../../atoms/Select'
-import { ProInvite } from '../../molecules/ProInvite'
 import styles from './index.module.css'
 
 function blockedText(data: CompanyProposals): string | null {
@@ -28,7 +27,7 @@ function queueText(proposal: ProposalView, minSupport: number): string {
     return `Faltam ${missing} ${missing === 1 ? 'apoio' : 'apoios'} para entrar na fila`
 }
 
-// Propostas de pauta de uma empresa (MO.6.5): quem é PRO e acionista propõe uma pauta do catálogo
+// Propostas de pauta de uma empresa (MO.6.5): quem é acionista propõe uma pauta do catálogo
 // e apoia as dos outros; as mais apoiadas entram na próxima assembleia. Sem texto livre.
 export function ProposalsPanel({ companyId }: { companyId: string }) {
     const query = useCompanyProposalsQuery(companyId)
@@ -41,7 +40,7 @@ export function ProposalsPanel({ companyId }: { companyId: string }) {
     if (!data) return null
 
     const blocked = blockedText(data)
-    const canAct = data.isPro && data.blockedReason === null
+    const canAct = data.blockedReason === null
     const options = data.availableTemplates
         .filter((template) => !template.hasActiveProposal)
         .map((template) => ({ value: template.key, label: template.title }))
@@ -56,8 +55,7 @@ export function ProposalsPanel({ companyId }: { companyId: string }) {
                 Propostas de pauta
             </h3>
             <p className={styles.lead}>
-                Quem é PRO e tem ações da empresa propõe uma pauta do catálogo e apoia as dos outros. As mais apoiadas entram na próxima
-                assembleia.
+                Quem tem ações da empresa propõe uma pauta do catálogo e apoia as dos outros. As mais apoiadas entram na próxima assembleia.
             </p>
 
             {blocked && <p className={styles.notice}>{blocked}</p>}
@@ -103,42 +101,32 @@ export function ProposalsPanel({ companyId }: { companyId: string }) {
                 </ul>
             )}
 
-            {data.isPro ? (
-                <div className={styles.form}>
-                    <label className={styles.label} htmlFor="proposal-template">
-                        Propor uma pauta
-                    </label>
-                    {options.length === 0 ? (
-                        <p className={styles.muted}>Todas as pautas do catálogo já estão na fila.</p>
-                    ) : (
-                        <Select
-                            id="proposal-template"
-                            aria-label="Pauta do catálogo"
-                            value={selected}
-                            onChange={setTemplateKey}
-                            options={options}
-                        />
-                    )}
-                    <div className={styles.formRow}>
-                        <Button
-                            disabled={!canAct || busy || options.length === 0 || remaining === 0}
-                            onClick={() => propose.mutate(selected)}
-                        >
-                            Propor esta pauta
-                        </Button>
-                        <span className={styles.muted}>
-                            {remaining === 0
-                                ? `Você usou as ${data.limits.monthlyCap} propostas deste mês. Elas voltam no mês que vem.`
-                                : `Você tem ${remaining} de ${data.limits.monthlyCap} propostas neste mês.`}
-                        </span>
-                    </div>
+            <div className={styles.form}>
+                <label className={styles.label} htmlFor="proposal-template">
+                    Propor uma pauta
+                </label>
+                {options.length === 0 ? (
+                    <p className={styles.muted}>Todas as pautas do catálogo já estão na fila.</p>
+                ) : (
+                    <Select
+                        id="proposal-template"
+                        aria-label="Pauta do catálogo"
+                        value={selected}
+                        onChange={setTemplateKey}
+                        options={options}
+                    />
+                )}
+                <div className={styles.formRow}>
+                    <Button disabled={!canAct || busy || options.length === 0 || remaining === 0} onClick={() => propose.mutate(selected)}>
+                        Propor esta pauta
+                    </Button>
+                    <span className={styles.muted}>
+                        {remaining === 0
+                            ? `Você usou as ${data.limits.monthlyCap} propostas deste mês. Elas voltam no mês que vem.`
+                            : `Você tem ${remaining} de ${data.limits.monthlyCap} propostas neste mês.`}
+                    </span>
                 </div>
-            ) : (
-                <ProInvite context="assembly">
-                    Com o PRO você propõe pautas e apoia as dos outros acionistas. Votar nas assembleias continua disponível para todo
-                    mundo.
-                </ProInvite>
-            )}
+            </div>
 
             {mutationError && (
                 <p className={styles.error} role="alert">

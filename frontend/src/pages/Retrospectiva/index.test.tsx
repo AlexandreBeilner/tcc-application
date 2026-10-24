@@ -3,25 +3,28 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { getBillingStatus } from '../../services/billing'
 import { getMyCosmetics } from '../../services/cosmetics'
 import { getRetrospective, listRetrospectiveMonths } from '../../services/retrospectives'
 import type { Retrospective } from '../../services/retrospectives'
 import { Retrospectiva } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../services/cosmetics', () => ({ getMyCosmetics: vi.fn() }))
 vi.mock('../../services/retrospectives', () => ({ listRetrospectiveMonths: vi.fn(), getRetrospective: vi.fn() }))
 
 const retro = (month: string, lessons: number): Retrospective => ({
     month,
-    full: false,
     lessonsCompleted: lessons,
     achievementsUnlocked: 0,
     achievementNames: [],
     level: 3,
-    premium: null,
+    activeDays: [],
+    daysInMonth: 30,
+    longestStreak: 0,
+    bestReturnPct: null,
+    duelsPlayed: 0,
+    duelsWon: 0,
+    leaguesActive: 0,
     empty: false,
 })
 
@@ -39,22 +42,11 @@ function renderPage() {
 describe('Retrospectiva (MO.5.4)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token', user: { id: 'u1', username: 'ana' } } as ReturnType<typeof useAuth>)
-        vi.mocked(getBillingStatus).mockResolvedValue({
-            isPro: false,
-            state: 'none',
-            plan: null,
-            store: null,
-            expiresAt: null,
-            willRenew: false,
-            managementUrl: null,
-            billingEnabled: true,
-        })
         vi.mocked(getMyCosmetics).mockResolvedValue({
-            isPro: false,
             referralCount: 0,
             catalog: [],
             selection: { frame: null, title: null },
-            display: { isPro: false, frame: null, title: null },
+            display: { frame: null, title: null },
         })
     })
     afterEach(() => vi.clearAllMocks())

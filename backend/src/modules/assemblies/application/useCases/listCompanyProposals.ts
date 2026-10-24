@@ -12,7 +12,6 @@ import {
 import { SHAREHOLDER_KIND } from '../../domain/shareholderPolicies'
 import type { AgendaCatalog } from '../ports/agendaCatalog'
 import type { CompanyStandingReader } from '../ports/companyStandingReader'
-import type { ProStatusReader } from '../ports/proStatusReader'
 import type { ProposalRepository } from '../ports/proposalRepository'
 
 export interface ProposalView {
@@ -31,10 +30,9 @@ export interface ProposalView {
 
 export interface CompanyProposals {
   company: { id: string; name: string; sector: string }
-  isPro: boolean
   holdsShares: boolean
   cooldownDaysLeft: number
-  // Por que a pessoa não pode propor ou apoiar agora (ou `null`), sem contar o plano.
+  // Por que a pessoa não pode propor ou apoiar agora (ou `null`).
   blockedReason: ProposalDenial | null
   limits: { monthlyCap: number; usedThisMonth: number; minSupport: number; ttlDays: number }
   proposals: ProposalView[]
@@ -55,7 +53,6 @@ export class ListCompanyProposalsUseCase {
     private readonly standings: CompanyStandingReader,
     private readonly catalog: AgendaCatalog,
     private readonly repository: ProposalRepository,
-    private readonly pro: ProStatusReader,
     private readonly params: () => ProposalParams,
     private readonly now: () => Date = () => new Date(),
   ) {}
@@ -66,11 +63,10 @@ export class ListCompanyProposalsUseCase {
     const standing = await this.standings.get(input.companyId, input.userId)
     if (!standing) throw new CompanyNotFoundError()
     const month = proposalMonthRange(now)
-    const [templates, proposals, usedThisMonth, isPro] = await Promise.all([
+    const [templates, proposals, usedThisMonth] = await Promise.all([
       this.catalog.listActive(SHAREHOLDER_KIND),
       this.repository.listActive(SHAREHOLDER_KIND, input.companyId, now, input.userId),
       this.repository.countProposedBy(input.userId, month.from, month.to),
-      this.pro.isPro(input.userId),
     ])
     const byKey = new Map(templates.map((t) => [t.key, t]))
     const queue = rankProposals(proposals, now, params)
@@ -100,7 +96,6 @@ export class ListCompanyProposalsUseCase {
     const activeKeys = new Set(proposals.map((p) => p.templateKey))
     return {
       company: { id: standing.companyId, name: standing.name, sector: standing.sector },
-      isPro,
       holdsShares: standing.holdsShares,
       cooldownDaysLeft: standing.cooldownDaysLeft,
       blockedReason: resolveProposalAccess(standing),

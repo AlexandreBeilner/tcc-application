@@ -7,8 +7,7 @@ import {
 } from '../../domain/errors'
 import type { DuelRepository } from '../ports/duelRepository'
 
-// Aceitar ou recusar um desafio. Nunca exige PRO: só quem desafia precisa do plano. O duelo
-// começa no instante do aceite e dura 7 dias.
+// Aceitar ou recusar um desafio. O duelo começa no instante do aceite e dura 7 dias.
 export class RespondToDuelUseCase {
   constructor(
     private readonly duels: DuelRepository,

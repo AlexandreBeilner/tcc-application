@@ -3,7 +3,6 @@ import { CosmeticItemNotFoundError, CosmeticLockedError } from '../../domain/err
 import type { CosmeticCatalogRepository } from '../ports/cosmeticCatalogRepository'
 import type { CosmeticSelectionRepository } from '../ports/cosmeticSelectionRepository'
 import type { ReferralUnlocks } from '../ports/referralUnlocks'
-import type { ProAccess } from '../ports/proAccess'
 
 export interface EquipCosmeticInput {
   userId: string
@@ -11,18 +10,16 @@ export interface EquipCosmeticInput {
   itemKey: string
 }
 
-// Equipar é capacidade PRO (403 sem plano ativo). O item tem de existir, estar ativo e ser do
-// tipo do espaço pedido.
+// Equipar um item: ele tem de existir, estar ativo e ser do tipo do espaço pedido.
+// Item liberado por indicações só equipa depois de alcançar o número pedido.
 export class EquipCosmeticUseCase {
   constructor(
-    private readonly access: ProAccess,
     private readonly catalog: CosmeticCatalogRepository,
     private readonly selections: CosmeticSelectionRepository,
     private readonly referrals?: ReferralUnlocks,
   ) {}
 
   async execute(input: EquipCosmeticInput): Promise<void> {
-    await this.access.assertPro(input.userId)
     const items = await this.catalog.listActive()
     const item = items.find((i) => i.key === input.itemKey && i.kind === input.kind)
     if (!item) throw new CosmeticItemNotFoundError()

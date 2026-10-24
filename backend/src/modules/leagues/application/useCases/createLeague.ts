@@ -2,7 +2,6 @@ import type { League, LeagueWindow } from '../../domain/league'
 import { MAX_OPEN_LEAGUES_PER_OWNER, normalizeLeagueName } from '../../domain/league'
 import { LeagueLimitReachedError } from '../../domain/errors'
 import type { LeagueRepository } from '../ports/leagueRepository'
-import type { ProAccess } from '../ports/proAccess'
 
 export interface CreateLeagueInput {
   userId: string
@@ -10,16 +9,14 @@ export interface CreateLeagueInput {
   window: LeagueWindow
 }
 
-// Criar liga é capacidade PRO (403 sem plano ativo); participar nunca exige.
+// Qualquer pessoa cria uma liga, até o teto de ligas abertas por dono.
 export class CreateLeagueUseCase {
   constructor(
-    private readonly access: ProAccess,
     private readonly leagues: LeagueRepository,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
   async execute(input: CreateLeagueInput): Promise<League> {
-    await this.access.assertPro(input.userId)
     const name = normalizeLeagueName(input.name)
     const league = await this.leagues.createIfUnderLimit(
       { ownerId: input.userId, name, window: input.window, now: this.now() },

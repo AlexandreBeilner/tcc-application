@@ -1,6 +1,6 @@
 import { InvalidLeagueNameError } from './errors'
 
-// Decisões do autor (2026-10-10, ponto 046): até 3 ligas abertas por assinante, 20 membros cada.
+// Decisões do autor (2026-10-10, ponto 046): até 3 ligas abertas por pessoa, 20 membros cada.
 export const MAX_OPEN_LEAGUES_PER_OWNER = 3
 export const MAX_LEAGUE_MEMBERS = 20
 // Decisão do autor (2026-10-11, ponto 047): teto de ligas ativas que uma pessoa pode integrar.
@@ -43,12 +43,6 @@ export function normalizeLeagueName(raw: string): string {
     )
   }
   return name
-}
-
-// Liga arquivada = o dono não é PRO agora. Derivado a cada leitura, nunca gravado: reativar o
-// plano devolve a liga sem nenhuma escrita (arquivar, nunca apagar).
-export function isLeagueArchived(ownerIsPro: boolean): boolean {
-  return !ownerIsPro
 }
 
 export function isOpen(league: League): boolean {

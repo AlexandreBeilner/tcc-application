@@ -4,7 +4,6 @@ import { Delta } from '../../atoms/Delta'
 import { Button } from '../../atoms/Button'
 import { ActivityCalendar } from '../../molecules/ActivityCalendar'
 import { MetricTile } from '../../molecules/MetricTile'
-import { ProInvite } from '../../molecules/ProInvite'
 import type { RetrospectiveReportProps } from './types'
 import styles from './index.module.css'
 
@@ -14,12 +13,11 @@ function plural(count: number, one: string, many: string): string {
     return `${count} ${count === 1 ? one : many}`
 }
 
-// Retrospectiva de um mês (MO.5.4): cartões com as 3 métricas de todos e, no PRO, calendário de
-// dias, maior sequência, rentabilidade do mês (só percentual), duelos e ligas. Tom de celebração:
+// Retrospectiva de um mês (MO.5.4): lições, conquistas, nível, calendário de dias, maior sequência,
+// rentabilidade do mês (só percentual), duelos e ligas. Tom de celebração:
 // mês sem atividade vira convite para voltar, nunca cobrança nem escassez.
 export function RetrospectiveReport({ retrospective, identity }: RetrospectiveReportProps) {
     const [status, setStatus] = useState<'idle' | 'working' | 'shared' | 'downloaded' | 'failed'>('idle')
-    const premium = retrospective.premium
 
     async function handleShare() {
         setStatus('working')
@@ -55,32 +53,25 @@ export function RetrospectiveReport({ retrospective, identity }: RetrospectiveRe
                 <p className={styles.names}>Conquistas: {retrospective.achievementNames.join(', ')}.</p>
             )}
 
-            {premium ? (
-                <>
-                    <div className={styles.stats}>
-                        <MetricTile label="Maior sequência" value={plural(premium.longestStreak, 'dia', 'dias')} />
-                        <MetricTile
-                            label="Rentabilidade do mês"
-                            value={premium.bestReturnPct === null ? 'Sem dado' : <Delta percent={premium.bestReturnPct} variant="text" />}
-                        />
-                        <MetricTile label="Duelos vencidos" value={`${premium.duelsWon} de ${premium.duelsPlayed}`} />
-                        <MetricTile label="Ligas" value={String(premium.leaguesActive)} />
-                    </div>
-                    <div className={styles.block}>
-                        <h2 className={styles.blockTitle}>Seus dias</h2>
-                        <p className={styles.note}>
-                            {plural(premium.activeDays.length, 'dia com atividade', 'dias com atividade')} em{' '}
-                            {monthLabel(retrospective.month)}.
-                        </p>
-                        <ActivityCalendar activeDays={premium.activeDays} daysInMonth={premium.daysInMonth} />
-                    </div>
-                </>
-            ) : (
-                <ProInvite context="retrospective">
-                    A versão completa traz o calendário de dias, a maior sequência, a rentabilidade do mês e os duelos, com uma imagem
-                    personalizada para compartilhar.
-                </ProInvite>
-            )}
+            <div className={styles.stats}>
+                <MetricTile label="Maior sequência" value={plural(retrospective.longestStreak, 'dia', 'dias')} />
+                <MetricTile
+                    label="Rentabilidade do mês"
+                    value={
+                        retrospective.bestReturnPct === null ? 'Sem dado' : <Delta percent={retrospective.bestReturnPct} variant="text" />
+                    }
+                />
+                <MetricTile label="Duelos vencidos" value={`${retrospective.duelsWon} de ${retrospective.duelsPlayed}`} />
+                <MetricTile label="Ligas" value={String(retrospective.leaguesActive)} />
+            </div>
+            <div className={styles.block}>
+                <h2 className={styles.blockTitle}>Seus dias</h2>
+                <p className={styles.note}>
+                    {plural(retrospective.activeDays.length, 'dia com atividade', 'dias com atividade')} em{' '}
+                    {monthLabel(retrospective.month)}.
+                </p>
+                <ActivityCalendar activeDays={retrospective.activeDays} daysInMonth={retrospective.daysInMonth} />
+            </div>
 
             <div className={styles.actions}>
                 <Button disabled={status === 'working'} onClick={handleShare}>

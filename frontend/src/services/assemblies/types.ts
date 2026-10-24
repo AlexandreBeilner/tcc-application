@@ -72,23 +72,20 @@ export interface AssemblyDetail {
     minVoters: number
 }
 
-export type VoteDenialReason = 'not_open' | 'not_shareholder' | 'email_not_verified' | 'level_too_low' | 'no_credit'
+export type VoteDenialReason = 'not_open' | 'not_shareholder'
 
 export interface MyVotingStatus {
     assemblyId: string
-    isPro: boolean
     canVote: boolean
     reason: VoteDenialReason | null
     message: string | null
     myVote: { optionId: string } | null
     myShares: number | null
-    credit: { monthKey: string; limit: number; used: number; available: number; minLevel: number }
 }
 
 export interface CastVoteResult {
     optionId: string
     changed: boolean
-    creditConsumed: boolean
 }
 
 export type ProposalBlockedReason = 'not_shareholder' | 'company_in_cooldown'
@@ -109,7 +106,6 @@ export interface ProposalView {
 
 export interface CompanyProposals {
     company: { id: string; name: string; sector: string }
-    isPro: boolean
     holdsShares: boolean
     cooldownDaysLeft: number
     blockedReason: ProposalBlockedReason | null
