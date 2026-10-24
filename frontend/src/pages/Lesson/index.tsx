@@ -10,6 +10,7 @@ import { useLessonPolls } from '../../features/lessons/useLessonPolls'
 import type { MissionOutcome } from '../../features/lessons/useWidgetMission'
 import { useAnswerMicroDecision } from '../../features/lessons/useAnswerMicroDecision'
 import { useReviewLesson } from '../../features/lessons/useReviewLesson'
+import { useRecordRecall } from '../../features/lessons/useRecordRecall'
 import { useLessonNavigation } from '../../features/lessons/useLessonNavigation'
 import { useLessonShortcuts } from '../../features/lessons/useLessonShortcuts'
 import { playLessonCue } from '../../features/lessons/lessonFeedback'
@@ -106,6 +107,7 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const [missions, setMissions] = useState<Record<string, MissionOutcome>>({})
     // "Relembra?" (LJ.5.5): aberta uma vez, já respondida ou pulada. Só memória: recarregar no começo da lição a traz de volta.
     const [recallDone, setRecallDone] = useState(false)
+    const recordRecall = useRecordRecall()
 
     const lesson = lessonQuery.data?.lesson
     // Referência cruzada entre lições (tarefa C.2, `{{ref:2.1}}`) resolve o
@@ -143,7 +145,8 @@ function LessonView({ lessonId }: { lessonId: string }) {
     const { step, card: subStep, reached } = navigation
     // "Relembra?" (LJ.5.5): pergunta de lição anterior antes do primeiro cartão, fora da contagem (barra, placar,
     // funil e tempo seguem os cartões da lição). Só no começo de uma lição ainda não concluída.
-    const recallBlock = lesson?.recall ? parseCheckBlock(lesson.recall.block) : null
+    const recall = lesson?.recall
+    const recallBlock = recall ? parseCheckBlock(recall.block) : null
     const showRecall = lesson !== undefined && isReview === false && recallBlock !== null && !recallDone && step === 0 && subStep === 0
     // Funil por cartão (LJ.5.1): só fora de revisão, e só depois de saber se é revisão. Durante o Relembra a
     // pessoa ainda não viu o primeiro cartão, então ele só conta quando a pergunta termina.
@@ -439,14 +442,21 @@ function LessonView({ lessonId }: { lessonId: string }) {
 
             {!lesson && !lessonQuery.isError && <p className={styles.loading}>Carregando lição…</p>}
 
-            {lesson && showRecall && lesson.recall && recallBlock && (
+            {lesson && showRecall && recall && recallBlock && (
                 <section className={styles.card}>
                     <h1 className={styles.heading}>{lesson.title}</h1>
                     <PracticeCheckpoint
-                        lessonId={lesson.recall.lessonId}
-                        lessonTitle={lesson.recall.lessonTitle}
+                        lessonId={recall.lessonId}
+                        lessonTitle={recall.lessonTitle}
                         block={recallBlock}
                         badge="Relembra?"
+                        onSettle={(outcome) =>
+                            recordRecall({
+                                lessonId: recall.lessonId,
+                                checkpointId: recallBlock.id,
+                                correct: outcome.solved && !outcome.missed,
+                            })
+                        }
                         onContinue={() => setRecallDone(true)}
                     />
                 </section>

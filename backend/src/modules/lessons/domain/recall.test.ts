@@ -55,6 +55,10 @@ function record(
   }
 }
 
+const NOW = new Date('2026-02-01T12:00:00Z')
+// Errou e está vencida na fila de revisão (LJ.5.6).
+const DUE = { reviewStage: 0, reviewDueAt: new Date('2026-01-02T00:00:00Z') }
+
 const lessons = [1, 2, 3, 4, 5, 6, 7].map((n) => lesson(n))
 const done = (...ns: number[]) => new Set(ns.map((n) => `l${n}`))
 
@@ -63,6 +67,7 @@ describe('selectRecall', () => {
     expect(
       selectRecall({
         seed: 's',
+        now: NOW,
         current: lessons[0],
         lessons,
         completedLessonIds: done(),
@@ -76,6 +81,7 @@ describe('selectRecall', () => {
     expect(
       selectRecall({
         seed: 's',
+        now: NOW,
         current: all[3],
         lessons: all,
         completedLessonIds: done(1, 2, 3),
@@ -85,6 +91,7 @@ describe('selectRecall', () => {
     expect(
       selectRecall({
         seed: 's',
+        now: NOW,
         current: all[4],
         lessons: all,
         completedLessonIds: done(1, 2, 3, 4),
@@ -93,13 +100,14 @@ describe('selectRecall', () => {
     ).toBeDefined()
   })
 
-  it('prefere uma pergunta errada, mesmo de uma lição fora da janela', () => {
+  it('prefere uma pergunta errada e vencida na revisão, mesmo de uma lição fora da janela', () => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[6],
       lessons,
       completedLessonIds: done(1, 2, 3, 4, 5, 6),
-      checkpoints: [record('l1', 'q1', { attempts: 3 }), record('l5', 'q5')],
+      checkpoints: [record('l1', 'q1', { attempts: 3, ...DUE }), record('l5', 'q5')],
     })
     expect(result).toEqual({ lessonId: 'l1', checkpointId: 'q1' })
   })
@@ -107,6 +115,7 @@ describe('selectRecall', () => {
   it('erro em lição não concluída nunca é escolhido', () => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[3],
       lessons,
       completedLessonIds: done(1),
@@ -119,6 +128,7 @@ describe('selectRecall', () => {
   it('erro em lição posterior à atual nunca é escolhido', () => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[2],
       lessons,
       completedLessonIds: done(1, 2, 4),
@@ -127,9 +137,62 @@ describe('selectRecall', () => {
     expect(result?.lessonId).not.toBe('l4')
   })
 
+  it('pergunta errada que ainda não venceu na revisão não é preferida (acertou há pouco)', () => {
+    const result = selectRecall({
+      seed: 's',
+      now: NOW,
+      current: lessons[6],
+      lessons,
+      completedLessonIds: done(1, 2, 3, 4, 5, 6),
+      checkpoints: [
+        record('l1', 'q1', {
+          attempts: 3,
+          reviewStage: 1,
+          reviewDueAt: new Date('2026-02-03T00:00:00Z'),
+        }),
+      ],
+    })
+    // Sorteio na janela de 2 a 5 atrás (l2 a l5): l1 está fora dela.
+    expect(['l2', 'l3', 'l4', 'l5']).toContain(result?.lessonId)
+  })
+
+  it('pergunta errada que já saiu da fila de revisão (fixada) não é preferida', () => {
+    const result = selectRecall({
+      seed: 's',
+      now: NOW,
+      current: lessons[6],
+      lessons,
+      completedLessonIds: done(1, 2, 3, 4, 5, 6),
+      checkpoints: [record('l1', 'q1', { attempts: 3, reviewStage: 3, reviewDueAt: null })],
+    })
+    expect(['l2', 'l3', 'l4', 'l5']).toContain(result?.lessonId)
+  })
+
+  it('no mesmo dia, lições diferentes não recebem sempre a mesma pergunta', () => {
+    const many = Array.from({ length: 12 }, (_, i) =>
+      lesson(i + 1, 0, [`q${i + 1}a`, `q${i + 1}b`]),
+    )
+    const picks = new Set(
+      many.slice(6).map((current) =>
+        JSON.stringify(
+          selectRecall({
+            seed: 'u|2026-10-23',
+            now: NOW,
+            current,
+            lessons: many,
+            completedLessonIds: new Set(many.map((l) => l.id)),
+            checkpoints: [],
+          }),
+        ),
+      ),
+    )
+    expect(picks.size).toBeGreaterThan(1)
+  })
+
   it('pergunta que sumiu do conteúdo é ignorada', () => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[3],
       lessons,
       completedLessonIds: done(1, 2, 3),
@@ -141,6 +204,7 @@ describe('selectRecall', () => {
   it('pergunta ainda não resolvida não conta como errada', () => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[2],
       lessons,
       completedLessonIds: done(1, 2),
@@ -156,11 +220,12 @@ describe('selectRecall', () => {
   ] as const)('conta como errada: %s', (_name, overrides) => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[6],
       lessons,
       completedLessonIds: done(1, 2, 3, 4, 5, 6),
       checkpoints: [
-        record('l1', 'q1', overrides as Partial<UserCheckpointRecord>),
+        record('l1', 'q1', { ...(overrides as Partial<UserCheckpointRecord>), ...DUE }),
         record('l2', 'q2'),
       ],
     })
@@ -170,6 +235,7 @@ describe('selectRecall', () => {
   it('ligar sem erro e estimativa na mosca não contam como erradas', () => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[6],
       lessons,
       completedLessonIds: done(1, 2, 3, 4, 5, 6),
@@ -187,6 +253,7 @@ describe('selectRecall', () => {
     for (let i = 0; i < 60; i += 1) {
       const result = selectRecall({
         seed: `seed-${i}`,
+        now: NOW,
         current: lessons[6],
         lessons,
         completedLessonIds: done(1, 2, 3, 4, 5, 6),
@@ -201,6 +268,7 @@ describe('selectRecall', () => {
   it('sem nada na janela de 2 a 5, usa a lição imediatamente anterior', () => {
     const result = selectRecall({
       seed: 's',
+      now: NOW,
       current: lessons[1],
       lessons,
       completedLessonIds: done(1),
@@ -227,6 +295,7 @@ describe('selectRecall', () => {
     expect(
       selectRecall({
         seed: 's',
+        now: NOW,
         current: lessons[3],
         lessons,
         completedLessonIds: done(),
