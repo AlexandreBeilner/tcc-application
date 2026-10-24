@@ -39,8 +39,6 @@ describe('parâmetros editáveis das assembleias', () => {
       open_delay_days: 2,
       catch_up_days: 7,
       effect_delay_days: 1,
-      monthly_free_credits: 1,
-      free_credit_min_level: 3,
       participation_xp: 10,
       proposal_monthly_cap: 3,
       proposal_min_support: 2,
@@ -50,7 +48,7 @@ describe('parâmetros editáveis das assembleias', () => {
 
   it('sobrepõe só o que foi gravado e devolve o resto como estava', () => {
     const result = applyOverrides(base, { min_voters: 5, duration_days: 3, participation_xp: 25 })
-    expect(result.params).toEqual({ minVoters: 5, monthlyFreeCredits: 1, freeCreditMinLevel: 3 })
+    expect(result.params).toEqual({ minVoters: 5 })
     expect(result.lifecycle).toEqual({ ...DEFAULT_LIFECYCLE_PARAMS, durationDays: 3 })
     expect(result.proposals).toEqual(DEFAULT_PROPOSAL_PARAMS)
     expect(result.participationXp).toBe(25)

@@ -4,6 +4,7 @@ import type { AssetTableColumn } from '../../components/organisms/AssetTable'
 import { Pagination } from '../../components/molecules/Pagination'
 import { ASSETS_PAGE_SIZE, FIXED_INCOME_TABS, filterAssetsByTab } from '../../features/market/assetTabs'
 import { useAssetsQuery } from '../../features/market/useAssetsQuery'
+import { fixedIncomeRateLabel, formatRatePercent } from '../../features/market/format'
 import { useLockedAssetGate } from '../../features/market/useLockedAssetGate'
 import type { UseLockedAssetGateResult } from '../../features/market/useLockedAssetGate'
 import { useClientPagination } from '../../hooks/useClientPagination'
@@ -13,8 +14,10 @@ import styles from './index.module.css'
 // Tela 4.2 — abas Tesouro Direto/CDBs-LCA-LCI/CRI-CRA (inventário). `GET
 // /market/assets` (sem `type=`) lista o catálogo inteiro; o agrupamento
 // por aba é 100% client-side (backend só filtra pelos 11 tipos crus,
-// `features/market/assetTabs`). Colunas limitadas ao que `AssetSummary`
-// tem (ticker/nome/risco) — taxa/vencimento/aplicação mínima/badges
+// `features/market/assetTabs`). Colunas: produto, nome e taxa (o motor manda
+// `interest_rate` na lista desde 2026-10-24). A coluna "Risco" saiu: o
+// `risk_class` é a classe de risco das ações e vinha vazio em todo título,
+// então a etiqueta virava um retângulo vazio. Vencimento/aplicação mínima/badges
 // (isento de IR, risco de crédito, tipo de emissor) só existem em `GET
 // /market/assets/:id` (tela 4.3): decisão de escopo desta sessão, listar
 // tudo isso exigiria uma chamada de detalhe por ativo (N+1), o motor não
@@ -38,7 +41,14 @@ function buildColumns(gate: UseLockedAssetGateResult): AssetTableColumn[] {
             ),
         },
         { key: 'name', header: 'Nome', render: (asset) => asset.name, slot: 'subtitle' },
-        { key: 'risk', header: 'Risco', render: (asset) => asset.risk_class ?? null, slot: 'tag' },
+        {
+            key: 'rate',
+            header: 'Taxa',
+            align: 'end',
+            slot: 'price',
+            render: (asset) =>
+                asset.interest_rate === undefined ? null : `${formatRatePercent(asset.interest_rate)} ${fixedIncomeRateLabel(asset.type)}`,
+        },
     ]
 }
 

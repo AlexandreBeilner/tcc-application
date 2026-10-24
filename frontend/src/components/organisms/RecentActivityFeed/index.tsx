@@ -3,7 +3,6 @@ import { Avatar } from '../../atoms/Avatar'
 import { trackNameFor } from '../../../utils/tracks'
 import type { RecentActivityFeedProps } from './types'
 import styles from './index.module.css'
-import { ProSeal } from '../../atoms/ProSeal'
 
 export type { RecentActivityFeedProps } from './types'
 
@@ -53,8 +52,7 @@ export function RecentActivityFeed({ events }: RecentActivityFeedProps) {
                                 <GraduationCap className={styles.icon} size={16} strokeWidth={2} aria-hidden="true" />
                             )}
                             <span className={styles.text}>
-                                <strong>{event.name}</strong>
-                                {event.cosmetics.isPro && <ProSeal />}{' '}
+                                <strong>{event.name}</strong>{' '}
                                 {event.assembly
                                     ? assemblyText(event.assembly.subjectLabel, event.assembly.title)
                                     : event.duel

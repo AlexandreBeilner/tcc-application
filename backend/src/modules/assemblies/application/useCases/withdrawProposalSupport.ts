@@ -2,9 +2,8 @@ import { ProposalNotFoundError } from '../../domain/errors'
 import type { AgendaProposal } from '../../domain/proposals'
 import type { ProposalRepository } from '../ports/proposalRepository'
 
-// Retira o apoio dado (reversível, como trocar o voto). Não pede PRO: quem cancelou o plano
-// ainda desfaz o que apoiou. A proposta nunca some por isso, só perde a contagem; o teto do mês
-// de quem propôs não é devolvido.
+// Retira o apoio dado (reversível, como trocar o voto). A proposta nunca some por isso, só perde
+// a contagem; o teto do mês de quem propôs não é devolvido.
 export class WithdrawProposalSupportUseCase {
   constructor(private readonly repository: ProposalRepository) {}
 

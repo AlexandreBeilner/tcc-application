@@ -17,8 +17,10 @@ export interface RecallView {
 }
 
 export interface SelectRecallInput {
-  // Semente do dia: usuário + dia, para recarregar não trocar a pergunta.
+  // Semente do dia: usuário + dia, para recarregar não trocar a pergunta. A lição atual entra no
+  // sorteio junto, então cada lição do dia tem a sua pergunta.
   seed: string
+  now: Date
   current: Pick<LessonSummary, 'id' | 'trackNumber' | 'sortOrder'>
   // Lições publicadas, qualquer ordem.
   lessons: LessonSummary[]
@@ -51,12 +53,15 @@ interface Candidate {
 // Escolhe a pergunta do "Relembra?", ou nada. Regras:
 // - só a partir da segunda lição de cada trilha;
 // - só de lição já concluída e anterior a esta, e só de pergunta que ainda existe no conteúdo;
-// - prefere uma pergunta que a pessoa errou ao menos uma vez (em qualquer lição anterior concluída);
+// - prefere uma pergunta que a pessoa errou e que está vencida na fila de revisão (LJ.5.6), em
+//   qualquer lição anterior concluída. Acertar no "Relembra?" conta como revisão e adia a volta, então a
+//   mesma pergunta errada não aparece em toda lição;
 // - sem erro nenhum, uma qualquer das lições de 2 a 5 posições atrás (se não houver, de 1 a 5);
-// - determinística pela semente.
+// - determinística pela semente e pela lição atual.
 export function selectRecall(
   input: SelectRecallInput,
 ): { lessonId: string; checkpointId: string } | undefined {
+  const seed = `${input.seed}|${input.current.id}`
   const ordered = [...input.lessons].sort((a, b) => a.sortOrder - b.sortOrder)
   const firstOfTrack = ordered.find((lesson) => lesson.trackNumber === input.current.trackNumber)
   const position = ordered.findIndex((lesson) => lesson.id === input.current.id)
@@ -75,11 +80,12 @@ export function selectRecall(
       return (
         lesson !== undefined &&
         missedCheckpoint(record) &&
+        isDueForReview(record, input.now) &&
         findCheckBlock(lesson.blocks, record.checkpointId)
       )
     })
     .map((record) => ({ lessonId: record.lessonId, checkpointId: record.checkpointId }))
-  const fromMistakes = pickFirstByRank(input.seed, missed, (c) => `${c.lessonId}|${c.checkpointId}`)
+  const fromMistakes = pickFirstByRank(seed, missed, (c) => `${c.lessonId}|${c.checkpointId}`)
   if (fromMistakes) {
     return fromMistakes
   }
@@ -95,7 +101,12 @@ export function selectRecall(
       )
   const pool = questionsIn(RECALL_WINDOW_FAR, RECALL_WINDOW_NEAR)
   const fallback = pool.length > 0 ? pool : questionsIn(RECALL_WINDOW_FAR, 1)
-  return pickFirstByRank(input.seed, fallback, (c) => `${c.lessonId}|${c.checkpointId}`)
+  return pickFirstByRank(seed, fallback, (c) => `${c.lessonId}|${c.checkpointId}`)
+}
+
+// Na fila de revisão e já vencida. Fora da fila (`null`): a pessoa já fixou a pergunta.
+function isDueForReview(record: UserCheckpointRecord, now: Date): boolean {
+  return record.reviewDueAt != null && record.reviewDueAt.getTime() <= now.getTime()
 }
 
 // Monta a visão pública da escolha (sem gabarito nem explicação). `undefined` se a lição ou a pergunta sumiram.

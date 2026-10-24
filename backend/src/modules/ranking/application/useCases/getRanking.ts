@@ -45,7 +45,7 @@ export interface RankingEntry {
   // `null` quando `criterion === 'level'` (rentabilidade não entra nesse
   // critério).
   profitabilityPct: number | null
-  // Selo PRO, moldura e título (MO.5.1). Só apresentação: nunca entra na ordenação.
+  // Moldura e título (MO.5.1). Só apresentação: nunca entra na ordenação.
   cosmetics: PublicCosmetics
 }
 

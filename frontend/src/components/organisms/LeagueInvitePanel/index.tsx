@@ -1,6 +1,5 @@
 import { useAllFriendsQuery } from '../../../features/friendships/useAllFriendsQuery'
 import { useInviteToLeagueMutation } from '../../../features/leagues/useLeagues'
-import { isProRequiredError } from '../../../services/client'
 import { formatApiError } from '../../../utils/formatApiError'
 import { Avatar } from '../../atoms/Avatar'
 import { Button } from '../../atoms/Button'
@@ -10,18 +9,14 @@ import styles from './index.module.css'
 export type { LeagueInvitePanelProps } from './types'
 
 // Convidar amigos para a liga (MO.5.2c): só aparecem amigos com amizade aceita que ainda não estão
-// na liga nem foram convidados. Quem recebe o convite não precisa de plano para aceitar.
+// na liga nem foram convidados.
 export function LeagueInvitePanel({ leagueId, takenUserIds, onCancelInvite, pendingInvites }: LeagueInvitePanelProps) {
     const friendsQuery = useAllFriendsQuery()
     const invite = useInviteToLeagueMutation()
     const taken = new Set(takenUserIds)
     const candidates = (friendsQuery.data ?? []).filter((friend) => !taken.has(friend.userId))
 
-    const errorMessage = invite.isError
-        ? isProRequiredError(invite.error)
-            ? 'Seu plano PRO não está ativo agora, então não dá para convidar. Veja a situação em Configurações.'
-            : formatApiError(invite.error, 'Não foi possível convidar. Tente de novo.')
-        : null
+    const errorMessage = invite.isError ? formatApiError(invite.error, 'Não foi possível convidar. Tente de novo.') : null
 
     return (
         <section className={styles.section} aria-labelledby="league-invite-title">

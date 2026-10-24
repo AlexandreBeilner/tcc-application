@@ -6,7 +6,7 @@ import { useDuelsQuery, useRespondToDuelMutation } from '../../features/duels/us
 import styles from './index.module.css'
 
 // Duelos entre amigos (MO.5.3): convites recebidos, duelos em andamento, desafios que a pessoa
-// lançou e o histórico. Aceitar nunca exige plano; desafiar é do PRO. No desktop a lista fica à
+// lançou e o histórico. No desktop a lista fica à
 // esquerda e o painel de desafio fixo à direita (identidade-visual-padroes.md §7).
 export function Duelos() {
     const navigate = useNavigate()

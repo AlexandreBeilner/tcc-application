@@ -69,6 +69,8 @@ export interface AssetSummary {
     is_sandbox: boolean
     current_price?: number
     daily_change_pct?: number
+    // Só nos títulos de renda fixa: a taxa contratada (pontos percentuais, `formatRatePercent` + `fixedIncomeRateLabel`).
+    interest_rate?: number
 }
 
 // Shape do 403 de `POST /market/orders`/`POST /market/fixed-income/purchases`

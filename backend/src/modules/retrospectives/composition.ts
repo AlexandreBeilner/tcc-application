@@ -6,7 +6,6 @@ import {
   GetRetrospectiveUseCase,
   ListRetrospectiveMonthsUseCase,
 } from './application/useCases/getRetrospective'
-import { createInProcessProMembershipReader } from './infrastructure/billing/inProcessProMembershipReader'
 import { createDrizzleMonthActivityReader } from './infrastructure/persistence/drizzleMonthActivityReader'
 import { createDrizzleRetrospectiveRepository } from './infrastructure/persistence/drizzleRetrospectiveRepository'
 import { createInProcessMonthReturnReader } from './infrastructure/ranking/inProcessMonthReturnReader'
@@ -15,8 +14,6 @@ import { createRetrospectivesRouter } from './interfaces/http/retrospectivesRout
 export interface RetrospectivesCompositionDeps {
   db: Database
   authMiddleware: AuthMiddleware
-  // Do módulo `billing`: quem é PRO agora (versão completa só para PRO).
-  listActiveProUserIds: { execute(userIds: string[]): Promise<Set<string>> }
   // Do módulo `ranking`: rentabilidade percentual entre dois instantes.
   measurePeriodReturn: {
     execute(input: { userId: string; from: Date; to: Date }): Promise<{ returnPct: number }>
@@ -36,11 +33,7 @@ export function createRetrospectivesModule(deps: RetrospectivesCompositionDeps) 
   const list = new ListRetrospectiveMonthsUseCase(activity)
   const router = createRetrospectivesRouter({
     listMonths: list,
-    getRetrospective: new GetRetrospectiveUseCase(
-      generate,
-      list,
-      createInProcessProMembershipReader(deps.listActiveProUserIds),
-    ),
+    getRetrospective: new GetRetrospectiveUseCase(generate, list),
     authMiddleware: deps.authMiddleware,
   })
   return {

@@ -7,25 +7,33 @@
 
 .fields {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
 }
 
+/* Colunas com `minmax(0, ...)`: sem isso a largura mínima própria do campo numérico empurra a grade para fora do
+   cartão quando o widget fica numa coluna estreita (lição no desktop). */
 @media (min-width: 768px) {
     .fields {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
+/* Rótulo em cima e campo embaixo: quando um rótulo quebra em duas linhas, os campos continuam alinhados. */
 .field {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     gap: var(--space-1);
+    min-width: 0;
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
 }
 
 .field input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--color-border-strong);
     border-radius: var(--radius-sm);
@@ -536,4 +544,40 @@
 
 .milestone strong {
     color: var(--color-text-primary);
+}
+
+/* Retorno de acerto e erro num exercício do widget (tokens de feedback, nunca as cores de ganho e perda). A borda
+   é sólida no acerto e tracejada no erro, para a diferença não depender só de cor. */
+.feedbackCorrect,
+.feedbackWrong {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--color-feedback-success-500);
+    border-radius: var(--radius-sm);
+    background: var(--color-feedback-success-100);
+    color: var(--color-text-primary);
+}
+
+.feedbackWrong {
+    border-left: 3px dashed var(--color-feedback-error-500);
+    background: var(--color-feedback-error-100);
+}
+
+.feedbackVerdict {
+    font-weight: 600;
+    color: var(--color-feedback-success-500);
+}
+
+.feedbackWrong .feedbackVerdict {
+    color: var(--color-feedback-error-500);
+}
+
+.presetCorrect[aria-pressed='true'] {
+    border-color: var(--color-feedback-success-500);
+    color: var(--color-feedback-success-500);
+}
+
+.presetWrong[aria-pressed='true'] {
+    border-color: var(--color-feedback-error-500);
+    color: var(--color-feedback-error-500);
 }

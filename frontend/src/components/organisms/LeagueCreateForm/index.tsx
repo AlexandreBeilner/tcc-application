@@ -1,12 +1,9 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { useBillingStatusQuery } from '../../../features/billing/useBillingStatus'
 import { useCreateLeagueMutation } from '../../../features/leagues/useLeagues'
-import { isProRequiredError } from '../../../services/client'
 import type { LeagueWindow } from '../../../services/leagues'
 import { formatApiError } from '../../../utils/formatApiError'
 import { Button } from '../../atoms/Button'
-import { ProInvite } from '../../molecules/ProInvite'
 import type { LeagueCreateFormProps } from './types'
 import styles from './index.module.css'
 
@@ -17,22 +14,11 @@ const WINDOWS: { value: LeagueWindow; label: string }[] = [
     { value: 'month', label: 'Mês' },
 ]
 
-// Criar liga (MO.5.2c). Criar é do plano PRO, participar é de graça: quem não é PRO vê o convite
-// para conhecer o plano, nunca um bloqueio nem contador. A cobrança desligada esconde o convite.
+// Criar liga (MO.5.2c): nome e período; quem cria convida os amigos depois.
 export function LeagueCreateForm({ onCreated }: LeagueCreateFormProps) {
-    const billing = useBillingStatusQuery().data
     const create = useCreateLeagueMutation()
     const [name, setName] = useState('')
     const [window, setWindow] = useState<LeagueWindow>('week')
-
-    if (billing && !billing.isPro) {
-        if (!billing.billingEnabled) return null
-        return (
-            <ProInvite context="league" title="Criar uma liga">
-                Criar ligas com seus amigos faz parte do plano PRO. Participar da liga de um amigo é sempre de graça.
-            </ProInvite>
-        )
-    }
 
     async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -45,11 +31,7 @@ export function LeagueCreateForm({ onCreated }: LeagueCreateFormProps) {
         }
     }
 
-    const errorMessage = create.isError
-        ? isProRequiredError(create.error)
-            ? 'Seu plano PRO não está ativo agora. Veja a situação em Configurações.'
-            : formatApiError(create.error, 'Não foi possível criar a liga. Tente de novo.')
-        : null
+    const errorMessage = create.isError ? formatApiError(create.error, 'Não foi possível criar a liga. Tente de novo.') : null
 
     return (
         <section className={styles.section} aria-labelledby="league-create-title">

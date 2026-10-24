@@ -62,7 +62,7 @@ function present(proposal: AgendaProposal, userId: string) {
   }
 }
 
-// Propostas de pauta e apoio (MO.6.5). Gating de PRO fica nos casos de uso (`ProGate`), nunca aqui.
+// Propostas de pauta e apoio (MO.6.5). As regras de acesso ficam nos casos de uso, nunca aqui.
 export function createProposalsRouter(deps: ProposalsRouterDeps): Router {
   const router = Router()
   router.param('companyId', requireUuidParam)

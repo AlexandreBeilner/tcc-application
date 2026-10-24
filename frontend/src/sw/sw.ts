@@ -7,8 +7,8 @@ import { OFFLINE_URL } from './constants'
 //
 // 1. Só guarda o app shell: JS, CSS, fontes e ícones com hash (o `__WB_MANIFEST` que o build injeta)
 //    e a página offline. Nenhuma resposta de API é guardada, nunca: dado financeiro desatualizado é
-//    pior que erro (RNF09, e o gating do PRO depende de resposta fresca). Por isso este arquivo NÃO
-//    registra rota de runtime para `/auth`, `/me`, `/billing`, `/market`, `/ranking`, `/friendships`,
+//    pior que erro (RNF09). Por isso este arquivo NÃO
+//    registra rota de runtime para `/auth`, `/me`, `/market`, `/ranking`, `/friendships`,
 //    `/admin` nem para a origem da API: sem rota registrada, o navegador vai direto à rede.
 // 2. A atualização é sempre avisada, nunca imposta: a versão nova fica esperando (`waiting`) até a
 //    pessoa tocar em "Atualizar" (mensagem SKIP_WAITING), para não recarregar no meio de uma lição

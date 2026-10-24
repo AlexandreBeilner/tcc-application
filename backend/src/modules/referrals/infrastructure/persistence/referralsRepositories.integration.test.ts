@@ -8,16 +8,11 @@ import * as schema from '../../../../db/schema'
 import { createDrizzleCosmeticCatalogRepository } from '../../../cosmetics/infrastructure/persistence/drizzleCosmeticCatalogRepository'
 import { AttributeReferralUseCase } from '../../application/useCases/attributeReferral'
 import { QualifyReferralUseCase } from '../../application/useCases/qualifyReferral'
-import { createFakePromotionalPro } from '../../test/fakes/fakes'
-import {
-  createDrizzleReferralRepository,
-  createDrizzleReferrerLock,
-} from './drizzleReferralRepository'
-import { createDrizzleReferralRewardRepository } from './drizzleReferralRewardRepository'
+import { createDrizzleReferralRepository } from './drizzleReferralRepository'
 
 // Integração (MO.7.2): só roda com TEST_DATABASE_URL apontando pra um banco DESCARTÁVEL. Prova as
-// constraints reais (uma conta indicada conta uma vez, auto-indicação, marco único) e a
-// concorrência do indicador.
+// constraints reais (uma conta indicada conta uma vez, auto-indicação) e a concorrência do
+// indicador.
 const databaseUrl = process.env.TEST_DATABASE_URL
 
 describe.skipIf(!databaseUrl)('repositórios de indicação (banco real)', () => {
@@ -36,7 +31,6 @@ describe.skipIf(!databaseUrl)('repositórios de indicação (banco real)', () =>
   })
 
   beforeEach(async () => {
-    await db.delete(schema.referralRewards)
     await db.delete(schema.referrals)
     await db.delete(schema.referralCodes)
     await db.delete(schema.users)
@@ -59,13 +53,7 @@ describe.skipIf(!databaseUrl)('repositórios de indicação (banco real)', () =>
     await pool.end()
   })
 
-  it('a migração entrega a escada 5, 20, 50 e os 3 títulos liberados por indicação', async () => {
-    const ladder = await createDrizzleReferralRewardRepository(db).listMilestones()
-    expect(ladder).toEqual([
-      { threshold: 5, rewardDays: 7 },
-      { threshold: 20, rewardDays: 7 },
-      { threshold: 50, rewardDays: 7 },
-    ])
+  it('a migração entrega os 3 títulos liberados por indicação', async () => {
     const titles = (await createDrizzleCosmeticCatalogRepository(db).listActive()).filter(
       (i) => i.unlockReferrals,
     )
@@ -104,30 +92,22 @@ describe.skipIf(!databaseUrl)('repositórios de indicação (banco real)', () =>
     expect(await repo.countPending(owner)).toBe(0)
   })
 
-  it('cinco indicações concorrentes concedem o marco 5 uma única vez', async () => {
+  it('cinco indicações concorrentes contam cinco vezes, uma por conta', async () => {
     const referrals = createDrizzleReferralRepository(db)
-    const rewards = createDrizzleReferralRewardRepository(db)
     await referrals.insertCode(owner, 'ABCD2345')
     const attribute = new AttributeReferralUseCase(referrals)
-    const pro = createFakePromotionalPro()
+    const checks: string[] = []
     const qualify = new QualifyReferralUseCase(
       referrals,
-      rewards,
-      createDrizzleReferrerLock(db),
-      pro,
-      { check: async () => {} },
+      { check: async (id) => void checks.push(id) },
       () => new Date('2026-10-11T00:00:00Z'),
     )
     for (const friend of friends.slice(0, 5)) await attribute.execute(friend, 'ABCD2345')
 
     await Promise.all(friends.slice(0, 5).map((friend) => qualify.execute(friend)))
+    await Promise.all(friends.slice(0, 5).map((friend) => qualify.execute(friend)))
 
-    expect(pro.grants).toHaveLength(1)
-    const stored = await rewards.listRewards(owner)
-    expect(stored).toHaveLength(1)
-    expect(stored[0]).toMatchObject({ threshold: 5, status: 'granted' })
-    // Repetir não concede de novo.
-    await qualify.settleRewards(owner)
-    expect(pro.grants).toHaveLength(1)
+    expect(await referrals.countQualified(owner)).toBe(5)
+    expect(checks).toHaveLength(5)
   })
 })

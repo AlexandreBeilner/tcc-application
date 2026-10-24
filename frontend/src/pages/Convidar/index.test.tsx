@@ -14,12 +14,6 @@ const referral = (overrides: Partial<MyReferral> = {}): MyReferral => ({
     code: 'ABCD2345',
     qualifiedCount: 3,
     pendingCount: 2,
-    next: { threshold: 5, rewardDays: 7, remaining: 2 },
-    milestones: [
-        { threshold: 5, rewardDays: 7, reached: false, granted: false },
-        { threshold: 20, rewardDays: 7, reached: false, granted: false },
-        { threshold: 50, rewardDays: 7, reached: false, granted: false },
-    ],
     ...overrides,
 })
 
@@ -46,7 +40,7 @@ describe('Convidar (MO.7.2)', () => {
 
         const input = await screen.findByLabelText('Seu link de convite')
         expect(input).toHaveValue(`${window.location.origin}/login?ref=ABCD2345`)
-        expect(screen.getByText('Faltam 2 convites válidos para ganhar 1 semana de PRO.')).toBeInTheDocument()
+        expect(screen.getByText('Faltam 2 convites válidos para o título Mensageiro.')).toBeInTheDocument()
         expect(screen.getByText('convites válidos')).toBeInTheDocument()
         expect(screen.getByText('amigos ainda na 1ª lição')).toBeInTheDocument()
         expect(screen.getByText('5 convites')).toBeInTheDocument()
@@ -54,23 +48,21 @@ describe('Convidar (MO.7.2)', () => {
         expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '3')
     })
 
-    it('marca o que foi alcançado e o que já foi concedido', async () => {
-        vi.mocked(getMyReferral).mockResolvedValue(
-            referral({
-                qualifiedCount: 22,
-                next: { threshold: 50, rewardDays: 7, remaining: 28 },
-                milestones: [
-                    { threshold: 5, rewardDays: 7, reached: true, granted: true },
-                    { threshold: 20, rewardDays: 7, reached: true, granted: false },
-                    { threshold: 50, rewardDays: 7, reached: false, granted: false },
-                ],
-            }),
-        )
+    it('marca os marcos alcançados e aponta o próximo título', async () => {
+        vi.mocked(getMyReferral).mockResolvedValue(referral({ qualifiedCount: 22 }))
         renderPage()
 
-        expect(await screen.findByText('Concedido')).toBeInTheDocument()
-        expect(screen.getByText('A caminho')).toBeInTheDocument()
+        expect(await screen.findAllByText('Liberado')).toHaveLength(2)
         expect(screen.getByText('Em andamento')).toBeInTheDocument()
+        expect(screen.getByText('Faltam 28 convites válidos para o título Patrono.')).toBeInTheDocument()
+    })
+
+    it('depois do último marco agradece em vez de contar', async () => {
+        vi.mocked(getMyReferral).mockResolvedValue(referral({ qualifiedCount: 60 }))
+        renderPage()
+
+        expect(await screen.findByText(/Você passou por todos os marcos/)).toBeInTheDocument()
+        expect(screen.getAllByText('Liberado')).toHaveLength(3)
     })
 
     it('copia o link', async () => {

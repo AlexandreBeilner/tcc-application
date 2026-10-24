@@ -11,7 +11,6 @@ import {
   type ProposalParams,
 } from '../../domain/proposals'
 import type { CompanyStandingReader } from '../ports/companyStandingReader'
-import type { ProGate } from '../ports/proGate'
 import type { ProposalRepository } from '../ports/proposalRepository'
 
 export interface SupportProposalOutcome {
@@ -20,11 +19,10 @@ export interface SupportProposalOutcome {
   alreadySupported: boolean
 }
 
-// PRO com ações da empresa apoia a proposta de outra pessoa. Um apoio por pessoa. A posição
+// Quem tem ações da empresa apoia a proposta de outra pessoa. Um apoio por pessoa. A posição
 // vale a de agora e a empresa em período de espera não recebe apoio novo.
 export class SupportProposalUseCase {
   constructor(
-    private readonly pro: ProGate,
     private readonly standings: CompanyStandingReader,
     private readonly repository: ProposalRepository,
     private readonly params: () => ProposalParams,
@@ -32,7 +30,6 @@ export class SupportProposalUseCase {
   ) {}
 
   async execute(input: { proposalId: string; userId: string }): Promise<SupportProposalOutcome> {
-    await this.pro.assertPro(input.userId)
     const params = this.params()
     const now = this.now()
 

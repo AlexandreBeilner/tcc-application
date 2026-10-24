@@ -5,18 +5,6 @@ import type {
 import type { DuelFeedRecorder, XpGrant } from '../../application/ports/duelSideEffects'
 import type { DuelUser, DuelUserDirectory } from '../../application/ports/duelUserDirectory'
 import type { FriendshipChecker } from '../../application/ports/friendshipChecker'
-import type { ProAccess } from '../../application/ports/proAccess'
-
-export function createFakeProAccess(proIds: string[]): ProAccess & { ids: Set<string> } {
-  const ids = new Set(proIds)
-  return {
-    ids,
-    async assertPro(userId) {
-      if (!ids.has(userId))
-        throw Object.assign(new Error('requer plano PRO'), { code: 'PRO_REQUIRED' })
-    },
-  }
-}
 
 export function createFakeFriendships(pairs: [string, string][]): FriendshipChecker {
   return {

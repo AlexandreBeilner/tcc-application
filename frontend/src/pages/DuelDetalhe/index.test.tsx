@@ -17,7 +17,7 @@ const duel = (overrides: Partial<Duel>): Duel => ({
     id: 'd1',
     status: 'active',
     role: 'challenger',
-    opponent: { id: 'u2', username: 'bia', name: 'Bia', avatarUrl: null, cosmetics: { isPro: false, frame: null, title: null } },
+    opponent: { id: 'u2', username: 'bia', name: 'Bia', avatarUrl: null, cosmetics: { frame: null, title: null } },
     createdAt: '2026-10-01T00:00:00Z',
     expiresAt: '2026-10-08T00:00:00Z',
     startsAt: '2026-10-01T00:00:00Z',
@@ -51,11 +51,10 @@ describe('DuelDetalhe (MO.5.3)', () => {
             user: { id: 'u1', username: 'ana', avatarUrl: null },
         } as ReturnType<typeof useAuth>)
         vi.mocked(getMyCosmetics).mockResolvedValue({
-            isPro: true,
             referralCount: 0,
             catalog: [],
             selection: { frame: null, title: null },
-            display: { isPro: true, frame: null, title: null },
+            display: { frame: null, title: null },
         })
     })
     afterEach(() => vi.clearAllMocks())

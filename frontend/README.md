@@ -9,14 +9,13 @@ O Vite só expõe ao navegador as variáveis que começam com `VITE_`, e **troca
 (`npm run build`). Por isso:
 
 - **Mudar o valor exige novo build e novo deploy.** Alterar a variável no painel não muda o site que já está no ar.
-- **Nada secreto aqui.** Quem abrir o site vê o valor no JavaScript. Segredos (`JWT_SECRET`, chaves do Stripe e do Resend) ficam só no
+- **Nada secreto aqui.** Quem abrir o site vê o valor no JavaScript. Segredos (`JWT_SECRET`, chaves do Resend) ficam só no
   backend, no VPS.
 - Variável sem o prefixo `VITE_` não chega ao navegador (de propósito).
 
-| Variável                         | Em desenvolvimento                                                                                                              | Em produção (`app.selucra.com.br`)                    | Observação                                                                                                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_GATEWAY_URL`               | Não definir: o cliente usa caminho relativo e cai no proxy do Vite (`vite.config.ts`), que aponta para `http://localhost:8000`. | `https://api.selucra.com.br`                          | Obrigatória no build de produção. Sem ela, o app chama a própria origem e nada funciona. O CORS do backend (`FRONTEND_URL=https://app.selucra.com.br`) precisa aceitar essa origem. |
-| `VITE_REVENUECAT_WEB_PUBLIC_KEY` | Chave de teste (`rcb_sb_...`) em `frontend/.env.local`.                                                                         | Chave **pública** da web do RevenueCat (de produção). | Sem ela, a compra do PRO fica indisponível. Chave pública, não é segredo.                                                                                                           |
+| Variável           | Em desenvolvimento                                                                                                              | Em produção (`app.selucra.com.br`) | Observação                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_GATEWAY_URL` | Não definir: o cliente usa caminho relativo e cai no proxy do Vite (`vite.config.ts`), que aponta para `http://localhost:8000`. | `https://api.selucra.com.br`       | Obrigatória no build de produção. Sem ela, o app chama a própria origem e nada funciona. O CORS do backend (`FRONTEND_URL=https://app.selucra.com.br`) precisa aceitar essa origem. |
 
 `frontend/.env.local` fica só no seu computador (o `.gitignore` da raiz o exclui) e **nunca é lido pela Cloudflare**: em produção
 vale o que estiver nas variáveis do projeto do Pages.
@@ -30,10 +29,9 @@ Pré-requisitos: zona `selucra.com.br` ativa na Cloudflare e a API no ar em `api
    `main`.
 2. **Build.** Framework preset: None. Root directory: `frontend`. Build command: `npm ci && npm run build`. Output: `dist`.
 3. **Variáveis** (Settings, Variables and secrets):
-    - **Production:** `NODE_VERSION` = `22`, `VITE_GATEWAY_URL` = `https://api.selucra.com.br`, `VITE_REVENUECAT_WEB_PUBLIC_KEY` = chave
-      pública de produção.
+    - **Production:** `NODE_VERSION` = `22`, `VITE_GATEWAY_URL` = `https://api.selucra.com.br`.
     - **Preview** (pull requests e outras branches): as mesmas, mas com `VITE_GATEWAY_URL` apontando para o staging
-      (`https://api-staging.selucra.com.br`, LW.3.7b) e a chave de teste do RevenueCat.
+      (`https://api-staging.selucra.com.br`, LW.3.7b).
     - Cada alteração só vale a partir do deploy seguinte: Deployments, Retry deployment.
 4. **Build watch paths** (Settings, Build): Include `frontend/*`. Assim, commits só no backend, no motor ou na landing não geram deploy
    do app.

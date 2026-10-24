@@ -1,27 +1,6 @@
 import type { FriendshipChecker } from '../../application/ports/friendshipChecker'
 import type { LeagueScoreReader, LeagueScore } from '../../application/ports/leagueScoreReader'
 import type { LeagueUser, LeagueUserDirectory } from '../../application/ports/leagueUserDirectory'
-import type { ProAccess } from '../../application/ports/proAccess'
-import type { ProMembershipReader } from '../../application/ports/proMembershipReader'
-
-export function createFakeProAccess(proIds: string[]): ProAccess & { ids: Set<string> } {
-  const ids = new Set(proIds)
-  return {
-    ids,
-    async assertPro(userId) {
-      if (!ids.has(userId))
-        throw Object.assign(new Error('requer plano PRO'), { code: 'PRO_REQUIRED' })
-    },
-  }
-}
-
-export function createFakeMembership(access: { ids: Set<string> }): ProMembershipReader {
-  return {
-    async listProUserIds(userIds) {
-      return new Set(userIds.filter((id) => access.ids.has(id)))
-    },
-  }
-}
 
 export function createFakeFriendships(pairs: [string, string][]): FriendshipChecker {
   return {

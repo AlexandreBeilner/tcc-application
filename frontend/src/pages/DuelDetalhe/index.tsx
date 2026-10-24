@@ -67,7 +67,7 @@ export function DuelDetalhe() {
                 <section className={styles.callout} aria-label="Convite">
                     <p className={styles.calloutText}>
                         <strong>{duel.opponent.name}</strong> desafiou você para um duelo de 7 dias. Vence a maior rentabilidade no período.
-                        Participar é de graça e rende o mesmo XP para os dois, vencendo ou não.
+                        Participar rende o mesmo XP para os dois, vencendo ou não.
                     </p>
                     <div className={styles.row}>
                         <Button disabled={respond.isPending} onClick={() => respond.mutate({ id, accept: true })}>

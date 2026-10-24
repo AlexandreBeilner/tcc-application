@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  creditMonthKey,
-  hasFreeCredit,
+  brtMonthKey,
   isFirstVote,
   isOpenForVoting,
   tallyVotes,
@@ -205,18 +204,13 @@ describe('validateNewAssembly', () => {
   })
 })
 
-describe('crédito mensal (fuso de Brasília)', () => {
+describe('mês de calendário (fuso de Brasília)', () => {
   it.each([
     ['2026-10-15T12:00:00Z', '2026-10'],
     ['2026-11-01T02:59:59Z', '2026-10'], // 23:59:59 de 31/10 em Brasília
     ['2026-11-01T03:00:00Z', '2026-11'],
     ['2027-01-01T02:00:00Z', '2026-12'],
   ])('%s -> %s', (at, key) => {
-    expect(creditMonthKey(new Date(at))).toBe(key)
-  })
-  it('respeita o número de créditos configurado', () => {
-    expect(hasFreeCredit(0, { monthlyFreeCredits: 1 })).toBe(true)
-    expect(hasFreeCredit(1, { monthlyFreeCredits: 1 })).toBe(false)
-    expect(hasFreeCredit(1, { monthlyFreeCredits: 2 })).toBe(true)
+    expect(brtMonthKey(new Date(at))).toBe(key)
   })
 })

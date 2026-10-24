@@ -43,7 +43,7 @@ const bia: Friend = {
     username: 'bia',
     name: 'Bia Souza',
     avatarUrl: null,
-    cosmetics: { isPro: false, frame: null, title: null },
+    cosmetics: { frame: null, title: null },
     friendsSince: '2026-02-10T00:00:00.000Z',
 }
 

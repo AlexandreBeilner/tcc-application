@@ -3,7 +3,6 @@ import type { AuthMiddleware } from '../../shared/http/authMiddleware'
 import type { CosmeticsReader } from '../../shared/publicCosmetics'
 import type { FriendshipRepository } from '../friendships/application/ports/friendshipRepository'
 import type { PeriodReturn } from '../ranking/application/useCases/measurePeriodReturn'
-import type { ProAccess } from './application/ports/proAccess'
 import { CancelDuelUseCase } from './application/useCases/cancelDuel'
 import { CreateDuelUseCase } from './application/useCases/createDuel'
 import { GetDuelUseCase } from './application/useCases/getDuel'
@@ -21,8 +20,6 @@ import { createDuelsRouter } from './interfaces/http/duelsRouter'
 export interface DuelsCompositionDeps {
   db: Database
   authMiddleware: AuthMiddleware
-  // Do módulo `billing`: gate de PRO (só desafiar exige; aceitar nunca).
-  proAccess: ProAccess
   // Do módulo `friendships`: duelo só entre amizades aceitas.
   friendshipRepository: Pick<FriendshipRepository, 'findByPair'>
   // Do módulo `ranking`: rentabilidade percentual entre dois instantes.
@@ -46,7 +43,6 @@ export function createDuelsModule(deps: DuelsCompositionDeps) {
   const getDuel = new GetDuelUseCase(repo, performance, users, deps.cosmeticsReader)
   const router = createDuelsRouter({
     createDuel: new CreateDuelUseCase(
-      deps.proAccess,
       repo,
       createInProcessFriendshipChecker(deps.friendshipRepository),
     ),

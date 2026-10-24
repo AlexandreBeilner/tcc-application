@@ -8,6 +8,7 @@ import { RewardRevealProvider } from '../../features/shell/RewardRevealProvider'
 import {
     advanceLesson,
     answerCheckpoint,
+    recordReviewResult,
     answerMicroDecision,
     getLesson,
     listLessons,
@@ -32,6 +33,7 @@ vi.mock('../../services/lessons', () => ({
     reviewLesson: vi.fn(),
     recordCardReach: vi.fn().mockResolvedValue({ recorded: true }),
     votePoll: vi.fn(),
+    recordReviewResult: vi.fn().mockResolvedValue({ recorded: true }),
 }))
 vi.mock('../../services/market', () => ({
     listAssets: vi.fn(),
@@ -1653,6 +1655,36 @@ describe('Lesson (tela 3.2)', () => {
             expect(advanceLesson).not.toHaveBeenCalled()
             fireEvent.click(screen.getByRole('button', { name: 'Pular' }))
             expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+            // Errou: conta como revisão errada, a pergunta volta logo.
+            await waitFor(() => expect(recordReviewResult).toHaveBeenCalledWith('token-valido', 'lesson-0', 'r1', false))
+        })
+
+        it('acertar de primeira conta como revisão certa (a pergunta errada demora a voltar)', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+            vi.mocked(answerCheckpoint).mockResolvedValueOnce({
+                correct: true,
+                attempts: 1,
+                firstTry: true,
+                wrongOptions: [],
+                explanation: 'Regressiva.',
+            })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Regressiva' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+
+            await screen.findByText('Isso ficou!')
+            await waitFor(() => expect(recordReviewResult).toHaveBeenCalledWith('token-valido', 'lesson-0', 'r1', true))
+        })
+
+        it('pular sem responder não grava revisão', async () => {
+            vi.mocked(getLesson).mockResolvedValue({ lesson: withRecall() })
+
+            renderLesson()
+            fireEvent.click(await screen.findByRole('button', { name: 'Pular' }))
+
+            expect(await screen.findByText('Primeiro cartão da lição')).toBeInTheDocument()
+            expect(recordReviewResult).not.toHaveBeenCalled()
         })
 
         it('acertar mostra "Isso ficou!" e o Continuar leva ao primeiro cartão', async () => {

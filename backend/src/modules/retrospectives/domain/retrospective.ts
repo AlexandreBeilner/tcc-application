@@ -1,6 +1,6 @@
 // Retrospectiva mensal (MO.5.4): resumo da jornada do mês, calculado só de dados que já existem.
 // Nunca patrimônio absoluto (RNF09): só contagens, nível, dias de atividade e rentabilidade
-// percentual. Versão simples para todos; a completa é PRO.
+// percentual.
 
 export type MonthKey = string // 'AAAA-MM'
 
@@ -77,12 +77,10 @@ export function longestRun(days: number[]): number {
 
 export interface RetrospectiveData {
   month: MonthKey
-  // Versão simples (todos)
   lessonsCompleted: number
   achievementsUnlocked: number
   achievementNames: string[]
   level: number
-  // Versão completa (PRO)
   activeDays: number[] // dias do mês (1 a 31) com atividade; o resto é dia off
   daysInMonth: number
   longestStreak: number
@@ -93,48 +91,14 @@ export interface RetrospectiveData {
   leaguesActive: number
 }
 
-export interface RetrospectiveView {
-  month: MonthKey
-  // `true` quando o conteúdo completo foi liberado (plano PRO ativo agora).
-  full: boolean
-  lessonsCompleted: number
-  achievementsUnlocked: number
-  achievementNames: string[]
-  level: number
-  // Vazio de propósito para quem não é PRO: o servidor nem envia, em vez de esconder na tela.
-  premium: Pick<
-    RetrospectiveData,
-    | 'activeDays'
-    | 'daysInMonth'
-    | 'longestStreak'
-    | 'bestReturnPct'
-    | 'duelsPlayed'
-    | 'duelsWon'
-    | 'leaguesActive'
-  > | null
+export interface RetrospectiveView extends RetrospectiveData {
   // Nada de relevante no mês: a tela mostra um texto acolhedor, nunca cobrança.
   empty: boolean
 }
 
-export function toView(data: RetrospectiveData, isPro: boolean): RetrospectiveView {
+export function toView(data: RetrospectiveData): RetrospectiveView {
   return {
-    month: data.month,
-    full: isPro,
-    lessonsCompleted: data.lessonsCompleted,
-    achievementsUnlocked: data.achievementsUnlocked,
-    achievementNames: data.achievementNames,
-    level: data.level,
-    premium: isPro
-      ? {
-          activeDays: data.activeDays,
-          daysInMonth: data.daysInMonth,
-          longestStreak: data.longestStreak,
-          bestReturnPct: data.bestReturnPct,
-          duelsPlayed: data.duelsPlayed,
-          duelsWon: data.duelsWon,
-          leaguesActive: data.leaguesActive,
-        }
-      : null,
+    ...data,
     empty:
       data.lessonsCompleted === 0 &&
       data.achievementsUnlocked === 0 &&

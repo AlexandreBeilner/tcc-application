@@ -1,15 +1,13 @@
 import { Link, useParams } from 'react-router-dom'
 import { AssemblyOptionCard } from '../../components/molecules/AssemblyOptionCard'
-import { AssemblyProBlock } from '../../components/molecules/AssemblyProBlock'
-import { ProInvite } from '../../components/molecules/ProInvite'
-import { closesLabel, formatShortDate, isCreditShortage, outcomeBadge, resultHeadline } from '../../features/assemblies/assemblyText'
+import { closesLabel, formatShortDate, outcomeBadge, resultHeadline } from '../../features/assemblies/assemblyText'
 import { isFeatureOff, useAssemblyQuery, useCastVoteMutation, useMyVotingStatusQuery } from '../../features/assemblies/useAssemblies'
 import { formatApiError } from '../../utils/formatApiError'
 import styles from './index.module.css'
 
 // Detalhe da assembleia (MO.6.6): ficha da pauta com as duas opções (ganho, perda e o que ela
 // mexe, sem recomendar lado), placar ao vivo por polling, voto e resultado. Quem não pode votar
-// vê o motivo em texto sem culpa e, só se faltar crédito, o convite ao PRO. No desktop a ficha
+// vê o motivo em texto sem culpa. No desktop a ficha
 // ocupa a coluna larga e a situação da pessoa fica fixa ao lado.
 export function AssembleiaDetalhe() {
     const { id = '' } = useParams<{ id: string }>()
@@ -102,8 +100,6 @@ export function AssembleiaDetalhe() {
                         votou.
                         {isOpen && ' O placar se atualiza sozinho.'}
                     </p>
-
-                    <AssemblyProBlock hideLink={Boolean(isOpen && status && isCreditShortage(status.reason))} />
                 </div>
 
                 {isOpen && (
@@ -124,17 +120,6 @@ export function AssembleiaDetalhe() {
                                     canVote && <p className={styles.sideText}>Escolha uma das opções para votar.</p>
                                 )}
                                 {!status.canVote && status.message && <p className={styles.notice}>{status.message}</p>}
-                                {!status.isPro && status.canVote && !status.myVote && (
-                                    <p className={styles.sideText}>
-                                        Seu voto gratuito do mês: {status.credit.available} de {status.credit.limit} disponível.
-                                    </p>
-                                )}
-                                {isCreditShortage(status.reason) && (
-                                    <ProInvite context="assembly">
-                                        O PRO vota em todas as assembleias, sem depender do voto gratuito do mês. O voto gratuito volta no
-                                        mês que vem.
-                                    </ProInvite>
-                                )}
                             </>
                         )}
                         {vote.isError && (

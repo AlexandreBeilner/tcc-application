@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { referralCodes, referrals } from '../../../../db/schema'
 import type { ReferralRepository } from '../../application/ports/referralRepository'
@@ -55,19 +55,5 @@ export function createDrizzleReferralRepository(db: Database): ReferralRepositor
     },
     countQualified: (referrerId) => countByStatus(referrerId, 'qualified'),
     countPending: (referrerId) => countByStatus(referrerId, 'pending'),
-  }
-}
-
-export function createDrizzleReferrerLock(db: Database) {
-  return {
-    run<T>(referrerId: string, fn: () => Promise<T>): Promise<T> {
-      // O lock vale pela transação aberta aqui; `fn` usa as conexões normais do pool.
-      return db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtext(${`referral-rewards:${referrerId}`}))`,
-        )
-        return fn()
-      })
-    },
   }
 }

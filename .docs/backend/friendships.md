@@ -89,4 +89,4 @@ Módulo: `backend/src/modules/friendships/`. Sobre a tabela `friendships` (já e
 
 ## Cosméticos nas listas (MO.5.1)
 
-A busca (`GET /users/search`), a lista de amigos e as solicitações trazem `cosmetics: { isPro, frame, title }` em cada pessoa (ver `cosmetics.md`): só apresentação, vazio para quem não é PRO.
+A busca (`GET /users/search`), a lista de amigos e as solicitações trazem `cosmetics: { frame, title }` em cada pessoa (ver `cosmetics.md`): só apresentação, `null` para quem não escolheu.

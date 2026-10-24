@@ -11,7 +11,6 @@ import {
 } from '../../domain/retrospective'
 import type { MonthActivityReader } from '../ports/monthActivityReader'
 import type { MonthReturnReader } from '../ports/monthReturnReader'
-import type { ProMembershipReader } from '../ports/proMembershipReader'
 import type { RetrospectiveRepository } from '../ports/retrospectiveRepository'
 
 // Monta e arquiva a retrospectiva de um mês fechado. Idempotente: se já existe, devolve a gravada
@@ -72,14 +71,11 @@ export class ListRetrospectiveMonthsUseCase {
   }
 }
 
-// Leitura de uma retrospectiva. O plano é consultado a cada leitura (nunca claim de JWT): quem
-// não é PRO recebe só a versão simples, e o conteúdo completo sai do servidor só para PRO. O
-// arquivo guarda sempre o completo, então quem assina depois vê os meses antigos inteiros.
+// Leitura de uma retrospectiva de um mês disponível para a pessoa.
 export class GetRetrospectiveUseCase {
   constructor(
     private readonly generate: GenerateRetrospectiveUseCase,
     private readonly list: ListRetrospectiveMonthsUseCase,
-    private readonly membership: ProMembershipReader,
   ) {}
 
   async execute(userId: string, month: string): Promise<RetrospectiveView> {
@@ -90,10 +86,6 @@ export class GetRetrospectiveUseCase {
     if (!months.includes(month)) {
       throw new RetrospectiveNotAvailableError('não há retrospectiva para esse mês')
     }
-    const [data, proIds] = await Promise.all([
-      this.generate.execute(userId, month),
-      this.membership.listProUserIds([userId]),
-    ])
-    return toView(data, proIds.has(userId))
+    return toView(await this.generate.execute(userId, month))
   }
 }

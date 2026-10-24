@@ -93,8 +93,10 @@ export class GetLessonUseCase {
     if (completedLessonIds.size === 0) {
       return undefined
     }
+    const now = this.clock()
     const choice = selectRecall({
-      seed: `${userId}|${utcDateString(this.clock())}`,
+      seed: `${userId}|${utcDateString(now)}`,
+      now,
       current,
       lessons,
       completedLessonIds,

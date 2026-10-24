@@ -163,12 +163,6 @@ services:
       EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
       EMAIL_UNSUBSCRIBE_SECRET: ${EMAIL_UNSUBSCRIBE_SECRET:-}
       EMAIL_STREAK_REMINDER: ${EMAIL_STREAK_REMINDER:-}
-      BILLING_PROVIDER: ${BILLING_PROVIDER:?defina BILLING_PROVIDER (revenuecat; dev é recusado)}
-      BILLING_PRICE_MONTHLY_CENTS: ${BILLING_PRICE_MONTHLY_CENTS:-}
-      BILLING_PRICE_ANNUAL_CENTS: ${BILLING_PRICE_ANNUAL_CENTS:-}
-      REVENUECAT_SECRET_KEY: ${REVENUECAT_SECRET_KEY:-}
-      REVENUECAT_WEBHOOK_AUTH: ${REVENUECAT_WEBHOOK_AUTH:-}
-      REVENUECAT_ENTITLEMENT_ID: ${REVENUECAT_ENTITLEMENT_ID:-}
       AVATAR_STORAGE_DIR: /data/avatars
       NODE_OPTIONS: --max-old-space-size=${BACKEND_HEAP_MB:-384}
     read_only: true
@@ -185,7 +179,7 @@ services:
         condition: service_healthy
     networks:
       internal:
-      # Rede com saída para a internet (RevenueCat, Resend, Google) e alcançável pelo Caddy, com apelido por
+      # Rede com saída para a internet (Resend, Google) e alcançável pelo Caddy, com apelido por
       # ambiente: o Caddy escolhe o destino por ele.
       edge:
         aliases:

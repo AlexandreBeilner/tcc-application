@@ -9,7 +9,6 @@ import { CastVoteUseCase } from '../../application/useCases/castVote'
 import { CreateAssemblyUseCase } from '../../application/useCases/createAssembly'
 import { GetMyVotingStatusUseCase } from '../../application/useCases/getMyVotingStatus'
 import { VoteAccessService } from '../../application/voteAccessService'
-import { DEFAULT_ASSEMBLY_PARAMS } from '../../domain/assembly'
 import { GovernanceEngineUnavailableError } from '../../domain/errors'
 import { SHAREHOLDER_KIND, shareholderPolicies } from '../../domain/shareholderPolicies'
 import { createFakeAssemblyRepository } from '../../test/fakes/fakeAssemblyRepository'
@@ -27,21 +26,13 @@ async function buildApp(config: { engineDown?: boolean } = {}) {
   })
   const repository = createFakeAssemblyRepository()
   const holdings = { takenAt: NOW, holdings: [{ userId: ANA, quantity: 12 }] }
-  const params = () => DEFAULT_ASSEMBLY_PARAMS
-  const access = new VoteAccessService(
-    kinds,
-    repository,
-    {
-      take: async () => holdings,
-      get: async () => {
-        if (config.engineDown) throw new GovernanceEngineUnavailableError('motor fora do ar')
-        return holdings
-      },
+  const access = new VoteAccessService(kinds, repository, {
+    take: async () => holdings,
+    get: async () => {
+      if (config.engineDown) throw new GovernanceEngineUnavailableError('motor fora do ar')
+      return holdings
     },
-    { isPro: async () => false },
-    { get: async () => ({ level: 3, emailVerified: true }) },
-    params,
-  )
+  })
   const { assembly, options } = await new CreateAssemblyUseCase(kinds, repository).execute({
     kind: SHAREHOLDER_KIND,
     subjectRef: 'company',
@@ -61,8 +52,8 @@ async function buildApp(config: { engineDown?: boolean } = {}) {
   app.use(express.json())
   app.use(
     createAssembliesRouter({
-      castVote: new CastVoteUseCase(access, repository, params),
-      getMyVotingStatus: new GetMyVotingStatusUseCase(access, params),
+      castVote: new CastVoteUseCase(access, repository),
+      getMyVotingStatus: new GetMyVotingStatusUseCase(access),
       authMiddleware: createAuthMiddleware(tokenIssuer),
     }),
   )
@@ -95,20 +86,20 @@ describe('rotas /assemblies', () => {
     expect(bad.body.error).toBe('corpo inválido')
   })
 
-  it('201 no primeiro voto, 200 ao trocar, sem segundo crédito', async () => {
+  it('201 no primeiro voto, 200 ao trocar', async () => {
     const { app, as, id, a, b } = await buildApp()
     const first = await request(app)
       .post(`/assemblies/${id}/vote`)
       .set('Authorization', as(ANA))
       .send({ optionId: a })
     expect(first.status).toBe(201)
-    expect(first.body).toEqual({ optionId: a, changed: false, creditConsumed: true })
+    expect(first.body).toEqual({ optionId: a, changed: false })
     const second = await request(app)
       .post(`/assemblies/${id}/vote`)
       .set('Authorization', as(ANA))
       .send({ optionId: b })
     expect(second.status).toBe(200)
-    expect(second.body).toEqual({ optionId: b, changed: true, creditConsumed: false })
+    expect(second.body).toEqual({ optionId: b, changed: true })
   })
 
   it('403 com o motivo quando não tinha posição, 404 e 400 para os demais erros', async () => {
@@ -139,14 +130,13 @@ describe('rotas /assemblies', () => {
       canVote: true,
       myShares: 12,
       myVote: null,
-      credit: { available: 1, minLevel: 3 },
     })
     await request(app)
       .post(`/assemblies/${id}/vote`)
       .set('Authorization', as(ANA))
       .send({ optionId: a })
     const after = await request(app).get(`/assemblies/${id}/me`).set('Authorization', as(ANA))
-    expect(after.body).toMatchObject({ myVote: { optionId: a }, credit: { used: 1, available: 0 } })
+    expect(after.body).toMatchObject({ myVote: { optionId: a } })
     const other = await request(app).get(`/assemblies/${id}/me`).set('Authorization', as(ZECA))
     expect(other.body).toMatchObject({ canVote: false, reason: 'not_shareholder', myVote: null })
   })

@@ -27,7 +27,7 @@ vi.mock('../../services/friendships', () => ({
                 username: 'amigo1',
                 name: 'Amigo Um',
                 avatarUrl: null,
-                cosmetics: { isPro: false, frame: null, title: null },
+                cosmetics: { frame: null, title: null },
                 friendsSince: '2026-01-01',
             },
         ],
@@ -38,7 +38,7 @@ vi.mock('../../services/friendships', () => ({
     }),
 }))
 
-const NO_COSMETICS = { isPro: false, frame: null, title: null }
+const NO_COSMETICS = { frame: null, title: null }
 
 function detail(overrides: Partial<LeagueDetail['league']> = {}): LeagueDetail {
     return {
@@ -50,7 +50,6 @@ function detail(overrides: Partial<LeagueDetail['league']> = {}): LeagueDetail {
             ownerUsername: 'dono',
             isOwner: false,
             status: 'active',
-            archived: false,
             memberCount: 2,
             ...overrides,
         },
@@ -64,7 +63,7 @@ function detail(overrides: Partial<LeagueDetail['league']> = {}): LeagueDetail {
                 level: 3,
                 profitabilityPct: 8,
                 isYou: false,
-                cosmetics: { isPro: true, frame: null, title: null },
+                cosmetics: { frame: null, title: null },
             },
             {
                 position: 2,
@@ -134,20 +133,12 @@ describe('LigaDetalhe (MO.5.2c)', () => {
         await waitFor(() => expect(closeLeague).toHaveBeenCalledWith('token', 'l1'))
     })
 
-    it('liga pausada mostra o aviso e mantém a classificação visível', async () => {
-        vi.mocked(getLeague).mockResolvedValue(detail({ archived: true }))
-        renderPage()
-
-        expect(await screen.findByText(/Esta liga está pausada/)).toBeInTheDocument()
-        expect(screen.getByText('+8,0%')).toBeInTheDocument()
-    })
-
     it('convidado vê o convite e ainda não vê a classificação', async () => {
         const invited = detail({ status: 'invited' })
         vi.mocked(getLeague).mockResolvedValue({ ...invited, standings: [] })
         renderPage()
 
-        expect(await screen.findByText(/Participar é de graça/)).toBeInTheDocument()
+        expect(await screen.findByText(/convidou você para esta liga/)).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Aceitar' })).toBeInTheDocument()
     })
 

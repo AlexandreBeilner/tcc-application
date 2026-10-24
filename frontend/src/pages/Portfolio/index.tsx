@@ -18,7 +18,6 @@ import { RecentMovements } from '../../components/organisms/RecentMovements'
 import { NetWorthCards } from '../../components/organisms/NetWorthCards'
 import { ProgressionSummary } from '../../components/organisms/ProgressionSummary'
 import { DistributionChart } from '../../components/organisms/DistributionChart'
-import { ProBenefitsCard } from '../../components/organisms/ProBenefitsCard'
 import { DiarioTodayCard } from '../../components/organisms/DiarioTodayCard'
 import { ResumeLessonCard } from '../../components/organisms/ResumeLessonCard'
 import { DailyMissionsList } from '../../components/organisms/DailyMissionsList'
@@ -151,8 +150,6 @@ export function Portfolio() {
                     )}
 
                     {lessonsQuery.data && <ResumeLessonCard lessons={lessonsQuery.data.lessons} />}
-
-                    <ProBenefitsCard />
                 </div>
             </div>
         </main>

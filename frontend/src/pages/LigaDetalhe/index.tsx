@@ -14,7 +14,7 @@ import {
     useRenameLeagueMutation,
     useRespondToLeagueInvitationMutation,
 } from '../../features/leagues/useLeagues'
-import { ApiError, isProRequiredError } from '../../services/client'
+import { ApiError } from '../../services/client'
 import { formatApiError } from '../../utils/formatApiError'
 import { formatUpdatedAgo } from '../../utils/formatUpdatedAgo'
 import styles from './index.module.css'
@@ -22,8 +22,7 @@ import styles from './index.module.css'
 const WINDOW_LABEL = { week: 'semana', month: 'mês' } as const
 
 // Detalhe da liga (MO.5.2c): a classificação por rentabilidade percentual do período e, para o
-// dono, o gerenciamento (renomear, convidar, tirar, encerrar). Liga pausada (dono sem PRO agora)
-// continua visível; só convidar e renomear dependem do plano. Nada some quando o plano acaba.
+// dono, o gerenciamento (renomear, convidar, tirar, encerrar).
 export function LigaDetalhe() {
     const { id = '' } = useParams()
     const navigate = useNavigate()
@@ -73,11 +72,7 @@ export function LigaDetalhe() {
         }
     }
 
-    const renameError = rename.isError
-        ? isProRequiredError(rename.error)
-            ? 'Renomear faz parte do plano PRO, e o seu não está ativo agora.'
-            : formatApiError(rename.error, 'Não foi possível renomear. Tente de novo.')
-        : null
+    const renameError = rename.isError ? formatApiError(rename.error, 'Não foi possível renomear. Tente de novo.') : null
 
     return (
         <main className={styles.page}>
@@ -94,19 +89,12 @@ export function LigaDetalhe() {
                 </p>
             </header>
 
-            {league.archived && (
-                <p className={styles.notice}>
-                    Esta liga está pausada porque o plano de quem criou não está ativo. Nada foi apagado: ela volta ao normal quando o plano
-                    for reativado.
-                </p>
-            )}
-
             <div className={styles.layout}>
                 <div className={styles.main}>
                     {invited ? (
                         <section className={styles.invite} aria-label="Convite">
                             <p className={styles.inviteText}>
-                                <strong>@{league.ownerUsername}</strong> convidou você para esta liga. Participar é de graça.
+                                <strong>@{league.ownerUsername}</strong> convidou você para esta liga.
                             </p>
                             <div className={styles.row}>
                                 <Button disabled={respond.isPending} onClick={() => respond.mutate({ id, accept: true })}>

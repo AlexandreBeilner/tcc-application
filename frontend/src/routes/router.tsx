@@ -56,9 +56,8 @@ export const router = createBrowserRouter([
         path: '/privacidade',
         lazy: async () => ({ Component: (await import('../pages/PoliticaPrivacidade')).PoliticaPrivacidade }),
     },
-    // LW.4.2: termos de uso e da assinatura PRO e política de reembolso, públicos como a privacidade.
+    // LW.4.2: termos de uso, públicos como a privacidade.
     { path: '/termos', lazy: async () => ({ Component: (await import('../pages/Termos')).Termos }) },
-    { path: '/reembolso', lazy: async () => ({ Component: (await import('../pages/Reembolso')).Reembolso }) },
     {
         element: <ProtectedRoute />,
         children: [
@@ -100,8 +99,6 @@ export const router = createBrowserRouter([
                     // rota própria: é `OrderConfirmationDialog`, overlay renderizado
                     // por `AssetDetail`/`FixedIncomeDetail` sobre a própria tela de
                     // origem (identidade-visual-padroes.md §7 — bottom sheet/modal).
-                    // Plano PRO (MO.3.1): sempre aberta, é a vitrine da assinatura, não produto travado.
-                    { path: '/planos', lazy: async () => ({ Component: (await import('../pages/Planos')).Planos }) },
                     { path: '/mercado', lazy: async () => ({ Component: (await import('../pages/Market')).Market }) },
                     {
                         path: '/mercado/renda-fixa',
@@ -140,10 +137,10 @@ export const router = createBrowserRouter([
                     { path: '/classificacao', lazy: async () => ({ Component: (await import('../pages/Classificacao')).Classificacao }) },
                     // Indicação entre amigos (MO.7.2): qualquer pessoa convida por link.
                     { path: '/convidar', lazy: async () => ({ Component: (await import('../pages/Convidar')).Convidar }) },
-                    // Ligas privadas do PRO (MO.5.2c): participar é de graça, criar é PRO.
+                    // Ligas privadas entre amigos (MO.5.2c).
                     { path: '/ligas', lazy: async () => ({ Component: (await import('../pages/Ligas')).Ligas }) },
                     { path: '/ligas/:id', lazy: async () => ({ Component: (await import('../pages/LigaDetalhe')).LigaDetalhe }) },
-                    // Duelos entre amigos (MO.5.3): aceitar é de graça, desafiar é PRO.
+                    // Duelos entre amigos (MO.5.3).
                     { path: '/duelos', lazy: async () => ({ Component: (await import('../pages/Duelos')).Duelos }) },
                     // Assembleia de Acionistas (MO.6.6): leitura pública, voto nas regras do servidor.
                     { path: '/assembleias', lazy: async () => ({ Component: (await import('../pages/Assembleias')).Assembleias }) },
@@ -151,7 +148,7 @@ export const router = createBrowserRouter([
                         path: '/assembleias/:id',
                         lazy: async () => ({ Component: (await import('../pages/AssembleiaDetalhe')).AssembleiaDetalhe }),
                     },
-                    // Retrospectiva mensal (MO.5.4): versão simples para todos, completa no PRO.
+                    // Retrospectiva mensal (MO.5.4).
                     { path: '/retrospectiva', lazy: async () => ({ Component: (await import('../pages/Retrospectiva')).Retrospectiva }) },
                     { path: '/duelos/:id', lazy: async () => ({ Component: (await import('../pages/DuelDetalhe')).DuelDetalhe }) },
                     // Notícias só desbloqueia de verdade na lição que libera
@@ -278,10 +275,6 @@ export const router = createBrowserRouter([
                                     {
                                         path: '/admin/retencao',
                                         lazy: async () => ({ Component: (await import('../pages/AdminRetencao')).AdminRetencao }),
-                                    },
-                                    {
-                                        path: '/admin/assinaturas',
-                                        lazy: async () => ({ Component: (await import('../pages/AdminAssinaturas')).AdminAssinaturas }),
                                     },
                                     {
                                         path: '/admin/assembleias',

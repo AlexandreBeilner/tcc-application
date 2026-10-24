@@ -8,8 +8,7 @@
 // `NODE_ENV` não separa desenvolvimento de produção. Quem diz `production` é o deploy, de propósito.
 //
 // `staging` (ambiente de validação no mesmo VPS) passa pelas mesmas exigências de segredo, URL e
-// banco, mas aceita `EMAIL_PROVIDER=log` (não manda e-mail a ninguém). `BILLING_PROVIDER=dev`
-// continua recusado: o staging valida a cobrança de verdade, com as chaves de sandbox.
+// banco, mas aceita `EMAIL_PROVIDER=log` (não manda e-mail a ninguém).
 const DEV_SECRET = 'dev-secret-troque-em-producao'
 const MIN_SECRET_LENGTH = 32
 const MIN_DB_PASSWORD_LENGTH = 16
@@ -62,9 +61,6 @@ export function findProductionConfigProblems(
     problems.push(
       'AUTH_RATE_LIMIT=off desliga a proteção contra força bruta e só vale em desenvolvimento',
     )
-  }
-  if (read('BILLING_PROVIDER') === 'dev') {
-    problems.push('BILLING_PROVIDER=dev grava assinatura de mentira, não vale em produção')
   }
 
   checkPublicUrl('FRONTEND_URL', read('FRONTEND_URL'), true, problems)

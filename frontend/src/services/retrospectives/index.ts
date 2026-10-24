@@ -1,7 +1,7 @@
 import { apiRequest } from '../client'
 import type { Retrospective } from './types'
 
-export type { Retrospective, RetrospectivePremium } from './types'
+export type { Retrospective } from './types'
 
 // Meses com retrospectiva (fechados), mais recentes primeiro.
 export async function listRetrospectiveMonths(token: string): Promise<string[]> {

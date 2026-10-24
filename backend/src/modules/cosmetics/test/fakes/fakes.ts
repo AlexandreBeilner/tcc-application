@@ -1,7 +1,5 @@
 import type { CosmeticCatalogRepository } from '../../application/ports/cosmeticCatalogRepository'
 import type { CosmeticSelectionRepository } from '../../application/ports/cosmeticSelectionRepository'
-import type { ProAccess } from '../../application/ports/proAccess'
-import type { ProMembershipReader } from '../../application/ports/proMembershipReader'
 import type { CosmeticItem, CosmeticSelection } from '../../domain/cosmetic'
 
 export const TEST_CATALOG: CosmeticItem[] = [
@@ -41,35 +39,6 @@ export function createFakeSelections(
     },
     async unequip(userId, kind) {
       rows.set(userId, { ...(rows.get(userId) ?? { frame: null, title: null }), [kind]: null })
-    },
-  }
-}
-
-export interface FakeMembership extends ProMembershipReader {
-  ids: Set<string>
-  calls: number
-}
-
-export function createFakeMembership(proIds: string[]): FakeMembership {
-  const fake: FakeMembership = {
-    ids: new Set(proIds),
-    calls: 0,
-    async listProUserIds(userIds) {
-      fake.calls++
-      return new Set(userIds.filter((id) => fake.ids.has(id)))
-    },
-  }
-  return fake
-}
-
-export function createFakeProAccess(proIds: string[]): ProAccess & { ids: Set<string> } {
-  const ids = new Set(proIds)
-  return {
-    ids,
-    async assertPro(userId) {
-      if (!ids.has(userId)) {
-        throw Object.assign(new Error('requer plano PRO'), { code: 'PRO_REQUIRED' })
-      }
     },
   }
 }

@@ -28,7 +28,7 @@ describe('AssemblySettingsService', () => {
     await service.refresh()
     expect(live.params.minVoters).toBe(3)
     const list = await service.list()
-    expect(list).toHaveLength(11)
+    expect(list).toHaveLength(9)
     expect(list.every((s) => !s.overridden && s.value === s.default)).toBe(true)
   })
 
@@ -55,11 +55,10 @@ describe('AssemblySettingsService', () => {
     await service.set('duration_days', 14, 'a')
     await service.set('proposal_monthly_cap', 5, 'a')
     await service.set('participation_xp', 30, 'a')
-    await service.set('free_credit_min_level', 4, 'a')
     expect(live.lifecycle.durationDays).toBe(14)
     expect(live.proposals.monthlyCap).toBe(5)
     expect(live.participationXp).toBe(30)
-    expect(live.params.freeCreditMinLevel).toBe(4)
+    expect(live.params.minVoters).toBe(3)
   })
 
   it('restaurar volta ao valor inicial e apaga a linha', async () => {

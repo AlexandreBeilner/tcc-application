@@ -618,6 +618,32 @@ func (r *CatalogRepository) loadCurrentQuoteFromPostgres(ctx context.Context, as
 	return quote, true, nil
 }
 
+// ListFixedIncomeRates devolve a taxa contratada (`interest_rate`) de todo
+// título de renda fixa que tem uma, indexada por asset_id — usado por GET
+// /assets pra mostrar a taxa na lista de Renda Fixa sem uma consulta por
+// título (N+1). Mesma escala do detalhe: pontos percentuais, "% do CDI" nos
+// pós-fixados e "a.a." no prefixado e no IPCA+ (tarefa L.1).
+func (r *CatalogRepository) ListFixedIncomeRates(ctx context.Context) (map[string]float64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT asset_id, interest_rate FROM fixed_income_assets WHERE interest_rate IS NOT NULL`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	rates := make(map[string]float64)
+	for rows.Next() {
+		var assetID string
+		var rate float64
+		if err := rows.Scan(&assetID, &rate); err != nil {
+			return nil, err
+		}
+		rates[assetID] = rate
+	}
+	return rates, rows.Err()
+}
+
 // ListCurrentQuotes devolve a cotação corrente de todo ativo com pelo menos
 // uma linha em asset_quotes, indexada por asset_id — usado por GET /assets
 // (tarefa 4.6) pra não fazer uma consulta por ativo (N+1). Ativo sem

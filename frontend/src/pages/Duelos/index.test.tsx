@@ -3,13 +3,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { getBillingStatus } from '../../services/billing'
 import { listDuels, respondToDuel } from '../../services/duels'
 import type { Duel } from '../../services/duels'
 import { Duelos } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../services/duels', () => ({ listDuels: vi.fn(), respondToDuel: vi.fn(), createDuel: vi.fn() }))
 vi.mock('../../services/friendships', () => ({
     listFriends: vi.fn().mockResolvedValue({ friends: [], page: 1, pageSize: 20, totalEntries: 0, totalPages: 1 }),
@@ -19,7 +17,7 @@ const duel = (overrides: Partial<Duel>): Duel => ({
     id: 'd1',
     status: 'active',
     role: 'challenger',
-    opponent: { id: 'u2', username: 'bia', name: 'Bia', avatarUrl: null, cosmetics: { isPro: false, frame: null, title: null } },
+    opponent: { id: 'u2', username: 'bia', name: 'Bia', avatarUrl: null, cosmetics: { frame: null, title: null } },
     createdAt: '2026-10-01T00:00:00Z',
     expiresAt: '2026-10-08T00:00:00Z',
     startsAt: '2026-10-01T00:00:00Z',
@@ -46,16 +44,6 @@ function renderPage() {
 describe('Duelos (MO.5.3)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
-        vi.mocked(getBillingStatus).mockResolvedValue({
-            isPro: false,
-            state: 'none',
-            plan: null,
-            store: null,
-            expiresAt: null,
-            willRenew: false,
-            managementUrl: null,
-            billingEnabled: true,
-        })
     })
     afterEach(() => vi.clearAllMocks())
 
@@ -72,7 +60,7 @@ describe('Duelos (MO.5.3)', () => {
         expect(screen.getByText('Você venceu')).toBeInTheDocument()
     })
 
-    it('convite recebido pode ser aceito sem plano PRO', async () => {
+    it('convite recebido pode ser aceito', async () => {
         vi.mocked(listDuels).mockResolvedValue([duel({ id: 'i', status: 'pending', role: 'opponent' })])
         vi.mocked(respondToDuel).mockResolvedValue(undefined)
         renderPage()

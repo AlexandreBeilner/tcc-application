@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { LeagueStanding } from '../../../services/leagues'
 import { LeagueStandings } from '.'
 
-const NO_COSMETICS = { isPro: false, frame: null, title: null }
+const NO_COSMETICS = { frame: null, title: null }
 
 function row(overrides: Partial<LeagueStanding>): LeagueStanding {
     return {
@@ -21,11 +21,11 @@ function row(overrides: Partial<LeagueStanding>): LeagueStanding {
 }
 
 describe('LeagueStandings (MO.5.2c)', () => {
-    it('mostra posição, rentabilidade percentual e o selo de quem é PRO', () => {
+    it('mostra posição, rentabilidade percentual e o título escolhido', () => {
         render(
             <LeagueStandings
                 standings={[
-                    row({ cosmetics: { isPro: true, frame: 'frame_aurora', title: 'Estrategista' } }),
+                    row({ cosmetics: { frame: 'frame_aurora', title: 'Estrategista' } }),
                     row({ position: 2, userId: 'u2', username: 'bia', name: 'Bia', profitabilityPct: -3.2, isYou: true }),
                 ]}
             />,
@@ -34,7 +34,6 @@ describe('LeagueStandings (MO.5.2c)', () => {
         expect(screen.getByText('1º')).toBeInTheDocument()
         expect(screen.getByText('+12,5%')).toBeInTheDocument()
         expect(screen.getByText('−3,2%')).toBeInTheDocument()
-        expect(screen.getByLabelText('Assinante PRO')).toBeInTheDocument()
         expect(screen.getByText('Estrategista')).toBeInTheDocument()
         expect(screen.getByText('(você)')).toBeInTheDocument()
     })

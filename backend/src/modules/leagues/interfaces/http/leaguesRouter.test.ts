@@ -14,44 +14,27 @@ import { RemoveLeagueMemberUseCase } from '../../application/useCases/removeLeag
 import { RenameLeagueUseCase } from '../../application/useCases/renameLeague'
 import { RespondToLeagueInvitationUseCase } from '../../application/useCases/respondToLeagueInvitation'
 import { createFakeLeagueRepository } from '../../test/fakes/fakeLeagueRepository'
-import {
-  createFakeFriendships,
-  createFakeMembership,
-  createFakeProAccess,
-  createFakeScores,
-  createFakeUsers,
-} from '../../test/fakes/fakes'
+import { createFakeFriendships, createFakeScores, createFakeUsers } from '../../test/fakes/fakes'
 import { createLeaguesRouter } from './leaguesRouter'
 
 const OWNER = '11111111-1111-4111-8111-111111111111'
 const FRIEND = '22222222-2222-4222-8222-222222222222'
 const STRANGER = '33333333-3333-4333-8333-333333333333'
 
-function buildApp(proIds = [OWNER]) {
+function buildApp() {
   const repo = createFakeLeagueRepository()
-  const access = createFakeProAccess(proIds)
-  const membership = createFakeMembership(access)
   const users = createFakeUsers([OWNER, FRIEND, STRANGER])
   const tokenIssuer = createFakeTokenIssuer()
   const app = express()
   app.use(express.json())
   app.use(
     createLeaguesRouter({
-      createLeague: new CreateLeagueUseCase(access, repo),
-      listMyLeagues: new ListMyLeaguesUseCase(repo, membership, users),
-      getLeague: new GetLeagueUseCase(
-        repo,
-        createFakeScores({ [OWNER]: 4, [FRIEND]: 9 }),
-        membership,
-        users,
-      ),
-      renameLeague: new RenameLeagueUseCase(access, repo),
+      createLeague: new CreateLeagueUseCase(repo),
+      listMyLeagues: new ListMyLeaguesUseCase(repo, users),
+      getLeague: new GetLeagueUseCase(repo, createFakeScores({ [OWNER]: 4, [FRIEND]: 9 }), users),
+      renameLeague: new RenameLeagueUseCase(repo),
       closeLeague: new CloseLeagueUseCase(repo),
-      inviteToLeague: new InviteToLeagueUseCase(
-        access,
-        repo,
-        createFakeFriendships([[OWNER, FRIEND]]),
-      ),
+      inviteToLeague: new InviteToLeagueUseCase(repo, createFakeFriendships([[OWNER, FRIEND]])),
       respondToInvitation: new RespondToLeagueInvitationUseCase(repo),
       leaveLeague: new LeaveLeagueUseCase(repo),
       removeMember: new RemoveLeagueMemberUseCase(repo),
@@ -74,7 +57,7 @@ describe('rotas /leagues', () => {
     expect((await request(app).post('/leagues').send({})).status).toBe(401)
   })
 
-  it('fluxo completo: criar, convidar, aceitar sem PRO, classificar', async () => {
+  it('fluxo completo: criar, convidar, aceitar, classificar', async () => {
     const { app, as } = buildApp()
     const created = await request(app)
       .post('/leagues')
@@ -108,16 +91,6 @@ describe('rotas /leagues', () => {
     expect(detail.status).toBe(200)
     expect(detail.body.standings.map((s: { userId: string }) => s.userId)).toEqual([FRIEND, OWNER])
     expect(JSON.stringify(detail.body)).not.toMatch(/patrim|netWorth|balance/i)
-  })
-
-  it('criar sem PRO responde 403 requer plano PRO (nunca 404)', async () => {
-    const { app, as } = buildApp([])
-    const res = await request(app)
-      .post('/leagues')
-      .set('Authorization', as(STRANGER))
-      .send({ name: 'Turma', window: 'month' })
-    expect(res.status).toBe(403)
-    expect(res.body).toEqual({ error: 'requer plano PRO' })
   })
 
   it('valida corpo (400) e id (400)', async () => {

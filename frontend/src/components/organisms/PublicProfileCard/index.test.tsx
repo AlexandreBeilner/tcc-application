@@ -13,7 +13,7 @@ function profile(overrides: Partial<PublicProfile> = {}): PublicProfile {
     return {
         username: 'bia',
         avatarUrl: null,
-        cosmetics: { isPro: false, frame: null, title: null },
+        cosmetics: { frame: null, title: null },
         level: 4,
         xp: 820,
         currentStreak: 3,
@@ -120,7 +120,7 @@ describe('PublicProfileCard (tela 8.4)', () => {
                     username: 'bia',
                     name: 'Bia',
                     avatarUrl: null,
-                    cosmetics: { isPro: false, frame: null, title: null },
+                    cosmetics: { frame: null, title: null },
                     friendsSince: '2026-01-01',
                 },
             ],

@@ -3,13 +3,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../features/auth/AuthContext'
-import { getBillingStatus } from '../../services/billing'
 import { listLeagues, respondToLeagueInvitation } from '../../services/leagues'
 import type { LeagueSummary } from '../../services/leagues'
 import { Ligas } from '.'
 
 vi.mock('../../features/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('../../services/billing', () => ({ getBillingStatus: vi.fn(), reportFunnelEvent: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../services/leagues', () => ({ listLeagues: vi.fn(), respondToLeagueInvitation: vi.fn(), createLeague: vi.fn() }))
 
 const league = (overrides: Partial<LeagueSummary>): LeagueSummary => ({
@@ -20,7 +18,6 @@ const league = (overrides: Partial<LeagueSummary>): LeagueSummary => ({
     ownerUsername: 'dono',
     isOwner: false,
     status: 'active',
-    archived: false,
     memberCount: 3,
     ...overrides,
 })
@@ -39,30 +36,19 @@ function renderPage() {
 describe('Ligas (MO.5.2c)', () => {
     beforeEach(() => {
         vi.mocked(useAuth).mockReturnValue({ token: 'token' } as ReturnType<typeof useAuth>)
-        vi.mocked(getBillingStatus).mockResolvedValue({
-            isPro: false,
-            state: 'none',
-            plan: null,
-            store: null,
-            expiresAt: null,
-            willRenew: false,
-            managementUrl: null,
-            billingEnabled: true,
-        })
     })
     afterEach(() => vi.clearAllMocks())
 
     it('lista as ligas em que participa, com período, pessoas e dono', async () => {
-        vi.mocked(listLeagues).mockResolvedValue([league({}), league({ id: 'l2', name: 'Pausada', archived: true })])
+        vi.mocked(listLeagues).mockResolvedValue([league({})])
         renderPage()
 
         const link = await screen.findByRole('link', { name: /Turma TCC/ })
         expect(link).toHaveAttribute('href', '/ligas/l1')
         expect(link).toHaveTextContent('Semanal · 3 pessoas · de @dono')
-        expect(screen.getByText(/Pausada: volta quando o plano de quem criou/)).toBeInTheDocument()
     })
 
-    it('convite pendente pode ser aceito sem plano PRO', async () => {
+    it('convite pendente pode ser aceito', async () => {
         vi.mocked(listLeagues).mockResolvedValue([league({ status: 'invited' })])
         vi.mocked(respondToLeagueInvitation).mockResolvedValue(undefined)
         renderPage()

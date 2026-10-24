@@ -11,8 +11,6 @@ export const STORAGE_KEYS = {
     lastSeenNewsId: { current: 'app.news.lastSeenId', legacy: 'tcc.news.lastSeenId' },
     // Assembleias abertas já vistas em Notícias (MO.6.6): JSON de ids, só para acender o sino.
     assembliesSeen: { current: 'app.assemblies.seen', legacy: 'tcc.assemblies.seen' },
-    // Convites ao PRO dispensados (MO.5.5): JSON { [contexto]: timestamp }. A chave `tcc.` nunca existiu
-    // (o tipo exige o par); a leitura dela é inofensiva.
     // Convite para instalar o app (LW.2.4): timestamp de quando foi dispensado.
     installInviteDismissed: { current: 'app.installInvite.dismissed', legacy: 'tcc.installInvite.dismissed' },
     // Popup de instalação mostrado uma única vez, logo depois do onboarding: só a marca de que já apareceu.
@@ -20,7 +18,6 @@ export const STORAGE_KEYS = {
     // Som e vibração das lições (LJ.5.4): '1' ligado, '0' desligado, ausente = padrão (som desligado, vibração ligada).
     lessonSound: { current: 'app.lesson.sound', legacy: 'tcc.lesson.sound' },
     lessonVibration: { current: 'app.lesson.vibration', legacy: 'tcc.lesson.vibration' },
-    proInviteDismissed: { current: 'app.proInvite.dismissed', legacy: 'tcc.proInvite.dismissed' },
 } as const
 
 type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]

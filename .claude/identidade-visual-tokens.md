@@ -65,6 +65,10 @@ Resolvido na tarefa 6.2 (login/cadastro, primeira tela com formulário validado 
 |---|---|---|---|
 | `--color-feedback-error-500` | `#E5484D` | `#C4313A` | Texto de erro inline (credencial inválida, conflito de cadastro) |
 | `--color-feedback-error-100` | `#2E1416` | `#FCE9EA` | Fundo suave da mensagem de erro |
+| `--color-feedback-success-500` | `#34C77B` | `#167A4A` | Acerto em exercício de lição (ex.: decodificador de ticker) |
+| `--color-feedback-success-100` | `#0F2B1E` | `#E3F7EC` | Fundo suave do acerto |
+
+Sucesso entrou em 2026-10-23, a pedido do autor: o decodificador de ticker mostrava acerto e erro no mesmo cinza. Mesmo hue do verde de ganho; no tema claro usa o tom mais escuro de `--color-track-1`, porque o `#1E9E5A` fica abaixo de 4.5:1 como texto. Em exercício, acerto e erro também mudam o texto e a borda, nunca só a cor.
 
 ### 2.4 Gamificação (XP, streak, conquistas)
 
@@ -182,6 +186,8 @@ Cantos arredondados o bastante pra soar amigável (linha com o "lúdico"), mas s
 
   --color-feedback-error-500: #E5484D;
   --color-feedback-error-100: #2E1416;
+  --color-feedback-success-500: #34C77B;
+  --color-feedback-success-100: #0F2B1E;
 
   --color-track-0: #93B4FF;
   --color-track-1: #34C77B;

@@ -33,7 +33,7 @@ export interface OpenDueResult {
 // `scheduled`. Uma assembleia que ficou `scheduled` por uma falha no meio é retomada na rodada
 // seguinte.
 //
-// A pauta é a proposta mais apoiada da empresa (MO.6.5: fila vinda de PRO, com o mínimo de
+// A pauta é a proposta mais apoiada da empresa (MO.6.5: fila vinda dos acionistas, com o mínimo de
 // apoios, desempate pela mais antiga); sem proposta que sirva, vale o sorteio determinístico do
 // catálogo. A proposta escolhida é consumida na criação; as demais continuam na fila até expirar.
 //

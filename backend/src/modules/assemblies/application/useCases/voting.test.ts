@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_ASSEMBLY_PARAMS, type HoldingsSnapshot } from '../../domain/assembly'
+import type { HoldingsSnapshot } from '../../domain/assembly'
 import {
   AssemblyNotFoundError,
   InvalidAssemblyOptionError,
@@ -33,24 +33,12 @@ async function setup() {
     ],
   }
   const snapshots = { take: async () => holdings, get: vi.fn(async () => holdings) }
-  const pros = new Set<string>()
-  const profiles = new Map<string, { level: number; emailVerified: boolean }>()
-  const profileOf = (id: string) => profiles.get(id) ?? { level: 3, emailVerified: true }
-  const voters = { get: vi.fn(async (id: string) => profileOf(id)) }
-  const params = { ...DEFAULT_ASSEMBLY_PARAMS }
   const rewards = {
     rewardFirstVote: vi.fn<(userId: string, assemblyId: string) => Promise<void>>(
       async () => undefined,
     ),
   }
-  const access = new VoteAccessService(
-    kinds,
-    repository,
-    snapshots,
-    { isPro: async (id) => pros.has(id) },
-    voters,
-    () => params,
-  )
+  const access = new VoteAccessService(kinds, repository, snapshots)
   const create = new CreateAssemblyUseCase(kinds, repository, now)
   const opts = (key: string) => ({ key, label: key, gain: 'g', loss: 'l', effect: {} })
   async function open(dedupeKey: string) {
@@ -69,14 +57,10 @@ async function setup() {
   }
   return {
     repository,
-    pros,
-    profiles,
-    voters,
-    params,
     open,
     rewards,
-    cast: new CastVoteUseCase(access, repository, () => params, now, rewards),
-    status: new GetMyVotingStatusUseCase(access, () => params, now),
+    cast: new CastVoteUseCase(access, repository, now, rewards),
+    status: new GetMyVotingStatusUseCase(access, now),
     advance: (ms: number) => (clock = new Date(clock.getTime() + ms)),
   }
 }
@@ -100,17 +84,15 @@ describe('CastVoteUseCase: XP de participação (MO.6.7)', () => {
     expect(ctx.rewards.rewardFirstVote).toHaveBeenCalledWith('ana', a.id)
   })
 
-  it('cada assembleia nova rende o seu próprio crédito, e voto recusado não rende nada', async () => {
+  it('cada assembleia nova rende o seu próprio XP, e voto recusado não rende nada', async () => {
     const ctx = await setup()
-    ctx.pros.add('ana')
     const a = await ctx.open('a1')
     const b = await ctx.open('b1')
     await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
     await ctx.cast.execute({ assemblyId: b.id, userId: 'ana', optionId: b.b })
     expect(ctx.rewards.rewardFirstVote).toHaveBeenCalledTimes(2)
 
-    ctx.profiles.set('bia', { level: 1, emailVerified: true })
-    await ctx.cast.execute({ assemblyId: a.id, userId: 'bia', optionId: a.a }).catch(() => null)
+    await ctx.cast.execute({ assemblyId: a.id, userId: 'zeca', optionId: a.a }).catch(() => null)
     expect(ctx.rewards.rewardFirstVote).toHaveBeenCalledTimes(2)
   })
 
@@ -135,77 +117,32 @@ describe('CastVoteUseCase: XP de participação (MO.6.7)', () => {
 })
 
 describe('CastVoteUseCase', () => {
-  it('não PRO com crédito: vota e gasta o crédito do mês', async () => {
+  it('acionista vota', async () => {
     const ctx = await setup()
     const a = await ctx.open('a1')
     expect(await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })).toEqual({
       changed: false,
-      creditConsumed: true,
     })
-    expect(ctx.repository.credits).toEqual([
-      { userId: 'ana', assemblyId: a.id, monthKey: '2026-10' },
-    ])
+    expect((await ctx.repository.findVote(a.id, 'ana'))?.optionId).toBe(a.a)
   })
 
-  it('PRO vota sem gastar crédito, mesmo sem e-mail verificado e nível baixo', async () => {
-    const ctx = await setup()
-    ctx.pros.add('ana')
-    ctx.profiles.set('ana', { level: 1, emailVerified: false })
-    const a = await ctx.open('a1')
-    expect(await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })).toEqual({
-      changed: false,
-      creditConsumed: false,
-    })
-    expect(ctx.repository.credits).toHaveLength(0)
-    expect(ctx.voters.get).not.toHaveBeenCalled()
-  })
-
-  it('mudar o voto até o fechamento não consome outro crédito nem exige nada', async () => {
+  it('mudar o voto até o fechamento não exige nada', async () => {
     const ctx = await setup()
     const a = await ctx.open('a1')
     await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
-    ctx.profiles.set('ana', { level: 1, emailVerified: false })
     expect(await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.b })).toEqual({
       changed: true,
-      creditConsumed: false,
     })
-    expect(ctx.repository.credits).toHaveLength(1)
     expect((await ctx.repository.findVote(a.id, 'ana'))?.optionId).toBe(a.b)
   })
 
-  it('quem perdeu o PRO continua podendo trocar o voto que já deu', async () => {
-    const ctx = await setup()
-    ctx.pros.add('ana')
-    const a = await ctx.open('a1')
-    await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
-    ctx.pros.delete('ana')
-    ctx.profiles.set('ana', { level: 1, emailVerified: false })
-    expect(
-      (await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.b })).changed,
-    ).toBe(true)
-  })
-
-  it('segundo voto novo no mesmo mês sem PRO: pede PRO ou crédito (e nada é gravado)', async () => {
+  it('vota em quantas assembleias quiser no mesmo mês', async () => {
     const ctx = await setup()
     const a = await ctx.open('a1')
     const b = await ctx.open('b1')
     await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
-    expect(await denied(ctx.cast.execute({ assemblyId: b.id, userId: 'ana', optionId: b.a }))).toBe(
-      'no_credit',
-    )
-    expect(await ctx.repository.findVote(b.id, 'ana')).toBeNull()
-  })
-
-  it('o crédito volta no mês seguinte (mês de calendário de Brasília)', async () => {
-    const ctx = await setup()
-    const a = await ctx.open('a1')
-    await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
-    ctx.advance(25 * DAY)
-    const c = await ctx.open('c1')
-    expect(
-      await ctx.cast.execute({ assemblyId: c.id, userId: 'ana', optionId: c.a }),
-    ).toMatchObject({ creditConsumed: true })
-    expect(ctx.repository.credits.map((x) => x.monthKey)).toEqual(['2026-10', '2026-11'])
+    await ctx.cast.execute({ assemblyId: b.id, userId: 'ana', optionId: b.a })
+    expect(await ctx.repository.findVote(b.id, 'ana')).not.toBeNull()
   })
 
   it.each([
@@ -220,48 +157,23 @@ describe('CastVoteUseCase', () => {
     expect(await denied(ctx.cast.execute({ assemblyId: a.id, userId, optionId: a.a }))).toBe(reason)
   })
 
-  it('e-mail não verificado e nível baixo bloqueiam só o crédito', async () => {
-    const ctx = await setup()
-    const a = await ctx.open('a1')
-    ctx.profiles.set('ana', { level: 3, emailVerified: false })
-    expect(await denied(ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a }))).toBe(
-      'email_not_verified',
-    )
-    ctx.profiles.set('bia', { level: 2, emailVerified: true })
-    expect(await denied(ctx.cast.execute({ assemblyId: a.id, userId: 'bia', optionId: a.a }))).toBe(
-      'level_too_low',
-    )
-    expect(ctx.repository.votes).toHaveLength(0)
-    expect(ctx.repository.credits).toHaveLength(0)
-  })
-
-  it('o nível mínimo vem do parâmetro', async () => {
-    const ctx = await setup()
-    ctx.params.freeCreditMinLevel = 6
-    const a = await ctx.open('a1')
-    expect(await denied(ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a }))).toBe(
-      'level_too_low',
-    )
-  })
-
-  it('fora da janela (depois do fechamento) recusa e não gasta o crédito', async () => {
+  it('fora da janela (depois do fechamento) recusa', async () => {
     const ctx = await setup()
     const a = await ctx.open('a1')
     ctx.advance(7 * DAY)
     expect(await denied(ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a }))).toBe(
       'not_open',
     )
-    expect(ctx.repository.credits).toHaveLength(0)
+    expect(ctx.repository.votes).toHaveLength(0)
   })
 
-  it('corrida com o fechamento: o repositório recusa e o crédito não se perde', async () => {
+  it('corrida com o fechamento: o repositório recusa', async () => {
     const ctx = await setup()
     const a = await ctx.open('a1')
     vi.spyOn(ctx.repository, 'castVote').mockResolvedValueOnce({ status: 'closed' })
     expect(await denied(ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a }))).toBe(
       'not_open',
     )
-    expect(ctx.repository.credits).toHaveLength(0)
   })
 
   it('opção de outra assembleia e assembleia inexistente', async () => {
@@ -307,58 +219,36 @@ describe('CastVoteUseCase', () => {
 })
 
 describe('GetMyVotingStatusUseCase', () => {
-  it('mostra que pode votar, minhas ações e o saldo de crédito', async () => {
+  it('mostra que pode votar e minhas ações', async () => {
     const ctx = await setup()
     const a = await ctx.open('a1')
     expect(await ctx.status.execute({ assemblyId: a.id, userId: 'ana' })).toEqual({
       assemblyId: a.id,
-      isPro: false,
       canVote: true,
       reason: null,
       message: null,
       myVote: null,
       myShares: 30,
-      credit: { monthKey: '2026-10', limit: 1, used: 0, available: 1, minLevel: 3 },
     })
   })
 
-  it('depois de votar mostra o voto e o crédito usado, e ainda pode trocar', async () => {
+  it('depois de votar mostra o voto, e ainda pode trocar', async () => {
     const ctx = await setup()
     const a = await ctx.open('a1')
     await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
-    const s = await ctx.status.execute({ assemblyId: a.id, userId: 'ana' })
-    expect(s).toMatchObject({
+    expect(await ctx.status.execute({ assemblyId: a.id, userId: 'ana' })).toMatchObject({
       canVote: true,
       myVote: { optionId: a.a },
-      credit: { used: 1, available: 0 },
     })
   })
 
-  it('sem crédito mostra o motivo com o texto do convite', async () => {
+  it('sem posição mostra o motivo', async () => {
     const ctx = await setup()
-    const a = await ctx.open('a1')
-    const b = await ctx.open('b1')
-    await ctx.cast.execute({ assemblyId: a.id, userId: 'ana', optionId: a.a })
-    expect(await ctx.status.execute({ assemblyId: b.id, userId: 'ana' })).toMatchObject({
-      canVote: false,
-      reason: 'no_credit',
-      message: 'requer plano PRO ou crédito de voto',
-    })
-  })
-
-  it('PRO sempre pode (com posição) e sem posição mostra o motivo', async () => {
-    const ctx = await setup()
-    ctx.pros.add('zeca')
-    ctx.pros.add('ana')
     const a = await ctx.open('a1')
     expect(await ctx.status.execute({ assemblyId: a.id, userId: 'zeca' })).toMatchObject({
       canVote: false,
       reason: 'not_shareholder',
       myShares: 0,
-    })
-    expect(await ctx.status.execute({ assemblyId: a.id, userId: 'ana' })).toMatchObject({
-      canVote: true,
-      isPro: true,
     })
   })
 

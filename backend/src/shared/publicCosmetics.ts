@@ -1,13 +1,11 @@
-// O que os outros usuários veem ao lado do nome de alguém (MO.5.1): selo PRO, moldura do avatar e
-// título. Só apresentação: nunca muda a ordem de um ranking nem carrega valor financeiro (RNF09).
+// O que os outros usuários veem ao lado do nome de alguém (MO.5.1): moldura do avatar e título. Só apresentação: nunca muda a ordem de um ranking nem carrega valor financeiro (RNF09).
 // `frame` é a chave da moldura (o visual vive no frontend); `title` já é o texto.
 export interface PublicCosmetics {
-  isPro: boolean
   frame: string | null
   title: string | null
 }
 
-export const NO_COSMETICS: PublicCosmetics = { isPro: false, frame: null, title: null }
+export const NO_COSMETICS: PublicCosmetics = { frame: null, title: null }
 
 // Porta que cada módulo consumidor declara pra si e implementa em `infrastructure/cosmetics/`.
 export interface CosmeticsReader {

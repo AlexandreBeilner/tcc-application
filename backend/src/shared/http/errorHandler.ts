@@ -32,13 +32,6 @@ export const jsonErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     return
   }
 
-  // Feature PRO sem plano ativo (`ProRequiredError` do módulo billing, reconhecido pelo `code` pra
-  // este handler compartilhado não importar o módulo). 403 e não 404: a feature existe.
-  if ((err as { code?: unknown }).code === 'PRO_REQUIRED') {
-    res.status(403).json({ error: 'requer plano PRO' })
-    return
-  }
-
   // body-parser (JSON malformado, corpo grande demais) já anota o status 4xx.
   const status = (err as { status?: unknown }).status
   if (typeof status === 'number' && status >= 400 && status < 500) {

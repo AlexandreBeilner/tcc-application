@@ -39,7 +39,6 @@ describe.skipIf(!databaseUrl)('retrospectivas (banco real)', () => {
       schema.userLessonProgress,
       schema.userProgression,
       schema.userCosmetics,
-      schema.subscriptions,
       schema.emailOutbox,
       schema.emailPreferences,
     ]) {
