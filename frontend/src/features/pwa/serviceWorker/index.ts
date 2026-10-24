@@ -1,13 +1,17 @@
 import { Workbox } from 'workbox-window'
+import { isStandalone } from '../install'
 import { markUpdateWaiting } from '../updateStore'
 
 // De quanto em quanto tempo um app deixado aberto (comum no PWA instalado) procura versão nova.
 export const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
 
 // Registra o service worker (`src/sw/sw.ts`, publicado como `/sw.js`). Só em build de produção e em
-// navegador com suporte; no `vite dev` não há service worker. Nunca recarrega a página sozinho:
-// versão nova vira o aviso "Atualizar" (`UpdateNotice`), e o recarregamento só acontece depois do
-// toque da pessoa.
+// navegador com suporte; no `vite dev` não há service worker. Nunca recarrega a página sozinho.
+// No app instalado, versão nova vira o aviso "Atualizar" (`UpdateNotice`), e o recarregamento só
+// acontece depois do toque da pessoa. Numa aba comum do navegador não há aviso: a navegação já vem
+// da rede, então recarregar já traz a versão nova. Ali o service worker novo só assume quando já
+// estava esperando ao abrir a página (trocar no meio da sessão apagaria do cache os arquivos da
+// versão aberta).
 export function registerServiceWorker(): void {
     if (!import.meta.env.PROD || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
 
@@ -15,7 +19,11 @@ export function registerServiceWorker(): void {
     let reloadWhenControlling = false
 
     // Disparado também quando a versão nova já estava esperando ao abrir o app.
-    workbox.addEventListener('waiting', () => {
+    workbox.addEventListener('waiting', (event) => {
+        if (!isStandalone()) {
+            if (event.wasWaitingBeforeRegister) workbox.messageSkipWaiting()
+            return
+        }
         markUpdateWaiting(() => {
             reloadWhenControlling = true
             workbox.messageSkipWaiting()

@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { applyUpdate, isUpdateWaiting, resetUpdateStore } from '../updateStore'
 
-type Handler = () => void
+const standalone = vi.hoisted(() => ({ value: true }))
+
+vi.mock('../install', () => ({ isStandalone: () => standalone.value }))
+
+type Handler = (event?: { wasWaitingBeforeRegister?: boolean }) => void
 
 const workbox = vi.hoisted(() => {
-    const handlers: Record<string, () => void> = {}
+    const handlers: Record<string, Handler> = {}
     return {
         handlers,
         instance: {
-            addEventListener: vi.fn((name: string, handler: () => void) => {
+            addEventListener: vi.fn((name: string, handler: Handler) => {
                 handlers[name] = handler
             }),
             register: vi.fn(),
@@ -32,6 +36,7 @@ describe('registerServiceWorker (LW.2.2)', () => {
 
     beforeEach(() => {
         resetUpdateStore()
+        standalone.value = true
         for (const key of Object.keys(workbox.handlers)) delete workbox.handlers[key]
         workbox.instance.register.mockResolvedValue(undefined)
         vi.stubGlobal('navigator', { ...navigator, serviceWorker: {} })
@@ -70,7 +75,7 @@ describe('registerServiceWorker (LW.2.2)', () => {
         expect(workbox.instance.register).toHaveBeenCalled()
     })
 
-    it('versão nova vira aviso e só troca e recarrega depois do pedido', () => {
+    it('no app instalado, versão nova vira aviso e só troca e recarrega depois do pedido', () => {
         vi.stubEnv('PROD', true)
         registerServiceWorker()
 
@@ -93,5 +98,28 @@ describe('registerServiceWorker (LW.2.2)', () => {
 
         ;(workbox.handlers.controlling as Handler)()
         expect(reload).toHaveBeenCalledTimes(1)
+    })
+
+    it('numa aba comum do navegador, a versão que já esperava ao abrir assume sem aviso e sem recarregar', () => {
+        vi.stubEnv('PROD', true)
+        standalone.value = false
+        registerServiceWorker()
+
+        ;(workbox.handlers.waiting as Handler)({ wasWaitingBeforeRegister: true })
+        expect(isUpdateWaiting()).toBe(false)
+        expect(workbox.instance.messageSkipWaiting).toHaveBeenCalledTimes(1)
+
+        ;(workbox.handlers.controlling as Handler)()
+        expect(reload).not.toHaveBeenCalled()
+    })
+
+    it('numa aba comum do navegador, versão nova no meio da sessão não mostra aviso nem troca', () => {
+        vi.stubEnv('PROD', true)
+        standalone.value = false
+        registerServiceWorker()
+
+        ;(workbox.handlers.waiting as Handler)({ wasWaitingBeforeRegister: false })
+        expect(isUpdateWaiting()).toBe(false)
+        expect(workbox.instance.messageSkipWaiting).not.toHaveBeenCalled()
     })
 })
