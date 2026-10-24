@@ -43,6 +43,10 @@
      validado — login/cadastro). */
     --color-feedback-error-500: #e5484d;
     --color-feedback-error-100: #2e1416;
+    /* Acerto em exercício de lição (tokens doc, seção 2.3a): mesmo hue do verde
+       de ganho, token à parte pela mesma razão do erro acima. */
+    --color-feedback-success-500: #34c77b;
+    --color-feedback-success-100: #0f2b1e;
 
     /* Cor por trilha (tarefa F.1, tokens doc seção 2.6) — reaproveita hue de
      marca/perda tal qual (`--color-brand-300`/`--color-loss-500`) e um tom
@@ -157,6 +161,9 @@
 
     --color-feedback-error-500: #c4313a;
     --color-feedback-error-100: #fce9ea;
+    /* Mais escuro que o verde de ganho do tema claro, para texto acima de 4.5:1 (mesmo tom de --color-track-1). */
+    --color-feedback-success-500: #167a4a;
+    --color-feedback-success-100: #e3f7ec;
 
     --color-track-0: #1b3f94;
     --color-track-1: #167a4a;

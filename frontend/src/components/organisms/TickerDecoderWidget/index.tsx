@@ -32,8 +32,8 @@ export const TICKER_ITEMS: TickerItem[] = [
 ]
 
 // Widget `ticker-decoder` (RC.3.4e): para cada ticker o aluno escolhe o que ele
-// é, e a regra aparece depois da resposta. Botões em vez de arrastar, para
-// funcionar em teclado e toque.
+// é, e a regra aparece depois da resposta, em verde no acerto e em vermelho no
+// erro. Botões em vez de arrastar, para funcionar em teclado e toque.
 export function TickerDecoderWidget(_props: TickerDecoderWidgetProps) {
     const [answers, setAnswers] = useState<Record<string, Kind>>({})
     const answered = Object.keys(answers).length
@@ -52,7 +52,7 @@ export function TickerDecoderWidget(_props: TickerDecoderWidgetProps) {
                                     <button
                                         key={kind}
                                         type="button"
-                                        className={styles.preset}
+                                        className={`${styles.preset} ${kind === item.kind ? styles.presetCorrect : styles.presetWrong}`}
                                         aria-pressed={answer === kind}
                                         onClick={() => setAnswers((prev) => ({ ...prev, [item.ticker]: kind }))}
                                     >
@@ -61,8 +61,10 @@ export function TickerDecoderWidget(_props: TickerDecoderWidgetProps) {
                                 ))}
                             </div>
                             {answer !== undefined && (
-                                <p aria-live="polite">
-                                    {answer === item.kind ? 'Certo. ' : `Não é isso, é ${KIND_LABEL[item.kind]}. `}
+                                <p className={answer === item.kind ? styles.feedbackCorrect : styles.feedbackWrong} aria-live="polite">
+                                    <span className={styles.feedbackVerdict}>
+                                        {answer === item.kind ? 'Certo. ' : `Não é isso, é ${KIND_LABEL[item.kind]}. `}
+                                    </span>
                                     {item.reason}
                                 </p>
                             )}

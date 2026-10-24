@@ -7,7 +7,9 @@ describe('TickerDecoderWidget', () => {
         render(<TickerDecoderWidget />)
         fireEvent.click(within(screen.getByRole('group', { name: 'O que é VALR3?' })).getByRole('button', { name: 'Ordinária (ON)' }))
 
-        expect(screen.getByText(/Certo\. Final 3: ação ordinária/)).toBeInTheDocument()
+        const feedback = screen.getByText('Certo.').closest('p') as HTMLElement
+        expect(feedback).toHaveTextContent('Certo. Final 3: ação ordinária')
+        expect(feedback.className).toMatch(/feedbackCorrect/)
         expect(screen.getByText('Você acertou 1 de 1 resposta.')).toBeInTheDocument()
     })
 
@@ -15,7 +17,12 @@ describe('TickerDecoderWidget', () => {
         render(<TickerDecoderWidget />)
         fireEvent.click(within(screen.getByRole('group', { name: 'O que é VALR3F?' })).getByRole('button', { name: 'Ordinária (ON)' }))
 
-        expect(screen.getByText(/Não é isso, é Mercado fracionário/)).toBeInTheDocument()
+        const feedback = screen.getByText(/Não é isso, é Mercado fracionário/).closest('p') as HTMLElement
+        expect(feedback.className).toMatch(/feedbackWrong/)
+        // O botão escolhido fica marcado como erro; a cor nunca é a única pista (o texto diz a resposta certa).
+        const chosen = within(screen.getByRole('group', { name: 'O que é VALR3F?' })).getByRole('button', { name: 'Ordinária (ON)' })
+        expect(chosen).toHaveAttribute('aria-pressed', 'true')
+        expect(chosen.className).toMatch(/presetWrong/)
     })
 
     it('o catálogo usa só tickers de exemplo', () => {
