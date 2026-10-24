@@ -42,6 +42,9 @@ type assetCatalogReader interface {
 	// do Temporizador ter rodado pelo menos um tick pro ativo (tarefa 4.6).
 	FindCurrentQuote(ctx context.Context, assetID string) (catalog.Quote, bool, error)
 	ListCurrentQuotes(ctx context.Context) (map[string]catalog.Quote, error)
+	// ListFixedIncomeRates devolve a taxa contratada de cada título de renda
+	// fixa, por asset_id — a lista de Renda Fixa mostra a taxa (GET /assets).
+	ListFixedIncomeRates(ctx context.Context) (map[string]float64, error)
 	// ListQuoteHistory devolve a série histórica de cotações de um ativo —
 	// usado só por GET /assets/:id/quotes (tarefa 4.6).
 	ListQuoteHistory(ctx context.Context, assetID string, days int) ([]catalog.QuoteHistoryEntry, error)
@@ -70,20 +73,25 @@ type assetSummaryResponse struct {
 	IsSandbox      bool     `json:"is_sandbox"`
 	CurrentPrice   *float64 `json:"current_price,omitempty"`
 	DailyChangePct *float64 `json:"daily_change_pct,omitempty"`
+	// InterestRate só vem em título de renda fixa com taxa cadastrada (mesma
+	// escala de fixed_income.interest_rate no detalhe).
+	InterestRate *float64 `json:"interest_rate,omitempty"`
 }
 
 // toAssetSummaryResponse monta o resumo do ativo — quote é a cotação
 // corrente já resolvida pelo chamador (nil se o ativo não tem uma: renda
 // fixa nunca tem, tarefa 4.6; acao/etf/fii sem tick gerado ainda também
-// não), pra não repetir a decisão de "tem ou não cotação" aqui.
-func toAssetSummaryResponse(rec catalog.AssetRecord, quote *catalog.Quote) assetSummaryResponse {
+// não), pra não repetir a decisão de "tem ou não cotação" aqui. rate é a
+// taxa do título de renda fixa (nil nos demais).
+func toAssetSummaryResponse(rec catalog.AssetRecord, quote *catalog.Quote, rate *float64) assetSummaryResponse {
 	resp := assetSummaryResponse{
-		ID:        rec.ID,
-		Ticker:    rec.Ticker,
-		Name:      rec.Name,
-		Type:      string(rec.Type),
-		RiskClass: rec.RiskClass,
-		IsSandbox: rec.IsSandbox,
+		ID:           rec.ID,
+		Ticker:       rec.Ticker,
+		Name:         rec.Name,
+		Type:         string(rec.Type),
+		RiskClass:    rec.RiskClass,
+		IsSandbox:    rec.IsSandbox,
+		InterestRate: rate,
 	}
 	if quote != nil {
 		resp.CurrentPrice = &quote.Price
@@ -359,13 +367,23 @@ func handleListAssets(catalogReader assetCatalogReader) http.HandlerFunc {
 			return
 		}
 
+		rates, err := catalogReader.ListFixedIncomeRates(r.Context())
+		if err != nil {
+			writeCatalogError(w, http.StatusInternalServerError, "erro ao buscar taxas de renda fixa")
+			return
+		}
+
 		summaries := make([]assetSummaryResponse, 0, len(records))
 		for _, rec := range records {
 			var quote *catalog.Quote
 			if q, ok := quotes[rec.ID]; ok {
 				quote = &q
 			}
-			summaries = append(summaries, toAssetSummaryResponse(rec, quote))
+			var rate *float64
+			if v, ok := rates[rec.ID]; ok {
+				rate = &v
+			}
+			summaries = append(summaries, toAssetSummaryResponse(rec, quote, rate))
 		}
 		writeJSON(w, http.StatusOK, summaries)
 	}
@@ -402,7 +420,7 @@ func handleGetAsset(catalogReader assetCatalogReader) http.HandlerFunc {
 		if quoteFound {
 			quotePtr = &quote
 		}
-		resp := assetDetailResponse{assetSummaryResponse: toAssetSummaryResponse(rec, quotePtr)}
+		resp := assetDetailResponse{assetSummaryResponse: toAssetSummaryResponse(rec, quotePtr, nil)}
 
 		today, err := catalogReader.CurrentSimulatedDay(r.Context())
 		if err != nil {

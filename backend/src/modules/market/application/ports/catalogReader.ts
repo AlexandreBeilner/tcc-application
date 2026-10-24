@@ -12,6 +12,8 @@ export interface AssetSummary {
   is_sandbox: boolean
   current_price?: number
   daily_change_pct?: number
+  // Só nos títulos de renda fixa: a taxa contratada, mesma escala do detalhe.
+  interest_rate?: number
 }
 
 export interface FixedIncomeDetails {

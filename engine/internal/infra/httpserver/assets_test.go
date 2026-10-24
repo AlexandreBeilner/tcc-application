@@ -59,8 +59,10 @@ type fakeCatalogReader struct {
 	currentQuoteFound bool
 	currentQuoteErr   error
 
-	currentQuotes    map[string]catalog.Quote
-	currentQuotesErr error
+	currentQuotes       map[string]catalog.Quote
+	currentQuotesErr    error
+	fixedIncomeRates    map[string]float64
+	fixedIncomeRatesErr error
 
 	quoteHistory    []catalog.QuoteHistoryEntry
 	quoteHistoryErr error
@@ -121,6 +123,10 @@ func (f *fakeCatalogReader) FindCurrentQuote(_ context.Context, _ string) (catal
 
 func (f *fakeCatalogReader) ListCurrentQuotes(_ context.Context) (map[string]catalog.Quote, error) {
 	return f.currentQuotes, f.currentQuotesErr
+}
+
+func (f *fakeCatalogReader) ListFixedIncomeRates(_ context.Context) (map[string]float64, error) {
+	return f.fixedIncomeRates, f.fixedIncomeRatesErr
 }
 
 func (f *fakeCatalogReader) ListQuoteHistory(_ context.Context, _ string, _ int) ([]catalog.QuoteHistoryEntry, error) {
@@ -1003,3 +1009,35 @@ func TestHandleGetAsset_FIIPriceToBook(t *testing.T) {
 }
 
 func ptrFloat(v float64) *float64 { return &v }
+
+func TestHandleListAssets_TaxaDaRendaFixa(t *testing.T) {
+	reader := &fakeCatalogReader{
+		assets: []catalog.AssetRecord{
+			{ID: "cdb", Asset: catalog.Asset{Ticker: "CDB2027", Name: "CDB Banco Invest 2027", Type: catalog.AssetCDB}},
+			{ID: "acao", Asset: catalog.Asset{Ticker: "VALR3", Name: "Vale ON", Type: catalog.AssetAcao}},
+		},
+		fixedIncomeRates: map[string]float64{"cdb": 110},
+	}
+
+	rec := getCatalog(t, reader, "/assets")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body []assetSummaryResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body[0].InterestRate == nil || *body[0].InterestRate != 110 {
+		t.Errorf("taxa do CDB = %v, want 110", body[0].InterestRate)
+	}
+	if body[1].InterestRate != nil {
+		t.Errorf("ação veio com taxa %v, want sem taxa", *body[1].InterestRate)
+	}
+}
+
+func TestHandleListAssets_ErroTaxas(t *testing.T) {
+	rec := getCatalog(t, &fakeCatalogReader{fixedIncomeRatesErr: context.DeadlineExceeded}, "/assets")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}

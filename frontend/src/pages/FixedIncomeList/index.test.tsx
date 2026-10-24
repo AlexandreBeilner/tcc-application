@@ -34,8 +34,9 @@ function renderPage() {
 }
 
 const assets: AssetSummary[] = [
-    { id: 'a1', ticker: 'TSELIC', name: 'Tesouro Selic', type: 'tesouro_selic', is_sandbox: false },
-    { id: 'a2', ticker: 'CDB01', name: 'CDB Banco X', type: 'cdb', risk_class: 'baixo', is_sandbox: false },
+    { id: 'a1', ticker: 'TSELIC', name: 'Tesouro Selic', type: 'tesouro_selic', is_sandbox: false, interest_rate: 100 },
+    { id: 'a2', ticker: 'CDB01', name: 'CDB Banco X', type: 'cdb', is_sandbox: false, interest_rate: 110 },
+    { id: 'a3', ticker: 'LTN2027', name: 'Tesouro Prefixado 2027', type: 'tesouro_prefixado', is_sandbox: false, interest_rate: 12.5 },
 ]
 
 describe('FixedIncomeList (tela 4.2)', () => {
@@ -66,6 +67,18 @@ describe('FixedIncomeList (tela 4.2)', () => {
         renderPage()
         await waitFor(() => expect(screen.getAllByText('Tesouro Selic').length).toBeGreaterThan(0))
         expect(screen.queryByText('CDB Banco X')).not.toBeInTheDocument()
+    })
+
+    it('mostra a taxa de cada título no lugar da coluna de risco', async () => {
+        vi.mocked(listAssets).mockResolvedValue({ assets })
+        renderPage()
+        await waitFor(() => expect(screen.getAllByText('Tesouro Selic').length).toBeGreaterThan(0))
+
+        expect(screen.getByRole('columnheader', { name: 'Taxa' })).toBeInTheDocument()
+        expect(screen.queryByRole('columnheader', { name: 'Risco' })).not.toBeInTheDocument()
+        // Pós-fixado em "% do CDI", prefixado em "a.a." (mesma regra do detalhe).
+        expect(screen.getAllByText(/^100,0% do CDI$/).length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/^12,5% a\.a\.$/).length).toBeGreaterThan(0)
     })
 
     it('trocar de aba filtra pra outra categoria', async () => {
