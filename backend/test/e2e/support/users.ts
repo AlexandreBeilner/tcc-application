@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Client } from 'pg'
+import { withE2EDatabase } from './db'
 import { api } from './http'
 
 export interface E2EUser {
@@ -11,18 +11,9 @@ export interface E2EUser {
 // não lê. O e2e confirma a conta direto no banco de dev (mesmo `DATABASE_URL` do seed do admin)
 // e faz o login de verdade pelo gateway: o resto da jornada continua HTTP real.
 async function markEmailVerified(userId: string): Promise<void> {
-  const client = new Client({
-    connectionString:
-      process.env.E2E_DATABASE_URL ??
-      process.env.DATABASE_URL ??
-      'postgres://tcc:tcc@localhost:5432/gamification',
-  })
-  await client.connect()
-  try {
-    await client.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [userId])
-  } finally {
-    await client.end()
-  }
+  await withE2EDatabase((client) =>
+    client.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [userId]),
+  )
 }
 
 // Cadastro real via HTTP (não fake/fixture) — usuário/senha aleatórios por

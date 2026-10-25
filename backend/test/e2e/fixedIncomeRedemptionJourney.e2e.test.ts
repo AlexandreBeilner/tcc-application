@@ -16,6 +16,12 @@ function expectedTaxRate(daysHeld: number): number {
   return 0.15
 }
 
+async function cashBalance(userToken: string): Promise<number> {
+  const res = await authed(userToken).get('/market/me/account')
+  expect(res.status).toBe(200)
+  return res.body.cashBalance as number
+}
+
 interface AssetSummary {
   id: string
   ticker: string
@@ -28,7 +34,7 @@ interface AssetSummary {
 // fixa de IR regressivo documentada.
 describe('jornada: resgate de renda fixa com IR', () => {
   it(
-    'compra um CDB, avança dias simulados e resgata com net_value/tax_rate coerentes com a tabela de IR',
+    'compra um CDB, avança dias simulados e resgata com net_value/tax_rate coerentes com a tabela de IR, creditando o líquido',
     async () => {
       const user = await registerRandomUser()
       const adminToken = await loginAsAdmin()
@@ -80,6 +86,7 @@ describe('jornada: resgate de renda fixa com IR', () => {
       const daysHeld = dayBeforeRedemption - purchaseDay
       expect(daysHeld).toBeGreaterThanOrEqual(targetDays)
 
+      const cashBefore = await cashBalance(user.token)
       const redemption = await authed(user.token)
         .post('/market/fixed-income/redemptions')
         .send({ asset_id: cdb.id })
@@ -100,6 +107,9 @@ describe('jornada: resgate de renda fixa com IR', () => {
       const profit = totalValue - 1000
       const expectedNet = profit > 0 ? totalValue - profit * taxRate : totalValue
       expect(netValue).toBeCloseTo(expectedNet, 2)
+      // O caixa recebe o líquido: o IR mostrado ao usuário sai de fato da conta.
+      expect(netValue).toBeLessThan(totalValue)
+      expect(await cashBalance(user.token)).toBeCloseTo(cashBefore + netValue, 2)
     },
     20 * 60 * 1000,
   )

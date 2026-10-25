@@ -10,3 +10,9 @@ Rodar da raiz do repositório:
     python3 neg.py                 # caminhos de erro, segurança, concorrência
     python3 gating.py              # gate de produtos pela trilha, lição a lição
     python3 liq.py a               # profundidade/slippage por ativo
+
+`lib.py` confirma o e-mail das contas criadas direto no banco da stack (o cadastro só entra com
+e-mail verificado, EM.3.1) e completa as lições pelo mesmo caminho do jogador: responde as
+perguntas intermediárias com o gabarito lido de `lessons.blocks` (todos os formatos), resolve a
+micro-decisão e avança os passos respeitando o `step_too_fast`. Os nomes de `neg.py` levam um
+sufixo por execução, então ele pode rodar de novo na mesma stack.

@@ -42,6 +42,12 @@ aleatórios a cada execução — ficam no banco de dev depois, mesmo padrão j�
 manual anterior (nunca um cleanup automático). Rodar a suíte de novo não conflita com a execução
 anterior.
 
+O mesmo banco também fornece o gabarito das perguntas intermediárias das lições
+(`support/lessons.ts`): o conteúdo vive no banco (N.23) e o gabarito nunca sai do servidor antes do
+acerto, então a suíte lê `lessons.blocks` e responde cada formato (alternativa, verdadeiro/falso,
+estimativa, ordenar, agrupar e ligar) pelo HTTP de verdade, traduzindo para as posições
+embaralhadas que o cliente recebe.
+
 ## Verificação de tipos (opcional, sem stack de pé)
 
 `npm run typecheck:e2e` — `tsc --noEmit` isolado desta pasta (fora do `tsconfig.json`/`npm run
