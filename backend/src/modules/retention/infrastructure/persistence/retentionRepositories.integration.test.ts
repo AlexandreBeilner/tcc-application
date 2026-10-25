@@ -5,6 +5,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { deleteAllUsers } from '../../../../db/test/deleteAllUsers'
 import { createDrizzleMilestoneRepository } from './drizzleMilestoneRepository'
 import { createDrizzlePresenceRepository } from './drizzlePresenceRepository'
 
@@ -29,7 +30,7 @@ describe.skipIf(!databaseUrl)('registro de retenção (banco real)', () => {
   beforeEach(async () => {
     await db.delete(schema.dailyPresence)
     await db.delete(schema.userMilestones)
-    await db.delete(schema.users)
+    await deleteAllUsers(db)
     const [row] = await db
       .insert(schema.users)
       .values({ name: 'ana', username: 'ana', email: 'ana@x.com', passwordHash: 'x' })
