@@ -5,6 +5,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { deleteAllUsers } from '../../../../db/test/deleteAllUsers'
 import { createDrizzleCosmeticCatalogRepository } from '../../../cosmetics/infrastructure/persistence/drizzleCosmeticCatalogRepository'
 import { AttributeReferralUseCase } from '../../application/useCases/attributeReferral'
 import { QualifyReferralUseCase } from '../../application/useCases/qualifyReferral'
@@ -33,7 +34,7 @@ describe.skipIf(!databaseUrl)('repositórios de indicação (banco real)', () =>
   beforeEach(async () => {
     await db.delete(schema.referrals)
     await db.delete(schema.referralCodes)
-    await db.delete(schema.users)
+    await deleteAllUsers(db)
     const rows = await db
       .insert(schema.users)
       .values(

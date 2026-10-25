@@ -95,7 +95,7 @@ func TestSandboxNaoMexeNoCaixa(t *testing.T) {
 	if balance, invested, _ := account(user); balance != 9000 || invested != 1000 {
 		t.Fatalf("compra de renda fixa sandbox mexeu no caixa: saldo %v, investido %v", balance, invested)
 	}
-	if err := bonds.PersistRedeem(ctx, fixedincomeexecution.RedeemRequest{UserID: user, AssetID: sandboxBond}, fixedincomeexecution.RedeemOutcome{TotalValue: 520}); err != nil {
+	if err := bonds.PersistRedeem(ctx, fixedincomeexecution.RedeemRequest{UserID: user, AssetID: sandboxBond}, fixedincomeexecution.RedeemOutcome{TotalValue: 520, NetValue: 515.5}); err != nil {
 		t.Fatalf("PersistRedeem: %v", err)
 	}
 	if balance, _, disinvested := account(user); balance != 9000 || disinvested != 0 {

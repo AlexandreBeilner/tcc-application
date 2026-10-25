@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { deleteAllUsers } from '../../../../db/test/deleteAllUsers'
 import { addDays, weekStart } from '../../domain/retention'
 import {
   createInMemoryRetentionReader,
@@ -45,7 +47,7 @@ describe.skipIf(!databaseUrl)('drizzleRetentionReader (banco real)', () => {
     await db.delete(schema.dailyPresence)
     await db.delete(schema.dailyActivity)
     await db.delete(schema.userMilestones)
-    await db.delete(schema.users)
+    await deleteAllUsers(db)
 
     const synthetic = buildSyntheticRetention({
       users: 3000,
@@ -98,6 +100,9 @@ describe.skipIf(!databaseUrl)('drizzleRetentionReader (banco real)', () => {
     for (const batch of chunks(dataset.milestones, 5000)) {
       await db.insert(schema.userMilestones).values(batch)
     }
+    // Milhares de linhas trocadas de uma vez deixam as estatísticas do planejador velhas até o autovacuum passar;
+    // com elas, a consulta dos marcos chegou a passar dos 5 s do teste (71 ms com estatística atualizada).
+    await db.execute(sql`ANALYZE users, daily_presence, daily_activity, user_milestones`)
     oracle = createInMemoryRetentionReader(dataset)
   }, 120_000)
 
@@ -105,7 +110,7 @@ describe.skipIf(!databaseUrl)('drizzleRetentionReader (banco real)', () => {
     await db.delete(schema.dailyPresence)
     await db.delete(schema.dailyActivity)
     await db.delete(schema.userMilestones)
-    await db.delete(schema.users)
+    await deleteAllUsers(db)
     await pool.end()
   })
 

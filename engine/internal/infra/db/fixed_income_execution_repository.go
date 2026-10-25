@@ -281,6 +281,11 @@ func (r *FixedIncomeExecutionRepository) PersistPurchase(ctx context.Context, re
 // applyFillSide já faz na venda de renda variável) e remove a
 // posição inteira (resgate sempre integral, nota 5 do doc de
 // fixedincomeexecution).
+//
+// O valor gravado e creditado é o LÍQUIDO de IR (`outcome.NetValue`), o que o
+// investidor recebe de fato: o imposto retido nunca entra no caixa. Evento e
+// crédito usam o mesmo valor, então o replay (integrity, ranking) continua
+// batendo com `current_balance` sem conhecer a regra do IR.
 func (r *FixedIncomeExecutionRepository) PersistRedeem(ctx context.Context, req fixedincomeexecution.RedeemRequest, outcome fixedincomeexecution.RedeemOutcome) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -292,7 +297,7 @@ func (r *FixedIncomeExecutionRepository) PersistRedeem(ctx context.Context, req 
 		UserID:    req.UserID,
 		AssetID:   &req.AssetID,
 		EventType: domain.EventFixedIncomeRedemption,
-		UnitValue: &outcome.TotalValue,
+		UnitValue: &outcome.NetValue,
 	}); err != nil {
 		return err
 	}
@@ -304,7 +309,7 @@ func (r *FixedIncomeExecutionRepository) PersistRedeem(ctx context.Context, req 
 	if !sandbox {
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE accounts SET current_balance = current_balance + $1, total_disinvested = total_disinvested + $1, updated_at = now() WHERE user_id = $2`,
-			outcome.TotalValue, req.UserID,
+			outcome.NetValue, req.UserID,
 		); err != nil {
 			return err
 		}

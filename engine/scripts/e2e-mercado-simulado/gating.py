@@ -13,6 +13,7 @@ L=u.g("/lessons")[1]["lessons"]
 first=L[0]["id"]
 u2=User("gate2_%d"%int(time.time()),"g2")  # usuário à parte: não polui o progresso do teste de gating
 st,d=u2.p(f"/lessons/{first}/progress",{"step":3}); assert st==422 and d.get("code")=="step_out_of_order",(st,d)
+solve_checkpoints(u2,first,"scenario")  # sair do cenário exige as perguntas dele resolvidas (RC.3.2)
 assert u2.p(f"/lessons/{first}/progress",{"step":1})[0]==200
 st,d=u2.p(f"/lessons/{first}/progress",{"step":2}); assert st==422 and d.get("code")=="step_too_fast",(st,d)
 print("gate de passos ok")
