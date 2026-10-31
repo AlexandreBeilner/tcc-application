@@ -380,7 +380,7 @@ func TestHandleFixedIncomeSimulate_PosFixadoUsaPostFixedValueNaoDesagioNominal(t
 // achado do teste de ponta a ponta da Fase L: sem a Selic corrente
 // (temporizador nunca rodou), não tem como projetar um produto pós-fixado —
 // mesmo tratamento de precondição que Purchase/Redeem já davam
-// (ErrMarketCalendarNotInitialized), agora também em Simulate.
+// (fixedincomeexecution.ErrMarketNotInitialized), agora também em Simulate.
 func TestHandleFixedIncomeSimulate_PosFixadoSemTickDoTemporizadorDevolve503(t *testing.T) {
 	reader := fixedIncomeSimulateReader()
 	reader.selicRateOK = false

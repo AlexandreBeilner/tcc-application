@@ -420,7 +420,7 @@ func (r *CatalogRepository) CurrentSimulatedDay(ctx context.Context) (int, error
 // quando o Temporizador ainda não rodou nenhum tick (currentSelicRatePct/
 // currentIPCAAccumulated12m sem linha) — diferente de Purchase/Redeem
 // (que tratam essa falta de precondição como erro via
-// ErrMarketCalendarNotInitialized), aqui é só exibição: melhor mostrar o
+// fixedincomeexecution.ErrMarketNotInitialized), aqui é só exibição: melhor mostrar o
 // spread cru do que devolver 500 numa tela de listagem antes do primeiro
 // tick.
 func (r *CatalogRepository) reprecificarOfertaParaExibicao(ctx context.Context, productType fixedincome.ProductType, spreadPct float64) (float64, bool, error) {

@@ -206,6 +206,27 @@ func TestTrigger_TriggeredOnDayFicaAtivoNoProximoTick(t *testing.T) {
 	}
 }
 
+// TestTrigger_AntesDoPrimeiroTickComecaNoDia1 cobre o disparo com o calendário
+// ainda vazio (dia 0): o efeito começa no dia 1, o primeiro que o tick avalia.
+func TestTrigger_AntesDoPrimeiroTickComecaNoDia1(t *testing.T) {
+	repo := &fakeRepository{currentDay: 0}
+	svc := NewService(repo)
+
+	_, event, err := svc.Trigger(context.Background(), Request{
+		TemplateKey: ptr("legislacao-ambiental-mineracao"),
+		Targets:     []TargetInput{{Sector: ptr("Mineração")}},
+	})
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if event.TriggeredOnDay != 1 {
+		t.Errorf("TriggeredOnDay = %d, want 1", event.TriggeredOnDay)
+	}
+	if !repo.persistCalled {
+		t.Error("Persist não foi chamado")
+	}
+}
+
 // TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte cobre o critério
 // de aceite "fundamentals_report_day calculado respeita a regra de corte
 // de 2 dias" — os dois lados do corte, com o ciclo global de 91 dias
@@ -218,6 +239,7 @@ func TestTrigger_FundamentalsReportDayRespeitaJanelaDeCorte(t *testing.T) {
 	}{
 		{"exatamente 2 dias de antecedência vai pro relatório mais próximo (dia 91)", 89, 91},
 		{"1 dia de antecedência empurra pro próximo ciclo (dia 182)", 90, 182},
+		{"antes do primeiro tick (dia 0) vai pro primeiro relatório (dia 91), nunca pro dia 0", 0, 91},
 	}
 
 	for _, tt := range tests {

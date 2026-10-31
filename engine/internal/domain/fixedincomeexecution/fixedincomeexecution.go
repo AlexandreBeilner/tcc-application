@@ -185,8 +185,7 @@ var (
 	// independente do produto) quando o Temporizador ainda não rodou nenhum
 	// tick — sem uma linha em market_calendar não existe taxa simulada pra
 	// marcar a mercado. Achado da validação e2e da S.9: sem este sentinel
-	// de domínio, o erro cru do repositório (db.ErrMarketCalendarNotInitialized)
-	// caía no default de writeFixedIncomePurchaseError/
+	// de domínio, o erro cru do repositório caía no default de writeFixedIncomePurchaseError/
 	// writeFixedIncomeRedemptionError e virava um 500 opaco, mascarando uma
 	// precondição legítima (estoque novo, antes do primeiro tick) que já
 	// tinha um 503 claro no caminho de simulação (handleSimulateFixedIncome).
