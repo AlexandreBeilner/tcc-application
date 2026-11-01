@@ -5,6 +5,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { deleteAllUsers } from '../../../../db/test/deleteAllUsers'
 import { monthRange, type RetrospectiveData } from '../../domain/retrospective'
 import { createDrizzleMonthActivityReader } from './drizzleMonthActivityReader'
 import { createDrizzleRetrospectiveRepository } from './drizzleRetrospectiveRepository'
@@ -44,7 +45,7 @@ describe.skipIf(!databaseUrl)('retrospectivas (banco real)', () => {
     ]) {
       await db.delete(table)
     }
-    await db.delete(schema.users)
+    await deleteAllUsers(db)
     const rows = await db
       .insert(schema.users)
       .values(

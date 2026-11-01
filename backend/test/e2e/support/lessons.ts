@@ -1,6 +1,11 @@
+import type {
+  CheckBlock,
+  LessonBlocks,
+  PublicCheckBlock,
+  PublicLessonBlock,
+} from '../../../src/modules/lessons/domain/widgets/lessonBlocks'
+import { withE2EDatabase } from './db'
 import { authed, sleep } from './http'
-import { LESSON_SEEDS } from '../../../src/db/seedLessons'
-import type { CheckBlock } from '../../../src/modules/lessons/domain/widgets/lessonBlocks'
 
 interface LessonSummary {
   id: string
@@ -66,63 +71,96 @@ async function solveMicroDecision(userToken: string, lessonId: string): Promise<
 
 type Phase = 'scenario' | 'microDecision' | 'revelation'
 
-interface PublicCheck {
-  type: string
-  id: string
-  kind?: 'single' | 'true_false' | 'numeric'
-  options?: string[]
+// Gabarito de autoria das perguntas de uma fase, lido do banco da stack: o conteúdo das lições
+// vive no banco (N.23, pode ter sido editado pelo painel ou por migração de conteúdo) e o
+// gabarito nunca sai do servidor antes do acerto, então não há caminho HTTP pra ele.
+async function authoredChecks(lessonId: string, phase: Phase): Promise<CheckBlock[]> {
+  const blocks = await withE2EDatabase(async (client) => {
+    const res = await client.query<{ blocks: LessonBlocks | null }>(
+      'SELECT blocks FROM lessons WHERE id = $1',
+      [lessonId],
+    )
+    return res.rows[0]?.blocks ?? null
+  })
+  return (blocks?.phases[phase] ?? []).filter(
+    (block): block is CheckBlock => block.type === 'check',
+  )
+}
+
+// Posição, na lista embaralhada que o cliente recebe, do item de autoria `text`.
+function publicIndex(list: string[] | undefined, text: string, checkId: string): number {
+  const index = list?.indexOf(text) ?? -1
+  if (index < 0) throw new Error(`checkpoint "${checkId}": item "${text}" não veio ao cliente`)
+  return index
 }
 
 // Resolve as perguntas intermediárias (`check`, RC.3.2) de uma fase: sem isso o
-// `POST /progress` responde 422 `checkpoint_unsolved` ao sair da fase. Alternativas
-// (single e verdadeiro/falso) são tentadas em ordem, como na micro-decisão; a
-// numérica não se resolve por tentativa, então o gabarito vem do próprio seed.
+// `POST /progress` responde 422 `checkpoint_unsolved` ao sair da fase. Cobre todos os
+// formatos (LJ.2.x): `order` e `match` chegam embaralhados ao cliente, então o gabarito de
+// autoria é traduzido para as posições que o cliente vê, como faria quem joga; `match`
+// confere um par por vez (LJ-D3); `estimate` resolve na primeira resposta (LJ-D1).
 export async function solveCheckpoints(
   userToken: string,
   lessonId: string,
-  sortOrder: number,
   phase: Phase,
 ): Promise<void> {
   const detail = await authed(userToken).get(`/lessons/${lessonId}`)
-  const checks = ((detail.body.lesson?.blocks?.phases?.[phase] ?? []) as PublicCheck[]).filter(
-    (block) => block.type === 'check',
-  )
-  for (const check of checks) {
-    const url = `/lessons/${lessonId}/checkpoints/${check.id}/answer`
-    if (check.kind === 'numeric') {
-      const seeded = LESSON_SEEDS.find((seed) => seed.sortOrder === sortOrder)?.blocks?.phases[
-        phase
-      ].find((block) => block.type === 'check' && block.id === check.id) as
-        Extract<CheckBlock, { kind: 'numeric' }> | undefined
-      if (!seeded) throw new Error(`gabarito numérico de "${check.id}" não achado no seed`)
-      const res = await authed(userToken).post(url).send({ value: seeded.answer })
-      if (res.status !== 200 || res.body.correct !== true) {
-        throw new Error(
-          `checkpoint "${check.id}" não resolveu: ${res.status} ${JSON.stringify(res.body)}`,
-        )
-      }
-      continue
+  const publicChecks = (
+    (detail.body.lesson?.blocks?.phases?.[phase] ?? []) as PublicLessonBlock[]
+  ).filter((block): block is PublicCheckBlock => block.type === 'check')
+  if (publicChecks.length === 0) return
+
+  const authored = await authoredChecks(lessonId, phase)
+  for (const check of publicChecks) {
+    const block = authored.find((candidate) => candidate.id === check.id)
+    if (!block) throw new Error(`gabarito de "${check.id}" não achado no banco`)
+    const answer = (body: object) =>
+      authed(userToken).post(`/lessons/${lessonId}/checkpoints/${check.id}/answer`).send(body)
+
+    let res
+    switch (block.kind) {
+      case 'single':
+        res = await answer({ selectedOption: block.answer })
+        break
+      case 'true_false':
+        res = await answer({ selectedOption: block.answer ? 0 : 1 })
+        break
+      case 'estimate':
+        res = await answer({ value: block.answer })
+        break
+      case 'categorize':
+        res = await answer({ groups: block.answer })
+        break
+      case 'order':
+        res = await answer({
+          sequence: block.answer.map((item) =>
+            publicIndex(check.items, block.items[item], check.id),
+          ),
+        })
+        break
+      case 'match':
+        for (let left = 0; left < block.left.length; left++) {
+          const right = publicIndex(check.right, block.right[block.answer[left]], check.id)
+          res = await answer({ pair: [left, right] })
+          if (res.status !== 200 || res.body.match?.pairCorrect !== true) break
+        }
+        break
     }
-    const optionCount = check.kind === 'true_false' ? 2 : (check.options?.length ?? 0)
-    let solved = false
-    for (let option = 0; option < optionCount && !solved; option++) {
-      const res = await authed(userToken).post(url).send({ selectedOption: option })
-      if (res.status !== 200) {
-        throw new Error(`checkpoint "${check.id}": ${res.status} ${JSON.stringify(res.body)}`)
-      }
-      solved = res.body.correct === true
+    if (!res || res.status !== 200 || res.body.correct !== true) {
+      throw new Error(
+        `checkpoint "${check.id}" (${block.kind}) não resolveu: ${res?.status} ${JSON.stringify(res?.body)}`,
+      )
     }
-    if (!solved) throw new Error(`nenhuma alternativa acertou o checkpoint "${check.id}"`)
   }
 }
 
 async function completeLesson(userToken: string, lesson: LessonSummary): Promise<void> {
-  await solveCheckpoints(userToken, lesson.id, lesson.sortOrder, 'scenario')
+  await solveCheckpoints(userToken, lesson.id, 'scenario')
   await advanceStep(userToken, lesson.id, 1)
   await solveMicroDecision(userToken, lesson.id)
-  await solveCheckpoints(userToken, lesson.id, lesson.sortOrder, 'microDecision')
+  await solveCheckpoints(userToken, lesson.id, 'microDecision')
   await advanceStep(userToken, lesson.id, 2)
-  await solveCheckpoints(userToken, lesson.id, lesson.sortOrder, 'revelation')
+  await solveCheckpoints(userToken, lesson.id, 'revelation')
   await advanceStep(userToken, lesson.id, 3)
 }
 

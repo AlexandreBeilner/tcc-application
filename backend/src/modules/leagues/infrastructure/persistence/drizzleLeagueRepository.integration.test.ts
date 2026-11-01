@@ -5,6 +5,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { deleteAllUsers } from '../../../../db/test/deleteAllUsers'
 import { createDrizzleLeagueRepository } from './drizzleLeagueRepository'
 
 // Integração (MO.5.2a): só roda com TEST_DATABASE_URL apontando pra um banco DESCARTÁVEL (apaga
@@ -35,7 +36,7 @@ describe.skipIf(!databaseUrl)('repositório de ligas (banco real)', () => {
     await db.delete(schema.userCosmetics)
     await db.delete(schema.emailOutbox)
     await db.delete(schema.emailPreferences)
-    await db.delete(schema.users)
+    await deleteAllUsers(db)
     const rows = await db
       .insert(schema.users)
       .values(

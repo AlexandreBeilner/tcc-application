@@ -38,7 +38,7 @@ describe('jornada: lição com pergunta que só avança ao acertar', () => {
     expect(early.body.code).toBe('step_out_of_order')
 
     // Fase 1 do player: as perguntas intermediárias da fase precisam estar resolvidas pra sair dela.
-    await solveCheckpoints(user.token, target.id, target.sortOrder, 'scenario')
+    await solveCheckpoints(user.token, target.id, 'scenario')
 
     // `selectedOption` antigo em /progress é aceito e ignorado: não grava nem devolve veredito.
     const toStep1 = await http
@@ -82,12 +82,7 @@ describe('jornada: lição com pergunta que só avança ao acertar', () => {
 
     // Respeita o intervalo mínimo entre passos (o 422 devolve quanto falta).
     for (const step of [2, 3]) {
-      await solveCheckpoints(
-        user.token,
-        target.id,
-        target.sortOrder,
-        step === 2 ? 'microDecision' : 'revelation',
-      )
+      await solveCheckpoints(user.token, target.id, step === 2 ? 'microDecision' : 'revelation')
       for (;;) {
         const res = await http.post(`/lessons/${target.id}/progress`).send({ step })
         if (res.status === 200) break

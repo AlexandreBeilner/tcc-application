@@ -6,6 +6,7 @@ import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '../../../../db/client'
 import * as schema from '../../../../db/schema'
+import { deleteAllUsers } from '../../../../db/test/deleteAllUsers'
 import { createDrizzleCosmeticCatalogRepository } from './drizzleCosmeticCatalogRepository'
 import { createDrizzleCosmeticSelectionRepository } from './drizzleCosmeticSelectionRepository'
 
@@ -37,7 +38,7 @@ describe.skipIf(!databaseUrl)('repositórios de cosméticos (banco real)', () =>
     await db.delete(schema.userCosmetics)
     await db.delete(schema.emailOutbox)
     await db.delete(schema.emailPreferences)
-    await db.delete(schema.users)
+    await deleteAllUsers(db)
     const rows = await db
       .insert(schema.users)
       .values([

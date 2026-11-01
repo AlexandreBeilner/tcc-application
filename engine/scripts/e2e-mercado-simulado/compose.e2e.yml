@@ -34,6 +34,9 @@ services:
       AVATAR_STORAGE_DIR: /data/avatars
       # Gate de tempo entre passos de lição (S.4): curto o bastante pros scripts completarem a trilha inteira.
       LESSON_MIN_STEP_INTERVAL_MS: "300"
+      # Gateway de e-mail (EM.1.1): obrigatório na imagem; `log` só escreve o e-mail no log, nada é enviado.
+      EMAIL_PROVIDER: log
+      PUBLIC_API_URL: http://localhost:8100
     depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}, engine: {condition: service_started}}
     expose: ["3000"]
   gateway:

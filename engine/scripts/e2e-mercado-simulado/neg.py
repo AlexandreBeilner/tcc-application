@@ -1,13 +1,18 @@
-import sys,threading;sys.path.insert(0,'.')
+import sys,threading,uuid;sys.path.insert(0,'.')
 from lib import *
+# Sufixo por execução: o script pode rodar de novo na mesma stack sem esbarrar nos 409 da anterior.
+RUN=uuid.uuid4().hex[:6]
 R=[]
 def chk(name,got,ok,extra=""):
     good = got in ok if isinstance(ok,(list,tuple,set)) else got==ok
     R.append((good,name,got,extra)); print(("ok   " if good else "FALHA"),name,got,str(extra)[:160])
-a=User("neg_a","x"); b=User("neg_b","x")
+a=User("neg_a"+RUN,"x"); b=User("neg_b"+RUN,"x")
 complete_lessons(a); complete_lessons(b)
 A={x["ticker"]:x for x in a.g("/market/assets?include_sandbox=true")[1]["assets"]}
 V=A["VALR3"]["id"]; S3=A["SAND3"]["id"]; CDB=A["CDB2027"]["id"]
+# As ordens abaixo pressupõem pregão com o book cotado: fim de semana simulado responde 422
+# market_closed (S.11) e, sem Market Maker cotando, a ordem a mercado volta 201 sem executar nada.
+ensure_two_sided_book(a,V)
 # auth
 chk("sem token orders",req("POST","/market/orders",{"asset_id":V,"side":"buy","type":"market","quantity":1})[0],401)
 chk("token lixo",req("GET","/market/me/account",t="abc")[0],401)
@@ -21,13 +26,13 @@ chk("user comum em rota admin",a.g("/admin/ping")[0],403)
 chk("user comum dispara evento macro",a.p("/admin/macro-events",{"template_key":"x"})[0],403)
 chk("user comum acessa /admin/macro-events",a.g("/admin/macro-events")[0],403)
 # register abuse
-st,d=req("POST","/auth/register",{"name":"x","email":"neg_r@sim.test","username":"neg_r1","password":"Senha1234!","role":"admin"}); chk("register com role=admin",d["user"]["role"] if st==201 else st,"user")
-chk("register e-mail duplicado",req("POST","/auth/register",{"name":"x","email":"NEG_R@sim.test","username":"neg_r2","password":"Senha1234!"})[0],409)
-chk("register username maiúsculo dup",req("POST","/auth/register",{"name":"x","email":"o@sim.test","username":"NEG_R1","password":"Senha1234!"})[0],409)
+st,d=req("POST","/auth/register",{"name":"x","email":f"neg_r{RUN}@sim.test","username":f"neg_r1{RUN}","password":"Senha1234!","role":"admin"}); chk("register com role=admin",d["user"]["role"] if st==201 else st,"user")
+chk("register e-mail duplicado",req("POST","/auth/register",{"name":"x","email":f"NEG_R{RUN}@sim.test","username":f"neg_r2{RUN}","password":"Senha1234!"})[0],409)
+chk("register username maiúsculo dup",req("POST","/auth/register",{"name":"x","email":f"o{RUN}@sim.test","username":f"NEG_R1{RUN}","password":"Senha1234!"})[0],409)
 chk("register senha curta",req("POST","/auth/register",{"name":"x","email":"o2@sim.test","username":"abcd","password":"1"})[0],400)
 chk("register username com espaço/sql",req("POST","/auth/register",{"name":"x","email":"o3@sim.test","username":"a'; drop","password":"Senha1234!"})[0],400)
-chk("register nome com <script>",req("POST","/auth/register",{"name":"<script>alert(1)</script>","email":"o4@sim.test","username":"xss_u","password":"Senha1234!"})[0],[201,400])
-chk("login senha errada",req("POST","/auth/login",{"email":"neg_a@sim.test","password":"errada123"})[0],401)
+chk("register nome com <script>",req("POST","/auth/register",{"name":"<script>alert(1)</script>","email":f"o4{RUN}@sim.test","username":f"xss_{RUN}","password":"Senha1234!"})[0],[201,400])
+chk("login senha errada",req("POST","/auth/login",{"email":f"neg_a{RUN}@sim.test","password":"errada123"})[0],401)
 chk("login email inexistente = mesmo status",req("POST","/auth/login",{"email":"nao@sim.test","password":"errada123"})[0],401)
 # validação de ordens
 def o(u,**k):
@@ -66,7 +71,7 @@ st,d=o(a,quantity=10_000_000)
 chk("compra > saldo (201 parcial ou 422 recusa, nunca estoura saldo)",st,(201,422),d)
 if st==422: chk("compra > saldo recusada: saldo intacto",a.acct()["cashBalance"],cash_a)
 if st==201: chk("compra > saldo: nunca preenche custo maior que o saldo",sum(f["price"]*f["quantity"] for f in d["fills"])<=cash_a,True,d)
-d_user=User("neg_d","x"); complete_lessons(d_user)  # usuário isolado: `a` já tem posição de VALR3 desde o IDOR acima
+d_user=User("neg_d"+RUN,"x"); complete_lessons(d_user)  # usuário isolado: `a` já tem posição de VALR3 desde o IDOR acima
 chk("venda sem posição",o(d_user,side="sell",quantity=1)[0],422)
 # cancelamento alheio
 st,d=o(a,type="limit",price=50.0,quantity=10); chk("limit longe do mercado (50)",st,201,d)
@@ -110,11 +115,14 @@ chk("amizade consigo mesmo",a.p("/friendships",{"addresseeUsername":a.name})[0],
 st,d=a.p("/friendships",{"addresseeUsername":b.name}); chk("pedido de amizade",st,201,d)
 st2,d2=a.p("/friendships",{"addresseeUsername":b.name}); chk("pedido duplicado",st2,[409,400,422])
 # concorrência: double spend
-c=User("neg_c","x"); complete_lessons(c)
+c=User("neg_c"+RUN,"x"); complete_lessons(c); ensure_two_sided_book(c,V)
 res=[]
-def go(): res.append(c.order(V,"buy","market",90)[0])
+def go():
+    st,d=c.order(V,"buy","market",90); res.append((st,d.get("filled_quantity",0) if st==201 else 0))
 th=[threading.Thread(target=go) for _ in range(12)]; [t.start() for t in th]; [t.join() for t in th]
 acc=c.acct(); chk("double-spend concorrente: saldo >=0",acc["cashBalance"]>=0,True,(res,acc["cashBalance"]))
+# Sem nenhuma compra aceita a disputa não foi exercitada (ex.: mercado fechado): não vale como prova.
+chk("double-spend concorrente: alguma compra executou",any(filled>0 for _,filled in res),True,res)
 print("status:",res)
 print(sum(1 for g,*_ in R if not g),"falhas de",len(R))
 json.dump([r for r in R if not r[0]],open("neg_fail.json","w"),indent=1,default=str)
