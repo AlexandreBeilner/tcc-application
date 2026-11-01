@@ -14,20 +14,6 @@ import (
 	"tcc-investimentos/engine/internal/infra/eventstore"
 )
 
-// ErrMarketCalendarNotInitialized é devolvido pelos repositórios do pacote
-// `db` (mesmo raciocínio de precondição em mais de um lugar: sem uma linha
-// em market_calendar não há taxa Selic simulada, e diferente de asset_quotes
-// — que tem um fallback documentado, tick.DefaultInitialPrice — não existe
-// valor default decidido pra Selic) quando o Temporizador (tarefa 3.11)
-// ainda não rodou nenhum tick. Usado hoje só por MacroEventRepository.
-// LoadCurrentDay — LoadPurchaseContext/LoadRedeemContext deste arquivo
-// devolvem o sentinel de domínio fixedincomeexecution.ErrMarketNotInitialized
-// (achado da S.9: o motor de erro cru desta variável, sem tradução pro
-// domínio, caía no default de writeFixedIncomePurchaseError/
-// writeFixedIncomeRedemptionError e virava um 500 opaco em vez do 503 que a
-// mesma precondição já ganhava em handleSimulateFixedIncome).
-var ErrMarketCalendarNotInitialized = errors.New("temporizador ainda não rodou nenhum tick — sem taxa Selic simulada pra marcar a mercado o resgate")
-
 // FixedIncomeExecutionRepository implementa fixedincomeexecution.Repository
 // contra o banco "market" — self-contained (lê fixed_income_assets/
 // accounts/fixed_income_positions/market_calendar direto, sem depender de

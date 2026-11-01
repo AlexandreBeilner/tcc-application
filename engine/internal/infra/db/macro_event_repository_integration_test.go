@@ -12,6 +12,21 @@ import (
 	"tcc-investimentos/engine/internal/domain/tick"
 )
 
+// TestLoadCurrentDay_CalendarioVazioEhDiaZero: antes do primeiro tick não há
+// linha em market_calendar, e isso não é erro (usa o banco descartável, roda só
+// com TEST_DATABASE_URL).
+func TestLoadCurrentDay_CalendarioVazioEhDiaZero(t *testing.T) {
+	_, conn := openAccountRepositoryOnScratchDB(t)
+
+	day, err := NewMacroEventRepository(conn).LoadCurrentDay(context.Background())
+	if err != nil {
+		t.Fatalf("LoadCurrentDay: %v", err)
+	}
+	if day != 0 {
+		t.Errorf("day = %d, want 0", day)
+	}
+}
+
 // TestAssetsWithCompany_DistingueAcaoFIIEInexistente cobre o achado 028 na
 // camada de banco: ação (com empresa) vira true, FII e ETF (sem empresa)
 // viram false, id inexistente ou malformado fica fora do mapa (nunca erro de

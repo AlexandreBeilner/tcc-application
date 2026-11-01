@@ -26,19 +26,11 @@ func NewMacroEventRepository(db *sql.DB) *MacroEventRepository {
 	return &MacroEventRepository{db: db}
 }
 
-// LoadCurrentDay lê market_calendar.current_day — ErrMarketCalendarNotInitialized
-// (mesmo erro sentinela de fixed_income_execution_repository.go, mesma
-// condição: o Temporizador nunca rodou) se a tabela ainda está vazia.
+// LoadCurrentDay lê market_calendar.current_day — 0 quando o Temporizador
+// nunca rodou (loadSimulatedDay), porque o evento macro não depende de taxa
+// simulada, só do dia: o disparo vale pro dia 1, o primeiro que o tick avalia.
 func (r *MacroEventRepository) LoadCurrentDay(ctx context.Context) (int, error) {
-	var day int
-	err := r.db.QueryRowContext(ctx, `SELECT current_day FROM market_calendar WHERE id = 1`).Scan(&day)
-	if err == sql.ErrNoRows {
-		return 0, ErrMarketCalendarNotInitialized
-	}
-	if err != nil {
-		return 0, err
-	}
-	return day, nil
+	return loadSimulatedDay(ctx, r.db)
 }
 
 // AssetsWithCompany devolve, para cada id existente em assets, se o ativo

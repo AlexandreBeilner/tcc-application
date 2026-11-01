@@ -15,7 +15,7 @@ import (
 // marcação a mercado no resgate, já existente desde a 3.13). ok = false
 // (sem erro) quando o Temporizador ainda não rodou nenhum tick — quem
 // chama decide se isso é uma falha (compra/resgate, que já tratam essa
-// falta de precondição via ErrMarketCalendarNotInitialized) ou um dado
+// falta de precondição via fixedincomeexecution.ErrMarketNotInitialized) ou um dado
 // opcional pra exibição (catálogo, que cai de volta pro spread cru).
 func currentSelicRatePct(ctx context.Context, db *sql.DB) (float64, bool, error) {
 	var rate float64

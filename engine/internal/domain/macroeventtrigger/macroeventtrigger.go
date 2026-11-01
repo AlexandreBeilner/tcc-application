@@ -88,8 +88,8 @@ type Request struct {
 // corrente (Temporizador, 3.11) e persistir o evento disparado —
 // implementado por *db.MacroEventRepository, injetado em NewService.
 type Repository interface {
-	// LoadCurrentDay lê market_calendar.current_day — erro (tipicamente
-	// db.ErrMarketCalendarNotInitialized) se o Temporizador nunca rodou.
+	// LoadCurrentDay lê market_calendar.current_day — 0 se o Temporizador
+	// nunca rodou (mesmo fallback de tick.Service.Run).
 	LoadCurrentDay(ctx context.Context) (int, error)
 	// Persist grava o evento + seus alvos numa única transação e devolve
 	// o id gerado pelo banco.
