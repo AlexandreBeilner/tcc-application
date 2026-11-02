@@ -116,13 +116,47 @@ st,d=a.p("/friendships",{"addresseeUsername":b.name}); chk("pedido de amizade",s
 st2,d2=a.p("/friendships",{"addresseeUsername":b.name}); chk("pedido duplicado",st2,[409,400,422])
 # concorrência: double spend
 c=User("neg_c"+RUN,"x"); complete_lessons(c); ensure_two_sided_book(c,V)
+N_ORDERS=12; QTY=90
+# Evidência registrada antes das threads: saldo inicial e melhor preço de venda (best_ask) de VALR3.
+initial_balance=c.acct()["cashBalance"]
+best_ask=c.g(f"/market/assets/{V}/book")[1]["book"]["best_ask"]
 res=[]
-def go():
-    st,d=c.order(V,"buy","market",90); res.append((st,d.get("filled_quantity",0) if st==201 else 0))
-th=[threading.Thread(target=go) for _ in range(12)]; [t.start() for t in th]; [t.join() for t in th]
-acc=c.acct(); chk("double-spend concorrente: saldo >=0",acc["cashBalance"]>=0,True,(res,acc["cashBalance"]))
+def go(i):
+    st,d=c.order(V,"buy","market",QTY)
+    ok=st==201 and isinstance(d,dict)
+    fills=d.get("fills",[]) if ok else []
+    err=d if (not ok and isinstance(d,dict)) else {}
+    res.append({"i":i,"status":st,
+                "code":err.get("code"),"message":err.get("error") or err.get("message"),
+                "executed_quantity":d.get("filled_quantity",0) if ok else 0,
+                "executed_cost":round(sum(f["price"]*f["quantity"] for f in fills),4)})
+th=[threading.Thread(target=go,args=(i,)) for i in range(N_ORDERS)]; [t.start() for t in th]; [t.join() for t in th]
+final_balance=c.acct()["cashBalance"]
+total_cost=round(sum(r["executed_cost"] for r in res),4)
+executed=[r for r in res if r["executed_quantity"]>0]
+# Recusas: 422 da validação de saldo (snapshot sem lock) e 422 da CHECK do banco (migration 000025) saem do
+# motor pela mesma rejeição de negócio (ErrInsufficientBalance), então só o par (status, code) as agrupa;
+# qualquer outro (status, code) aparece em separado.
+refusals={}
+for r in res:
+    if r["executed_quantity"]==0:
+        k=f'{r["status"]}/{r["code"]}'; refusals[k]=refusals.get(k,0)+1
+chk("double-spend concorrente: custo executado total <= saldo inicial",total_cost<=initial_balance,True,(total_cost,initial_balance))
+chk("double-spend concorrente: saldo final >=0",final_balance>=0,True,final_balance)
 # Sem nenhuma compra aceita a disputa não foi exercitada (ex.: mercado fechado): não vale como prova.
-chk("double-spend concorrente: alguma compra executou",any(filled>0 for _,filled in res),True,res)
-print("status:",res)
+chk("double-spend concorrente: alguma compra executou",len(executed)>0,True,res)
+summary={"run":RUN,"user":c.name,"asset":"VALR3","orders":N_ORDERS,"order_quantity":QTY,
+         "initial_balance":initial_balance,"best_ask":best_ask,
+         "single_order_cost_at_best_ask":round(best_ask*QTY,4) if best_ask is not None else None,
+         "executed_orders":len(executed),"refused_orders":N_ORDERS-len(executed),
+         "refusals_by_status_code":refusals,"total_executed_cost":total_cost,
+         "final_balance":final_balance,"balance_check":round(initial_balance-total_cost-final_balance,4),
+         "orders_detail":sorted(res,key=lambda r:r["i"])}
+json.dump(summary,open("neg_concorrencia.json","w"),indent=1,default=str)
+print("--- concorrência: double spend ---")
+print(f"saldo inicial={initial_balance} best_ask={best_ask} ordem de {QTY} ações ~ {summary['single_order_cost_at_best_ask']}")
+print(f"executaram={len(executed)} recusadas={N_ORDERS-len(executed)} {refusals}")
+print(f"custo executado total={total_cost} saldo final={final_balance}")
+for r in summary["orders_detail"]: print("  ",r)
 print(sum(1 for g,*_ in R if not g),"falhas de",len(R))
 json.dump([r for r in R if not r[0]],open("neg_fail.json","w"),indent=1,default=str)

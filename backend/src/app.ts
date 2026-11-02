@@ -970,6 +970,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createDrizzleRankingSnapshotStore(db),
     createDrizzleRankingValuationSampleStore(db),
     cosmeticsReader,
+    createEngineAccountEventsReader(engineUrl),
   )
 
   // Ligas privadas (MO.5.2): pontuam pelo mesmo snapshot e janela do ranking oficial,
@@ -981,6 +982,7 @@ export function createApp(deps: AppDeps = {}): Express {
       cachedNetWorthForRanking,
       createInProcessLevelReader(getProgression),
       createDrizzleRankingValuationSampleStore(db),
+      createEngineAccountEventsReader(engineUrl),
     ),
     createDrizzleRankingSnapshotStore(db),
   )
@@ -998,7 +1000,11 @@ export function createApp(deps: AppDeps = {}): Express {
     db,
     authMiddleware,
     friendshipRepository,
-    measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
+    measurePeriodReturn: new MeasurePeriodReturnUseCase(
+      getNetWorth,
+      sandboxAssetReader,
+      createEngineAccountEventsReader(engineUrl),
+    ),
     awardXp,
     recordDuelResult: new RecordDuelResultUseCase(socialFeedEventRepository),
     cosmeticsReader,
@@ -1040,7 +1046,11 @@ export function createApp(deps: AppDeps = {}): Express {
     createDrizzleProfileUserDirectory(db),
     createInProcessGamificationReader(getProgression),
     createInProcessAchievementsReader(listAchievements),
-    createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader),
+    createInProcessProfitabilityReader(
+      getNetWorth,
+      sandboxAssetReader,
+      createEngineAccountEventsReader(engineUrl),
+    ),
     createInProcessTrackCompletionReader(
       new GetCompletedTracksUseCase(lessonRepository),
       new GetCompletedLessonCodesUseCase(lessonRepository),

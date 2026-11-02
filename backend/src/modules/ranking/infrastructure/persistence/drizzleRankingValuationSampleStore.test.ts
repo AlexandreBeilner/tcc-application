@@ -67,7 +67,10 @@ describe.skipIf(!databaseUrl)('drizzleRankingValuationSampleStore (banco real)',
       new Date('2026-08-24T04:00:00Z'),
     )
 
-    expect(found.get(user.id)).toEqual(snapshot(1005))
+    expect(found.get(user.id)).toEqual({
+      snapshot: snapshot(1005),
+      computedAt: new Date('2026-08-24T00:30:00Z'),
+    })
     expect(found.size).toBe(1)
   })
 

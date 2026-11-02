@@ -68,15 +68,28 @@ describe('computeGrowthProjection', () => {
         }
     })
 
-    it('sem aporte mensal, capital inicial positivo e taxa positiva: composto rende mais que simples a partir do 2º mês', () => {
-        const base = { initialCapital: 10000, monthlyContribution: 0, ratePct: 12, rateUnit: 'year' as const, months: 12 }
+    it('sem aporte, 1% a.m.: composto empata com simples no mês 1 e rende mais a partir do 2º mês', () => {
+        const base = { initialCapital: 10000, monthlyContribution: 0, ratePct: 1, rateUnit: 'month' as const, months: 12 }
         const compound = computeGrowthProjection({ ...base, mode: 'compound' })
         const simple = computeGrowthProjection({ ...base, mode: 'simple' })
 
-        expect(compound.points[12].total).toBeGreaterThan(simple.points[12].total)
+        expect(compound.points[1].total).toBeCloseTo(simple.points[1].total, 8)
+        for (let month = 2; month <= 12; month++) {
+            expect(compound.points[month].total).toBeGreaterThan(simple.points[month].total)
+        }
     })
 
-    it('modo composto reproduz exatamente a taxa anual efetiva após 12 meses (sem aporte)', () => {
+    it('valores exatos: R$10.000 a 1% a.m. por 12 meses sem aporte → composto 11.268,25, simples 11.200,00, diferença 68,25', () => {
+        const base = { initialCapital: 10000, monthlyContribution: 0, ratePct: 1, rateUnit: 'month' as const, months: 12 }
+        const compound = computeGrowthProjection({ ...base, mode: 'compound' })
+        const simple = computeGrowthProjection({ ...base, mode: 'simple' })
+
+        expect(compound.totalValue).toBeCloseTo(11268.25, 2)
+        expect(simple.totalValue).toBeCloseTo(11200, 2)
+        expect(compound.totalValue - simple.totalValue).toBeCloseTo(68.25, 2)
+    })
+
+    it('conversão de taxa equivalente (não é diferença entre regimes): 12% a.a. efetivo no composto reproduz 11.200 após 12 meses', () => {
         const result = computeGrowthProjection({
             initialCapital: 10000,
             monthlyContribution: 0,

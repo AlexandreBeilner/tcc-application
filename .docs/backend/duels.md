@@ -1,6 +1,6 @@
 # Módulo `duels` (duelos entre amigos)
 
-Backlog: `.claude/backlog-monetizacao.md` (MO.5.3). Desafio 1 contra 1 entre amigos aceitos, **7 dias a partir do aceite**, vence a maior **rentabilidade percentual** do período (a mesma fórmula do ranking, medida por replay do log de eventos nos instantes de início e fim). Só percentual: nunca patrimônio absoluto (RNF09). Qualquer conta desafia, aceita ou recusa.
+Backlog: `.claude/backlog-monetizacao.md` (MO.5.3). Desafio 1 contra 1 entre amigos aceitos, **7 dias a partir do aceite**, vence a maior **rentabilidade percentual** do período (a mesma fórmula do ranking, o Dietz modificado, medida por replay do log de eventos nos instantes de início e fim; um aporte perto do fim do duelo pesa pouco no denominador e não decide o vencedor). Só percentual: nunca patrimônio absoluto (RNF09). Qualquer conta desafia, aceita ou recusa.
 
 **Regras fechadas (2026-10-10):** até 3 duelos simultâneos por pessoa (ativos nos dois lados mais desafios que a pessoa fez e aguardam resposta; desafio recebido não ocupa vaga até ser aceito); empate é empate (mesma rentabilidade na precisão exibida de 2 casas); quem não opera durante o duelo perde por abandono (os dois sem operar: empate); XP só por participar, **20 XP fixos** para cada pessoa que operou, igual para quem ganha, perde ou empata (quem abandonou não ganha). Escolha minha, a revisar: o valor do XP e o prazo de 7 dias para o desafiado responder (depois o desafio expira e libera a vaga de quem desafiou).
 

@@ -13,6 +13,7 @@ import type { RankingSnapshotStore } from '../ports/rankingSnapshotStore'
 import type { RankingValuationSampleStore } from '../ports/rankingValuationSampleStore'
 import type { SandboxAssetReader } from '../ports/sandboxAssetReader'
 import type { UserDirectory } from '../ports/userDirectory'
+import type { AccountEventsReader } from '../ports/accountEventsReader'
 import { RankingScorer } from '../rankingScorer'
 import type { NetWorthReader } from './getNetWorth'
 
@@ -83,8 +84,15 @@ export class GetRankingUseCase {
     private readonly snapshotStore?: RankingSnapshotStore,
     sampleStore?: RankingValuationSampleStore,
     private readonly cosmeticsReader?: CosmeticsReader,
+    accountEventsReader?: AccountEventsReader,
   ) {
-    this.scorer = new RankingScorer(sandboxAssetReader, getNetWorth, levelReader, sampleStore)
+    this.scorer = new RankingScorer(
+      sandboxAssetReader,
+      getNetWorth,
+      levelReader,
+      sampleStore,
+      accountEventsReader,
+    )
   }
 
   async execute(input: GetRankingInput): Promise<GetRankingResult> {

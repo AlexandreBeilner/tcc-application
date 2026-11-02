@@ -1,5 +1,11 @@
-import { investmentReturnPct, toRiskCapitalSnapshot } from '../../../ranking/domain/profitability'
+import {
+  extractWindowFlows,
+  investmentDietzReturnPct,
+  investmentReturnPct,
+  toRiskCapitalSnapshot,
+} from '../../../ranking/domain/profitability'
 import { windowFor } from '../../../ranking/domain/window'
+import type { AccountEventsReader } from '../../../ranking/application/ports/accountEventsReader'
 import type { SandboxAssetReader } from '../../../ranking/application/ports/sandboxAssetReader'
 import type { NetWorthReader } from '../../../ranking/application/useCases/getNetWorth'
 import type { ProfitabilityReader } from '../../application/ports/profitabilityReader'
@@ -13,10 +19,13 @@ import type { ProfitabilityReader } from '../../application/ports/profitabilityR
 export function createInProcessProfitabilityReader(
   getNetWorth: NetWorthReader,
   sandboxAssetReader: SandboxAssetReader,
+  accountEventsReader?: AccountEventsReader,
+  now: () => Date = () => new Date(),
 ): ProfitabilityReader {
   return {
     async getProfitabilityPct(userId, window, userCreatedAt) {
-      const { start } = windowFor(window, new Date())
+      const to = now()
+      const { start } = windowFor(window, to)
       const baselineAsOf = start.getTime() > userCreatedAt.getTime() ? start : userCreatedAt
       const sandboxAssetIds = await sandboxAssetReader.listSandboxAssetIds()
 
@@ -28,7 +37,21 @@ export function createInProcessProfitabilityReader(
       // Tarefa T.1: rentabilidade sobre capital de risco, nunca sobre caixa
       // nunca investido (ex. salário) — mesma fórmula do critério "geral"
       // do ranking (`getRanking.ts`).
-      return investmentReturnPct(toRiskCapitalSnapshot(current), toRiskCapitalSnapshot(baseline))
+      //
+      // Com o leitor de eventos, o denominador é o do Dietz modificado (o mesmo do ranking e dos
+      // duelos): o que o perfil público mostra é o mesmo número do ranking, e um aporte perto do
+      // fim da janela não dilui o retorno. Sem ele, cai na fórmula sobre o custo investido.
+      if (!accountEventsReader) {
+        return investmentReturnPct(toRiskCapitalSnapshot(current), toRiskCapitalSnapshot(baseline))
+      }
+      const events = await accountEventsReader.listAllEvents(userId)
+      return investmentDietzReturnPct(
+        toRiskCapitalSnapshot(current),
+        toRiskCapitalSnapshot(baseline),
+        extractWindowFlows(events, sandboxAssetIds, baselineAsOf, to).overall,
+        baselineAsOf,
+        to,
+      )
     },
   }
 }
