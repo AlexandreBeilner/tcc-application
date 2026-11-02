@@ -1046,7 +1046,11 @@ export function createApp(deps: AppDeps = {}): Express {
     createDrizzleProfileUserDirectory(db),
     createInProcessGamificationReader(getProgression),
     createInProcessAchievementsReader(listAchievements),
-    createInProcessProfitabilityReader(getNetWorth, sandboxAssetReader, createEngineAccountEventsReader(engineUrl)),
+    createInProcessProfitabilityReader(
+      getNetWorth,
+      sandboxAssetReader,
+      createEngineAccountEventsReader(engineUrl),
+    ),
     createInProcessTrackCompletionReader(
       new GetCompletedTracksUseCase(lessonRepository),
       new GetCompletedLessonCodesUseCase(lessonRepository),
