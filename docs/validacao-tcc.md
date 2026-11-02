@@ -6,7 +6,7 @@ Tudo abaixo vem de execução real em 2026-11-02. Nada foi estimado.
 
 | Item | Valor |
 |---|---|
-| Commit testado (código) | `123e9ebe75f492d561b01163faac4e1a02e57e3b` (branch `validacao-tcc`, base `5724ebf`). É o commit que aplica o Dietz nos duelos; sobre ele rodaram todas as suítes, as jornadas e o `neg.py`. A rodada anterior foi sobre `8a0812afb2331ca6713d0c8424b06762fd3e634c`. |
+| Commit testado (código) | `88e024e4d64ab26e48cd471e19d023264b20c1a3` (branch `validacao-tcc`, base `5724ebf`): último commit de código, aplica o Dietz também no perfil público. Sobre ele rodaram as três suítes com banco e cobertura. As 5 jornadas e o `neg.py` rodaram sobre `123e9ebe75f492d561b01163faac4e1a02e57e3b` (duelos com Dietz); de `123e9ebe` para `88e024e4` só mudou o leitor de rentabilidade do perfil (`modules/profile`), que as jornadas e o `neg.py` não exercitam e que **não foram reexecutados**. |
 | Commit final | o commit que acrescenta só este arquivo, em cima do testado (o hash dele não pode constar aqui dentro; ver a mensagem de entrega) |
 | Data | 2026-11-02 (segunda rodada) |
 | Go | 1.27.0 linux/amd64 (o `go.mod` declara `go 1.22`) |
@@ -25,7 +25,7 @@ Os testes de integração com banco rodaram contra bancos descartáveis do Postg
 | Serviço | Arquivos de teste | Testes executados | Aprovados | Falhas | Puladas | Cobertura |
 |---|---|---|---|---|---|---|
 | Motor (Go) | 173 | 2.591 | 2.591 | 0 | 0 | 72,8% das instruções |
-| Backend (Node) | 416 | 4.976 | 4.976 | 0 | 0 | linhas 91,58%; instruções 90,41%; ramos 85,09%; funções 91,23% |
+| Backend (Node) | 417 | 4.981 | 4.981 | 0 | 0 | linhas 91,62%; instruções 90,45%; ramos 85,11%; funções 91,23% |
 | Frontend (React) | 416 | 2.769 | 2.769 | 0 | 0 | linhas 94,31%; instruções 93,44%; ramos 88,71%; funções 89,88% |
 
 Notas de contagem: no Go, "testes" inclui subtestes (`go test -json`, eventos `pass` com nome de teste). Nos
@@ -51,6 +51,7 @@ Sem banco (só o Go foi reexecutado assim nesta rodada): 2.505 aprovados e 49 pu
 | `ranking` | 93,8% | 93,6% | 89,3% | 93,2% |
 | `assemblies` | 97,7% | 95,4% | 90,4% | 92,6% |
 | `duels` | 94,3% | 92,5% | 88,6% | 92,8% |
+| `profile` | 74,7% | 74,0% | 71,8% | 74,2% |
 
 ## 3. Quadro 6: cálculos, entradas e valores
 
@@ -78,6 +79,8 @@ Se o Quadro 6 tiver outras linhas, é preciso informar quais são.
 | Duelo (Dietz), aporte no fim | janela de 7 dias (168 h); lado A: R$ 1.000, +5%, sem aporte; lado B: R$ 1.000, +10% (+100), aporte de 9.000 uma hora antes do fim | B: 100 / (1.000 + 9.000/168) = 9,4915%; A: 5%; vence B | A 5,000000%; B 9,491526% (valor da expressão do teste, conferido a 6 casas); `{outcome: 'opponent', reason: 'profitability'}` | `backend/src/modules/duels/infrastructure/ranking/duelWinnerDietz.test.ts:com Dietz, vence quem rendeu mais ...` |
 | Duelo, contraste com a fórmula antiga | mesmos dados | B = 1,00% (custo bruto no fim 10.000), A vence | B 1,000000%; `{outcome: 'challenger', reason: 'profitability'}` | `.../duelWinnerDietz.test.ts:contraste: pela fórmula antiga ...` |
 | Duelo, sem aporte | mesmos rendimentos, sem aporte | vencedor igual nas duas fórmulas | `opponent` nas duas; rentabilidade de B igual a 6 casas | `.../duelWinnerDietz.test.ts:sem aporte, o vencedor é o mesmo nas duas fórmulas ...` |
+| Perfil público (Dietz), aporte no fim | janela do mês (01/10 a 31/10 12:00 UTC, T = 732 h); V_início 1.000; +10% (+100); aporte de 9.000 uma hora antes do fim | 100 / (1.000 + 9.000/732) = 9,8785% | confere a 6 casas (expressão do teste); fórmula antiga: 1,000000% | `backend/src/modules/profile/infrastructure/ranking/inProcessProfitabilityReader.test.ts:aporte no fim da janela não dilui o retorno ...` e `...:contraste: sem o leitor de eventos ...` |
+| Perfil público (Dietz), demais casos | sem fluxos; compra de ativo sandbox; conta criada no meio da janela | 10%; 10%; T e base partem da criação | passou | `.../inProcessProfitabilityReader.test.ts` (3 testes restantes) |
 | Marcação a mercado, alta da taxa | título a 10% a.a. comprado com 252 DU; resgate com 126 DU restantes; taxa de mercado sobe para 15% | preço < PU de compra e retorno realizado menor que o contratado | preço 932,504808; retorno realizado 2,575529%; retorno contratado −20,957781% | `engine/internal/domain/fixedincome/markingtomarket_test.go:TestEarlyRedemption_ValoresExatos/taxa subiu pra 15%` (valores impressos por execução neste commit) |
 | Marcação a mercado, queda da taxa | mesmo título; taxa de mercado cai para 6% | preço > PU contratado | preço 971,285862; retorno realizado 6,841445%; retorno contratado +17,823273% | `.../markingtomarket_test.go:TestEarlyRedemption_ValoresExatos/taxa caiu pra 6%` |
 | Marcação a mercado, taxa inalterada | mesmo título; taxa de mercado 10% | preço no PU da curva | preço 953,4626; retorno 4,8809%; diferença 0 | `.../markingtomarket_test.go:TestEarlyRedemption_TaxaInalterada_SemDesvioDoContratado` |
@@ -160,6 +163,39 @@ Contra o gateway da stack `tccsim` (`E2E_BASE_URL=http://localhost:8100`), execu
    (`MeasurePeriodReturnUseCase`, que decide a rentabilidade de cada lado do duelo, recebe o leitor de
    eventos). Fora do critério geral, quem fica com denominador ≤ 0 segue com 0%; nos critérios por classe,
    sai do ranking da classe. Teste de duelo: `duelWinnerDietz.test.ts` (seção 3).
-5. O que continua com a fórmula antiga (`investmentReturnPct`, rentabilidade sobre o custo investido, sem
-   ponderar os fluxos): a retrospectiva mensal mostra a rentabilidade percentual do mês do próprio usuário, e o
-   perfil público mostra a rentabilidade percentual da janela atual (semana ou mês) do usuário.
+5. Backend: o perfil público (`inProcessProfitabilityReader`) usa o mesmo Dietz modificado na rentabilidade da
+   janela atual (semana ou mês), com teste novo (seção 3). Sem o leitor de eventos, cai na fórmula antiga.
+6. O que continua com a fórmula antiga (`investmentReturnPct`, rentabilidade sobre o custo investido, sem
+   ponderar os fluxos): só a retrospectiva mensal, que mostra a rentabilidade do mês do próprio usuário.
+
+## 8. Restrições do banco, refeitas na stack `tccsim` (Postgres 16, banco `market`)
+
+Cada comando rodou dentro de `BEGIN ... ROLLBACK` sobre uma linha real; a conferência final mostra que nada
+mudou (saldo 10000.00, quantidade 352234, o evento continua existindo). A posição escolhida pertence a uma
+conta de bot (`00000000-0000-0000-0000-000000000002`); a restrição vale para qualquer conta.
+
+| Comando | Erro retornado pelo Postgres |
+|---|---|
+| `UPDATE accounts SET current_balance = -0.01 WHERE user_id = 'aa08fad0-3ee6-45d4-aff8-b8dd93372dc3'` | `ERROR: 23514: new row for relation "accounts" violates check constraint "accounts_balance_non_negative_chk"` (CHECK `current_balance >= 0`) |
+| `UPDATE positions SET quantity = -1 WHERE id = '4f8b118d-456d-4855-9340-0f730955a3cc'` | `ERROR: 23514: new row for relation "positions" violates check constraint "positions_quantity_non_negative_chk"` (CHECK `quantity >= 0`) |
+| `UPDATE market_events SET quantity = 999 WHERE id = '8cae6cb9-acb6-4521-b890-91d9735bf6cc'` | `ERROR: P0001: market_events é append-only: UPDATE não é permitido (id=8cae6cb9-...)`, de `prevent_market_events_mutation()` |
+| `DELETE FROM market_events WHERE id = '8cae6cb9-acb6-4521-b890-91d9735bf6cc'` | `ERROR: P0001: market_events é append-only: DELETE não é permitido (id=8cae6cb9-...)`, idem |
+
+O trigger é `market_events_append_only BEFORE DELETE OR UPDATE ... FOR EACH ROW`. A saída completa (com
+`DETAIL` e `LOCATION`) foi gravada na sessão; o roteiro usa `\set VERBOSITY verbose`.
+
+## 9. Determinismo com a mesma semente
+
+Há teste que roda duas vezes com a mesma semente e compara, mas só em escala pequena:
+
+- `engine/internal/domain/tick/tick_test.go:TestAdvance_Deterministica`: chama `Advance` duas vezes com
+  o mesmo estado (`State{Day: 20, SelicRate: 11}`), os mesmos ativos, a mesma configuração da Selic (semente 5) e a mesma
+  semente do passo (99). Compara o `State` inteiro (dia e Selic) e o preço da primeira cotação, por igualdade exata.
+- `engine/internal/domain/tick/rounds_test.go:TestRunIntradayRounds_Deterministico`: roda as rodadas
+  intradiárias duas vezes com bots e book iguais e compara, ordem a ordem, as ordens submetidas.
+- As séries (Selic, IPCA, GBM, fundamentos, FII) têm um teste de igualdade exata para a mesma semente, por exemplo
+  `selic_test.go:TestSeries_DeterministicaPorSeed` (seção 3).
+
+**O que não existe:** teste que simule vários dias com a mesma semente em duas execuções completas e compare o
+estado persistido (saldos, posições) e a série de preços de todos os ativos. Os testes acima cobrem um passo ou
+uma série isolada, não a simulação inteira.
