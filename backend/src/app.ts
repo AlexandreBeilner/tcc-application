@@ -1000,7 +1000,11 @@ export function createApp(deps: AppDeps = {}): Express {
     db,
     authMiddleware,
     friendshipRepository,
-    measurePeriodReturn: new MeasurePeriodReturnUseCase(getNetWorth, sandboxAssetReader),
+    measurePeriodReturn: new MeasurePeriodReturnUseCase(
+      getNetWorth,
+      sandboxAssetReader,
+      createEngineAccountEventsReader(engineUrl),
+    ),
     awardXp,
     recordDuelResult: new RecordDuelResultUseCase(socialFeedEventRepository),
     cosmeticsReader,

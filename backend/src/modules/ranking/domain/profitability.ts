@@ -53,10 +53,10 @@ function riskCapitalGain(snapshot: RiskCapitalSnapshot): number {
   )
 }
 
-// ATENÇÃO: o ranking Global/Amigos e as ligas NÃO usam mais esta fórmula (denominador = custo
+// ATENÇÃO: o ranking Global/Amigos, as ligas e os duelos NÃO usam mais esta fórmula (denominador = custo
 // investido bruto acumulado); usam o Dietz modificado, no fim deste arquivo
-// (`investmentDietzReturnPct`/`classDietzReturnPct`). Ela segue valendo para duelos,
-// retrospectiva mensal e perfil, que medem um período entre dois instantes sem extrato de fluxos.
+// (`investmentDietzReturnPct`/`classDietzReturnPct`). Ela segue valendo para a
+// retrospectiva mensal e o perfil.
 //
 // investmentReturnPct (tarefa T.1) substitui `profitabilityPct` como a
 // fórmula de rentabilidade do ranking (RF17) — decisão do autor: nunca sobre
@@ -149,7 +149,8 @@ export function classReturnPct(
 // diluía o retorno de quem aportava perto do fim e penalizava quem comprava e vendia muito,
 // porque o custo bruto nunca diminui. Aqui um aporte só pesa pelo tempo que ficou em risco.
 //
-// Duelos, retrospectiva e perfil continuam com `investmentReturnPct`, acima (decisão do autor).
+// Duelos (`MeasurePeriodReturnUseCase` com o leitor de eventos) usam o mesmo Dietz. Retrospectiva
+// mensal e perfil continuam com `investmentReturnPct`, acima (decisão do autor).
 
 // Fluxo de capital datado. `amount` > 0 entra em risco (compra/aplicação); < 0 volta ao caixa
 // (venda, resgate, provento).
