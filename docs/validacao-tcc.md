@@ -6,14 +6,14 @@ Tudo abaixo vem de execução real em 2026-11-02. Nada foi estimado.
 
 | Item | Valor |
 |---|---|
-| Commit testado (código) | `88e024e4d64ab26e48cd471e19d023264b20c1a3` (branch `validacao-tcc`, base `5724ebf`): último commit de código, aplica o Dietz também no perfil público. Sobre ele rodaram as três suítes com banco e cobertura. As 5 jornadas e o `neg.py` rodaram sobre `123e9ebe75f492d561b01163faac4e1a02e57e3b` (duelos com Dietz); de `123e9ebe` para `88e024e4` só mudou o leitor de rentabilidade do perfil (`modules/profile`), que as jornadas e o `neg.py` não exercitam e que **não foram reexecutados**. |
+| Commit testado (código) | `88e024e4d64ab26e48cd471e19d023264b20c1a3` (branch `validacao-tcc`, base `5724ebf`): último commit de código de produção (Dietz também no perfil público). Sobre ele rodaram as três suítes, o `neg.py` (2 vezes) e as 5 jornadas, todas nesta ordem de preparo: stack recriada do zero, `neg.py` duas vezes, depois as jornadas. A única mudança posterior é de teste: o commit `c531d471d51f8f4d52b389a2032dcacbfaee3384` só acrescenta impressão de evidência e a consulta de integridade à `fixedIncomeRedemptionJourney` (nenhuma asserção existente mudou); as jornadas rodaram com esse arquivo. |
 | Commit final | o commit que acrescenta só este arquivo, em cima do testado (o hash dele não pode constar aqui dentro; ver a mensagem de entrega) |
 | Data | 2026-11-02 (segunda rodada) |
 | Go | 1.27.0 linux/amd64 (o `go.mod` declara `go 1.22`) |
 | Node | v22.23.1 |
 | Docker | 29.8.1; Compose v5.5.1 |
 | golangci-lint | v2.12.2 (mesma versão do CI): 0 issues |
-| Stack das jornadas e do `neg.py` | contêineres, projeto Compose `tccsim` (`engine/scripts/e2e-mercado-simulado/compose.e2e.yml`), imagens reconstruídas a partir do commit testado. As jornadas rodaram numa stack; o `neg.py` rodou numa stack recriada do zero (volumes apagados, catálogo e seeds refeitos), ver seção 4 |
+| Stack das jornadas e do `neg.py` | contêineres, projeto Compose `tccsim` (`engine/scripts/e2e-mercado-simulado/compose.e2e.yml`), imagens reconstruídas a partir do commit testado. A stack foi recriada do zero (volumes apagados; catálogo, seeds de lições, conquistas, missões, diário e admin refeitos) e usada, nesta ordem, pelo `neg.py` (2 vezes) e pelas 5 jornadas. A primeira tentativa do `neg.py`, em stack já usada pelas jornadas, está na seção 4 |
 | Cobertura (ferramenta) | Go: `go test -coverprofile`; backend e frontend: `@vitest/coverage-v8@4.1.11`, instalado com `--no-save` (o `package.json` não mudou) |
 
 Os testes de integração com banco rodaram contra bancos descartáveis do Postgres da stack `tccsim`
@@ -94,7 +94,7 @@ Se o Quadro 6 tiver outras linhas, é preciso informar quais são.
 
 12 ordens de compra a mercado de 90 ações de VALR3, disparadas ao mesmo tempo pelo mesmo usuário, com saldo
 inicial de R$ 10.000. O `neg.py` inteiro rodou duas vezes, uma depois da outra, no commit
-`123e9ebe75f492d561b01163faac4e1a02e57e3b`.
+`88e024e4d64ab26e48cd471e19d023264b20c1a3`, numa stack recriada do zero, **antes** das jornadas (preço de VALR3 ainda no início).
 
 **Primeira tentativa (stack que já tinha rodado as jornadas): 74 de 75 em cada execução.** A verificação
 "alguma compra executou" falhou nas duas. Causa: as jornadas haviam avançado muitos dias simulados e o
@@ -108,18 +108,17 @@ diário e admin do backend) e o `neg.py` rodou duas vezes. A tabela abaixo é de
 | | Execução 1 | Execução 2 |
 |---|---|---|
 | Saldo inicial | R$ 10.000,00 | R$ 10.000,00 |
-| `best_ask` de VALR3 | 99,99 | 99,99 |
-| Custo de uma ordem de 90 ações no `best_ask` | R$ 8.999,10 | R$ 8.999,10 |
+| `best_ask` de VALR3 | 99,96 | 99,96 |
+| Custo de uma ordem de 90 ações no `best_ask` | R$ 8.996,40 | R$ 8.996,40 |
 | Ordens executadas | 1 | 1 |
 | Recusadas por validação de saldo (422 `insufficient_balance`) | 11 | 11 |
 | Recusadas por outro status ou código | 0 | 0 |
-| Custo total executado | R$ 8.999,10 | R$ 8.999,10 |
-| Saldo final | R$ 1.000,90 | R$ 1.000,90 |
+| Custo total executado | R$ 8.996,40 | R$ 8.996,40 |
+| Saldo final | R$ 1.003,60 | R$ 1.003,60 |
 | Verificações do `neg.py` | 75 de 75 ok, 0 falhas | 75 de 75 ok, 0 falhas |
 
-Conta de conferência: 10.000 − 8.999,10 = 1.000,90. O custo executado (8.999,10) é menor que o saldo inicial
-(10.000). Observação: o `best_ask` é 99,99 aqui e foi 102,70 na rodada anterior porque o catálogo foi semeado
-de novo; o que importa para o cenário é que uma ordem caiba uma vez no saldo e duas não.
+Conta de conferência: 10.000 − 8.996,40 = 1.003,60. O custo executado (8.996,40) é menor que o saldo inicial
+(10.000). Observação: o `best_ask` inicial muda um pouco a cada stack nova (99,96 aqui; 99,99 e 102,70 em stacks anteriores); o que importa para o cenário é que uma ordem caiba uma vez no saldo e duas não.
 
 **Limite da evidência:** a recusa pela validação de saldo (snapshot lido sem lock) e a barrada pela restrição
 do banco (`accounts_balance_non_negative_chk`, migration 000025) saem do motor como a mesma rejeição de
@@ -134,17 +133,54 @@ Os JSON completos por ordem (status, código, mensagem, quantidade e custo execu
 
 ## 5. Jornadas ponta a ponta (backend/test/e2e)
 
-Contra o gateway da stack `tccsim` (`E2E_BASE_URL=http://localhost:8100`), execução sequencial.
+Contra o gateway da stack `tccsim` recriada (`E2E_BASE_URL=http://localhost:8100`), execução sequencial, depois do `neg.py`.
 
 | Jornada | Resultado | Duração |
 |---|---|---|
 | `lessonJourney` | passou | 1 s |
 | `equityOrderJourney` | passou | 17 s |
-| `companyQualityJourney` | passou | 78 s |
-| `fixedIncomeRedemptionJourney` | passou | 419 s |
-| `macroEventJourney` | passou | 234 s |
+| `companyQualityJourney` | passou | 107 s |
+| `fixedIncomeRedemptionJourney` | passou | 236 s |
+| `macroEventJourney` | passou | 247 s |
 
-5 de 5 aprovadas na primeira execução desta rodada, sobre o commit `123e9ebe...` (o admin da stack já existia).
+5 de 5 aprovadas.
+
+### 5.1 `fixedIncomeRedemptionJourney`: valores impressos
+
+Um usuário novo compra R$ 1.000 de cada produto (CDB2027, LCI2026, LCA2026, CRI2028, CRA2028) no mesmo dia simulado,
+o relógio avança até 190 dias simulados e ele resgata tudo. Saldo antes das compras: R$ 10.000,00; antes dos
+resgates: R$ 5.000,00. Valores impressos pela própria jornada (linhas `EVIDENCIA`):
+
+**CDB2027 (tributado)**
+
+| Item | Valor |
+|---|---|
+| Valor aplicado | R$ 1.000,00 |
+| Dias simulados até o resgate | 190 |
+| Valor bruto | R$ 1.057,2608 |
+| Ganho | R$ 57,2608 |
+| Alíquota | 20% (faixa de 181 a 360 dias) |
+| Imposto | R$ 11,4522 |
+| Valor líquido | R$ 1.045,8087 |
+| Saldo antes do resgate / depois | R$ 5.000,00 / R$ 6.045,81 |
+| Variação do saldo no resgate | + R$ 1.045,81 (o líquido, arredondado a centavos) |
+
+**Isentos de IR**
+
+| Produto | Valor bruto | Alíquota | Valor creditado | Variação do saldo |
+|---|---|---|---|---|
+| LCI2026 | R$ 1.047,0489 | 0% | R$ 1.047,0489 | + R$ 1.047,05 |
+| LCA2026 | R$ 1.047,0489 | 0% | R$ 1.047,0489 | + R$ 1.047,05 |
+| CRI2028 | R$ 1.059,8007 | 0% | R$ 1.059,8007 | + R$ 1.059,80 |
+| CRA2028 | R$ 1.058,2774 | 0% | R$ 1.058,2774 | + R$ 1.058,28 |
+
+A jornada confere, para cada um, alíquota 0, líquido igual ao bruto e variação do saldo igual ao valor creditado.
+
+**Serviço de integridade** (`POST/GET /admin/integrity/check`, rodado depois dos resgates): status `done`;
+verificou 49.665 eventos, 110 contas, 3.860 posições, 49 ativos e 154 ordens em repouso; **0 divergências** em
+todas as categorias (`balance_mismatch`, `position_mismatch`, `negative_balance`, `negative_position`,
+`float_mismatch`, `resting_order_unfunded`, `unknown_event_type`). A verificação é de toda a base da stack, não só
+do usuário da jornada.
 
 ## 6. Outras verificações
 
