@@ -1,8 +1,8 @@
 import type {
+  BaselineSample,
   RankingValuationSampleStore,
   ValuationSample,
 } from '../../application/ports/rankingValuationSampleStore'
-import type { Snapshot } from '../../domain/networth'
 
 export function createFakeRankingValuationSampleStore(): RankingValuationSampleStore & {
   saved: { computedAt: Date; samples: ValuationSample[] }[]
@@ -14,13 +14,15 @@ export function createFakeRankingValuationSampleStore(): RankingValuationSampleS
       saved.push({ computedAt, samples })
     },
     async findBaselines(notBefore, notAfter) {
-      const result = new Map<string, Snapshot>()
+      const result = new Map<string, BaselineSample>()
       const inRange = saved
         .filter((s) => s.computedAt >= notBefore && s.computedAt <= notAfter)
         .sort((a, b) => a.computedAt.getTime() - b.computedAt.getTime())
-      for (const { samples } of inRange) {
+      for (const { computedAt, samples } of inRange) {
         for (const sample of samples) {
-          if (!result.has(sample.userId)) result.set(sample.userId, sample.snapshot)
+          if (!result.has(sample.userId)) {
+            result.set(sample.userId, { snapshot: sample.snapshot, computedAt })
+          }
         }
       }
       return result

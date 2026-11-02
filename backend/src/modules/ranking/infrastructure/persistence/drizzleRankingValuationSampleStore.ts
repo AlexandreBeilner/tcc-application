@@ -1,7 +1,10 @@
 import { and, asc, gte, lt, lte } from 'drizzle-orm'
 import type { Database } from '../../../../db/client'
 import { rankingValuationSamples } from '../../../../db/schema'
-import type { RankingValuationSampleStore } from '../../application/ports/rankingValuationSampleStore'
+import type {
+  BaselineSample,
+  RankingValuationSampleStore,
+} from '../../application/ports/rankingValuationSampleStore'
 import type { Snapshot } from '../../domain/networth'
 
 // Limite de parâmetros do Postgres: 3 colunas por linha.
@@ -38,9 +41,14 @@ export function createDrizzleRankingValuationSampleStore(
           ),
         )
         .orderBy(asc(rankingValuationSamples.computedAt))
-      const result = new Map<string, Snapshot>()
+      const result = new Map<string, BaselineSample>()
       for (const row of rows) {
-        if (!result.has(row.userId)) result.set(row.userId, row.snapshot as unknown as Snapshot)
+        if (!result.has(row.userId)) {
+          result.set(row.userId, {
+            snapshot: row.snapshot as unknown as Snapshot,
+            computedAt: row.computedAt,
+          })
+        }
       }
       return result
     },

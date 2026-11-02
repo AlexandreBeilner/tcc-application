@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ClassFlows, Snapshot } from '../domain/networth'
+import { createFakeAccountEventsReader } from '../test/fakes/fakeAccountEventsReader'
 import { createFakeLevelReader } from '../test/fakes/fakeLevelReader'
 import { createFakeRankingValuationSampleStore } from '../test/fakes/fakeRankingValuationSampleStore'
 import { createFakeSandboxAssetReader } from '../test/fakes/fakeSandboxAssetReader'
@@ -158,5 +159,62 @@ describe('RankingScorer, renda fixa pelo valor de hoje', () => {
     await scorer.scoreByProfitability([user('2026-01-01T00:00:00Z')], 'week')
 
     expect(calls.map((d) => d.toISOString())).toContain(WEEK_START.toISOString())
+  })
+})
+
+describe('RankingScorer, retorno de Dietz modificado (com extrato de eventos)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // R$1.000 em renda fixa no começo; 1h antes de NOW entram mais R$9.000, e o conjunto vale 10.100.
+  async function scoreWithLateDeposit(events: boolean) {
+    const sampleStore = createFakeRankingValuationSampleStore()
+    await sampleStore.saveSamples(new Date('2026-08-24T01:00:00Z'), [
+      { userId: 'u1', snapshot: fixedIncomeSnapshot(1000) },
+    ])
+    const scorer = new RankingScorer(
+      createFakeSandboxAssetReader(),
+      fakeNetWorth({
+        valuedNow: fixedIncomeSnapshot(10100, 10000),
+        costNow: fixedIncomeSnapshot(10000, 10000),
+        replayBaseline: fixedIncomeSnapshot(1000),
+      }),
+      createFakeLevelReader(),
+      sampleStore,
+      events
+        ? createFakeAccountEventsReader({
+            u1: [
+              {
+                id: 'e1',
+                eventType: 'fixed_income_purchase',
+                assetId: 'F',
+                unitValue: 9000,
+                timestamp: new Date('2026-08-26T11:00:00Z'),
+              },
+            ],
+          })
+        : undefined,
+    )
+    return scorer.scoreByProfitability([user('2026-01-01T00:00:00Z')], 'week')
+  }
+
+  it('aporte pouco antes do fim da janela quase não dilui o retorno', async () => {
+    const result = await scoreWithLateDeposit(true)
+
+    // T = 59h desde a amostra; o aporte entrou na hora 58: 100 / (1.000 + 9.000 / 59).
+    const expected = (100 / (1000 + 9000 / 59)) * 100
+    expect(result.overall[0].profitabilityPct).toBeCloseTo(expected, 6)
+    expect(result.fixedIncome[0].profitabilityPct).toBeCloseTo(expected, 6)
+  })
+
+  it('sem leitor de eventos, cai na fórmula antiga sobre o custo investido (100 / 10.000)', async () => {
+    const result = await scoreWithLateDeposit(false)
+
+    expect(result.overall[0].profitabilityPct).toBeCloseTo(1, 6)
   })
 })

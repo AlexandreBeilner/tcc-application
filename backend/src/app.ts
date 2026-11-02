@@ -970,6 +970,7 @@ export function createApp(deps: AppDeps = {}): Express {
     createDrizzleRankingSnapshotStore(db),
     createDrizzleRankingValuationSampleStore(db),
     cosmeticsReader,
+    createEngineAccountEventsReader(engineUrl),
   )
 
   // Ligas privadas (MO.5.2): pontuam pelo mesmo snapshot e janela do ranking oficial,
@@ -981,6 +982,7 @@ export function createApp(deps: AppDeps = {}): Express {
       cachedNetWorthForRanking,
       createInProcessLevelReader(getProgression),
       createDrizzleRankingValuationSampleStore(db),
+      createEngineAccountEventsReader(engineUrl),
     ),
     createDrizzleRankingSnapshotStore(db),
   )

@@ -17,8 +17,9 @@ import { createDrizzleUserDirectory } from './infrastructure/persistence/drizzle
 // `createPayrollComposition`): o job é processo de fundo, não rota HTTP, e quem decide se/quando
 // ligá-lo é `server.ts`. Sem cache de patrimônio de propósito: o job quer o valor de agora.
 export function createRankingSnapshotComposition(db: Database, engineUrl: string) {
+  const accountEventsReader = createEngineAccountEventsReader(engineUrl)
   const getNetWorth = new GetNetWorthUseCase(
-    createEngineAccountEventsReader(engineUrl),
+    accountEventsReader,
     createEngineAssetPriceHistoryReader(engineUrl),
     createEngineCurrentAccountStateReader(engineUrl),
   )
@@ -28,6 +29,7 @@ export function createRankingSnapshotComposition(db: Database, engineUrl: string
     getNetWorth,
     createInProcessLevelReader(new GetProgressionUseCase(createDrizzleProgressionRepository(db))),
     sampleStore,
+    accountEventsReader,
   )
   const computeRankingSnapshot = new ComputeRankingSnapshotUseCase(
     createDrizzleUserDirectory(db),

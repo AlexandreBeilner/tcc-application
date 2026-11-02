@@ -1,14 +1,22 @@
 import type { Snapshot } from '../domain/networth'
+import type { MarketEventRecord } from '../domain/networth'
 import {
+  classDietzReturnPct,
   classReturnPct,
+  extractWindowFlows,
+  investmentDietzReturnPct,
   investmentReturnPct,
   toRiskCapitalSnapshot,
   type ClassRiskCapital,
 } from '../domain/profitability'
 import type { ProfitabilityCriterion, ScoredEntry } from '../domain/ranking'
 import { WINDOW_START_SAMPLE_SLACK_MS, windowFor, type WindowKind } from '../domain/window'
+import type { AccountEventsReader } from './ports/accountEventsReader'
 import type { LevelReader } from './ports/levelReader'
-import type { RankingValuationSampleStore } from './ports/rankingValuationSampleStore'
+import type {
+  BaselineSample,
+  RankingValuationSampleStore,
+} from './ports/rankingValuationSampleStore'
 import type { SandboxAssetReader } from './ports/sandboxAssetReader'
 import type { NetWorthReader } from './useCases/getNetWorth'
 
@@ -30,6 +38,11 @@ export interface PreparedUser {
   atCost: Snapshot
   // "Agora" reconstruído pelo replay (renda fixa a custo), usado quando não há amostra.
   replayNow: Snapshot
+  // Extrato de eventos e instante em que o patrimônio de hoje foi lido: dão os fluxos datados
+  // da janela (Dietz modificado). Ausentes (scorer sem leitor de eventos), a rentabilidade
+  // cai na fórmula antiga sobre o custo investido.
+  events?: MarketEventRecord[]
+  preparedAt?: Date
 }
 
 // Fluxos e valor de mercado de uma classe num instante. `null` se o snapshot não traz fluxos por
@@ -66,6 +79,7 @@ export class RankingScorer {
     private readonly getNetWorth: NetWorthReader,
     private readonly levelReader: LevelReader,
     private readonly sampleStore?: RankingValuationSampleStore,
+    private readonly accountEventsReader?: AccountEventsReader,
   ) {}
 
   // Critério "maior nível" (6.8.3): não chama o motor nem usa janela, só lê `user_progression`
@@ -103,13 +117,23 @@ export class RankingScorer {
     const prepared = await Promise.all(
       users.map(async (user): Promise<PreparedUser | null> => {
         try {
-          const [fast, replayNow, { level, xp }] = await Promise.all([
+          const [fast, replayNow, { level, xp }, events] = await Promise.all([
             this.getNetWorth.execute({ userId: user.id, sandboxAssetIds, valuedFixedIncome: true }),
             this.getNetWorth.execute({ userId: user.id, asOf: now, sandboxAssetIds }),
             this.levelReader.getProgression(user.id),
+            this.accountEventsReader?.listAllEvents(user.id),
           ])
           const valued: Snapshot = { ...fast, byClass: replayNow.byClass }
-          return { user, level, xp, valued, atCost: withFixedIncomeAtCost(valued), replayNow }
+          return {
+            user,
+            level,
+            xp,
+            valued,
+            atCost: withFixedIncomeAtCost(valued),
+            replayNow,
+            events,
+            preparedAt: now,
+          }
         } catch (err) {
           // Usuário sem estado consistente no motor não derruba o ranking dos demais.
           console.error(
@@ -134,7 +158,7 @@ export class RankingScorer {
       (await this.sampleStore?.findBaselines(
         start,
         new Date(start.getTime() + WINDOW_START_SAMPLE_SLACK_MS),
-      )) ?? new Map<string, Snapshot>()
+      )) ?? new Map<string, BaselineSample>()
     const result: Record<ProfitabilityCriterion, ScoredEntry[]> = {
       overall: [],
       fixedIncome: [],
@@ -151,13 +175,16 @@ export class RankingScorer {
         const sample = createdInWindow ? undefined : baselines.get(user.id)
         const valuedMetodology = createdInWindow || sample !== undefined
 
+        // Instante do baseline: o `T` do Dietz conta a partir dele (a amostra do job, o começo da
+        // janela ou, para conta nova, o dia do cadastro).
+        const baselineAt = sample?.computedAt ?? (createdInWindow ? user.createdAt : start)
         let baseline: Snapshot
         try {
           baseline =
-            sample ??
+            sample?.snapshot ??
             (await this.getNetWorth.execute({
               userId: user.id,
-              asOf: createdInWindow ? user.createdAt : start,
+              asOf: baselineAt,
               sandboxAssetIds,
             }))
         } catch (err) {
@@ -179,13 +206,31 @@ export class RankingScorer {
           sortKey: pct,
         })
 
+        // Retorno de Dietz modificado (`domain/profitability.ts`) quando há extrato de eventos:
+        // o denominador pondera cada fluxo da janela pelo tempo em que ficou em risco. Sem
+        // extrato (scorer sem leitor de eventos), cai na fórmula sobre o custo investido.
+        const dietzFlows = item.events
+          ? extractWindowFlows(
+              item.events,
+              sandboxAssetIds,
+              baselineAt,
+              item.preparedAt ?? new Date(),
+            )
+          : undefined
+        const dietzEnd = item.preparedAt ?? new Date()
+
         // Critério "geral" (T.1): rentabilidade sobre capital de risco, nunca sobre caixa nunca
         // investido. 0% pra quem nunca investiu, nunca excluído.
-        result.overall.push(
-          entry(
-            investmentReturnPct(toRiskCapitalSnapshot(overallNow), toRiskCapitalSnapshot(baseline)),
-          ),
-        )
+        const overallPct = dietzFlows
+          ? investmentDietzReturnPct(
+              toRiskCapitalSnapshot(overallNow),
+              toRiskCapitalSnapshot(baseline),
+              dietzFlows.overall,
+              baselineAt,
+              dietzEnd,
+            )
+          : investmentReturnPct(toRiskCapitalSnapshot(overallNow), toRiskCapitalSnapshot(baseline))
+        result.overall.push(entry(overallPct))
 
         // Rentabilidade da classe sobre o custo investido nela (mesma lógica do geral). Quem
         // nunca investiu na classe fica fora do ranking dela, em vez de um 0% enganoso.
@@ -193,7 +238,15 @@ export class RankingScorer {
           const currentCapital = classCapital(classNow, criterion)
           const baselineCapital = classCapital(baseline, criterion)
           if (!currentCapital || !baselineCapital) continue
-          const pct = classReturnPct(currentCapital, baselineCapital)
+          const pct = dietzFlows
+            ? classDietzReturnPct(
+                currentCapital,
+                baselineCapital,
+                dietzFlows[criterion],
+                baselineAt,
+                dietzEnd,
+              )
+            : classReturnPct(currentCapital, baselineCapital)
           if (pct === null) continue
           result[criterion].push(entry(pct))
         }
