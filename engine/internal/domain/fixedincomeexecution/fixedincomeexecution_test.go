@@ -1008,3 +1008,55 @@ func TestSimulate_NaoRecebeRepositoryNemPersisteNada(t *testing.T) {
 		t.Fatalf("err = %v, want nil", err)
 	}
 }
+
+// TestRedeem_AliquotaZeroParaLCI_LCA_CRI_CRA liga a classificação do produto
+// (fixedincome.NewFixedIncomeProduct) ao resgate: os quatro tipos isentos
+// saem com alíquota 0% e líquido = bruto, enquanto o CDB (controle) paga IR.
+func TestRedeem_AliquotaZeroParaLCI_LCA_CRI_CRA(t *testing.T) {
+	tests := []struct {
+		productType fixedincome.ProductType
+		rating      string
+		wantExempt  bool
+	}{
+		{fixedincome.ProductLCI, "", true},
+		{fixedincome.ProductLCA, "", true},
+		{fixedincome.ProductCRI, "AA+", true},
+		{fixedincome.ProductCRA, "BBB", true},
+		{fixedincome.ProductCDB, "", false},
+	}
+
+	purchaseRate := 0.10
+	purchasePrice := fixedincome.PrefixedPrice(purchaseRate, 252)
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	for _, tt := range tests {
+		t.Run(string(tt.productType), func(t *testing.T) {
+			product, err := fixedincome.NewFixedIncomeProduct(tt.productType, tt.rating)
+			if err != nil {
+				t.Fatalf("erro inesperado: %v", err)
+			}
+			if product.TaxExempt != tt.wantExempt {
+				t.Fatalf("TaxExempt = %v, want %v", product.TaxExempt, tt.wantExempt)
+			}
+
+			ctx := RedeemContext{
+				Position:             fixedincomeposition.Position{Quantity: 1, AveragePrice: purchasePrice, AverageRate: purchaseRate},
+				MaturityDate:         now.AddDate(0, 0, 183),
+				CurrentMarketRatePct: 6,
+				PurchasedAt:          now.AddDate(0, 0, -200),
+				TaxExempt:            product.TaxExempt,
+			}
+			outcome, err := Redeem(ctx, now, 0, 0)
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			if tt.wantExempt {
+				if outcome.TaxRate != 0 || outcome.NetValue != outcome.TotalValue {
+					t.Errorf("TaxRate = %v, NetValue = %v, TotalValue = %v; want 0%% e líquido = bruto", outcome.TaxRate, outcome.NetValue, outcome.TotalValue)
+				}
+			} else if outcome.TaxRate == 0 {
+				t.Errorf("TaxRate = 0, want > 0 para %s (tributado)", tt.productType)
+			}
+		})
+	}
+}
