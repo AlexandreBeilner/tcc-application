@@ -45,6 +45,11 @@ const KNOWN_ERRORS: KnownError[] = [
     message: 'O valor está abaixo da aplicação mínima deste produto.',
   },
   {
+    pattern: /já existe aplicação neste título/i,
+    code: 'position_already_open',
+    message: 'Você já tem aplicação neste título. Resgate antes de aplicar novamente.',
+  },
+  {
     pattern: /posição não encontrada para resgate|sem posição/i,
     code: 'position_not_found',
     message: 'Você não tem posição neste título para resgatar.',

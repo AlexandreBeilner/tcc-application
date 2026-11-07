@@ -20,6 +20,10 @@ describe('translateEngineError', () => {
     ['ordem pendurada não está mais disponível para execução', 'order_no_longer_available'],
     ['valor abaixo da aplicação mínima do produto', 'below_minimum_investment'],
     [
+      'já existe aplicação neste título; resgate antes de aplicar novamente',
+      'position_already_open',
+    ],
+    [
       'temporizador ainda não rodou nenhum tick — sem taxa de mercado simulada pra este produto',
       'market_not_ready',
     ],

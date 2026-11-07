@@ -17,6 +17,7 @@ Ativos de renda fixa (`tesouro_selic`, `tesouro_prefixado`, `tesouro_ipca`, `cdb
 - **Erros:**
   - `400` — corpo inválido; `user_id`/`asset_id` não são UUID; `amount <= 0`; ativo não encontrado é `404`, mas ativo encontrado e não sendo um dos 8 tipos de renda fixa é `400`.
   - `404` — ativo não encontrado; conta do usuário não encontrada (`fixedincomeexecution.ErrAccountNotFound`).
+  - `409` — já existe posição aberta no título (`já existe aplicação neste título; resgate antes de aplicar novamente`); não vale para título sandbox. Nada é persistido.
   - `422` — `amount` abaixo da aplicação mínima do produto (`minimum_investment`, `.docs/engine/catalog.md`) ou saldo insuficiente — nada é persistido nesse caso. Também `422` com `code: "market_closed"` (tarefa S.11) em sábado/domingo simulado, mesmo corpo de `POST /orders` (`{ error, code, opens_on, days_until_open }`); vale pra compra e pro resgate, exceto título sandbox. `GET /fixed-income/simulate` segue aberto (só projeta).
   - `503` — motor subiu sem `DATABASE_URL` configurado; ou (achado do teste de ponta a ponta da S.9, corrige o que era `500` desde a L.4) Prefixado/IPCA+ comprado antes do Temporizador ter rodado o primeiro tick (`fixedincomeexecution.ErrMarketNotInitialized` — sem `market_calendar`/`market_indicator_history`, não há Selic/IPCA simulada pra reprecificar a taxa ofertada); pós-fixado/sandbox não têm essa dependência.
   - `500` — falha inesperada de leitura/persistência (não a precondição acima, que agora é `503`).

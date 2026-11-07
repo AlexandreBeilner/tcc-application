@@ -137,30 +137,46 @@ func TestPurchase_Prefixado_Sandbox_NaoSomaSelicSobreORoteiro(t *testing.T) {
 	}
 }
 
-func TestPurchase_SegundaCompraBlendaComAPosicaoExistente(t *testing.T) {
-	ctxFirst := PurchaseContext{AccountBalance: 10000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
-	first, err := Purchase(Request{Amount: 2000}, ctxFirst, purchaseNow, 0, 0)
+func TestPurchase_ComPosicaoAberta_Recusada(t *testing.T) {
+	ctx := PurchaseContext{
+		AccountBalance: 10000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity,
+		CurrentPosition: fixedincomeposition.Position{Quantity: 2, AveragePrice: 1000, AverageRate: 0.10},
+	}
+
+	_, err := Purchase(Request{Amount: 1000}, ctx, purchaseNow, 0, 0)
+	if err != ErrPositionAlreadyOpen {
+		t.Fatalf("err = %v, want %v", err, ErrPositionAlreadyOpen)
+	}
+}
+
+func TestPurchase_SemPosicao_Funciona(t *testing.T) {
+	ctx := PurchaseContext{AccountBalance: 10000, AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity}
+
+	outcome, err := Purchase(Request{Amount: 2000}, ctx, purchaseNow, 0, 0)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if outcome.NewPosition.Quantity <= 0 {
+		t.Errorf("Quantity = %v, want > 0", outcome.NewPosition.Quantity)
+	}
+}
+
+func TestPurchase_Sandbox_ComPosicaoAberta_Blenda(t *testing.T) {
+	first, err := Purchase(Request{Amount: 2000}, PurchaseContext{AnnualRatePct: 10, MinimumInvestment: 100, MaturityDate: purchaseMaturity, IsSandbox: true}, purchaseNow, 0, 0)
 	if err != nil {
 		t.Fatalf("primeira compra: err = %v, want nil", err)
 	}
-
-	ctxSecond := PurchaseContext{
-		AccountBalance:    10000,
-		AnnualRatePct:     12,
-		MinimumInvestment: 100,
-		MaturityDate:      purchaseMaturity,
-		CurrentPosition:   first.NewPosition,
+	ctx := PurchaseContext{
+		AnnualRatePct: 12, MinimumInvestment: 100, MaturityDate: purchaseMaturity, IsSandbox: true,
+		CurrentPosition: first.NewPosition,
 	}
-	second, err := Purchase(Request{Amount: 1000}, ctxSecond, purchaseNow, 0, 0)
+	second, err := Purchase(Request{Amount: 1000}, ctx, purchaseNow, 0, 0)
 	if err != nil {
-		t.Fatalf("segunda compra: err = %v, want nil", err)
+		t.Fatalf("segunda compra sandbox: err = %v, want nil", err)
 	}
-
 	if second.NewPosition.Quantity <= first.NewPosition.Quantity {
-		t.Errorf("Quantity não cresceu após a segunda compra: %v -> %v", first.NewPosition.Quantity, second.NewPosition.Quantity)
+		t.Errorf("Quantity não cresceu: %v -> %v", first.NewPosition.Quantity, second.NewPosition.Quantity)
 	}
-	// A taxa blendada deve ficar estritamente entre 10% e 12% — nem igual à
-	// primeira, nem igual à segunda, ponderada pelo valor de cada aporte.
 	if !(second.NewPosition.AverageRate > 0.10 && second.NewPosition.AverageRate < 0.12) {
 		t.Errorf("AverageRate = %v, want entre 0.10 e 0.12", second.NewPosition.AverageRate)
 	}

@@ -167,6 +167,11 @@ var (
 	ErrInvalidAmount          = errors.New("valor do aporte deve ser maior que zero")
 	ErrBelowMinimumInvestment = errors.New("valor abaixo da aplicação mínima do produto")
 	ErrInsufficientBalance    = errors.New("saldo insuficiente para realizar o aporte")
+	// ErrPositionAlreadyOpen recusa uma segunda aplicação no mesmo título
+	// enquanto há posição aberta: created_day não é atualizado na recompra,
+	// então o rendimento pós-fixado e o prazo do IR regressivo contariam
+	// desde a primeira aplicação sobre todo o valor.
+	ErrPositionAlreadyOpen = errors.New("já existe aplicação neste título; resgate antes de aplicar novamente")
 	// ErrAccountNotFound é devolvido por Repository.LoadPurchaseContext
 	// quando o usuário não tem conta aberta — nunca deveria acontecer num
 	// fluxo normal (POST /accounts é sempre o primeiro passo).
@@ -411,6 +416,10 @@ func Purchase(req Request, ctx PurchaseContext, now time.Time, vnaBase, monthlyI
 	// Ativo sandbox não mexe no caixa da conta (ponto 063): a compra não exige saldo.
 	if !ctx.IsSandbox && req.Amount > ctx.AccountBalance {
 		return PurchaseOutcome{}, ErrInsufficientBalance
+	}
+	// Sandbox fica de fora: as lições repetem a compra do mesmo título didático.
+	if !ctx.IsSandbox && ctx.CurrentPosition.Quantity > 0 {
+		return PurchaseOutcome{}, ErrPositionAlreadyOpen
 	}
 
 	rate := ctx.AnnualRatePct / 100
