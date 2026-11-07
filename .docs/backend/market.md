@@ -185,7 +185,7 @@ Módulo: `backend/src/modules/market/`. Maior gap identificado na revisão da Se
 - **Autenticação:** Bearer token.
 - **Payload:** `asset_id` (UUID), `amount` (> 0, valor do aporte em R$) — ver `.docs/engine/fixedincome.md`.
 - **Sucesso:** `201` → `{ unit_price, quantity_purchased, position: {...} }`, corpo idêntico ao do motor.
-- **Erros:** `400` — payload inválido ou ativo não é de renda fixa. `401`; `403` — produto travado pela trilha (tarefa 7.0.1, mesmo gate de `POST /market/orders` acima); `404`; `422` — abaixo do aporte mínimo ou saldo insuficiente, ou `code: "market_closed"` em fim de semana simulado (mesmo corpo de `POST /market/orders`).
+- **Erros:** `400` — payload inválido ou ativo não é de renda fixa. `401`; `403` — produto travado pela trilha (tarefa 7.0.1, mesmo gate de `POST /market/orders` acima); `404`; `409` — já existe aplicação aberta no título (`code: "position_already_open"`; só é possível aplicar de novo depois de resgatar; sandbox é exceção); `422` — abaixo do aporte mínimo ou saldo insuficiente, ou `code: "market_closed"` em fim de semana simulado (mesmo corpo de `POST /market/orders`).
 - **Regra:** `PurchaseFixedIncomeUseCase` → mesmo gate de desbloqueio de `POST /market/orders` (não se aplica ao resgate, `POST /market/fixed-income/redemptions` abaixo — resgatar uma posição já existente não é "comprar produto travado") → `FixedIncomeExecutor.purchase`. Validado ponta a ponta via `docker compose up`.
 
 ### `POST /market/fixed-income/redemptions`

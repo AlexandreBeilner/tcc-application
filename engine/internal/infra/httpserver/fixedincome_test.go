@@ -171,6 +171,7 @@ func TestHandleFixedIncomePurchase_ErrosDeExecucao(t *testing.T) {
 	}{
 		{"abaixo da aplicação mínima", fixedincomeexecution.ErrBelowMinimumInvestment, http.StatusUnprocessableEntity},
 		{"saldo insuficiente", fixedincomeexecution.ErrInsufficientBalance, http.StatusUnprocessableEntity},
+		{"posição já aberta", fixedincomeexecution.ErrPositionAlreadyOpen, http.StatusConflict},
 		{"valor inválido", fixedincomeexecution.ErrInvalidAmount, http.StatusBadRequest},
 		{"conta não encontrada", fixedincomeexecution.ErrAccountNotFound, http.StatusNotFound},
 		{"temporizador nunca rodou (S.9, achado do e2e: não pode virar 500 opaco)", fixedincomeexecution.ErrMarketNotInitialized, http.StatusServiceUnavailable},

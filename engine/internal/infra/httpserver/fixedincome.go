@@ -347,6 +347,8 @@ func writeFixedIncomePurchaseError(w http.ResponseWriter, err error) {
 		writeCatalogError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, fixedincomeexecution.ErrBelowMinimumInvestment), errors.Is(err, fixedincomeexecution.ErrInsufficientBalance):
 		writeCatalogError(w, http.StatusUnprocessableEntity, err.Error())
+	case errors.Is(err, fixedincomeexecution.ErrPositionAlreadyOpen):
+		writeCatalogError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, fixedincomeexecution.ErrAccountNotFound):
 		writeCatalogError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, fixedincomeexecution.ErrMarketNotInitialized):
