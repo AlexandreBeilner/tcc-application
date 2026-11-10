@@ -55,8 +55,10 @@ export function isPostFixadoAssetType(assetType: string): boolean {
 }
 
 // Rótulo pra acompanhar `formatRatePercent(fixed_income.interest_rate)` na
-// tela de detalhe do ativo (tela 4.3) — "do CDI" pros 6 tipos pós-fixados,
+// tela de detalhe do ativo (tela 4.3) — "da Selic" pro Tesouro Selic (a LFT
+// rende a própria Selic, não um % do CDI), "do CDI" pros demais pós-fixados,
 // "a.a." pra Tesouro Prefixado/Tesouro IPCA+.
 export function fixedIncomeRateLabel(assetType: string): string {
+    if (assetType === 'tesouro_selic') return 'da Selic'
     return isPostFixadoAssetType(assetType) ? 'do CDI' : 'a.a.'
 }

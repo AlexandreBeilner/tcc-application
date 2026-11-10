@@ -76,8 +76,8 @@ describe('FixedIncomeList (tela 4.2)', () => {
 
         expect(screen.getByRole('columnheader', { name: 'Taxa' })).toBeInTheDocument()
         expect(screen.queryByRole('columnheader', { name: 'Risco' })).not.toBeInTheDocument()
-        // Pós-fixado em "% do CDI", prefixado em "a.a." (mesma regra do detalhe).
-        expect(screen.getAllByText(/^100,0% do CDI$/).length).toBeGreaterThan(0)
+        // Tesouro Selic em "% da Selic", demais pós-fixados em "% do CDI", prefixado em "a.a." (mesma regra do detalhe).
+        expect(screen.getAllByText(/^100,0% da Selic$/).length).toBeGreaterThan(0)
         expect(screen.getAllByText(/^12,5% a\.a\.$/).length).toBeGreaterThan(0)
     })
 
